@@ -415,6 +415,10 @@ export function normalizeGuideLinePosition(position: number, max: number): numbe
   return Math.min(Math.max(1, rounded), Math.max(1, Math.round(max)))
 }
 
+export function getGuideLineEdgeStartPosition(): number {
+  return 1
+}
+
 export function shouldIgnoreInitialGuideDrag(position: number, max: number, hasEnteredCanvas: boolean): boolean {
   if (hasEnteredCanvas) return false
   if (!Number.isFinite(position)) return true
@@ -437,20 +441,8 @@ export function getGuideActionLabel(axis: 'x' | 'y'): string {
   return axis === 'x' ? '添加竖向辅助线' : '添加横向辅助线'
 }
 
-export function getGuideLineOutsidePlacement(axis: 'x' | 'y'): {
-  top?: number
-  left?: number
-  width?: number
-  height?: number
-  borderSide: 'left' | 'top'
-} {
-  return axis === 'x'
-    ? { top: 0, height: 18, borderSide: 'left' }
-    : { left: 0, width: 18, borderSide: 'top' }
-}
-
 export function getGuideEmptyStateText(): string {
-  return '从顶部或左侧标尺添加画布外侧辅助线。请先上传图片开始调整。'
+  return '从顶部或左侧标尺添加辅助线。请先上传图片开始调整。'
 }
 
 export function computeRatioSize(

@@ -24,7 +24,7 @@ import {
   filterVisibleFrames,
   getGuideActionLabel,
   getGuideEmptyStateText,
-  getGuideLineOutsidePlacement,
+  getGuideLineEdgeStartPosition,
   getGuideRulerCursor,
   getGuideRulerDragAxis,
   getSpillColorHex,
@@ -292,6 +292,10 @@ test('guide line positions clamp to canvas and delete at the origin', () => {
   assert.equal(normalizeGuideLinePosition(999, 256), 256)
 })
 
+test('ruler drag guide lines start from the canvas edge', () => {
+  assert.equal(getGuideLineEdgeStartPosition(), 1)
+})
+
 test('initial ruler drags are ignored until the pointer reaches the canvas', () => {
   assert.equal(shouldIgnoreInitialGuideDrag(-4, 256, false), true)
   assert.equal(shouldIgnoreInitialGuideDrag(0, 256, false), true)
@@ -316,13 +320,8 @@ test('guide action labels create visible alignment lines', () => {
   assert.equal(getGuideActionLabel('y'), '添加横向辅助线')
 })
 
-test('guide line markers stay outside the canvas content', () => {
-  assert.deepEqual(getGuideLineOutsidePlacement('x'), { top: 0, height: 18, borderSide: 'left' })
-  assert.deepEqual(getGuideLineOutsidePlacement('y'), { left: 0, width: 18, borderSide: 'top' })
-})
-
 test('guide empty state explains rulers are available before upload', () => {
-  assert.equal(getGuideEmptyStateText(), '从顶部或左侧标尺添加画布外侧辅助线。请先上传图片开始调整。')
+  assert.equal(getGuideEmptyStateText(), '从顶部或左侧标尺添加辅助线。请先上传图片开始调整。')
 })
 
 test('preview zoom is clamped to a useful detail range', () => {

@@ -54,7 +54,7 @@ import {
   filterNewUploadFiles,
   getGuideActionLabel,
   getGuideEmptyStateText,
-  getGuideLineOutsidePlacement,
+  getGuideLineEdgeStartPosition,
   getGuideRulerCursor,
   getGuideRulerDragAxis,
   getGuideRulerLabel,
@@ -930,8 +930,7 @@ export default function MultiFrameSpriteWorkspace() {
     e.preventDefault()
     e.stopPropagation()
     const id = uid()
-    const fallbackPosition = axis === 'x' ? Math.round(canvasWidth / 2) : Math.round(canvasHeight / 2)
-    setGuideLines((prev) => [...prev, { id, axis, position: fallbackPosition }])
+    setGuideLines((prev) => [...prev, { id, axis, position: getGuideLineEdgeStartPosition() }])
     setSelectedGuideLineId(id)
     let hasEnteredCanvas = false
     const onMove = (event: PointerEvent) => {
@@ -1791,17 +1790,23 @@ export default function MultiFrameSpriteWorkspace() {
                       return (
                         <span
                           key={`canvas-${line.id}`}
-                          aria-hidden="true"
                           data-guide-line-overlay={line.axis}
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            setSelectedGuideLineId(line.id)
+                            setGuideDragState({ id: line.id, axis: line.axis })
+                          }}
+                          title="拖动辅助线，按 Delete 删除"
                           style={line.axis === 'x'
                             ? {
                                 position: 'absolute',
                                 top: 0,
                                 bottom: 0,
                                 left: `${positionPercent}%`,
-                                borderLeft: `${selected ? 2 : 1}px dashed ${lineColor}`,
-                                boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.72)',
-                                pointerEvents: 'none',
+                                width: 9,
+                                transform: 'translateX(-50%)',
+                                cursor: 'ew-resize',
+                                pointerEvents: 'auto',
                                 zIndex: 60,
                               }
                             : {
@@ -1809,60 +1814,39 @@ export default function MultiFrameSpriteWorkspace() {
                                 left: 0,
                                 right: 0,
                                 top: `${positionPercent}%`,
-                                borderTop: `${selected ? 2 : 1}px dashed ${lineColor}`,
-                                boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.72)',
-                                pointerEvents: 'none',
+                                height: 9,
+                                transform: 'translateY(-50%)',
+                                cursor: 'ns-resize',
+                                pointerEvents: 'auto',
                                 zIndex: 60,
                               }}
-                        />
+                        >
+                          <span
+                            aria-hidden="true"
+                            style={line.axis === 'x'
+                              ? {
+                                  position: 'absolute',
+                                  top: 0,
+                                  bottom: 0,
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  borderLeft: `${selected ? 2 : 1}px dashed ${lineColor}`,
+                                  pointerEvents: 'none',
+                                }
+                              : {
+                                  position: 'absolute',
+                                  left: 0,
+                                  right: 0,
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  borderTop: `${selected ? 2 : 1}px dashed ${lineColor}`,
+                                  pointerEvents: 'none',
+                                }}
+                          />
+                        </span>
                       )
                     })}
                     </div>
-                    {guideLines.map((line) => {
-                      const selected = selectedGuideLineId === line.id
-                      const placement = getGuideLineOutsidePlacement(line.axis)
-                      const common: React.CSSProperties = {
-                        position: 'absolute',
-                        zIndex: 80,
-                        borderColor: selected ? '#d63384' : '#ff7ab6',
-                        borderStyle: 'dashed',
-                        borderWidth: 0,
-                        background: selected ? 'rgba(214, 51, 132, 0.22)' : 'rgba(255, 122, 182, 0.18)',
-                        outline: `1px solid ${selected ? '#d63384' : '#ff7ab6'}`,
-                        boxSizing: 'border-box',
-                        pointerEvents: 'auto',
-                        transform: 'translateZ(0)',
-                        cursor: line.axis === 'x' ? 'ew-resize' : 'ns-resize',
-                      }
-                      return (
-                        <span
-                          key={line.id}
-                          onPointerDown={(e) => {
-                            e.stopPropagation()
-                            setSelectedGuideLineId(line.id)
-                            setGuideDragState({ id: line.id, axis: line.axis })
-                          }}
-                          title="拖动画布外侧辅助线，按 Delete 删除"
-                          style={line.axis === 'x'
-                              ? {
-                                  ...common,
-                                  ...placement,
-                                  left: 18 + (line.position / Math.max(1, canvasWidth)) * canvasWidth,
-                                  width: 12,
-                                  marginLeft: -6,
-                                  borderLeftWidth: selected ? 3 : 2,
-                                }
-                              : {
-                                  ...common,
-                                  ...placement,
-                                  top: 18 + (line.position / Math.max(1, canvasHeight)) * canvasHeight,
-                                  height: 12,
-                                  marginTop: -6,
-                                  borderTopWidth: selected ? 3 : 2,
-                                }}
-                        />
-                      )
-                    })}
                   </div>
                 </div>
 
@@ -1925,7 +1909,7 @@ export default function MultiFrameSpriteWorkspace() {
                     </>
                   )}
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    辅助线固定在画布外侧标尺区域，用于定位对齐；选中后按 Delete 删除。
+                    辅助线显示在画布顶层，用于定位对齐；选中后按 Delete 删除。
                   </Text>
                 </Space>
               </div>
@@ -2037,7 +2021,7 @@ export default function MultiFrameSpriteWorkspace() {
           <Space wrap>
             <Radio.Group
               value="manual"
-              options={[{ label: '手动列数', value: 'manual' }]}
+              options={[{ label: '精灵图列数', value: 'manual' }]}
             />
             <InputNumber min={1} max={128} value={columns} onChange={(v) => setColumns(v ?? 1)} />
             <Button onClick={() => setColumns(computeAutoSpriteColumns(visibleFrames.length))}>自动接近正方形</Button>
