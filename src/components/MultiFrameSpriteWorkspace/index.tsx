@@ -14,6 +14,7 @@ import {
   Select,
   Slider,
   Space,
+  Tabs,
   Typography,
   Upload,
   message,
@@ -26,9 +27,13 @@ import {
   EyeOutlined,
   HolderOutlined,
   LockOutlined,
+  PauseCircleOutlined,
   PlayCircleOutlined,
+  ReloadOutlined,
+  ScissorOutlined,
   UnlockOutlined,
   UploadOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons'
 import JSZip from 'jszip'
 import {
@@ -42,14 +47,18 @@ import {
   buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
   buildUploadFileKey,
+  buildVideoFrameTimestamps,
   clearFrameCollection,
+  clampVideoClipRange,
   clampInt,
   clampPreviewZoom,
+  clampUniformCrop,
   coerceLayoutDefaults,
   coerceMatteDefaults,
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
+  computeUniformCropSize,
   computeWheelFrameResize,
   countPlayableFrames,
   filterLivePlaybackFrameIds,
@@ -62,23 +71,32 @@ import {
   getGuideRulerDragAxis,
   getGuideRulerLabel,
   getSpillColorHex,
+  getVideoExtractionFrameCount,
+  getVideoExtractionLimitMessage,
+  getVideoPreviewSeekTarget,
+  getVideoSourceUrlToRevoke,
   getWheelScalingButtonLabel,
   normalizeHexColor,
   normalizePickerColor,
   normalizeGuideLinePosition,
   resolveSpillColor,
+  shouldReplayVideoSegment,
   shouldIgnoreInitialGuideDrag,
   type PlaybackMode,
   type ResizeHandle,
   type SpillColorMode,
   type MatteDefaults,
   type LayoutDefaults,
+  type UniformCrop,
 } from './model'
 
 const { Text, Title } = Typography
 
 const IMAGE_ACCEPT = ['.png', '.jpg', '.jpeg', '.webp']
+const VIDEO_ACCEPT = ['.mp4', '.mov', '.webm', '.avi', '.mkv']
+const VIDEO_EXTRACTION_FRAME_LIMIT = 300
 const HANDLE_SIZE = 12
+const MIN_VIDEO_CROP_SIZE = 4
 const MATTE_DEFAULTS_STORAGE_KEY = 'gameDesignTools.multiFrameSprite.matteDefaults.v1'
 const LAYOUT_DEFAULTS_STORAGE_KEY = 'gameDesignTools.multiFrameSprite.layoutDefaults.v1'
 const RATIO_GROUP_STYLE: React.CSSProperties = {
@@ -93,6 +111,7 @@ const RATIO_GROUP_STYLE: React.CSSProperties = {
   background: '#f7f1e8',
 }
 const RATIO_PERCENT_INPUT_STYLE: React.CSSProperties = { width: 56 }
+const EMPTY_UNIFORM_CROP: UniformCrop = { top: 0, bottom: 0, left: 0, right: 0 }
 
 type MatteParams = {
   keyColor: [number, number, number]
@@ -210,6 +229,37 @@ type SpriteSlicePreview = {
   blob: Blob
   width: number
   height: number
+}
+
+type VideoDraft = {
+  file: File
+  sourceUrl: string
+  sourceName: string
+  duration: number
+  width: number
+  height: number
+}
+
+type ExtractedVideoFrame = {
+  index: number
+  name: string
+  url: string
+  blob: Blob
+  width: number
+  height: number
+  time: number
+}
+
+type VideoCropHandle = 'top' | 'bottom' | 'left' | 'right' | 'tl' | 'tr' | 'bl' | 'br' | 'move'
+
+type VideoCropDragState = {
+  handle: VideoCropHandle
+  startX: number
+  startY: number
+  startCrop: UniformCrop
+  width: number
+  height: number
+  scale: number
 }
 
 type DragState =
@@ -541,6 +591,54 @@ function revokeSpriteSlicePreviews(slices: SpriteSlicePreview[]) {
   slices.forEach((slice) => URL.revokeObjectURL(slice.url))
 }
 
+function revokeExtractedVideoFrames(frames: ExtractedVideoFrame[]) {
+  frames.forEach((frame) => URL.revokeObjectURL(frame.url))
+}
+
+function hasUniformCrop(crop: UniformCrop): boolean {
+  return crop.top !== 0 || crop.bottom !== 0 || crop.left !== 0 || crop.right !== 0
+}
+
+function getContainedImageRect(
+  containerWidth: number,
+  containerHeight: number,
+  imageWidth: number,
+  imageHeight: number
+): { left: number; top: number; width: number; height: number; scale: number } | null {
+  if (containerWidth <= 0 || containerHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) return null
+  const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight)
+  const width = imageWidth * scale
+  const height = imageHeight * scale
+  return {
+    left: (containerWidth - width) / 2,
+    top: (containerHeight - height) / 2,
+    width,
+    height,
+    scale,
+  }
+}
+
+async function makeCroppedVideoFrameFile(frame: ExtractedVideoFrame, crop: UniformCrop): Promise<File> {
+  const safeCrop = clampUniformCrop(crop, frame.width, frame.height, MIN_VIDEO_CROP_SIZE)
+  if (!hasUniformCrop(safeCrop)) return new File([frame.blob], frame.name, { type: 'image/png' })
+
+  const size = computeUniformCropSize(frame.width, frame.height, safeCrop, MIN_VIDEO_CROP_SIZE)
+  const img = await loadImage(frame.url)
+  const canvas = document.createElement('canvas')
+  canvas.width = size.width
+  canvas.height = size.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('无法创建视频裁剪画布')
+  ctx.drawImage(img, safeCrop.left, safeCrop.top, size.width, size.height, 0, 0, size.width, size.height)
+  const blob = await canvasToBlob(canvas)
+  return new File([blob], frame.name, { type: 'image/png' })
+}
+
+function formatVideoTime(seconds: number): string {
+  if (!Number.isFinite(seconds)) return '0.00s'
+  return `${Math.max(0, seconds).toFixed(2)}s`
+}
+
 const handleCursor: Record<ResizeHandle, string> = {
   nw: 'nwse-resize',
   n: 'ns-resize',
@@ -618,6 +716,25 @@ export default function MultiFrameSpriteWorkspace() {
   const [spriteColumns, setSpriteColumns] = useState(4)
   const [spriteSlices, setSpriteSlices] = useState<SpriteSlicePreview[]>([])
   const [spriteProcessing, setSpriteProcessing] = useState(false)
+  const [videoDraft, setVideoDraft] = useState<VideoDraft | null>(null)
+  const [videoClipStart, setVideoClipStart] = useState(0)
+  const [videoClipEnd, setVideoClipEnd] = useState(0)
+  const [videoFps, setVideoFps] = useState(12)
+  const [videoPlaying, setVideoPlaying] = useState(false)
+  const [videoLooping, setVideoLooping] = useState(false)
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoExtracting, setVideoExtracting] = useState(false)
+  const [videoAdding, setVideoAdding] = useState(false)
+  const [videoExtractProgress, setVideoExtractProgress] = useState(0)
+  const [videoOperationLabel, setVideoOperationLabel] = useState('')
+  const [videoExtractedFrames, setVideoExtractedFrames] = useState<ExtractedVideoFrame[]>([])
+  const [videoFramePreviewPlaying, setVideoFramePreviewPlaying] = useState(false)
+  const [videoFramePreviewIndex, setVideoFramePreviewIndex] = useState(0)
+  const [videoCropMode, setVideoCropMode] = useState(false)
+  const [videoCrop, setVideoCrop] = useState<UniformCrop>(EMPTY_UNIFORM_CROP)
+  const [videoCropDrag, setVideoCropDrag] = useState<VideoCropDragState | null>(null)
+  const [videoPreviewBoxSize, setVideoPreviewBoxSize] = useState({ width: 0, height: 0 })
+  const [videoError, setVideoError] = useState<string | null>(null)
   const timersRef = useRef(new Map<string, number>())
   const matteRunRef = useRef(new Map<string, number>())
   const composeTimersRef = useRef(new Map<string, number>())
@@ -626,6 +743,10 @@ export default function MultiFrameSpriteWorkspace() {
   const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
   const pendingUploadKeysRef = useRef(new Set<string>())
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null)
+  const videoFramePreviewBoxRef = useRef<HTMLDivElement | null>(null)
+  const videoClipRangeRef = useRef<[number, number]>([0, 0])
+  const videoSourceUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     return () => {
@@ -645,6 +766,111 @@ export default function MultiFrameSpriteWorkspace() {
   useEffect(() => {
     return () => revokeSpriteSlicePreviews(spriteSlices)
   }, [spriteSlices])
+
+  useEffect(() => {
+    const nextUrl = videoDraft?.sourceUrl ?? null
+    const staleUrl = getVideoSourceUrlToRevoke(videoSourceUrlRef.current, nextUrl)
+    if (staleUrl) URL.revokeObjectURL(staleUrl)
+    videoSourceUrlRef.current = nextUrl
+  }, [videoDraft?.sourceUrl])
+
+  useEffect(() => {
+    return () => {
+      if (videoSourceUrlRef.current) URL.revokeObjectURL(videoSourceUrlRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => revokeExtractedVideoFrames(videoExtractedFrames)
+  }, [videoExtractedFrames])
+
+  useEffect(() => {
+    videoClipRangeRef.current = [videoClipStart, videoClipEnd]
+  }, [videoClipEnd, videoClipStart])
+
+  useEffect(() => {
+    const box = videoFramePreviewBoxRef.current
+    if (!box || typeof ResizeObserver === 'undefined') return undefined
+    const updateSize = () => {
+      const rect = box.getBoundingClientRect()
+      setVideoPreviewBoxSize({ width: rect.width, height: rect.height })
+    }
+    updateSize()
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [videoDraft, videoExtractedFrames.length])
+
+  useEffect(() => {
+    if (!videoFramePreviewPlaying || videoExtractedFrames.length === 0) return
+    const timer = window.setInterval(() => {
+      setVideoFramePreviewIndex((index) => (index + 1) % videoExtractedFrames.length)
+    }, 1000 / Math.max(1, videoFps))
+    return () => window.clearInterval(timer)
+  }, [videoExtractedFrames.length, videoFps, videoFramePreviewPlaying])
+
+  useEffect(() => {
+    if (!videoCropDrag) return
+    const onMove = (event: MouseEvent) => {
+      const dx = (event.clientX - videoCropDrag.startX) / videoCropDrag.scale
+      const dy = (event.clientY - videoCropDrag.startY) / videoCropDrag.scale
+      const { top: startTop, bottom: startBottom, left: startLeft, right: startRight } = videoCropDrag.startCrop
+      const { width, height } = videoCropDrag
+      let top = startTop
+      let bottom = startBottom
+      let left = startLeft
+      let right = startRight
+
+      switch (videoCropDrag.handle) {
+        case 'top':
+          top = startTop + dy
+          break
+        case 'bottom':
+          bottom = startBottom - dy
+          break
+        case 'left':
+          left = startLeft + dx
+          break
+        case 'right':
+          right = startRight - dx
+          break
+        case 'tl':
+          top = startTop + dy
+          left = startLeft + dx
+          break
+        case 'tr':
+          top = startTop + dy
+          right = startRight - dx
+          break
+        case 'bl':
+          bottom = startBottom - dy
+          left = startLeft + dx
+          break
+        case 'br':
+          bottom = startBottom - dy
+          right = startRight - dx
+          break
+        case 'move': {
+          const cropWidth = width - startLeft - startRight
+          const cropHeight = height - startTop - startBottom
+          left = Math.max(0, Math.min(width - cropWidth, startLeft + dx))
+          top = Math.max(0, Math.min(height - cropHeight, startTop + dy))
+          right = width - left - cropWidth
+          bottom = height - top - cropHeight
+          break
+        }
+      }
+
+      setVideoCrop(clampUniformCrop({ top, bottom, left, right }, width, height, MIN_VIDEO_CROP_SIZE))
+    }
+    const onUp = () => setVideoCropDrag(null)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [videoCropDrag])
 
   const activeFrame = useMemo(
     () => frames.find((item) => item.id === activeId) ?? frames[0] ?? null,
@@ -889,6 +1115,257 @@ export default function MultiFrameSpriteWorkspace() {
       message.error(`添加切分帧失败：${String(e)}`)
     } finally {
       setSpriteProcessing(false)
+    }
+  }
+
+  const resetVideoExtraction = () => {
+    setVideoExtractedFrames([])
+    setVideoFramePreviewPlaying(false)
+    setVideoFramePreviewIndex(0)
+    setVideoExtractProgress(0)
+    setVideoCropMode(false)
+    setVideoCrop(EMPTY_UNIFORM_CROP)
+    setVideoCropDrag(null)
+  }
+
+  const resetVideoSegmentPreview = () => {
+    videoPreviewRef.current?.pause()
+    setVideoPlaying(false)
+    setVideoLooping(false)
+  }
+
+  const startVideoCropDrag = (event: React.MouseEvent<HTMLElement>, handle: VideoCropHandle) => {
+    if (!previewVideoFrame) return
+    const box = videoFramePreviewBoxRef.current
+    if (!box) return
+    const rect = box.getBoundingClientRect()
+    const imageRect = getContainedImageRect(
+      rect.width,
+      rect.height,
+      previewVideoFrame.width,
+      previewVideoFrame.height
+    )
+    if (!imageRect) return
+    event.preventDefault()
+    event.stopPropagation()
+    setVideoFramePreviewPlaying(false)
+    setVideoCropDrag({
+      handle,
+      startX: event.clientX,
+      startY: event.clientY,
+      startCrop: clampUniformCrop(videoCrop, previewVideoFrame.width, previewVideoFrame.height, MIN_VIDEO_CROP_SIZE),
+      width: previewVideoFrame.width,
+      height: previewVideoFrame.height,
+      scale: imageRect.scale,
+    })
+  }
+
+  const seekVideoForCapture = (video: HTMLVideoElement, time: number): Promise<void> => new Promise((resolve, reject) => {
+    const capture = () => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    }
+    if (Math.abs(video.currentTime - time) < 0.01 && video.readyState >= 2) {
+      capture()
+      return
+    }
+    const onSeeked = () => {
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('error', onError)
+      capture()
+    }
+    const onError = () => {
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('error', onError)
+      reject(new Error('视频定位失败'))
+    }
+    video.addEventListener('seeked', onSeeked, { once: true })
+    video.addEventListener('error', onError, { once: true })
+    video.currentTime = time
+  })
+
+  const captureCanvasBlob = (canvas: HTMLCanvasElement): Promise<Blob> => new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob && blob.size > 0) resolve(blob)
+      else reject(new Error('视频帧导出失败'))
+    }, 'image/png')
+  })
+
+  const extractFramesWithHtmlVideo = async (
+    fpsValue: number,
+    draft: VideoDraft = videoDraft!,
+    start = videoClipStart,
+    end = videoClipEnd
+  ): Promise<ExtractedVideoFrame[]> => {
+    const video = videoPreviewRef.current
+    if (!draft || !video) return []
+    const width = video.videoWidth || draft.width
+    const height = video.videoHeight || draft.height
+    if (width <= 0 || height <= 0) throw new Error('视频尚未加载完成')
+    const range = clampVideoClipRange({ duration: draft.duration, start, end })
+    const timestamps = buildVideoFrameTimestamps(range.start, range.end, fpsValue)
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法创建视频截帧画布')
+    const frames: ExtractedVideoFrame[] = []
+    video.pause()
+    for (let index = 0; index < timestamps.length; index += 1) {
+      const time = timestamps[index]!
+      await seekVideoForCapture(video, time)
+      ctx.clearRect(0, 0, width, height)
+      ctx.drawImage(video, 0, 0, width, height)
+      const blob = await captureCanvasBlob(canvas)
+      frames.push({
+        index,
+        name: `${draft.sourceName.replace(/\.[^.]+$/, '')}_frame_${String(index + 1).padStart(3, '0')}.png`,
+        url: URL.createObjectURL(blob),
+        blob,
+        width,
+        height,
+        time,
+      })
+      setVideoExtractProgress(Math.round(((index + 1) / timestamps.length) * 100))
+    }
+    return frames
+  }
+
+  const handleVideoUpload = (file: File) => {
+    setVideoError(null)
+    resetVideoExtraction()
+    resetVideoSegmentPreview()
+    setVideoLoading(false)
+    setVideoOperationLabel('')
+    setVideoDraft(null)
+    setVideoClipStart(0)
+    setVideoClipEnd(0)
+    setVideoDraft({
+      file,
+      sourceUrl: URL.createObjectURL(file),
+      sourceName: file.name,
+      duration: 0,
+      width: 0,
+      height: 0,
+    })
+  }
+
+  const setVideoClipRange = (start: number, end: number) => {
+    const range = clampVideoClipRange({ duration: videoDraft?.duration ?? 0, start, end })
+    const previous = videoClipRangeRef.current
+    const next: [number, number] = [range.start, range.end]
+    const video = videoPreviewRef.current
+    setVideoClipStart(range.start)
+    setVideoClipEnd(range.end)
+    videoClipRangeRef.current = next
+    resetVideoExtraction()
+    if (video) {
+      const seekTarget = videoPlaying && videoLooping
+        ? range.start
+        : getVideoPreviewSeekTarget(previous, next)
+      video.currentTime = seekTarget
+      if (videoPlaying) void video.play().catch(() => undefined)
+    }
+  }
+
+  const applyNativeVideoMetadata = () => {
+    const video = videoPreviewRef.current
+    if (!video || !videoDraft) return
+    const duration = Number.isFinite(video.duration) ? video.duration : 0
+    if (duration <= 0) return
+    const width = video.videoWidth
+    const height = video.videoHeight
+    const nextStart = Math.min(videoClipStart, duration)
+    const nextEnd = videoClipEnd > 0 ? Math.min(Math.max(videoClipEnd, nextStart), duration) : duration
+    setVideoDraft((current) => (
+      current && current.sourceUrl === videoDraft.sourceUrl
+        ? { ...current, duration, width, height }
+        : current
+    ))
+    setVideoClipStart(nextStart)
+    setVideoClipEnd(nextEnd)
+    videoClipRangeRef.current = [nextStart, nextEnd]
+  }
+
+  const handleVideoPreviewError = () => {
+    if (!videoDraft || videoError) return
+    const nextError = '视频读取失败：当前浏览器无法直接播放或解析该视频'
+    setVideoError(nextError)
+    message.error(nextError)
+  }
+
+  const handleVideoTimeUpdate = () => {
+    const video = videoPreviewRef.current
+    if (!video) return
+    const [start, end] = videoClipRangeRef.current
+    if (!shouldReplayVideoSegment(video.currentTime, start, end)) return
+    if (videoLooping) {
+      video.currentTime = start
+      void video.play().catch(() => undefined)
+      return
+    }
+    video.pause()
+    setVideoPlaying(false)
+  }
+
+  const playVideoClip = () => {
+    if (!videoDraft || videoDraft.duration <= 0) return
+    const video = videoPreviewRef.current
+    if (!video) {
+      message.info('视频尚未准备好')
+      return
+    }
+    video.currentTime = videoClipStart
+    setVideoPlaying(true)
+    void video.play().catch((e) => {
+      setVideoPlaying(false)
+      message.error(`视频播放失败：${String(e)}`)
+    })
+  }
+
+  const extractVideoFrames = async () => {
+    if (!videoDraft) return
+    const range = clampVideoClipRange({ duration: videoDraft.duration, start: videoClipStart, end: videoClipEnd })
+    const limitMessage = getVideoExtractionLimitMessage(range.start, range.end, videoFps, VIDEO_EXTRACTION_FRAME_LIMIT)
+    if (limitMessage) {
+      message.warning(limitMessage)
+      return
+    }
+    setVideoExtracting(true)
+    setVideoOperationLabel('正在通过 HTML video 提取 PNG 帧')
+    videoPreviewRef.current?.pause()
+    setVideoPlaying(false)
+    setVideoLooping(false)
+    setVideoFramePreviewPlaying(false)
+    setVideoFramePreviewIndex(0)
+    setVideoExtractProgress(0)
+    try {
+      const created = await extractFramesWithHtmlVideo(videoFps, videoDraft, range.start, range.end)
+      setVideoExtractedFrames(created)
+      setVideoFramePreviewPlaying(created.length > 1)
+      message.success(`已提取 ${created.length} 帧`)
+    } catch (e) {
+      message.error(`视频提帧失败：${String(e)}`)
+    } finally {
+      setVideoExtracting(false)
+      setVideoOperationLabel('')
+    }
+  }
+
+  const confirmVideoFrames = async () => {
+    if (videoExtractedFrames.length === 0) return
+    setVideoAdding(true)
+    try {
+      const defaults = matteDefaults
+      const files = await Promise.all(videoExtractedFrames.map((frame) => makeCroppedVideoFrameFile(frame, videoCrop)))
+      const created = await Promise.all(files.map((file) => makeFrameFromFile(file, defaults)))
+      setFrames((prev) => [...prev, ...created])
+      if (!activeId && created[0]) setActiveId(created[0].id)
+      created.forEach((item) => scheduleMatte(item.id))
+      message.success(`已添加 ${created.length} 帧到流程 2`)
+    } catch (e) {
+      message.error(`添加视频帧失败：${String(e)}`)
+    } finally {
+      setVideoAdding(false)
     }
   }
 
@@ -1409,6 +1886,37 @@ export default function MultiFrameSpriteWorkspace() {
     status: 'done',
     originFileObj: item.file as UploadFile['originFileObj'],
   }))
+  const videoFrameCount = videoDraft
+    ? getVideoExtractionFrameCount(videoClipStart, videoClipEnd, videoFps)
+    : 0
+  const videoLimitMessage = videoDraft
+    ? getVideoExtractionLimitMessage(videoClipStart, videoClipEnd, videoFps, VIDEO_EXTRACTION_FRAME_LIMIT)
+    : null
+  const previewVideoFrame = videoExtractedFrames[
+    Math.min(videoFramePreviewIndex, Math.max(0, videoExtractedFrames.length - 1))
+  ]
+  const videoCropImageRect = previewVideoFrame
+    ? getContainedImageRect(
+      videoPreviewBoxSize.width,
+      videoPreviewBoxSize.height,
+      previewVideoFrame.width,
+      previewVideoFrame.height
+    )
+    : null
+  const safeVideoCrop = previewVideoFrame
+    ? clampUniformCrop(videoCrop, previewVideoFrame.width, previewVideoFrame.height, MIN_VIDEO_CROP_SIZE)
+    : EMPTY_UNIFORM_CROP
+  const videoCropOutputSize = previewVideoFrame
+    ? computeUniformCropSize(previewVideoFrame.width, previewVideoFrame.height, safeVideoCrop, MIN_VIDEO_CROP_SIZE)
+    : null
+  const videoCropBox = videoCropImageRect
+    ? {
+      left: safeVideoCrop.left * videoCropImageRect.scale,
+      top: safeVideoCrop.top * videoCropImageRect.scale,
+      width: videoCropOutputSize!.width * videoCropImageRect.scale,
+      height: videoCropOutputSize!.height * videoCropImageRect.scale,
+    }
+    : null
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -1421,8 +1929,14 @@ export default function MultiFrameSpriteWorkspace() {
 
       <Card title="1. 文件上传">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Card size="small" title="上传精灵图处理">
-            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Tabs
+            items={[
+              {
+                key: 'sprite-sheet',
+                label: '上传精灵图处理',
+                children: (
+          <Card className="video-tab-card" size="small">
+            <Space className="video-tab-content" direction="vertical" size={12} style={{ width: '100%' }}>
               <Space wrap align="center">
                 <Upload
                   accept={IMAGE_ACCEPT.join(',')}
@@ -1491,6 +2005,347 @@ export default function MultiFrameSpriteWorkspace() {
               )}
             </Space>
           </Card>
+                ),
+              },
+              {
+                key: 'video',
+                label: '上传视频处理',
+                children: (
+          <Card size="small">
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Space wrap align="center">
+                <Upload
+                  accept={VIDEO_ACCEPT.join(',')}
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    void handleVideoUpload(file as File)
+                    return false
+                  }}
+                >
+                  <Button icon={<VideoCameraOutlined />}>上传视频</Button>
+                </Upload>
+                <Text type="secondary">使用浏览器原生 video 预览与提帧，兼容性取决于当前浏览器解码能力。</Text>
+              </Space>
+
+              {videoLoading ? (
+                <Text type="secondary">{videoOperationLabel || '正在加载视频'}</Text>
+              ) : videoDraft ? (
+                <div className="video-workspace-grid">
+                  <div className="video-controls-column">
+                    <div className="video-source-panel">
+                      <div className="video-source-box">
+                        <video
+                          ref={videoPreviewRef}
+                          src={videoDraft.sourceUrl}
+                          controls
+                          playsInline
+                          onLoadedMetadata={applyNativeVideoMetadata}
+                          onTimeUpdate={handleVideoTimeUpdate}
+                          onPlay={() => setVideoPlaying(true)}
+                          onPause={() => setVideoPlaying(false)}
+                          onEnded={() => setVideoPlaying(false)}
+                          onError={handleVideoPreviewError}
+                        />
+                      </div>
+                      <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+                        {videoDraft.sourceName}
+                        {videoDraft.width > 0 && videoDraft.height > 0 && videoDraft.duration > 0
+                          ? `，${videoDraft.width} × ${videoDraft.height}，时长 ${formatVideoTime(videoDraft.duration)}`
+                          : '，正在读取视频信息'}
+                      </Text>
+                      {videoError && <Text type="danger">{videoError}</Text>}
+                    </div>
+
+                    <div className="video-parameter-panel">
+                      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                        <div>
+                          <Slider
+                            range
+                            min={0}
+                            max={Math.max(0, videoDraft.duration)}
+                            step={0.01}
+                            value={[videoClipStart, videoClipEnd]}
+                            disabled={videoDraft.duration <= 0}
+                            tooltip={{ formatter: (value) => formatVideoTime(value ?? 0) }}
+                            onChange={(value) => {
+                              if (Array.isArray(value)) setVideoClipRange(value[0] ?? 0, value[1] ?? 0)
+                            }}
+                          />
+                          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                            <Text type="secondary">开始 {formatVideoTime(videoClipStart)}</Text>
+                            <Text type={videoLimitMessage ? 'danger' : 'secondary'}>
+                              预计提取 {videoFrameCount} 帧
+                            </Text>
+                            <Text type="secondary">结束 {formatVideoTime(videoClipEnd)}</Text>
+                          </Space>
+                        </div>
+
+                        <Space wrap align="center">
+                          <Button
+                            icon={videoPlaying && !videoLooping ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                            disabled={videoDraft.duration <= 0 || !!videoError || videoExtracting}
+                            onClick={() => {
+                              if (videoPlaying && !videoLooping) {
+                                videoPreviewRef.current?.pause()
+                                setVideoPlaying(false)
+                                return
+                              }
+                              setVideoLooping(false)
+                              playVideoClip()
+                            }}
+                          >
+                            {videoPlaying && !videoLooping ? '暂停片段' : '播放片段'}
+                          </Button>
+                          <Button
+                            icon={<ReloadOutlined />}
+                            type={videoLooping && videoPlaying ? 'primary' : 'default'}
+                            disabled={videoDraft.duration <= 0 || !!videoError || videoExtracting}
+                            onClick={() => {
+                              if (videoLooping && videoPlaying) {
+                                setVideoLooping(false)
+                                videoPreviewRef.current?.pause()
+                                setVideoPlaying(false)
+                                return
+                              }
+                              setVideoLooping(true)
+                              playVideoClip()
+                            }}
+                          >
+                            {videoLooping && videoPlaying ? '停止重播' : '自动重播'}
+                          </Button>
+                        </Space>
+
+                        <Space wrap align="center">
+                          <Text>FPS</Text>
+                          <InputNumber
+                            min={1}
+                            max={60}
+                            value={videoFps}
+                            onChange={(value) => {
+                              setVideoFps(clampInt(value ?? 12, 1, 60))
+                              resetVideoExtraction()
+                              resetVideoSegmentPreview()
+                            }}
+                          />
+                          <Text>开始时间</Text>
+                          <InputNumber
+                            min={0}
+                            max={Math.max(0, videoDraft.duration)}
+                            step={0.01}
+                            precision={2}
+                            value={videoClipStart}
+                            onChange={(value) => setVideoClipRange(Number(value ?? 0), videoClipEnd)}
+                          />
+                          <Text>结束时间</Text>
+                          <InputNumber
+                            min={0}
+                            max={Math.max(0, videoDraft.duration)}
+                            step={0.01}
+                            precision={2}
+                            value={videoClipEnd}
+                            onChange={(value) => setVideoClipRange(videoClipStart, Number(value ?? 0))}
+                          />
+                          <Button
+                            type="primary"
+                            icon={<ScissorOutlined />}
+                            loading={videoExtracting}
+                            disabled={videoDraft.duration <= 0 || !!videoError || videoExtracting}
+                            onClick={() => void extractVideoFrames()}
+                          >
+                            确定提取帧
+                          </Button>
+                        </Space>
+                        {videoLimitMessage && <Text type="danger">{videoLimitMessage}</Text>}
+                        {(videoExtracting || videoOperationLabel) && (
+                          <Text type="secondary">
+                            {videoOperationLabel || '正在处理视频'}{videoExtractProgress > 0 ? `：${videoExtractProgress}%` : ''}
+                          </Text>
+                        )}
+                      </Space>
+                    </div>
+                  </div>
+
+                  <div className="video-tab-right">
+                    <section className="video-preview-panel">
+                      <div className="video-preview-box" ref={videoFramePreviewBoxRef}>
+                        {previewVideoFrame ? (
+                          <>
+                            <img src={previewVideoFrame.url} alt={previewVideoFrame.name} />
+                            {videoCropMode && videoCropImageRect && videoCropBox && videoCropOutputSize && (
+                              <>
+                                <div
+                                  className="video-crop-layer"
+                                  style={{
+                                    left: videoCropImageRect.left,
+                                    top: videoCropImageRect.top,
+                                    width: videoCropImageRect.width,
+                                    height: videoCropImageRect.height,
+                                  }}
+                                >
+                                  <div className="video-crop-mask" style={{ left: 0, top: 0, width: '100%', height: videoCropBox.top }} />
+                                  <div
+                                    className="video-crop-mask"
+                                    style={{
+                                      left: 0,
+                                      top: videoCropBox.top + videoCropBox.height,
+                                      width: '100%',
+                                      bottom: 0,
+                                    }}
+                                  />
+                                  <div
+                                    className="video-crop-mask"
+                                    style={{
+                                      left: 0,
+                                      top: videoCropBox.top,
+                                      width: videoCropBox.left,
+                                      height: videoCropBox.height,
+                                    }}
+                                  />
+                                  <div
+                                    className="video-crop-mask"
+                                    style={{
+                                      left: videoCropBox.left + videoCropBox.width,
+                                      top: videoCropBox.top,
+                                      right: 0,
+                                      height: videoCropBox.height,
+                                    }}
+                                  />
+                                  <div
+                                    className="video-crop-selection"
+                                    onMouseDown={(event) => startVideoCropDrag(event, 'move')}
+                                    style={{
+                                      left: videoCropBox.left,
+                                      top: videoCropBox.top,
+                                      width: videoCropBox.width,
+                                      height: videoCropBox.height,
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="调整上裁剪"
+                                    className="video-crop-edge video-crop-edge-top"
+                                    onMouseDown={(event) => startVideoCropDrag(event, 'top')}
+                                    style={{
+                                      left: videoCropBox.left,
+                                      top: videoCropBox.top,
+                                      width: videoCropBox.width,
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="调整下裁剪"
+                                    className="video-crop-edge video-crop-edge-bottom"
+                                    onMouseDown={(event) => startVideoCropDrag(event, 'bottom')}
+                                    style={{
+                                      left: videoCropBox.left,
+                                      top: videoCropBox.top + videoCropBox.height,
+                                      width: videoCropBox.width,
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="调整左裁剪"
+                                    className="video-crop-edge video-crop-edge-left"
+                                    onMouseDown={(event) => startVideoCropDrag(event, 'left')}
+                                    style={{
+                                      left: videoCropBox.left,
+                                      top: videoCropBox.top,
+                                      height: videoCropBox.height,
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="调整右裁剪"
+                                    className="video-crop-edge video-crop-edge-right"
+                                    onMouseDown={(event) => startVideoCropDrag(event, 'right')}
+                                    style={{
+                                      left: videoCropBox.left + videoCropBox.width,
+                                      top: videoCropBox.top,
+                                      height: videoCropBox.height,
+                                    }}
+                                  />
+                                  {([
+                                    ['tl', videoCropBox.left, videoCropBox.top, 'nwse-resize', '调整左上裁剪'],
+                                    ['tr', videoCropBox.left + videoCropBox.width, videoCropBox.top, 'nesw-resize', '调整右上裁剪'],
+                                    ['bl', videoCropBox.left, videoCropBox.top + videoCropBox.height, 'nesw-resize', '调整左下裁剪'],
+                                    ['br', videoCropBox.left + videoCropBox.width, videoCropBox.top + videoCropBox.height, 'nwse-resize', '调整右下裁剪'],
+                                  ] as const).map(([handle, left, top, cursor, label]) => (
+                                    <button
+                                      key={handle}
+                                      type="button"
+                                      aria-label={label}
+                                      className="video-crop-corner"
+                                      onMouseDown={(event) => startVideoCropDrag(event, handle)}
+                                      style={{ left, top, cursor }}
+                                    />
+                                  ))}
+                                </div>
+                                <Text className="video-crop-size" type="secondary">
+                                  裁剪后 {videoCropOutputSize.width} × {videoCropOutputSize.height}
+                                </Text>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <Text type="secondary">确定提取帧后显示循环预览</Text>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="video-frame-list-panel">
+                      {videoExtractedFrames.length > 0 ? videoExtractedFrames.map((frame) => (
+                        <button
+                          key={frame.url}
+                          type="button"
+                          onClick={() => {
+                            setVideoFramePreviewIndex(frame.index)
+                            setVideoFramePreviewPlaying(false)
+                          }}
+                          style={{
+                            border: frame.index === videoFramePreviewIndex ? '1px solid #1677ff' : '1px solid #d8cabc',
+                            background: '#fff',
+                            padding: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <img src={frame.url} alt={frame.name} />
+                          <Text style={{ fontSize: 11 }}>{formatVideoTime(frame.time)}</Text>
+                        </button>
+                      )) : (
+                        <Text type="secondary">帧图片列表会在提取后显示</Text>
+                      )}
+                    </section>
+
+                    <div className="video-confirm-action">
+                      <Button
+                        icon={<ScissorOutlined />}
+                        type={videoCropMode ? 'primary' : 'default'}
+                        disabled={videoExtractedFrames.length === 0 || videoAdding}
+                        onClick={() => setVideoCropMode((active) => !active)}
+                      >
+                        调整裁剪范围
+                      </Button>
+                      <Button
+                        type="primary"
+                        loading={videoAdding}
+                        disabled={videoExtractedFrames.length === 0}
+                        onClick={() => void confirmVideoFrames()}
+                      >
+                        确认添加到流程 2
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Text type="secondary">上传浏览器可播放的视频后，拖动时间范围并按 FPS 提取帧，再确认添加到流程 2。</Text>
+              )}
+            </Space>
+          </Card>
+                ),
+              },
+            ]}
+          />
 
           <Divider plain style={{ margin: '4px 0' }}>或</Divider>
 

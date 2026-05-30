@@ -1,5 +1,6 @@
 ﻿import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
 import {
   buildMultiFrameSpriteIndex,
@@ -10,10 +11,14 @@ import {
   batchHideSelectedFrames,
   buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
+  buildVideoFrameTimestamps,
   clearFrameCollection,
+  clampVideoClipRange,
   clampPreviewZoom,
+  clampUniformCrop,
   coerceLayoutDefaults,
   coerceMatteDefaults,
+  computeUniformCropSize,
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
@@ -35,6 +40,11 @@ import {
   normalizeHexColor,
   normalizePickerColor,
   normalizeGuideLinePosition,
+  getVideoExtractionFrameCount,
+  getVideoExtractionLimitMessage,
+  getVideoPreviewSeekTarget,
+  getVideoSourceUrlToRevoke,
+  shouldReplayVideoSegment,
   shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
   resolveSpillColor,
@@ -55,6 +65,80 @@ test('sprite sheet grid cells split an uploaded sheet by rows and columns', () =
     { index: 4, row: 1, column: 1, x: 32, y: 32, width: 32, height: 32 },
     { index: 5, row: 1, column: 2, x: 64, y: 32, width: 32, height: 32 },
   ])
+})
+
+test('video clip range stays inside the loaded duration', () => {
+  assert.deepEqual(clampVideoClipRange({ duration: 10, start: -2, end: 99 }), { start: 0, end: 10 })
+  assert.deepEqual(clampVideoClipRange({ duration: 10, start: 8, end: 3 }), { start: 3, end: 8 })
+  assert.deepEqual(clampVideoClipRange({ duration: 0, start: 2, end: 3 }), { start: 0, end: 0 })
+})
+
+test('video frame timestamps sample the selected clip by fps', () => {
+  assert.deepEqual(buildVideoFrameTimestamps(1, 2, 4), [1, 1.25, 1.5, 1.75, 2])
+  assert.deepEqual(buildVideoFrameTimestamps(0, 0.1, 60), [0, 0.017, 0.033, 0.05, 0.067, 0.083, 0.1])
+  assert.deepEqual(buildVideoFrameTimestamps(3, 3, 12), [3])
+})
+
+test('video extraction frame count is capped before heavy extraction starts', () => {
+  assert.equal(getVideoExtractionFrameCount(0, 10, 12), 121)
+  assert.equal(getVideoExtractionLimitMessage(0, 10, 12, 300), null)
+  assert.equal(getVideoExtractionFrameCount(0, 12, 30), 361)
+  assert.equal(getVideoExtractionLimitMessage(0, 12, 30, 300), '预计提取 361 帧，已超过单次上限 300 帧。请缩短片段或降低 FPS。')
+})
+
+test('video preview seeks to the slider handle that changed', () => {
+  assert.equal(getVideoPreviewSeekTarget([2, 6], [3, 6]), 3)
+  assert.equal(getVideoPreviewSeekTarget([2, 6], [2, 7]), 7)
+  assert.equal(getVideoPreviewSeekTarget([2, 6], [3, 7]), 3)
+})
+
+test('video segment replay triggers just before the selected end time', () => {
+  assert.equal(shouldReplayVideoSegment(4.94, 2, 5), false)
+  assert.equal(shouldReplayVideoSegment(4.95, 2, 5), true)
+  assert.equal(shouldReplayVideoSegment(5.1, 2, 5), true)
+  assert.equal(shouldReplayVideoSegment(2, 2, 2), false)
+})
+
+test('video source object urls are kept when only metadata changes', () => {
+  assert.equal(getVideoSourceUrlToRevoke(null, 'blob:video-a'), null)
+  assert.equal(getVideoSourceUrlToRevoke('blob:video-a', 'blob:video-a'), null)
+  assert.equal(getVideoSourceUrlToRevoke('blob:video-a', 'blob:video-b'), 'blob:video-a')
+  assert.equal(getVideoSourceUrlToRevoke('blob:video-a', null), 'blob:video-a')
+})
+
+test('uniform video crop clamps each edge inside the frame', () => {
+  assert.deepEqual(
+    clampUniformCrop({ top: -5, bottom: 999, left: 8.6, right: 999 }, 32, 24),
+    { top: 0, bottom: 23, left: 9, right: 22 }
+  )
+  assert.deepEqual(
+    clampUniformCrop({ top: 10, bottom: 20, left: 10, right: 20 }, 16, 16, 4),
+    { top: 10, bottom: 2, left: 10, right: 2 }
+  )
+})
+
+test('uniform video crop reports the shared output frame size', () => {
+  assert.deepEqual(
+    computeUniformCropSize(96, 64, { top: 4, bottom: 12, left: 8, right: 16 }),
+    { width: 72, height: 48 }
+  )
+  assert.deepEqual(
+    computeUniformCropSize(12, 10, { top: 9, bottom: 9, left: 9, right: 9 }, 3),
+    { width: 3, height: 3 }
+  )
+})
+
+test('video extracted frame preview layout keeps preview flexible and frame list scrollable', () => {
+  const css = readFileSync('src/styles/app.css', 'utf8')
+
+  assert.match(css, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
+  assert.match(css, /\.video-controls-column\s*{[^}]*grid-template-rows:\s*auto\s+auto[^}]*align-content:\s*start[^}]*gap:\s*12px/s)
+  assert.match(css, /\.video-source-box\s*{[^}]*min-height:\s*380px/s)
+  assert.match(css, /\.video-source-box\s+video\s*{[^}]*max-height:\s*380px/s)
+  assert.match(css, /\.video-tab-right\s*{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto\s+auto/s)
+  assert.match(css, /\.video-preview-box\s*{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*220px/s)
+  assert.match(css, /\.video-frame-list-panel\s*{[^}]*max-height:\s*156px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.video-confirm-action\s+\.ant-btn\s*{[^}]*width:\s*100%/s)
 })
 
 test('ratio sizing keeps a frame inside the shared canvas', () => {
