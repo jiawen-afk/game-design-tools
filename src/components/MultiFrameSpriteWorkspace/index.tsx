@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo } from 'react'
 import {
   Button,
   Card,
@@ -50,6 +51,8 @@ import {
   computeHandleResize,
   computeKeyboardOffset,
   computeWheelFrameResize,
+  countPlayableFrames,
+  filterLivePlaybackFrameIds,
   filterVisibleFrames,
   filterNewUploadFiles,
   getGuideActionLabel,
@@ -134,6 +137,63 @@ type FrameItem = {
   processing: boolean
   hidden: boolean
 }
+
+type PlaybackFrameRowProps = {
+  item: FrameItem
+  index: number
+  selected: boolean
+  isPreview: boolean
+  inPlaybackList: boolean
+  onDragStart: (id: string) => void
+  onDrop: (id: string) => void
+  onSelect: (item: FrameItem, e: React.MouseEvent<HTMLDivElement>) => void
+  onToggleHidden: (id: string, e: React.MouseEvent<HTMLElement>) => void
+}
+
+const PlaybackFrameRow = memo(function PlaybackFrameRow({
+  item,
+  index,
+  selected,
+  isPreview,
+  inPlaybackList,
+  onDragStart,
+  onDrop,
+  onSelect,
+  onToggleHidden,
+}: PlaybackFrameRowProps) {
+  return (
+    <div
+      draggable
+      onDragStart={() => onDragStart(item.id)}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => onDrop(item.id)}
+      onClick={(e) => onSelect(item, e)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: 8,
+        border: selected ? '1px solid #1677ff' : inPlaybackList ? '1px solid #ff7ab6' : '1px solid #b8a898',
+        background: inPlaybackList ? '#ffe4f0' : selected ? '#e6f4ff' : isPreview ? '#f5e8df' : '#fff',
+        boxShadow: isPreview ? `inset 3px 0 0 ${inPlaybackList ? '#d63384' : '#b55233'}` : undefined,
+        cursor: 'grab',
+        opacity: item.hidden ? 0.48 : 1,
+      }}
+    >
+      <HolderOutlined />
+      <Text>{index + 1}</Text>
+      {item.composedUrl && <img src={item.composedUrl} alt="" style={{ width: 42, height: 42, objectFit: 'contain' }} />}
+      <Text ellipsis style={{ flex: 1 }}>{item.sourceName}</Text>
+      <Button
+        size="small"
+        type="text"
+        aria-label={item.hidden ? '显示此帧' : '隐藏此帧'}
+        icon={item.hidden ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+        onClick={(e) => onToggleHidden(item.id, e)}
+      />
+    </div>
+  )
+})
 
 type SpriteSheetDraft = {
   file: File
@@ -679,12 +739,13 @@ export default function MultiFrameSpriteWorkspace() {
   )
 
   useEffect(() => {
+    if (dragState) return
     frames.forEach((item) => {
       if (item.matteUrl && item.composedRevision !== item.matteRevision) {
         scheduleCompose(item.id)
       }
     })
-  }, [frames, scheduleCompose])
+  }, [dragState, frames, scheduleCompose])
 
   useEffect(() => {
     framesRef.current.forEach((item) => {
@@ -730,25 +791,21 @@ export default function MultiFrameSpriteWorkspace() {
   }, [frames])
 
   useEffect(() => {
-    const visibleCount = filterVisibleFrames(framesRef.current).filter((item) => item.composedUrl).length
-    if (!playing || visibleCount === 0) return
+    if (!playing || countPlayableFrames(framesRef.current) === 0) return
     const ms = 1000 / Math.max(1, fps)
     const timer = window.setInterval(() => {
       setPlayIndex((idx) => {
         const ids = playbackFrameIds.length > 0
           ? playbackFrameIds
           : buildPlaybackFrameIds(framesRef.current)
-        const liveIds = ids.filter((id) => {
-          const frame = framesRef.current.find((item) => item.id === id)
-          return !!frame?.composedUrl
-        })
+        const liveIds = filterLivePlaybackFrameIds(framesRef.current, ids)
         const next = advancePlaybackCursor(idx, liveIds.length, playbackMode, playDirection)
         setPlayDirection(next.direction)
         return next.index
       })
     }, ms)
     return () => window.clearInterval(timer)
-  }, [fps, frames, playDirection, playbackFrameIds, playbackMode, playing])
+  }, [fps, playDirection, playbackFrameIds, playbackMode, playing])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1190,7 +1247,7 @@ export default function MultiFrameSpriteWorkspace() {
     }
   }, [onPointerMove])
 
-  const reorder = (fromId: string, toId: string) => {
+  const reorder = useCallback((fromId: string, toId: string) => {
     if (fromId === toId) return
     setFrames((prev) => {
       const from = prev.findIndex((x) => x.id === fromId)
@@ -1201,27 +1258,33 @@ export default function MultiFrameSpriteWorkspace() {
       next.splice(to, 0, moved!)
       return next
     })
-  }
+  }, [])
 
-  const toggleFrameHidden = (id: string) => {
+  const toggleFrameHidden = useCallback((id: string) => {
     setFrames((prev) => prev.map((item) => (item.id === id ? { ...item, hidden: !item.hidden } : item)))
-  }
+  }, [])
 
-  const visibleFrames = filterVisibleFrames(frames)
-  const composedFrames = visibleFrames.filter((item) => item.composedUrl)
-  const playbackFrames = (playbackFrameIds.length > 0
-    ? playbackFrameIds
-        .map((id) => frames.find((item) => item.id === id) ?? null)
-        .filter((item): item is FrameItem => !!item?.composedUrl)
-    : composedFrames)
+  const visibleFrames = useMemo(() => filterVisibleFrames(frames), [frames])
+  const composedFrames = useMemo(() => visibleFrames.filter((item) => item.composedUrl), [visibleFrames])
+  const frameById = useMemo(() => new Map(frames.map((item) => [item.id, item])), [frames])
+  const selectedFrameIdSet = useMemo(() => new Set(selectedFrameIds), [selectedFrameIds])
+  const playbackFrameIdSet = useMemo(() => new Set(playbackFrameIds), [playbackFrameIds])
+  const playbackFrames = useMemo(
+    () => (playbackFrameIds.length > 0
+      ? playbackFrameIds
+          .map((id) => frameById.get(id) ?? null)
+          .filter((item): item is FrameItem => !!item?.composedUrl)
+      : composedFrames),
+    [composedFrames, frameById, playbackFrameIds]
+  )
   const previewFrame = playbackFrames[Math.min(playIndex, Math.max(0, playbackFrames.length - 1))]
 
-  const selectPreviewFrame = (item: FrameItem) => {
+  const selectPreviewFrame = useCallback((item: FrameItem) => {
     const visibleIndex = playbackFrames.findIndex((frame) => frame.id === item.id)
     if (visibleIndex >= 0) setPlayIndex(visibleIndex)
-  }
+  }, [playbackFrames])
 
-  const selectFrameTag = (item: FrameItem, e: React.MouseEvent<HTMLDivElement>) => {
+  const selectFrameTag = useCallback((item: FrameItem, e: React.MouseEvent<HTMLDivElement>) => {
     const result = applyFrameTagSelection({
       ids: frames.map((frame) => frame.id),
       currentSelectedIds: selectedFrameIds,
@@ -1233,7 +1296,7 @@ export default function MultiFrameSpriteWorkspace() {
     setSelectionAnchorId(result.anchorId)
     setActiveId(item.id)
     if (!playing) selectPreviewFrame(item)
-  }
+  }, [frames, playing, selectPreviewFrame, selectedFrameIds, selectionAnchorId])
 
   const startPlayback = (ids: string[], emptyMessage: string) => {
     if (ids.length === 0) {
@@ -1261,6 +1324,21 @@ export default function MultiFrameSpriteWorkspace() {
     setSelectionAnchorId(null)
     setPlaying(false)
   }
+
+  const handlePlaybackRowDragStart = useCallback((id: string) => {
+    setDragOrderId(id)
+  }, [])
+
+  const handlePlaybackRowDrop = useCallback((id: string) => {
+    if (dragOrderId) reorder(dragOrderId, id)
+    setDragOrderId(null)
+  }, [dragOrderId, reorder])
+
+  const handlePlaybackRowToggleHidden = useCallback((id: string, e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation()
+    toggleFrameHidden(id)
+    setPlaying(false)
+  }, [toggleFrameHidden])
 
   useEffect(() => {
     if (playbackFrames.length === 0) {
@@ -2059,51 +2137,18 @@ export default function MultiFrameSpriteWorkspace() {
           <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {frames.map((item, index) => (
-                (() => {
-                  const selected = selectedFrameIds.includes(item.id)
-                  const isPreview = previewFrame?.id === item.id
-                  const inPlaybackList = playbackFrameIds.includes(item.id)
-                  return (
-                    <div
-                      key={item.id}
-                      draggable
-                      onDragStart={() => setDragOrderId(item.id)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        if (dragOrderId) reorder(dragOrderId, item.id)
-                        setDragOrderId(null)
-                      }}
-                      onClick={(e) => selectFrameTag(item, e)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: 8,
-                        border: selected ? '1px solid #1677ff' : inPlaybackList ? '1px solid #ff7ab6' : '1px solid #b8a898',
-                        background: inPlaybackList ? '#ffe4f0' : selected ? '#e6f4ff' : isPreview ? '#f5e8df' : '#fff',
-                        boxShadow: isPreview ? `inset 3px 0 0 ${inPlaybackList ? '#d63384' : '#b55233'}` : undefined,
-                        cursor: 'grab',
-                        opacity: item.hidden ? 0.48 : 1,
-                      }}
-                    >
-                      <HolderOutlined />
-                      <Text>{index + 1}</Text>
-                      {item.composedUrl && <img src={item.composedUrl} alt="" style={{ width: 42, height: 42, objectFit: 'contain' }} />}
-                      <Text ellipsis style={{ flex: 1 }}>{item.sourceName}</Text>
-                      <Button
-                        size="small"
-                        type="text"
-                        aria-label={item.hidden ? '显示此帧' : '隐藏此帧'}
-                        icon={item.hidden ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleFrameHidden(item.id)
-                          setPlaying(false)
-                        }}
-                      />
-                    </div>
-                  )
-                })()
+                <PlaybackFrameRow
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  selected={selectedFrameIdSet.has(item.id)}
+                  isPreview={previewFrame?.id === item.id}
+                  inPlaybackList={playbackFrameIdSet.has(item.id)}
+                  onDragStart={handlePlaybackRowDragStart}
+                  onDrop={handlePlaybackRowDrop}
+                  onSelect={selectFrameTag}
+                  onToggleHidden={handlePlaybackRowToggleHidden}
+                />
               ))}
             </div>
             <div style={{ minHeight: 260, display: 'grid', placeItems: 'center', background: '#d9d0c4', border: '1px solid #9a8b78' }}>

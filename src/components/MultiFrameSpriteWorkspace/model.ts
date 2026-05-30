@@ -168,6 +168,22 @@ export function buildPlaybackFrameIds<T extends PlaybackFrameState>(frames: T[],
     .map((frame) => frame.id)
 }
 
+export function countPlayableFrames<T extends PlaybackFrameState>(frames: T[]): number {
+  let count = 0
+  for (const frame of frames) {
+    if (!frame.hidden && frame.composedUrl) count += 1
+  }
+  return count
+}
+
+export function filterLivePlaybackFrameIds<T extends PlaybackFrameState>(frames: T[], ids: string[]): string[] {
+  const liveIds = new Set<string>()
+  for (const frame of frames) {
+    if (!frame.hidden && frame.composedUrl) liveIds.add(frame.id)
+  }
+  return ids.filter((id) => liveIds.has(id))
+}
+
 export function advancePlaybackCursor(
   currentIndex: number,
   count: number,

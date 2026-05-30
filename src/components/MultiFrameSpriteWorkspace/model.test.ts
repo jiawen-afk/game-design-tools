@@ -20,6 +20,8 @@ import {
   computeWheelFrameResize,
   computeRatioSize,
   computeWheelResize,
+  countPlayableFrames,
+  filterLivePlaybackFrameIds,
   filterNewUploadFiles,
   filterVisibleFrames,
   getGuideActionLabel,
@@ -176,6 +178,18 @@ test('playback frame ids are snapshotted from visible composed frames', () => {
 
   assert.deepEqual(buildPlaybackFrameIds(frames), ['a', 'd'])
   assert.deepEqual(buildPlaybackFrameIds(frames, ['d', 'a', 'missing']), ['a', 'd'])
+})
+
+test('live playback helpers avoid repeated scans during playback', () => {
+  const frames = [
+    { id: 'a', hidden: false, composedUrl: 'blob:a' },
+    { id: 'b', hidden: true, composedUrl: 'blob:b' },
+    { id: 'c', hidden: false, composedUrl: null },
+    { id: 'd', hidden: false, composedUrl: 'blob:d' },
+  ]
+
+  assert.equal(countPlayableFrames(frames), 2)
+  assert.deepEqual(filterLivePlaybackFrameIds(frames, ['d', 'b', 'missing', 'a']), ['d', 'a'])
 })
 
 test('playback cursor advances loop and pingpong modes', () => {
