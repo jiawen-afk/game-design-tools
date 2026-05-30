@@ -61,6 +61,7 @@ import {
   getSpillColorHex,
   getWheelScalingButtonLabel,
   normalizeHexColor,
+  normalizePickerColor,
   normalizeGuideLinePosition,
   resolveSpillColor,
   shouldIgnoreInitialGuideDrag,
@@ -375,27 +376,6 @@ function drawImageSilhouette(
   maskCtx.fillStyle = color
   maskCtx.fillRect(0, 0, mask.width, mask.height)
   ctx.drawImage(mask, 0, 0)
-}
-
-function buildPreviewOutlineFilter(style: ComposeStyle): string | undefined {
-  const filters: string[] = []
-  const add = (radius: number, color: string) => {
-    const r = Math.max(0, Math.round(radius))
-    if (r <= 0) return
-    ;[
-      [r, 0],
-      [-r, 0],
-      [0, r],
-      [0, -r],
-      [r, r],
-      [r, -r],
-      [-r, r],
-      [-r, -r],
-    ].forEach(([dx, dy]) => filters.push(`drop-shadow(${dx}px ${dy}px 0 ${color})`))
-  }
-  if (style.outlineWidth > 0) add(style.strokeWidth + style.outlineWidth, style.outlineColor)
-  add(style.strokeWidth, style.strokeColor)
-  return filters.length > 0 ? filters.join(' ') : undefined
 }
 
 async function composeFrame(
@@ -894,6 +874,18 @@ export default function MultiFrameSpriteWorkspace() {
         ...item.matte,
         spillColorMode: 'custom',
         customSpillHex: normalizeHexColor(hex, item.matte.customSpillHex),
+      },
+    }))
+    scheduleMatte(id)
+  }
+
+  const setCustomSpillPickerColor = (id: string, color: unknown, hex: string | undefined) => {
+    updateFrame(id, (item) => ({
+      ...item,
+      matte: {
+        ...item.matte,
+        spillColorMode: 'custom',
+        customSpillHex: normalizePickerColor(color, hex, item.matte.customSpillHex),
       },
     }))
     scheduleMatte(id)
@@ -1504,7 +1496,7 @@ export default function MultiFrameSpriteWorkspace() {
                     <Text>背景色</Text>
                     <ColorPicker
                       value={rgbToHex(item.matte.keyColor)}
-                      onChange={(_, hex) => setMatteParam(item.id, 'keyColor', hexToRgb(normalizeHexColor(hex, rgbToHex(item.matte.keyColor))))}
+                      onChange={(color, hex) => setMatteParam(item.id, 'keyColor', hexToRgb(normalizePickerColor(color, hex, rgbToHex(item.matte.keyColor))))}
                     />
                     <Button
                       size="small"
@@ -1547,7 +1539,7 @@ export default function MultiFrameSpriteWorkspace() {
                     />
                     <ColorPicker
                       value={getSpillColorHex(item.matte.spillColorMode, item.matte.customSpillHex, item.matte.keyColor)}
-                      onChange={(_, hex) => setCustomSpillColor(item.id, hex)}
+                      onChange={(color, hex) => setCustomSpillPickerColor(item.id, color, hex)}
                     />
                     {item.matte.spillColorMode === 'custom' && (
                       <>
@@ -1620,7 +1612,7 @@ export default function MultiFrameSpriteWorkspace() {
                 <Text>描边</Text>
                 <ColorPicker
                   value={strokeColor}
-                  onChange={(_, hex) => setStrokeColor((prev) => normalizeHexColor(hex, prev))}
+                  onChange={(color, hex) => setStrokeColor((prev) => normalizePickerColor(color, hex, prev))}
                 />
                 <InputNumber
                   min={0}
@@ -1633,7 +1625,7 @@ export default function MultiFrameSpriteWorkspace() {
                 <Text>外轮廓线</Text>
                 <ColorPicker
                   value={outlineColor}
-                  onChange={(_, hex) => setOutlineColor((prev) => normalizeHexColor(hex, prev))}
+                  onChange={(color, hex) => setOutlineColor((prev) => normalizePickerColor(color, hex, prev))}
                 />
                 <InputNumber
                   min={0}
@@ -1844,8 +1836,8 @@ export default function MultiFrameSpriteWorkspace() {
                         }}
                       >
                         <img
-                          src={activeFrame.matteUrl}
-                          alt="active matte"
+                          src={activeFrame.composedUrl ?? activeFrame.matteUrl}
+                          alt="active composed"
                           draggable={false}
                           style={{
                             width: '100%',
@@ -1853,7 +1845,6 @@ export default function MultiFrameSpriteWorkspace() {
                             display: 'block',
                             userSelect: 'none',
                             pointerEvents: 'none',
-                            filter: buildPreviewOutlineFilter(composeStyle),
                           }}
                         />
                         {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeHandle[]).map((handle) => {
@@ -2215,10 +2206,10 @@ export default function MultiFrameSpriteWorkspace() {
             />
             <ColorPicker
               value={getSpillColorHex(matteDefaultsDraft.spillColorMode, matteDefaultsDraft.customSpillHex)}
-              onChange={(_, hex) => setMatteDefaultsDraft((prev) => ({
+              onChange={(color, hex) => setMatteDefaultsDraft((prev) => ({
                 ...prev,
                 spillColorMode: 'custom',
-                customSpillHex: normalizeHexColor(hex, prev.customSpillHex),
+                customSpillHex: normalizePickerColor(color, hex, prev.customSpillHex),
               }))}
             />
             {matteDefaultsDraft.spillColorMode === 'custom' && (
@@ -2287,7 +2278,7 @@ export default function MultiFrameSpriteWorkspace() {
             <Text>描边</Text>
             <ColorPicker
               value={layoutDefaultsDraft.strokeColor}
-              onChange={(_, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, strokeColor: normalizeHexColor(hex, prev.strokeColor) }))}
+              onChange={(color, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, strokeColor: normalizePickerColor(color, hex, prev.strokeColor) }))}
             />
             <InputNumber
               min={0}
@@ -2302,7 +2293,7 @@ export default function MultiFrameSpriteWorkspace() {
             <Text>外轮廓线</Text>
             <ColorPicker
               value={layoutDefaultsDraft.outlineColor}
-              onChange={(_, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, outlineColor: normalizeHexColor(hex, prev.outlineColor) }))}
+              onChange={(color, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, outlineColor: normalizePickerColor(color, hex, prev.outlineColor) }))}
             />
             <InputNumber
               min={0}

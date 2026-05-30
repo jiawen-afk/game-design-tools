@@ -31,6 +31,7 @@ import {
   getGuideRulerLabel,
   getWheelScalingButtonLabel,
   normalizeHexColor,
+  normalizePickerColor,
   normalizeGuideLinePosition,
   shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
@@ -368,7 +369,16 @@ test('hex colors normalize picker values without falling back to green', () => {
   assert.equal(normalizeHexColor('#ABCDEF'), '#abcdef')
   assert.equal(normalizeHexColor('123abc'), '#123abc')
   assert.equal(normalizeHexColor('#12abcf80'), '#12abcf')
+  assert.equal(normalizeHexColor('rgb(12, 34, 56)'), '#0c2238')
+  assert.equal(normalizeHexColor('rgba(12, 34, 56, 0.5)'), '#0c2238')
   assert.equal(normalizeHexColor('bad', '#ffffff'), '#ffffff')
+})
+
+test('picker colors prefer stable color object methods', () => {
+  assert.equal(normalizePickerColor({ toHexString: () => '#ABCDEF' }, '#00ff00', '#1a1a1a'), '#abcdef')
+  assert.equal(normalizePickerColor({ toRgbString: () => 'rgb(12, 34, 56)' }, '#00ff00', '#1a1a1a'), '#0c2238')
+  assert.equal(normalizePickerColor({}, 'rgba(12, 34, 56, 0.5)', '#1a1a1a'), '#0c2238')
+  assert.equal(normalizePickerColor({}, 'bad', '#1a1a1a'), '#1a1a1a')
 })
 
 test('matte defaults are clamped and keep expected fallback values', () => {

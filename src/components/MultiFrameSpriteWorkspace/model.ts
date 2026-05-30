@@ -289,10 +289,31 @@ function parseHexColor(hex: string | undefined): [number, number, number] | null
 }
 
 export function normalizeHexColor(value: string | undefined, fallback = '#00ff00'): string {
-  const clean = (value ?? '').trim().replace(/^#/, '')
+  const raw = (value ?? '').trim()
+  const rgbMatch = raw.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*[\d.]+)?\s*\)$/i)
+  if (rgbMatch) {
+    const channels = rgbMatch.slice(1, 4).map((channel) => clampInt(Number(channel), 0, 255))
+    return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+  }
+  const clean = raw.replace(/^#/, '')
   if (/^[0-9a-f]{6}$/i.test(clean)) return `#${clean.toLowerCase()}`
   if (/^[0-9a-f]{8}$/i.test(clean)) return `#${clean.slice(0, 6).toLowerCase()}`
   return fallback
+}
+
+export function normalizePickerColor(color: unknown, hex: string | undefined, fallback = '#00ff00'): string {
+  if (color && typeof color === 'object') {
+    const maybeColor = color as { toHexString?: () => string; toRgbString?: () => string }
+    if (typeof maybeColor.toHexString === 'function') {
+      const normalized = normalizeHexColor(maybeColor.toHexString(), '')
+      if (normalized) return normalized
+    }
+    if (typeof maybeColor.toRgbString === 'function') {
+      const normalized = normalizeHexColor(maybeColor.toRgbString(), '')
+      if (normalized) return normalized
+    }
+  }
+  return normalizeHexColor(hex, fallback)
 }
 
 export function resolveSpillColor(
