@@ -6,7 +6,9 @@ import {
   applyComposedFrameUrl,
   applyFrameTagSelection,
   applyCanvasRatioToFrameLayouts,
+  advancePlaybackCursor,
   batchHideSelectedFrames,
+  buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
   clearFrameCollection,
   clampPreviewZoom,
@@ -20,8 +22,16 @@ import {
   computeWheelResize,
   filterNewUploadFiles,
   filterVisibleFrames,
+  getGuideActionLabel,
+  getGuideEmptyStateText,
+  getGuideLineOutsidePlacement,
+  getGuideRulerCursor,
+  getGuideRulerDragAxis,
   getSpillColorHex,
+  getGuideRulerLabel,
   getWheelScalingButtonLabel,
+  normalizeGuideLinePosition,
+  shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
   resolveSpillColor,
 } from './model'
@@ -154,6 +164,26 @@ test('hidden frames are skipped for playback and export lists', () => {
   assert.deepEqual(filterVisibleFrames(frames).map((frame) => frame.id), ['a', 'c'])
 })
 
+test('playback frame ids are snapshotted from visible composed frames', () => {
+  const frames = [
+    { id: 'a', hidden: false, composedUrl: 'blob:a' },
+    { id: 'b', hidden: false, composedUrl: null },
+    { id: 'c', hidden: true, composedUrl: 'blob:c' },
+    { id: 'd', hidden: false, composedUrl: 'blob:d' },
+  ]
+
+  assert.deepEqual(buildPlaybackFrameIds(frames), ['a', 'd'])
+  assert.deepEqual(buildPlaybackFrameIds(frames, ['d', 'a', 'missing']), ['a', 'd'])
+})
+
+test('playback cursor advances loop and pingpong modes', () => {
+  assert.deepEqual(advancePlaybackCursor(0, 3, 'loop', 1), { index: 1, direction: 1 })
+  assert.deepEqual(advancePlaybackCursor(2, 3, 'loop', 1), { index: 0, direction: 1 })
+  assert.deepEqual(advancePlaybackCursor(1, 3, 'pingpong', 1), { index: 2, direction: 1 })
+  assert.deepEqual(advancePlaybackCursor(2, 3, 'pingpong', 1), { index: 1, direction: -1 })
+  assert.deepEqual(advancePlaybackCursor(0, 3, 'pingpong', -1), { index: 1, direction: 1 })
+})
+
 test('frame tag selection supports single range and toggle gestures', () => {
   const ids = ['a', 'b', 'c', 'd']
 
@@ -253,6 +283,46 @@ test('layout wheel resize is ignored until wheel scaling is enabled', () => {
 test('wheel scaling button label describes the next action', () => {
   assert.equal(getWheelScalingButtonLabel(false), '开放缩放滚轮')
   assert.equal(getWheelScalingButtonLabel(true), '禁止缩放滚轮')
+})
+
+test('guide line positions clamp to canvas and delete at the origin', () => {
+  assert.equal(normalizeGuideLinePosition(-4, 256), null)
+  assert.equal(normalizeGuideLinePosition(0, 256), null)
+  assert.equal(normalizeGuideLinePosition(120.6, 256), 121)
+  assert.equal(normalizeGuideLinePosition(999, 256), 256)
+})
+
+test('initial ruler drags are ignored until the pointer reaches the canvas', () => {
+  assert.equal(shouldIgnoreInitialGuideDrag(-4, 256, false), true)
+  assert.equal(shouldIgnoreInitialGuideDrag(0, 256, false), true)
+  assert.equal(shouldIgnoreInitialGuideDrag(120, 256, false), false)
+  assert.equal(shouldIgnoreInitialGuideDrag(-4, 256, true), false)
+})
+
+test('guide ruler labels describe the axis users can drag from', () => {
+  assert.equal(getGuideRulerLabel('x'), 'X 轴')
+  assert.equal(getGuideRulerLabel('y'), 'Y 轴')
+})
+
+test('guide rulers create lines in the drag direction users expect', () => {
+  assert.equal(getGuideRulerDragAxis('x'), 'y')
+  assert.equal(getGuideRulerDragAxis('y'), 'x')
+  assert.equal(getGuideRulerCursor('x'), 'ns-resize')
+  assert.equal(getGuideRulerCursor('y'), 'ew-resize')
+})
+
+test('guide action labels create visible alignment lines', () => {
+  assert.equal(getGuideActionLabel('x'), '添加竖向辅助线')
+  assert.equal(getGuideActionLabel('y'), '添加横向辅助线')
+})
+
+test('guide line markers stay outside the canvas content', () => {
+  assert.deepEqual(getGuideLineOutsidePlacement('x'), { top: 0, height: 18, borderSide: 'left' })
+  assert.deepEqual(getGuideLineOutsidePlacement('y'), { left: 0, width: 18, borderSide: 'top' })
+})
+
+test('guide empty state explains rulers are available before upload', () => {
+  assert.equal(getGuideEmptyStateText(), '从顶部或左侧标尺添加画布外侧辅助线。请先上传图片开始调整。')
 })
 
 test('preview zoom is clamped to a useful detail range', () => {

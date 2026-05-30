@@ -138,6 +138,11 @@ export interface VisibleFrameState {
   hidden?: boolean
 }
 
+export interface PlaybackFrameState extends VisibleFrameState {
+  id: string
+  composedUrl?: string | null
+}
+
 export type FrameTagSelectionGesture = 'single' | 'range' | 'toggle'
 
 export interface ApplyFrameTagSelectionInput {
@@ -150,6 +155,35 @@ export interface ApplyFrameTagSelectionInput {
 
 export function filterVisibleFrames<T extends VisibleFrameState>(frames: T[]): T[] {
   return frames.filter((frame) => !frame.hidden)
+}
+
+export function buildPlaybackFrameIds<T extends PlaybackFrameState>(frames: T[], selectedIds?: string[]): string[] {
+  const selected = selectedIds ? new Set(selectedIds) : null
+  return frames
+    .filter((frame) => !frame.hidden && !!frame.composedUrl && (!selected || selected.has(frame.id)))
+    .map((frame) => frame.id)
+}
+
+export function advancePlaybackCursor(
+  currentIndex: number,
+  count: number,
+  playbackMode: PlaybackMode,
+  direction: number
+): { index: number; direction: number } {
+  if (count <= 1) return { index: 0, direction: 1 }
+  if (playbackMode === 'loop') return { index: (currentIndex + 1) % count, direction: 1 }
+
+  const step = direction < 0 ? -1 : 1
+  let nextIndex = currentIndex + step
+  let nextDirection = step
+  if (nextIndex >= count) {
+    nextIndex = Math.max(0, count - 2)
+    nextDirection = -1
+  } else if (nextIndex < 0) {
+    nextIndex = Math.min(count - 1, 1)
+    nextDirection = 1
+  }
+  return { index: nextIndex, direction: nextDirection }
 }
 
 export function applyFrameTagSelection(input: ApplyFrameTagSelectionInput): { selectedIds: string[]; anchorId: string | null } {
@@ -372,6 +406,51 @@ export function computeWheelFrameResize(
 
 export function getWheelScalingButtonLabel(wheelScalingEnabled: boolean): string {
   return wheelScalingEnabled ? '禁止缩放滚轮' : '开放缩放滚轮'
+}
+
+export function normalizeGuideLinePosition(position: number, max: number): number | null {
+  if (!Number.isFinite(position)) return null
+  const rounded = Math.round(position)
+  if (rounded <= 0) return null
+  return Math.min(Math.max(1, rounded), Math.max(1, Math.round(max)))
+}
+
+export function shouldIgnoreInitialGuideDrag(position: number, max: number, hasEnteredCanvas: boolean): boolean {
+  if (hasEnteredCanvas) return false
+  if (!Number.isFinite(position)) return true
+  return position <= 0 || position > max
+}
+
+export function getGuideRulerLabel(axis: 'x' | 'y'): string {
+  return axis === 'x' ? 'X 轴' : 'Y 轴'
+}
+
+export function getGuideRulerDragAxis(rulerAxis: 'x' | 'y'): 'x' | 'y' {
+  return rulerAxis === 'x' ? 'y' : 'x'
+}
+
+export function getGuideRulerCursor(rulerAxis: 'x' | 'y'): 'ns-resize' | 'ew-resize' {
+  return rulerAxis === 'x' ? 'ns-resize' : 'ew-resize'
+}
+
+export function getGuideActionLabel(axis: 'x' | 'y'): string {
+  return axis === 'x' ? '添加竖向辅助线' : '添加横向辅助线'
+}
+
+export function getGuideLineOutsidePlacement(axis: 'x' | 'y'): {
+  top?: number
+  left?: number
+  width?: number
+  height?: number
+  borderSide: 'left' | 'top'
+} {
+  return axis === 'x'
+    ? { top: 0, height: 18, borderSide: 'left' }
+    : { left: 0, width: 18, borderSide: 'top' }
+}
+
+export function getGuideEmptyStateText(): string {
+  return '从顶部或左侧标尺添加画布外侧辅助线。请先上传图片开始调整。'
 }
 
 export function computeRatioSize(

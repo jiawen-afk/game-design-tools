@@ -36,7 +36,9 @@ import {
   applyComposedFrameUrl,
   applyFrameTagSelection,
   applyCanvasRatioToFrameLayouts,
+  advancePlaybackCursor,
   batchHideSelectedFrames,
+  buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
   buildUploadFileKey,
   clearFrameCollection,
@@ -50,9 +52,17 @@ import {
   computeWheelFrameResize,
   filterVisibleFrames,
   filterNewUploadFiles,
+  getGuideActionLabel,
+  getGuideEmptyStateText,
+  getGuideLineOutsidePlacement,
+  getGuideRulerCursor,
+  getGuideRulerDragAxis,
+  getGuideRulerLabel,
   getSpillColorHex,
   getWheelScalingButtonLabel,
+  normalizeGuideLinePosition,
   resolveSpillColor,
+  shouldIgnoreInitialGuideDrag,
   type PlaybackMode,
   type ResizeHandle,
   type SpillColorMode,
@@ -145,6 +155,19 @@ type DragState =
       startHeight: number
     }
   | null
+
+type GuideAxis = 'x' | 'y'
+
+type GuideLine = {
+  id: string
+  axis: GuideAxis
+  position: number
+}
+
+type GuideDragState = {
+  id: string
+  axis: GuideAxis
+}
 
 const DEFAULT_MATTE: MatteParams = {
   keyColor: [0, 255, 0],
@@ -448,8 +471,12 @@ export default function MultiFrameSpriteWorkspace() {
   const [playing, setPlaying] = useState(false)
   const [playIndex, setPlayIndex] = useState(0)
   const [playDirection, setPlayDirection] = useState(1)
+  const [playbackFrameIds, setPlaybackFrameIds] = useState<string[]>([])
   const [columns, setColumns] = useState(4)
   const [dragState, setDragState] = useState<DragState>(null)
+  const [guideLines, setGuideLines] = useState<GuideLine[]>([])
+  const [selectedGuideLineId, setSelectedGuideLineId] = useState<string | null>(null)
+  const [guideDragState, setGuideDragState] = useState<GuideDragState | null>(null)
   const [dragOrderId, setDragOrderId] = useState<string | null>(null)
   const [selectedFrameIds, setSelectedFrameIds] = useState<string[]>([])
   const [selectionAnchorId, setSelectionAnchorId] = useState<string | null>(null)
@@ -478,6 +505,7 @@ export default function MultiFrameSpriteWorkspace() {
   const layoutRafRef = useRef<number | null>(null)
   const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
   const pendingUploadKeysRef = useRef(new Set<string>())
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     return () => {
@@ -647,32 +675,36 @@ export default function MultiFrameSpriteWorkspace() {
     const ms = 1000 / Math.max(1, fps)
     const timer = window.setInterval(() => {
       setPlayIndex((idx) => {
-        const count = filterVisibleFrames(framesRef.current).filter((item) => item.composedUrl).length
-        if (count <= 1) return 0
-        if (playbackMode === 'loop') return (idx + 1) % count
-        let next = idx + playDirection
-        if (next >= count) {
-          next = Math.max(0, count - 2)
-          setPlayDirection(-1)
-        } else if (next < 0) {
-          next = Math.min(count - 1, 1)
-          setPlayDirection(1)
-        }
-        return next
+        const ids = playbackFrameIds.length > 0
+          ? playbackFrameIds
+          : buildPlaybackFrameIds(framesRef.current)
+        const liveIds = ids.filter((id) => {
+          const frame = framesRef.current.find((item) => item.id === id)
+          return !!frame?.composedUrl
+        })
+        const next = advancePlaybackCursor(idx, liveIds.length, playbackMode, playDirection)
+        setPlayDirection(next.direction)
+        return next.index
       })
     }, ms)
     return () => window.clearInterval(timer)
-  }, [fps, frames, playDirection, playbackMode, playing])
+  }, [fps, frames, playDirection, playbackFrameIds, playbackMode, playing])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      const el = document.activeElement
+      const tag = el?.tagName?.toLowerCase()
+      const editingText = tag === 'input' || tag === 'textarea' || (el instanceof HTMLElement && el.isContentEditable)
+      if (selectedGuideLineId && e.key === 'Delete' && !editingText) {
+        e.preventDefault()
+        setGuideLines((prev) => prev.filter((line) => line.id !== selectedGuideLineId))
+        setSelectedGuideLineId(null)
+        return
+      }
       if (!activeFrame || detailPreview) return
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      const el = document.activeElement
-      const tag = el?.tagName?.toLowerCase()
-      if (tag === 'input' || tag === 'textarea') return
-      if (el instanceof HTMLElement && el.isContentEditable) return
+      if (editingText) return
       e.preventDefault()
       const next = computeKeyboardOffset(
         { offsetX: activeFrame.layout.offsetX, offsetY: activeFrame.layout.offsetY },
@@ -683,7 +715,7 @@ export default function MultiFrameSpriteWorkspace() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeFrame, detailPreview])
+  }, [activeFrame, detailPreview, selectedGuideLineId])
 
   const handleUploadChange: UploadProps['onChange'] = ({ fileList }) => {
     const incoming: File[] = []
@@ -766,6 +798,7 @@ export default function MultiFrameSpriteWorkspace() {
     setSelectionAnchorId(null)
     setPlaying(false)
     setPlayIndex(0)
+    setPlaybackFrameIds([])
     setFrames((prev) => clearFrameCollection(prev, revokeFrameUrls))
   }
 
@@ -871,6 +904,76 @@ export default function MultiFrameSpriteWorkspace() {
     },
     [activeFrame, layoutWheelScalingEnabled, setLayout]
   )
+
+  const updateGuideLineFromPointer = useCallback(
+    (id: string, axis: GuideAxis, clientX: number, clientY: number) => {
+      const rect = canvasStageRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const raw = axis === 'x'
+        ? ((clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
+        : ((clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
+      const nextPosition = normalizeGuideLinePosition(raw, axis === 'x' ? canvasWidth : canvasHeight)
+      if (nextPosition === null) {
+        setGuideLines((prev) => prev.filter((line) => line.id !== id))
+        setSelectedGuideLineId((selected) => (selected === id ? null : selected))
+        setGuideDragState(null)
+        return
+      }
+      setGuideLines((prev) =>
+        prev.map((line) => (line.id === id ? { ...line, position: nextPosition } : line))
+      )
+    },
+    [canvasHeight, canvasWidth]
+  )
+
+  const createGuideLine = (axis: GuideAxis, e: React.PointerEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const id = uid()
+    const fallbackPosition = axis === 'x' ? Math.round(canvasWidth / 2) : Math.round(canvasHeight / 2)
+    setGuideLines((prev) => [...prev, { id, axis, position: fallbackPosition }])
+    setSelectedGuideLineId(id)
+    let hasEnteredCanvas = false
+    const onMove = (event: PointerEvent) => {
+      const rect = canvasStageRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const raw = axis === 'x'
+        ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
+        : ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
+      const max = axis === 'x' ? canvasWidth : canvasHeight
+      if (shouldIgnoreInitialGuideDrag(raw, max, hasEnteredCanvas)) return
+      hasEnteredCanvas = true
+      updateGuideLineFromPointer(id, axis, event.clientX, event.clientY)
+    }
+    const onUp = () => {
+      setGuideDragState(null)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const addGuideLine = (axis: GuideAxis) => {
+    const id = uid()
+    const position = axis === 'x' ? Math.round(canvasWidth / 2) : Math.round(canvasHeight / 2)
+    setGuideLines((prev) => [...prev, { id, axis, position }])
+    setSelectedGuideLineId(id)
+  }
+
+  useEffect(() => {
+    if (!guideDragState) return
+    const onMove = (e: PointerEvent) => {
+      updateGuideLineFromPointer(guideDragState.id, guideDragState.axis, e.clientX, e.clientY)
+    }
+    const onUp = () => setGuideDragState(null)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [guideDragState, updateGuideLineFromPointer])
 
 
   const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
@@ -1023,12 +1126,16 @@ export default function MultiFrameSpriteWorkspace() {
 
   const visibleFrames = filterVisibleFrames(frames)
   const composedFrames = visibleFrames.filter((item) => item.composedUrl)
-  const previewFrame = composedFrames[Math.min(playIndex, Math.max(0, composedFrames.length - 1))]
+  const playbackFrames = (playbackFrameIds.length > 0
+    ? playbackFrameIds
+        .map((id) => frames.find((item) => item.id === id) ?? null)
+        .filter((item): item is FrameItem => !!item?.composedUrl)
+    : composedFrames)
+  const previewFrame = playbackFrames[Math.min(playIndex, Math.max(0, playbackFrames.length - 1))]
 
   const selectPreviewFrame = (item: FrameItem) => {
-    const visibleIndex = composedFrames.findIndex((frame) => frame.id === item.id)
+    const visibleIndex = playbackFrames.findIndex((frame) => frame.id === item.id)
     if (visibleIndex >= 0) setPlayIndex(visibleIndex)
-    setPlaying(false)
   }
 
   const selectFrameTag = (item: FrameItem, e: React.MouseEvent<HTMLDivElement>) => {
@@ -1041,7 +1148,27 @@ export default function MultiFrameSpriteWorkspace() {
     })
     setSelectedFrameIds(result.selectedIds)
     setSelectionAnchorId(result.anchorId)
-    selectPreviewFrame(item)
+    setActiveId(item.id)
+    if (!playing) selectPreviewFrame(item)
+  }
+
+  const startPlayback = (ids: string[], emptyMessage: string) => {
+    if (ids.length === 0) {
+      message.warning(emptyMessage)
+      return
+    }
+    setPlaybackFrameIds(ids)
+    setPlayIndex(0)
+    setPlayDirection(1)
+    setPlaying(true)
+  }
+
+  const startAllPlayback = () => {
+    startPlayback(buildPlaybackFrameIds(frames), '没有可播放的已处理图片')
+  }
+
+  const startSelectedPlayback = () => {
+    startPlayback(buildPlaybackFrameIds(frames, selectedFrameIds), '请先选择已处理的图片')
   }
 
   const batchHideSelected = () => {
@@ -1053,12 +1180,12 @@ export default function MultiFrameSpriteWorkspace() {
   }
 
   useEffect(() => {
-    if (composedFrames.length === 0) {
+    if (playbackFrames.length === 0) {
       if (playIndex !== 0) setPlayIndex(0)
       return
     }
-    if (playIndex >= composedFrames.length) setPlayIndex(composedFrames.length - 1)
-  }, [composedFrames.length, playIndex])
+    if (playIndex >= playbackFrames.length) setPlayIndex(playbackFrames.length - 1)
+  }, [playbackFrames.length, playIndex])
 
   const exportAll = async () => {
     if (frames.length === 0) {
@@ -1447,6 +1574,18 @@ export default function MultiFrameSpriteWorkspace() {
                 <Text type="secondary">
                   当前：{layoutWheelScalingEnabled ? '开放' : '禁止'}
                 </Text>
+                <Button size="small" onClick={() => addGuideLine('x')}>
+                  {getGuideActionLabel('x')}
+                </Button>
+                <Button size="small" onClick={() => addGuideLine('y')}>
+                  {getGuideActionLabel('y')}
+                </Button>
+                <Button size="small" disabled={guideLines.length === 0} onClick={() => {
+                  setGuideLines([])
+                  setSelectedGuideLineId(null)
+                }}>
+                  清空辅助线
+                </Button>
               </Space>
               {activeFrame && (
                 <div style={RATIO_GROUP_STYLE}>
@@ -1471,13 +1610,12 @@ export default function MultiFrameSpriteWorkspace() {
                 </div>
               )}
             </div>
-            {activeFrame ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) 150px', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) 150px', gap: 16, alignItems: 'start' }}>
                 <div
-                  onWheel={handleLayoutWheel}
+                  onWheel={activeFrame ? handleLayoutWheel : undefined}
                   tabIndex={0}
                   style={{
-                    minHeight: 360,
+                    minHeight: 540,
                     display: 'grid',
                     placeItems: 'center',
                     background: '#d9d0c4',
@@ -1491,16 +1629,78 @@ export default function MultiFrameSpriteWorkspace() {
                   <div
                     style={{
                       position: 'relative',
-                      width: canvasWidth,
-                      height: canvasHeight,
+                      paddingTop: 18,
+                      paddingLeft: 18,
+                      width: 'fit-content',
                       maxWidth: '100%',
-                      maxHeight: 520,
-                      background: 'repeating-conic-gradient(#ddd 0% 25%, #f7f7f7 0% 50%) 50% / 16px 16px',
-                      border: '1px solid #6b5d4d',
-                      flexShrink: 0,
+                      isolation: 'isolate',
+                      overflow: 'visible',
                     }}
                   >
-                    {activeFrame.matteUrl && (
+                    <div
+                      onPointerDown={(e) => createGuideLine(getGuideRulerDragAxis('x'), e)}
+                      title="从 X 轴向下拖出横向辅助线"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 18,
+                        right: 0,
+                        height: 18,
+                        background: '#c9bfaf',
+                        border: '1px solid #9a8b78',
+                        borderBottom: 0,
+                        cursor: getGuideRulerCursor('x'),
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: '#574838',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        zIndex: 30,
+                      }}
+                    >
+                      {getGuideRulerLabel('x')}
+                    </div>
+                    <div
+                      onPointerDown={(e) => createGuideLine(getGuideRulerDragAxis('y'), e)}
+                      title="从 Y 轴向右拖出竖向辅助线"
+                      style={{
+                        position: 'absolute',
+                        top: 18,
+                        left: 0,
+                        bottom: 0,
+                        width: 18,
+                        background: '#c9bfaf',
+                        border: '1px solid #9a8b78',
+                        borderRight: 0,
+                        cursor: getGuideRulerCursor('y'),
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: '#574838',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        writingMode: 'vertical-rl',
+                        zIndex: 30,
+                      }}
+                    >
+                      {getGuideRulerLabel('y')}
+                    </div>
+                    <div
+                      ref={canvasStageRef}
+                      onPointerDown={() => setSelectedGuideLineId(null)}
+                      style={{
+                        position: 'relative',
+                        width: canvasWidth,
+                        height: canvasHeight,
+                        maxWidth: '100%',
+                        maxHeight: 780,
+                        background: 'repeating-conic-gradient(#ddd 0% 25%, #f7f7f7 0% 50%) 50% / 16px 16px',
+                        border: '1px solid #6b5d4d',
+                        flexShrink: 0,
+                        isolation: 'isolate',
+                        zIndex: 10,
+                      }}
+                    >
+                    {activeFrame && activeFrame.matteUrl ? (
                       <div
                         onPointerDown={(e) => {
                           e.currentTarget.setPointerCapture(e.pointerId)
@@ -1521,6 +1721,7 @@ export default function MultiFrameSpriteWorkspace() {
                           height: activeFrame.layout.height,
                           cursor: 'move',
                           outline: '1px solid #b55233',
+                          zIndex: 2,
                         }}
                       >
                         <img
@@ -1565,64 +1766,169 @@ export default function MultiFrameSpriteWorkspace() {
                           )
                         })}
                       </div>
+                    ) : (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'grid',
+                          placeItems: 'center',
+                          padding: 24,
+                          color: '#574838',
+                          textAlign: 'center',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <Text type="secondary">{getGuideEmptyStateText()}</Text>
+                      </div>
                     )}
+                    {guideLines.map((line) => {
+                      const selected = selectedGuideLineId === line.id
+                      const lineColor = selected ? '#d63384' : '#ff7ab6'
+                      const positionPercent = line.axis === 'x'
+                        ? (line.position / Math.max(1, canvasWidth)) * 100
+                        : (line.position / Math.max(1, canvasHeight)) * 100
+                      return (
+                        <span
+                          key={`canvas-${line.id}`}
+                          aria-hidden="true"
+                          data-guide-line-overlay={line.axis}
+                          style={line.axis === 'x'
+                            ? {
+                                position: 'absolute',
+                                top: 0,
+                                bottom: 0,
+                                left: `${positionPercent}%`,
+                                borderLeft: `${selected ? 2 : 1}px dashed ${lineColor}`,
+                                boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.72)',
+                                pointerEvents: 'none',
+                                zIndex: 60,
+                              }
+                            : {
+                                position: 'absolute',
+                                left: 0,
+                                right: 0,
+                                top: `${positionPercent}%`,
+                                borderTop: `${selected ? 2 : 1}px dashed ${lineColor}`,
+                                boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.72)',
+                                pointerEvents: 'none',
+                                zIndex: 60,
+                              }}
+                        />
+                      )
+                    })}
+                    </div>
+                    {guideLines.map((line) => {
+                      const selected = selectedGuideLineId === line.id
+                      const placement = getGuideLineOutsidePlacement(line.axis)
+                      const common: React.CSSProperties = {
+                        position: 'absolute',
+                        zIndex: 80,
+                        borderColor: selected ? '#d63384' : '#ff7ab6',
+                        borderStyle: 'dashed',
+                        borderWidth: 0,
+                        background: selected ? 'rgba(214, 51, 132, 0.22)' : 'rgba(255, 122, 182, 0.18)',
+                        outline: `1px solid ${selected ? '#d63384' : '#ff7ab6'}`,
+                        boxSizing: 'border-box',
+                        pointerEvents: 'auto',
+                        transform: 'translateZ(0)',
+                        cursor: line.axis === 'x' ? 'ew-resize' : 'ns-resize',
+                      }
+                      return (
+                        <span
+                          key={line.id}
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                            setSelectedGuideLineId(line.id)
+                            setGuideDragState({ id: line.id, axis: line.axis })
+                          }}
+                          title="拖动画布外侧辅助线，按 Delete 删除"
+                          style={line.axis === 'x'
+                              ? {
+                                  ...common,
+                                  ...placement,
+                                  left: 18 + (line.position / Math.max(1, canvasWidth)) * canvasWidth,
+                                  width: 12,
+                                  marginLeft: -6,
+                                  borderLeftWidth: selected ? 3 : 2,
+                                }
+                              : {
+                                  ...common,
+                                  ...placement,
+                                  top: 18 + (line.position / Math.max(1, canvasHeight)) * canvasHeight,
+                                  height: 12,
+                                  marginTop: -6,
+                                  borderTopWidth: selected ? 3 : 2,
+                                }}
+                        />
+                      )
+                    })}
                   </div>
                 </div>
 
                 <Space direction="vertical" size={12} style={{ minWidth: 0 }}>
-                  <Text strong>帧 {activeFrameIndex + 1} / {frames.length}</Text>
-                <Checkbox
-                  checked={activeFrame.layout.keepAspect}
-                  onChange={(e) => setLayout(activeFrame.id, { keepAspect: e.target.checked })}
-                >
-                  锁定比例
-                </Checkbox>
-                <Space>
-                  <Text>宽</Text>
-                  <InputNumber
-                    min={1}
-                    max={4096}
-                    value={Math.round(activeFrame.layout.width)}
-                    onChange={(v) => {
-                      const width = v ?? activeFrame.layout.width
-                      const patch: Partial<FrameLayout> = { width }
-                      if (activeFrame.layout.keepAspect) {
-                        patch.height = Math.max(1, Math.round(width / (activeFrame.matteWidth / Math.max(1, activeFrame.matteHeight))))
-                      }
-                      setLayout(activeFrame.id, patch)
-                    }}
-                  />
-                </Space>
-                <Space>
-                  <Text>高</Text>
-                  <InputNumber
-                    min={1}
-                    max={4096}
-                    value={Math.round(activeFrame.layout.height)}
-                    onChange={(v) => {
-                      const height = v ?? activeFrame.layout.height
-                      const patch: Partial<FrameLayout> = { height }
-                      if (activeFrame.layout.keepAspect) {
-                        patch.width = Math.max(1, Math.round(height * (activeFrame.matteWidth / Math.max(1, activeFrame.matteHeight))))
-                      }
-                      setLayout(activeFrame.id, patch)
-                    }}
-                  />
-                </Space>
-                <Space>
-                  <Text>X</Text>
-                  <InputNumber value={activeFrame.layout.offsetX} onChange={(v) => setLayout(activeFrame.id, { offsetX: v ?? 0 })} />
-                </Space>
-                <Space>
-                  <Text>Y</Text>
-                  <InputNumber value={activeFrame.layout.offsetY} onChange={(v) => setLayout(activeFrame.id, { offsetY: v ?? 0 })} />
-                </Space>
-                <Button onClick={() => setLayout(activeFrame.id, { offsetX: 0, offsetY: 0 })}>当前帧居中</Button>
+                  {activeFrame ? (
+                    <>
+                      <Text strong>帧 {activeFrameIndex + 1} / {frames.length}</Text>
+                      <Checkbox
+                        checked={activeFrame.layout.keepAspect}
+                        onChange={(e) => setLayout(activeFrame.id, { keepAspect: e.target.checked })}
+                      >
+                        锁定比例
+                      </Checkbox>
+                      <Space>
+                        <Text>宽</Text>
+                        <InputNumber
+                          min={1}
+                          max={4096}
+                          value={Math.round(activeFrame.layout.width)}
+                          onChange={(v) => {
+                            const width = v ?? activeFrame.layout.width
+                            const patch: Partial<FrameLayout> = { width }
+                            if (activeFrame.layout.keepAspect) {
+                              patch.height = Math.max(1, Math.round(width / (activeFrame.matteWidth / Math.max(1, activeFrame.matteHeight))))
+                            }
+                            setLayout(activeFrame.id, patch)
+                          }}
+                        />
+                      </Space>
+                      <Space>
+                        <Text>高</Text>
+                        <InputNumber
+                          min={1}
+                          max={4096}
+                          value={Math.round(activeFrame.layout.height)}
+                          onChange={(v) => {
+                            const height = v ?? activeFrame.layout.height
+                            const patch: Partial<FrameLayout> = { height }
+                            if (activeFrame.layout.keepAspect) {
+                              patch.width = Math.max(1, Math.round(height * (activeFrame.matteWidth / Math.max(1, activeFrame.matteHeight))))
+                            }
+                            setLayout(activeFrame.id, patch)
+                          }}
+                        />
+                      </Space>
+                      <Space>
+                        <Text>X</Text>
+                        <InputNumber value={activeFrame.layout.offsetX} onChange={(v) => setLayout(activeFrame.id, { offsetX: v ?? 0 })} />
+                      </Space>
+                      <Space>
+                        <Text>Y</Text>
+                        <InputNumber value={activeFrame.layout.offsetY} onChange={(v) => setLayout(activeFrame.id, { offsetY: v ?? 0 })} />
+                      </Space>
+                      <Button onClick={() => setLayout(activeFrame.id, { offsetX: 0, offsetY: 0 })}>当前帧居中</Button>
+                    </>
+                  ) : (
+                    <>
+                      <Text strong>当前帧：无</Text>
+                      <Text type="secondary">请先在流程 1 上传或切分图片。</Text>
+                    </>
+                  )}
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    辅助线固定在画布外侧标尺区域，用于定位对齐；选中后按 Delete 删除。
+                  </Text>
                 </Space>
               </div>
-            ) : (
-              <Text type="secondary">请先上传图片。</Text>
-            )}
           </Card>
         </Space>
       </Card>
@@ -1630,9 +1936,13 @@ export default function MultiFrameSpriteWorkspace() {
       <Card title="4. 预览播放与排序">
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Space wrap>
-            <Button icon={<PlayCircleOutlined />} onClick={() => setPlaying((v) => !v)}>
-              {playing ? '暂停' : '播放'}
+            <Button icon={<PlayCircleOutlined />} onClick={startAllPlayback}>
+              全部播放
             </Button>
+            <Button icon={<PlayCircleOutlined />} disabled={selectedFrameIds.length === 0} onClick={startSelectedPlayback}>
+              播放选择的图片
+            </Button>
+            {playing && <Button onClick={() => setPlaying(false)}>暂停</Button>}
             <Text>FPS</Text>
             <InputNumber min={1} max={60} value={fps} onChange={(v) => setFps(clampInt(v ?? 12, 1, 60))} />
             <Segmented
@@ -1650,6 +1960,7 @@ export default function MultiFrameSpriteWorkspace() {
                 (() => {
                   const selected = selectedFrameIds.includes(item.id)
                   const isPreview = previewFrame?.id === item.id
+                  const inPlaybackList = playbackFrameIds.includes(item.id)
                   return (
                     <div
                       key={item.id}
@@ -1666,9 +1977,9 @@ export default function MultiFrameSpriteWorkspace() {
                         alignItems: 'center',
                         gap: 8,
                         padding: 8,
-                        border: selected ? '1px solid #1677ff' : '1px solid #b8a898',
-                        background: selected ? '#e6f4ff' : isPreview ? '#f5e8df' : '#fff',
-                        boxShadow: isPreview ? 'inset 3px 0 0 #b55233' : undefined,
+                        border: selected ? '1px solid #1677ff' : inPlaybackList ? '1px solid #ff7ab6' : '1px solid #b8a898',
+                        background: inPlaybackList ? '#ffe4f0' : selected ? '#e6f4ff' : isPreview ? '#f5e8df' : '#fff',
+                        boxShadow: isPreview ? `inset 3px 0 0 ${inPlaybackList ? '#d63384' : '#b55233'}` : undefined,
                         cursor: 'grab',
                         opacity: item.hidden ? 0.48 : 1,
                       }}
@@ -1701,7 +2012,7 @@ export default function MultiFrameSpriteWorkspace() {
                     alt="preview"
                     style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }}
                   />
-                  <Text type="secondary">帧 {Math.min(playIndex + 1, composedFrames.length)} / {composedFrames.length}</Text>
+                  <Text type="secondary">帧 {Math.min(playIndex + 1, playbackFrames.length)} / {playbackFrames.length}</Text>
                 </Space>
               ) : (
                 <Text type="secondary">{visibleFrames.length === 0 && frames.length > 0 ? '没有可预览的可见帧' : '等待帧处理完成'}</Text>
