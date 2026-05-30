@@ -13,6 +13,20 @@ export interface MatteDefaults {
   customSpillHex: string
 }
 
+export interface MatteParamsState extends MatteDefaults {
+  keyColor: [number, number, number]
+}
+
+export interface MatteFrameState {
+  id: string
+  matte: MatteParamsState
+}
+
+export interface ApplyMatteParamsToFollowingFramesResult<T> {
+  frames: T[]
+  recomputeIds: string[]
+}
+
 export interface LayoutDefaults {
   canvasWidth: number
   canvasHeight: number
@@ -170,6 +184,41 @@ export function batchHideSelectedFrames<T extends { id: string; hidden?: boolean
   return frames.map((frame) => (selected.has(frame.id) ? { ...frame, hidden: true } : frame))
 }
 
+export function clearFrameCollection<T>(frames: T[], revokeFrame: (frame: T) => void): T[] {
+  frames.forEach(revokeFrame)
+  return []
+}
+
+function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
+  return {
+    ...matte,
+    keyColor: [...matte.keyColor] as [number, number, number],
+  }
+}
+
+export function applyMatteParamsToFollowingFrames<T extends MatteFrameState>(
+  frames: T[],
+  targetId: string
+): ApplyMatteParamsToFollowingFramesResult<T> {
+  const targetIndex = frames.findIndex((frame) => frame.id === targetId)
+  if (targetIndex < 0 || targetIndex >= frames.length - 1) {
+    return { frames, recomputeIds: [] }
+  }
+
+  const source = frames[targetIndex]
+  const recomputeIds: string[] = []
+  const next = frames.map((frame, index) => {
+    if (index <= targetIndex) return frame
+    recomputeIds.push(frame.id)
+    return {
+      ...frame,
+      matte: cloneMatteParams(source.matte),
+    }
+  })
+
+  return { frames: next, recomputeIds }
+}
+
 export function buildUploadFileKey(file: UploadFileIdentity): string {
   return `${file.name}-${file.size}-${file.lastModified}`
 }
@@ -308,6 +357,21 @@ export function computeWheelResize(
     width: Math.max(minSize, Math.round(current.width * scale)),
     height: Math.max(minSize, Math.round(current.height * scale)),
   }
+}
+
+export function computeWheelFrameResize(
+  current: { width: number; height: number },
+  deltaY: number,
+  wheelScalingEnabled: boolean,
+  fast: boolean,
+  minSize: number = 1
+): { width: number; height: number } | null {
+  if (!wheelScalingEnabled) return null
+  return computeWheelResize(current, deltaY, fast, minSize)
+}
+
+export function getWheelScalingButtonLabel(wheelScalingEnabled: boolean): string {
+  return wheelScalingEnabled ? '禁止缩放滚轮' : '开放缩放滚轮'
 }
 
 export function computeRatioSize(

@@ -24,18 +24,22 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
   HolderOutlined,
+  LockOutlined,
   PlayCircleOutlined,
-  ReloadOutlined,
+  UnlockOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import JSZip from 'jszip'
 import {
   buildMultiFrameSpriteIndex,
+  applyMatteParamsToFollowingFrames,
   applyComposedFrameUrl,
   applyFrameTagSelection,
   applyCanvasRatioToFrameLayouts,
   batchHideSelectedFrames,
   buildSpriteSheetGridCells,
   buildUploadFileKey,
+  clearFrameCollection,
   clampInt,
   clampPreviewZoom,
   coerceLayoutDefaults,
@@ -43,10 +47,11 @@ import {
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
-  computeWheelResize,
+  computeWheelFrameResize,
   filterVisibleFrames,
   filterNewUploadFiles,
   getSpillColorHex,
+  getWheelScalingButtonLabel,
   resolveSpillColor,
   type PlaybackMode,
   type ResizeHandle,
@@ -55,7 +60,6 @@ import {
   type LayoutDefaults,
 } from './model'
 
-const { Dragger } = Upload
 const { Text, Title } = Typography
 
 const IMAGE_ACCEPT = ['.png', '.jpg', '.jpeg', '.webp']
@@ -461,6 +465,7 @@ export default function MultiFrameSpriteWorkspace() {
   const [canvasRatioBasis, setCanvasRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
   const [activeRatioPercent, setActiveRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
   const [activeRatioBasis, setActiveRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
+  const [layoutWheelScalingEnabled, setLayoutWheelScalingEnabled] = useState(false)
   const [spriteSheetDraft, setSpriteSheetDraft] = useState<SpriteSheetDraft | null>(null)
   const [spriteRows, setSpriteRows] = useState(4)
   const [spriteColumns, setSpriteColumns] = useState(4)
@@ -473,7 +478,6 @@ export default function MultiFrameSpriteWorkspace() {
   const layoutRafRef = useRef<number | null>(null)
   const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
   const pendingUploadKeysRef = useRef(new Set<string>())
-  const layoutWheelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     return () => {
@@ -749,6 +753,22 @@ export default function MultiFrameSpriteWorkspace() {
     })
   }
 
+  const removeAllFrames = () => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer))
+    composeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    timersRef.current.clear()
+    matteRunRef.current.clear()
+    composeTimersRef.current.clear()
+    composeRunRef.current.clear()
+    setDetailPreview(null)
+    setActiveId(null)
+    setSelectedFrameIds([])
+    setSelectionAnchorId(null)
+    setPlaying(false)
+    setPlayIndex(0)
+    setFrames((prev) => clearFrameCollection(prev, revokeFrameUrls))
+  }
+
   const setMatteParam = <K extends keyof MatteParams>(id: string, key: K, value: MatteParams[K]) => {
     updateFrame(id, (item) => ({ ...item, matte: { ...item.matte, [key]: value } }))
     scheduleMatte(id)
@@ -760,6 +780,17 @@ export default function MultiFrameSpriteWorkspace() {
       matte: { ...item.matte, spillColorMode: 'custom', customSpillHex: hex },
     }))
     scheduleMatte(id)
+  }
+
+  const applyMatteToFollowingFrames = (id: string) => {
+    let recomputeIds: string[] = []
+    setFrames((prev) => {
+      const result = applyMatteParamsToFollowingFrames(prev, id)
+      recomputeIds = result.recomputeIds
+      return result.frames
+    })
+    recomputeIds.forEach((frameId) => scheduleMatte(frameId))
+    if (recomputeIds.length > 0) message.success(`已应用到后续 ${recomputeIds.length} 帧`)
   }
 
   const openMatteDefaults = () => {
@@ -824,26 +855,23 @@ export default function MultiFrameSpriteWorkspace() {
     [setLayout]
   )
 
-  useEffect(() => {
-    const el = layoutWheelRef.current
-    if (!el) return
-    const onWheelNative = (e: WheelEvent) => {
-      const item = activeId
-        ? framesRef.current.find((frame) => frame.id === activeId)
-        : framesRef.current[0]
-      if (!item) return
-      e.preventDefault()
-      e.stopPropagation()
-      const next = computeWheelResize(
-        { width: item.layout.width, height: item.layout.height },
+  const handleLayoutWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (!activeFrame) return
+      const next = computeWheelFrameResize(
+        { width: activeFrame.layout.width, height: activeFrame.layout.height },
         e.deltaY,
+        layoutWheelScalingEnabled,
         e.shiftKey
       )
-      setLayout(item.id, next)
-    }
-    el.addEventListener('wheel', onWheelNative, { passive: false })
-    return () => el.removeEventListener('wheel', onWheelNative)
-  }, [activeId])
+      if (!next) return
+      e.preventDefault()
+      e.stopPropagation()
+      setLayout(activeFrame.id, next)
+    },
+    [activeFrame, layoutWheelScalingEnabled, setLayout]
+  )
+
 
   const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -1103,19 +1131,8 @@ export default function MultiFrameSpriteWorkspace() {
         </Text>
       </div>
 
-      <Card title="1. 文件上传区域">
+      <Card title="1. 文件上传">
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Dragger
-            accept={IMAGE_ACCEPT.join(',')}
-            multiple
-            fileList={uploadFileList}
-            beforeUpload={() => false}
-            onChange={handleUploadChange}
-            showUploadList={false}
-          >
-            <p className="ant-upload-text">点击或拖拽多张怪物图片到此处</p>
-          </Dragger>
-
           <Card size="small" title="上传精灵图处理">
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Space wrap align="center">
@@ -1186,10 +1203,35 @@ export default function MultiFrameSpriteWorkspace() {
               )}
             </Space>
           </Card>
+
+          <Divider plain style={{ margin: '4px 0' }}>或</Divider>
+
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <Upload
+              accept={IMAGE_ACCEPT.join(',')}
+              multiple
+              fileList={uploadFileList}
+              beforeUpload={() => false}
+              onChange={handleUploadChange}
+              showUploadList={false}
+            >
+              <Button type="primary" icon={<UploadOutlined />}>批量添加图片</Button>
+            </Upload>
+          </div>
         </Space>
       </Card>
 
-      <Card title="2. 抠图去背" extra={<Button onClick={openMatteDefaults}>抠图参数配置</Button>}>
+      <Card
+        title="2. 抠图去背"
+        extra={
+          <Space wrap>
+            <Button onClick={openMatteDefaults}>抠图参数配置</Button>
+            <Button danger icon={<DeleteOutlined />} disabled={frames.length === 0} onClick={removeAllFrames}>
+              移除所有图片
+            </Button>
+          </Space>
+        }
+      >
         {frames.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
             {frames.map((item, index) => (
@@ -1246,7 +1288,13 @@ export default function MultiFrameSpriteWorkspace() {
                       value={rgbToHex(item.matte.keyColor)}
                       onChange={(_, hex) => setMatteParam(item.id, 'keyColor', hexToRgb(hex))}
                     />
-                    <Button size="small" icon={<ReloadOutlined />} onClick={() => scheduleMatte(item.id)}>重算</Button>
+                    <Button
+                      size="small"
+                      disabled={index === frames.length - 1}
+                      onClick={() => applyMatteToFollowingFrames(item.id)}
+                    >
+                      应用到后续所有帧
+                    </Button>
                   </Space>
                   {[
                     ['容差', 'tolerance'],
@@ -1386,8 +1434,21 @@ export default function MultiFrameSpriteWorkspace() {
           </Card>
 
           <Card size="small" title="当前图片调整">
-            {activeFrame && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+              <Space wrap>
+                <Button
+                  icon={layoutWheelScalingEnabled ? <LockOutlined /> : <UnlockOutlined />}
+                  type={layoutWheelScalingEnabled ? 'default' : 'primary'}
+                  aria-pressed={layoutWheelScalingEnabled}
+                  onClick={() => setLayoutWheelScalingEnabled((value) => !value)}
+                >
+                  {getWheelScalingButtonLabel(layoutWheelScalingEnabled)}
+                </Button>
+                <Text type="secondary">
+                  当前：{layoutWheelScalingEnabled ? '开放' : '禁止'}
+                </Text>
+              </Space>
+              {activeFrame && (
                 <div style={RATIO_GROUP_STYLE}>
                   <Segmented
                     value={activeRatioBasis}
@@ -1408,12 +1469,12 @@ export default function MultiFrameSpriteWorkspace() {
                   />
                   <Text>大小</Text>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             {activeFrame ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1fr) 150px', gap: 16, alignItems: 'start' }}>
                 <div
-                  ref={layoutWheelRef}
+                  onWheel={handleLayoutWheel}
                   tabIndex={0}
                   style={{
                     minHeight: 360,

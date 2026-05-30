@@ -8,17 +8,21 @@ import {
   applyCanvasRatioToFrameLayouts,
   batchHideSelectedFrames,
   buildSpriteSheetGridCells,
+  clearFrameCollection,
   clampPreviewZoom,
   coerceLayoutDefaults,
   coerceMatteDefaults,
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
+  computeWheelFrameResize,
   computeRatioSize,
   computeWheelResize,
   filterNewUploadFiles,
   filterVisibleFrames,
   getSpillColorHex,
+  getWheelScalingButtonLabel,
+  applyMatteParamsToFollowingFrames,
   resolveSpillColor,
 } from './model'
 
@@ -195,6 +199,17 @@ test('batch hide only hides selected frames', () => {
   ])
 })
 
+test('clear frame collection revokes every frame before returning an empty list', () => {
+  const revoked: string[] = []
+  const frames = [
+    { id: 'a', sourceUrl: 'blob:a-source' },
+    { id: 'b', sourceUrl: 'blob:b-source' },
+  ]
+
+  assert.deepEqual(clearFrameCollection(frames, (frame) => revoked.push(frame.sourceUrl)), [])
+  assert.deepEqual(revoked, ['blob:a-source', 'blob:b-source'])
+})
+
 test('composed url replacement does not revoke the new url for unrelated frames', () => {
   const revoked: string[] = []
   const frames = [
@@ -225,6 +240,19 @@ test('mouse wheel resizes the selected frame proportionally', () => {
   assert.deepEqual(computeWheelResize({ width: 100, height: 50 }, -100, false), { width: 110, height: 55 })
   assert.deepEqual(computeWheelResize({ width: 100, height: 50 }, 100, false), { width: 91, height: 45 })
   assert.deepEqual(computeWheelResize({ width: 100, height: 50 }, -100, true), { width: 125, height: 63 })
+})
+
+test('layout wheel resize is ignored until wheel scaling is enabled', () => {
+  const current = { width: 100, height: 50 }
+
+  assert.equal(computeWheelFrameResize(current, -100, false, false), null)
+  assert.deepEqual(computeWheelFrameResize(current, -100, true, false), { width: 110, height: 55 })
+  assert.deepEqual(computeWheelFrameResize(current, -100, true, true), { width: 125, height: 63 })
+})
+
+test('wheel scaling button label describes the next action', () => {
+  assert.equal(getWheelScalingButtonLabel(false), '开放缩放滚轮')
+  assert.equal(getWheelScalingButtonLabel(true), '禁止缩放滚轮')
 })
 
 test('preview zoom is clamped to a useful detail range', () => {
@@ -290,6 +318,68 @@ test('matte defaults are clamped and keep expected fallback values', () => {
     spillColorMode: 'blue',
     customSpillHex: '#123abc',
   })
+})
+
+test('matte params can be applied to all following frames without changing earlier frames', () => {
+  const frames = [
+    {
+      id: 'before',
+      matte: {
+        keyColor: [1, 2, 3] as [number, number, number],
+        tolerance: 1,
+        smoothness: 2,
+        spill: 3,
+        erosion: 4,
+        spillColorMode: 'green' as const,
+        customSpillHex: '#111111',
+      },
+    },
+    {
+      id: 'active',
+      matte: {
+        keyColor: [10, 20, 30] as [number, number, number],
+        tolerance: 11,
+        smoothness: 22,
+        spill: 33,
+        erosion: 44,
+        spillColorMode: 'custom' as const,
+        customSpillHex: '#abcdef',
+      },
+    },
+    {
+      id: 'after-a',
+      matte: {
+        keyColor: [4, 5, 6] as [number, number, number],
+        tolerance: 5,
+        smoothness: 6,
+        spill: 7,
+        erosion: 8,
+        spillColorMode: 'blue' as const,
+        customSpillHex: '#222222',
+      },
+    },
+    {
+      id: 'after-b',
+      matte: {
+        keyColor: [7, 8, 9] as [number, number, number],
+        tolerance: 9,
+        smoothness: 10,
+        spill: 11,
+        erosion: 12,
+        spillColorMode: 'magenta' as const,
+        customSpillHex: '#333333',
+      },
+    },
+  ]
+
+  const result = applyMatteParamsToFollowingFrames(frames, 'active')
+
+  assert.deepEqual(result.recomputeIds, ['after-a', 'after-b'])
+  assert.deepEqual(result.frames[0], frames[0])
+  assert.deepEqual(result.frames[1], frames[1])
+  assert.deepEqual(result.frames[2]?.matte, frames[1]?.matte)
+  assert.deepEqual(result.frames[3]?.matte, frames[1]?.matte)
+  assert.notEqual(result.frames[2]?.matte.keyColor, frames[1]?.matte.keyColor)
 })
 
 test('layout defaults are clamped for saved public parameters', () => {
