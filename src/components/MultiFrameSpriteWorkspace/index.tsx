@@ -60,6 +60,7 @@ import {
   getGuideRulerLabel,
   getSpillColorHex,
   getWheelScalingButtonLabel,
+  normalizeHexColor,
   normalizeGuideLinePosition,
   resolveSpillColor,
   shouldIgnoreInitialGuideDrag,
@@ -105,6 +106,13 @@ type FrameLayout = {
   keepAspect: boolean
   offsetX: number
   offsetY: number
+}
+
+type ComposeStyle = {
+  strokeColor: string
+  strokeWidth: number
+  outlineColor: string
+  outlineWidth: number
 }
 
 type FrameItem = {
@@ -210,7 +218,7 @@ function rgbToHex([r, g, b]: [number, number, number]): string {
 }
 
 function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace(/^#/, '')
+  const clean = normalizeHexColor(hex, '#00ff00').replace(/^#/, '')
   if (!/^[0-9a-f]{6}$/i.test(clean)) return [0, 255, 0]
   return [
     parseInt(clean.slice(0, 2), 16),
@@ -333,11 +341,69 @@ async function chromaKey(sourceUrl: string, matte: MatteParams): Promise<{ url: 
   return { url: URL.createObjectURL(await canvasToBlob(canvas)), width: canvas.width, height: canvas.height }
 }
 
+function drawImageSilhouette(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  color: string
+) {
+  const r = Math.max(0, Math.round(radius))
+  if (r <= 0) return
+  const mask = document.createElement('canvas')
+  mask.width = ctx.canvas.width
+  mask.height = ctx.canvas.height
+  const maskCtx = mask.getContext('2d')
+  if (!maskCtx) return
+  for (let step = 1; step <= r; step += 1) {
+    const offsets = [
+      [step, 0],
+      [-step, 0],
+      [0, step],
+      [0, -step],
+      [step, step],
+      [step, -step],
+      [-step, step],
+      [-step, -step],
+    ] as const
+    offsets.forEach(([dx, dy]) => maskCtx.drawImage(img, x + dx, y + dy, width, height))
+  }
+  maskCtx.globalCompositeOperation = 'source-in'
+  maskCtx.fillStyle = color
+  maskCtx.fillRect(0, 0, mask.width, mask.height)
+  ctx.drawImage(mask, 0, 0)
+}
+
+function buildPreviewOutlineFilter(style: ComposeStyle): string | undefined {
+  const filters: string[] = []
+  const add = (radius: number, color: string) => {
+    const r = Math.max(0, Math.round(radius))
+    if (r <= 0) return
+    ;[
+      [r, 0],
+      [-r, 0],
+      [0, r],
+      [0, -r],
+      [r, r],
+      [r, -r],
+      [-r, r],
+      [-r, -r],
+    ].forEach(([dx, dy]) => filters.push(`drop-shadow(${dx}px ${dy}px 0 ${color})`))
+  }
+  if (style.outlineWidth > 0) add(style.strokeWidth + style.outlineWidth, style.outlineColor)
+  add(style.strokeWidth, style.strokeColor)
+  return filters.length > 0 ? filters.join(' ') : undefined
+}
+
 async function composeFrame(
   matteUrl: string,
   canvasWidth: number,
   canvasHeight: number,
-  layout: FrameLayout
+  layout: FrameLayout,
+  style: ComposeStyle
 ): Promise<string> {
   const img = await loadImage(matteUrl)
   const canvas = document.createElement('canvas')
@@ -350,6 +416,12 @@ async function composeFrame(
   const h = Math.max(1, Math.round(layout.height))
   const x = Math.round(canvas.width / 2 - w / 2 + layout.offsetX)
   const y = Math.round(canvas.height / 2 - h / 2 + layout.offsetY)
+  const strokeWidth = Math.max(0, Math.round(style.strokeWidth))
+  const outlineWidth = Math.max(0, Math.round(style.outlineWidth))
+  if (outlineWidth > 0) {
+    drawImageSilhouette(ctx, img, x, y, w, h, strokeWidth + outlineWidth, style.outlineColor)
+  }
+  drawImageSilhouette(ctx, img, x, y, w, h, strokeWidth, style.strokeColor)
   ctx.drawImage(img, x, y, w, h)
   return URL.createObjectURL(await canvasToBlob(canvas))
 }
@@ -492,6 +564,14 @@ export default function MultiFrameSpriteWorkspace() {
   const [canvasRatioBasis, setCanvasRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
   const [activeRatioPercent, setActiveRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
   const [activeRatioBasis, setActiveRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
+  const [strokeColor, setStrokeColor] = useState(initialLayoutDefaults.strokeColor)
+  const [strokeWidth, setStrokeWidth] = useState(initialLayoutDefaults.strokeWidth)
+  const [outlineColor, setOutlineColor] = useState(initialLayoutDefaults.outlineColor)
+  const [outlineWidth, setOutlineWidth] = useState(initialLayoutDefaults.outlineWidth)
+  const composeStyle = useMemo<ComposeStyle>(
+    () => ({ strokeColor, strokeWidth, outlineColor, outlineWidth }),
+    [outlineColor, outlineWidth, strokeColor, strokeWidth]
+  )
   const [layoutWheelScalingEnabled, setLayoutWheelScalingEnabled] = useState(false)
   const [spriteSheetDraft, setSpriteSheetDraft] = useState<SpriteSheetDraft | null>(null)
   const [spriteRows, setSpriteRows] = useState(4)
@@ -544,7 +624,7 @@ export default function MultiFrameSpriteWorkspace() {
       const runId = (composeRunRef.current.get(id) ?? 0) + 1
       composeRunRef.current.set(id, runId)
       try {
-        const url = await composeFrame(item.matteUrl, canvasWidth, canvasHeight, item.layout)
+        const url = await composeFrame(item.matteUrl, canvasWidth, canvasHeight, item.layout, composeStyle)
         if (composeRunRef.current.get(id) !== runId) {
           URL.revokeObjectURL(url)
           return
@@ -561,7 +641,7 @@ export default function MultiFrameSpriteWorkspace() {
         message.error(`合成失败：${String(e)}`)
       }
     },
-    [canvasHeight, canvasWidth]
+    [canvasHeight, canvasWidth, composeStyle]
   )
 
   const scheduleCompose = useCallback(
@@ -630,7 +710,7 @@ export default function MultiFrameSpriteWorkspace() {
     framesRef.current.forEach((item) => {
       if (item.matteUrl) scheduleCompose(item.id, 80)
     })
-  }, [canvasHeight, canvasWidth, scheduleCompose])
+  }, [canvasHeight, canvasWidth, composeStyle, scheduleCompose])
 
   useEffect(() => {
     let alive = true
@@ -810,7 +890,11 @@ export default function MultiFrameSpriteWorkspace() {
   const setCustomSpillColor = (id: string, hex: string) => {
     updateFrame(id, (item) => ({
       ...item,
-      matte: { ...item.matte, spillColorMode: 'custom', customSpillHex: hex },
+      matte: {
+        ...item.matte,
+        spillColorMode: 'custom',
+        customSpillHex: normalizeHexColor(hex, item.matte.customSpillHex),
+      },
     }))
     scheduleMatte(id)
   }
@@ -849,6 +933,10 @@ export default function MultiFrameSpriteWorkspace() {
       canvasHeight,
       ratioPercent: canvasRatioPercent,
       ratioBasis: canvasRatioBasis,
+      strokeColor,
+      strokeWidth,
+      outlineColor,
+      outlineWidth,
     }))
     setLayoutDefaultsOpen(true)
   }
@@ -861,6 +949,10 @@ export default function MultiFrameSpriteWorkspace() {
     setCanvasRatioBasis(next.ratioBasis)
     setActiveRatioPercent(next.ratioPercent)
     setActiveRatioBasis(next.ratioBasis)
+    setStrokeColor(next.strokeColor)
+    setStrokeWidth(next.strokeWidth)
+    setOutlineColor(next.outlineColor)
+    setOutlineWidth(next.outlineWidth)
     try {
       localStorage.setItem(LAYOUT_DEFAULTS_STORAGE_KEY, JSON.stringify(next))
     } catch {
@@ -1412,7 +1504,7 @@ export default function MultiFrameSpriteWorkspace() {
                     <Text>背景色</Text>
                     <ColorPicker
                       value={rgbToHex(item.matte.keyColor)}
-                      onChange={(_, hex) => setMatteParam(item.id, 'keyColor', hexToRgb(hex))}
+                      onChange={(_, hex) => setMatteParam(item.id, 'keyColor', hexToRgb(normalizeHexColor(hex, rgbToHex(item.matte.keyColor))))}
                     />
                     <Button
                       size="small"
@@ -1522,6 +1614,34 @@ export default function MultiFrameSpriteWorkspace() {
                     { value: 'maxWidth', label: '按最大宽度等比统一' },
                     { value: 'maxHeight', label: '按最大高度等比统一' },
                   ]}
+                />
+              </Space>
+              <Space wrap align="center">
+                <Text>描边</Text>
+                <ColorPicker
+                  value={strokeColor}
+                  onChange={(_, hex) => setStrokeColor((prev) => normalizeHexColor(hex, prev))}
+                />
+                <InputNumber
+                  min={0}
+                  max={128}
+                  value={strokeWidth}
+                  onChange={(v) => setStrokeWidth(clampInt(v ?? 0, 0, 128))}
+                  addonAfter="px"
+                  style={{ width: 96 }}
+                />
+                <Text>外轮廓线</Text>
+                <ColorPicker
+                  value={outlineColor}
+                  onChange={(_, hex) => setOutlineColor((prev) => normalizeHexColor(hex, prev))}
+                />
+                <InputNumber
+                  min={0}
+                  max={128}
+                  value={outlineWidth}
+                  onChange={(v) => setOutlineWidth(clampInt(v ?? 0, 0, 128))}
+                  addonAfter="px"
+                  style={{ width: 96 }}
                 />
               </Space>
             </Space>
@@ -1727,7 +1847,14 @@ export default function MultiFrameSpriteWorkspace() {
                           src={activeFrame.matteUrl}
                           alt="active matte"
                           draggable={false}
-                          style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none', pointerEvents: 'none' }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'block',
+                            userSelect: 'none',
+                            pointerEvents: 'none',
+                            filter: buildPreviewOutlineFilter(composeStyle),
+                          }}
                         />
                         {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeHandle[]).map((handle) => {
                           const pos: React.CSSProperties = {
@@ -2088,12 +2215,20 @@ export default function MultiFrameSpriteWorkspace() {
             />
             <ColorPicker
               value={getSpillColorHex(matteDefaultsDraft.spillColorMode, matteDefaultsDraft.customSpillHex)}
-              onChange={(_, hex) => setMatteDefaultsDraft((prev) => ({ ...prev, spillColorMode: 'custom', customSpillHex: hex }))}
+              onChange={(_, hex) => setMatteDefaultsDraft((prev) => ({
+                ...prev,
+                spillColorMode: 'custom',
+                customSpillHex: normalizeHexColor(hex, prev.customSpillHex),
+              }))}
             />
             {matteDefaultsDraft.spillColorMode === 'custom' && (
               <Input
                 value={matteDefaultsDraft.customSpillHex}
-                onChange={(e) => setMatteDefaultsDraft((prev) => ({ ...prev, spillColorMode: 'custom', customSpillHex: e.target.value }))}
+                onChange={(e) => setMatteDefaultsDraft((prev) => ({
+                  ...prev,
+                  spillColorMode: 'custom',
+                  customSpillHex: normalizeHexColor(e.target.value, prev.customSpillHex),
+                }))}
                 style={{ width: 110 }}
               />
             )}
@@ -2146,6 +2281,36 @@ export default function MultiFrameSpriteWorkspace() {
               onChange={(v) => setLayoutDefaultsDraft((prev) => ({ ...prev, ratioPercent: v ?? 80 }))}
               addonAfter="%"
               style={RATIO_PERCENT_INPUT_STYLE}
+            />
+          </Space>
+          <Space wrap>
+            <Text>描边</Text>
+            <ColorPicker
+              value={layoutDefaultsDraft.strokeColor}
+              onChange={(_, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, strokeColor: normalizeHexColor(hex, prev.strokeColor) }))}
+            />
+            <InputNumber
+              min={0}
+              max={128}
+              value={layoutDefaultsDraft.strokeWidth}
+              onChange={(v) => setLayoutDefaultsDraft((prev) => ({ ...prev, strokeWidth: clampInt(v ?? 0, 0, 128) }))}
+              addonAfter="px"
+              style={{ width: 96 }}
+            />
+          </Space>
+          <Space wrap>
+            <Text>外轮廓线</Text>
+            <ColorPicker
+              value={layoutDefaultsDraft.outlineColor}
+              onChange={(_, hex) => setLayoutDefaultsDraft((prev) => ({ ...prev, outlineColor: normalizeHexColor(hex, prev.outlineColor) }))}
+            />
+            <InputNumber
+              min={0}
+              max={128}
+              value={layoutDefaultsDraft.outlineWidth}
+              onChange={(v) => setLayoutDefaultsDraft((prev) => ({ ...prev, outlineWidth: clampInt(v ?? 0, 0, 128) }))}
+              addonAfter="px"
+              style={{ width: 96 }}
             />
           </Space>
         </Space>

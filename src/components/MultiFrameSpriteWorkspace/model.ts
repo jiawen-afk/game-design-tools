@@ -32,6 +32,10 @@ export interface LayoutDefaults {
   canvasHeight: number
   ratioPercent: number
   ratioBasis: 'width' | 'height'
+  strokeColor: string
+  strokeWidth: number
+  outlineColor: string
+  outlineWidth: number
 }
 
 export interface SpriteIndexFrameInput {
@@ -275,13 +279,20 @@ export function filterNewUploadFiles<T extends UploadFileIdentity>(
 }
 
 function parseHexColor(hex: string | undefined): [number, number, number] | null {
-  const clean = (hex ?? '').trim().replace(/^#/, '')
+  const clean = normalizeHexColor(hex, '').replace(/^#/, '')
   if (!/^[0-9a-f]{6}$/i.test(clean)) return null
   return [
     parseInt(clean.slice(0, 2), 16),
     parseInt(clean.slice(2, 4), 16),
     parseInt(clean.slice(4, 6), 16),
   ]
+}
+
+export function normalizeHexColor(value: string | undefined, fallback = '#00ff00'): string {
+  const clean = (value ?? '').trim().replace(/^#/, '')
+  if (/^[0-9a-f]{6}$/i.test(clean)) return `#${clean.toLowerCase()}`
+  if (/^[0-9a-f]{8}$/i.test(clean)) return `#${clean.slice(0, 6).toLowerCase()}`
+  return fallback
 }
 
 export function resolveSpillColor(
@@ -316,7 +327,7 @@ export function coerceMatteDefaults(input: Partial<MatteDefaults>): MatteDefault
     spill: clampInt(input.spill ?? 0, 0, 100),
     erosion: clampInt(input.erosion ?? 5, 0, 100),
     spillColorMode: isSpillColorMode(input.spillColorMode) ? input.spillColorMode : 'key',
-    customSpillHex: /^#[0-9a-f]{6}$/i.test(input.customSpillHex ?? '') ? input.customSpillHex! : '#00ff00',
+    customSpillHex: normalizeHexColor(input.customSpillHex, '#00ff00'),
   }
 }
 
@@ -326,6 +337,10 @@ export function coerceLayoutDefaults(input: Partial<LayoutDefaults>): LayoutDefa
     canvasHeight: clampInt(input.canvasHeight ?? 256, 1, 4096),
     ratioPercent: clampInt(input.ratioPercent ?? 80, 1, 300),
     ratioBasis: input.ratioBasis === 'width' ? 'width' : 'height',
+    strokeColor: normalizeHexColor(input.strokeColor, '#ffffff'),
+    strokeWidth: clampInt(input.strokeWidth ?? 0, 0, 128),
+    outlineColor: normalizeHexColor(input.outlineColor, '#1a1a1a'),
+    outlineWidth: clampInt(input.outlineWidth ?? 0, 0, 128),
   }
 }
 

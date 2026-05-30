@@ -30,6 +30,7 @@ import {
   getSpillColorHex,
   getGuideRulerLabel,
   getWheelScalingButtonLabel,
+  normalizeHexColor,
   normalizeGuideLinePosition,
   shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
@@ -363,6 +364,13 @@ test('spill color options expose preview hex values', () => {
   assert.equal(getSpillColorHex('custom', 'bad'), '#00ff00')
 })
 
+test('hex colors normalize picker values without falling back to green', () => {
+  assert.equal(normalizeHexColor('#ABCDEF'), '#abcdef')
+  assert.equal(normalizeHexColor('123abc'), '#123abc')
+  assert.equal(normalizeHexColor('#12abcf80'), '#12abcf')
+  assert.equal(normalizeHexColor('bad', '#ffffff'), '#ffffff')
+})
+
 test('matte defaults are clamped and keep expected fallback values', () => {
   assert.deepEqual(coerceMatteDefaults({}), {
     tolerance: 5,
@@ -457,17 +465,29 @@ test('layout defaults are clamped for saved public parameters', () => {
     canvasHeight: 256,
     ratioPercent: 80,
     ratioBasis: 'height',
+    strokeColor: '#ffffff',
+    strokeWidth: 0,
+    outlineColor: '#1a1a1a',
+    outlineWidth: 0,
   })
   assert.deepEqual(coerceLayoutDefaults({
     canvasWidth: 0,
     canvasHeight: 9000,
     ratioPercent: 500,
     ratioBasis: 'width',
+    strokeColor: '#ABCDEF',
+    strokeWidth: 200,
+    outlineColor: '123abc',
+    outlineWidth: -4,
   }), {
     canvasWidth: 1,
     canvasHeight: 4096,
     ratioPercent: 300,
     ratioBasis: 'width',
+    strokeColor: '#abcdef',
+    strokeWidth: 128,
+    outlineColor: '#123abc',
+    outlineWidth: 0,
   })
 })
 
