@@ -39,36 +39,17 @@ import {
   getGuideRulerCursor,
   getGuideRulerDragAxis,
   getGuideRulerLabel,
-  normalizeGuideLinePosition,
-  shouldIgnoreInitialGuideDrag,
 } from './guideModel'
 import {
-  applyCanvasRatioToFrameLayouts,
-  computeHandleResize,
-  computeKeyboardOffset,
-  computeWheelFrameResize,
   getWheelScalingButtonLabel,
   type ResizeHandle,
 } from './layoutModel'
 import {
-  applyMatteParamsToFollowingFrames,
-  coerceMatteDefaults,
-  normalizeHexColor,
-  normalizePickerColor,
-  type MatteDefaults,
-} from './matteModel'
-import {
-  applyComposedFrameUrl,
   buildUploadFileKey,
-  coerceLayoutDefaults,
   filterNewUploadFiles,
-  type LayoutDefaults,
 } from './model'
 import { clampInt } from './numberUtils'
 import {
-  chromaKey,
-  composeFrame,
-  createWorkspaceId,
   loadImage,
   makeFrameFromFile,
   revokeFrameUrls,
@@ -89,19 +70,10 @@ import { useSpriteExport } from './useSpriteExport'
 import { useVideoWorkspace } from './useVideoWorkspace'
 import {
   readStoredLayoutDefaults,
-  readStoredMatteDefaults,
-  writeStoredLayoutDefaults,
-  writeStoredMatteDefaults,
 } from './storage'
 import type {
-  ComposeStyle,
-  DragState,
-  FrameItem,
   FrameLayout,
-  GuideAxis,
-  GuideDragState,
   GuideLine,
-  MatteParams,
   SpriteSheetDraft,
   SpriteSlicePreview,
 } from './types'
@@ -123,8 +95,6 @@ const RATIO_GROUP_STYLE: React.CSSProperties = {
 const RATIO_PERCENT_INPUT_STYLE: React.CSSProperties = { width: 56 }
 
 export default function MultiFrameSpriteWorkspace() {
-  useLayoutWorkspace()
-  useMattePipeline()
   const initialLayoutDefaults = useMemo(() => readStoredLayoutDefaults(), [])
   const {
     frames,
@@ -151,43 +121,64 @@ export default function MultiFrameSpriteWorkspace() {
     reorder,
     toggleFrameHidden,
   } = useFrameWorkspaceState()
-  const [canvasWidth, setCanvasWidth] = useState(initialLayoutDefaults.canvasWidth)
-  const [canvasHeight, setCanvasHeight] = useState(initialLayoutDefaults.canvasHeight)
-  const [dragState, setDragState] = useState<DragState>(null)
-  const [guideLines, setGuideLines] = useState<GuideLine[]>([])
-  const [selectedGuideLineId, setSelectedGuideLineId] = useState<string | null>(null)
-  const [guideDragState, setGuideDragState] = useState<GuideDragState | null>(null)
-  const [matteDefaults, setMatteDefaults] = useState<MatteDefaults>(() => readStoredMatteDefaults())
-  const [matteDefaultsOpen, setMatteDefaultsOpen] = useState(false)
-  const [matteDefaultsDraft, setMatteDefaultsDraft] = useState<MatteDefaults>(() => readStoredMatteDefaults())
-  const [layoutDefaultsOpen, setLayoutDefaultsOpen] = useState(false)
-  const [layoutDefaultsDraft, setLayoutDefaultsDraft] = useState<LayoutDefaults>(initialLayoutDefaults)
-  const [canvasRatioPercent, setCanvasRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
-  const [canvasRatioBasis, setCanvasRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
-  const [activeRatioPercent, setActiveRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
-  const [activeRatioBasis, setActiveRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
-  const [strokeColor, setStrokeColor] = useState(initialLayoutDefaults.strokeColor)
-  const [strokeWidth, setStrokeWidth] = useState(initialLayoutDefaults.strokeWidth)
-  const [outlineColor, setOutlineColor] = useState(initialLayoutDefaults.outlineColor)
-  const [outlineWidth, setOutlineWidth] = useState(initialLayoutDefaults.outlineWidth)
-  const composeStyle = useMemo<ComposeStyle>(
-    () => ({ strokeColor, strokeWidth, outlineColor, outlineWidth }),
-    [outlineColor, outlineWidth, strokeColor, strokeWidth]
-  )
-  const [layoutWheelScalingEnabled, setLayoutWheelScalingEnabled] = useState(false)
+  const {
+    canvasWidth,
+    setCanvasWidth,
+    canvasHeight,
+    setCanvasHeight,
+    dragState,
+    setDragState,
+    guideLines,
+    setGuideLines,
+    selectedGuideLineId,
+    setSelectedGuideLineId,
+    setGuideDragState,
+    layoutDefaultsOpen,
+    setLayoutDefaultsOpen,
+    layoutDefaultsDraft,
+    setLayoutDefaultsDraft,
+    canvasRatioPercent,
+    setCanvasRatioPercent,
+    canvasRatioBasis,
+    setCanvasRatioBasis,
+    activeRatioPercent,
+    activeRatioBasis,
+    strokeColor,
+    setStrokeColor,
+    strokeWidth,
+    setStrokeWidth,
+    outlineColor,
+    setOutlineColor,
+    outlineWidth,
+    setOutlineWidth,
+    composeStyle,
+    layoutWheelScalingEnabled,
+    setLayoutWheelScalingEnabled,
+    canvasStageRef,
+    setLayout,
+    handleLayoutWheel,
+    createGuideLine,
+    addGuideLine,
+    applyAllCenter,
+    applyPresetSize,
+    applyCanvasRatio,
+    updateActiveRatio,
+    openLayoutDefaults,
+    saveLayoutDefaults,
+  } = useLayoutWorkspace({
+    initialLayoutDefaults,
+    frames,
+    activeFrame,
+    detailPreview,
+    setFrames,
+    updateFrame,
+  })
   const [spriteSheetDraft, setSpriteSheetDraft] = useState<SpriteSheetDraft | null>(null)
   const [spriteRows, setSpriteRows] = useState(4)
   const [spriteColumns, setSpriteColumns] = useState(4)
   const [spriteSlices, setSpriteSlices] = useState<SpriteSlicePreview[]>([])
   const [spriteProcessing, setSpriteProcessing] = useState(false)
-  const timersRef = useRef(new Map<string, number>())
-  const matteRunRef = useRef(new Map<string, number>())
-  const composeTimersRef = useRef(new Map<string, number>())
-  const composeRunRef = useRef(new Map<string, number>())
-  const layoutRafRef = useRef<number | null>(null)
-  const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
   const pendingUploadKeysRef = useRef(new Set<string>())
-  const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const {
     fps,
     setFps,
@@ -232,14 +223,31 @@ export default function MultiFrameSpriteWorkspace() {
     fps,
     playbackMode,
   })
-
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach((timer) => window.clearTimeout(timer))
-      composeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
-      if (layoutRafRef.current !== null) window.cancelAnimationFrame(layoutRafRef.current)
-    }
-  }, [])
+  const {
+    matteDefaults,
+    matteDefaultsOpen,
+    setMatteDefaultsOpen,
+    matteDefaultsDraft,
+    setMatteDefaultsDraft,
+    openMatteDefaults,
+    saveMatteDefaults,
+    scheduleMatte,
+    clearMattePipeline,
+    setMatteParam,
+    setCustomSpillColor,
+    setCustomSpillPickerColor,
+    applyMatteToFollowingFrames,
+    sampleColor,
+  } = useMattePipeline({
+    frames,
+    framesRef,
+    setFrames,
+    updateFrame,
+    canvasWidth,
+    canvasHeight,
+    composeStyle,
+    composingPaused: !!dragState,
+  })
 
   useEffect(() => {
     return () => {
@@ -251,87 +259,6 @@ export default function MultiFrameSpriteWorkspace() {
     return () => revokeSpriteSlicePreviews(spriteSlices)
   }, [spriteSlices])
 
-  const recomposeFrame = useCallback(
-    async (id: string) => {
-      const item = framesRef.current.find((x) => x.id === id)
-      if (!item?.matteUrl) return
-      const revision = item.matteRevision
-      const runId = (composeRunRef.current.get(id) ?? 0) + 1
-      composeRunRef.current.set(id, runId)
-      try {
-        const url = await composeFrame(item.matteUrl, canvasWidth, canvasHeight, item.layout, composeStyle)
-        if (composeRunRef.current.get(id) !== runId) {
-          URL.revokeObjectURL(url)
-          return
-        }
-        setFrames((prev) =>
-          applyComposedFrameUrl(prev, {
-            id,
-            matteRevision: revision,
-            url,
-            revoke: (u) => URL.revokeObjectURL(u),
-          })
-        )
-      } catch (e) {
-        message.error(`合成失败：${String(e)}`)
-      }
-    },
-    [canvasHeight, canvasWidth, composeStyle]
-  )
-
-  const scheduleCompose = useCallback(
-    (id: string, delay = 120) => {
-      const old = composeTimersRef.current.get(id)
-      if (old) window.clearTimeout(old)
-      const timer = window.setTimeout(() => {
-        composeTimersRef.current.delete(id)
-        void recomposeFrame(id)
-      }, delay)
-      composeTimersRef.current.set(id, timer)
-    },
-    [recomposeFrame]
-  )
-
-  const scheduleMatte = useCallback(
-    (id: string) => {
-      const old = timersRef.current.get(id)
-      if (old) window.clearTimeout(old)
-      const timer = window.setTimeout(() => {
-        const item = framesRef.current.find((x) => x.id === id)
-        if (!item) return
-        const runId = (matteRunRef.current.get(id) ?? 0) + 1
-        matteRunRef.current.set(id, runId)
-        updateFrame(id, (cur) => ({ ...cur, processing: true }))
-        void chromaKey(item.sourceUrl, item.matte)
-          .then((result) => {
-            if (matteRunRef.current.get(id) !== runId) {
-              URL.revokeObjectURL(result.url)
-              return
-            }
-            setFrames((prev) =>
-              prev.map((cur) => {
-                if (cur.id !== id) return cur
-                if (cur.matteUrl) URL.revokeObjectURL(cur.matteUrl)
-                return {
-                  ...cur,
-                  matteUrl: result.url,
-                  matteWidth: result.width,
-                  matteHeight: result.height,
-                  matteRevision: cur.matteRevision + 1,
-                  processing: false,
-                }
-              })
-            )
-          })
-          .catch((e) => {
-            updateFrame(id, (cur) => ({ ...cur, processing: false }))
-            message.error(`抠图失败：${String(e)}`)
-          })
-      }, 120)
-      timersRef.current.set(id, timer)
-    },
-    [updateFrame]
-  )
   const {
     videoDraft,
     videoClipStart,
@@ -376,21 +303,6 @@ export default function MultiFrameSpriteWorkspace() {
   } = useVideoWorkspace({ matteDefaults, appendFrames, scheduleMatte })
 
   useEffect(() => {
-    if (dragState) return
-    frames.forEach((item) => {
-      if (item.matteUrl && item.composedRevision !== item.matteRevision) {
-        scheduleCompose(item.id)
-      }
-    })
-  }, [dragState, frames, scheduleCompose])
-
-  useEffect(() => {
-    framesRef.current.forEach((item) => {
-      if (item.matteUrl) scheduleCompose(item.id, 80)
-    })
-  }, [canvasHeight, canvasWidth, composeStyle, scheduleCompose])
-
-  useEffect(() => {
     let alive = true
     if (!spriteSheetDraft) {
       setSpriteSlices([])
@@ -426,33 +338,6 @@ export default function MultiFrameSpriteWorkspace() {
     setSelectedFrameIds((prev) => prev.filter((id) => ids.has(id)))
     setSelectionAnchorId((prev) => (prev && ids.has(prev) ? prev : null))
   }, [frames])
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const el = document.activeElement
-      const tag = el?.tagName?.toLowerCase()
-      const editingText = tag === 'input' || tag === 'textarea' || (el instanceof HTMLElement && el.isContentEditable)
-      if (selectedGuideLineId && e.key === 'Delete' && !editingText) {
-        e.preventDefault()
-        setGuideLines((prev) => prev.filter((line) => line.id !== selectedGuideLineId))
-        setSelectedGuideLineId(null)
-        return
-      }
-      if (!activeFrame || detailPreview) return
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
-      if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (editingText) return
-      e.preventDefault()
-      const next = computeKeyboardOffset(
-        { offsetX: activeFrame.layout.offsetX, offsetY: activeFrame.layout.offsetY },
-        e.key,
-        e.shiftKey
-      )
-      setLayout(activeFrame.id, next)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeFrame, detailPreview, selectedGuideLineId])
 
   const handleUploadChange: UploadProps['onChange'] = ({ fileList }) => {
     const incoming: File[] = []
@@ -511,345 +396,12 @@ export default function MultiFrameSpriteWorkspace() {
   }
 
   const removeAllFrames = () => {
-    timersRef.current.forEach((timer) => window.clearTimeout(timer))
-    composeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
-    timersRef.current.clear()
-    matteRunRef.current.clear()
-    composeTimersRef.current.clear()
-    composeRunRef.current.clear()
+    clearMattePipeline()
     setPlaying(false)
     setPlayIndex(0)
     setPlaybackFrameIds([])
     clearFrames()
   }
-
-  const setMatteParam = <K extends keyof MatteParams>(id: string, key: K, value: MatteParams[K]) => {
-    updateFrame(id, (item) => ({ ...item, matte: { ...item.matte, [key]: value } }))
-    scheduleMatte(id)
-  }
-
-  const setCustomSpillColor = (id: string, hex: string) => {
-    updateFrame(id, (item) => ({
-      ...item,
-      matte: {
-        ...item.matte,
-        spillColorMode: 'custom',
-        customSpillHex: normalizeHexColor(hex, item.matte.customSpillHex),
-      },
-    }))
-    scheduleMatte(id)
-  }
-
-  const setCustomSpillPickerColor = (id: string, color: unknown, hex: string | undefined) => {
-    updateFrame(id, (item) => ({
-      ...item,
-      matte: {
-        ...item.matte,
-        spillColorMode: 'custom',
-        customSpillHex: normalizePickerColor(color, hex, item.matte.customSpillHex),
-      },
-    }))
-    scheduleMatte(id)
-  }
-
-  const applyMatteToFollowingFrames = (id: string) => {
-    let recomputeIds: string[] = []
-    setFrames((prev) => {
-      const result = applyMatteParamsToFollowingFrames(prev, id)
-      recomputeIds = result.recomputeIds
-      return result.frames
-    })
-    recomputeIds.forEach((frameId) => scheduleMatte(frameId))
-    if (recomputeIds.length > 0) message.success(`已应用到后续 ${recomputeIds.length} 帧`)
-  }
-
-  const openMatteDefaults = () => {
-    setMatteDefaultsDraft(matteDefaults)
-    setMatteDefaultsOpen(true)
-  }
-
-  const saveMatteDefaults = () => {
-    const next = coerceMatteDefaults(matteDefaultsDraft)
-    setMatteDefaults(next)
-    try {
-      writeStoredMatteDefaults(next)
-    } catch {
-      // 本地存储不可用时仍保留本次会话设置
-    }
-    setMatteDefaultsOpen(false)
-    message.success('已保存抠图默认参数')
-  }
-
-  const openLayoutDefaults = () => {
-    setLayoutDefaultsDraft(coerceLayoutDefaults({
-      canvasWidth,
-      canvasHeight,
-      ratioPercent: canvasRatioPercent,
-      ratioBasis: canvasRatioBasis,
-      strokeColor,
-      strokeWidth,
-      outlineColor,
-      outlineWidth,
-    }))
-    setLayoutDefaultsOpen(true)
-  }
-
-  const saveLayoutDefaults = () => {
-    const next = coerceLayoutDefaults(layoutDefaultsDraft)
-    setCanvasWidth(next.canvasWidth)
-    setCanvasHeight(next.canvasHeight)
-    setCanvasRatioPercent(next.ratioPercent)
-    setCanvasRatioBasis(next.ratioBasis)
-    setActiveRatioPercent(next.ratioPercent)
-    setActiveRatioBasis(next.ratioBasis)
-    setStrokeColor(next.strokeColor)
-    setStrokeWidth(next.strokeWidth)
-    setOutlineColor(next.outlineColor)
-    setOutlineWidth(next.outlineWidth)
-    try {
-      writeStoredLayoutDefaults(next)
-    } catch {
-      // 本地存储不可用时仍保留本次会话设置
-    }
-    setLayoutDefaultsOpen(false)
-    message.success('已保存公共参数配置')
-  }
-
-  const setLayout = useCallback((id: string, patch: Partial<FrameLayout>) => {
-    updateFrame(id, (item) => ({ ...item, layout: { ...item.layout, ...patch }, composedRevision: -1 }))
-  }, [updateFrame])
-
-  const scheduleLayout = useCallback(
-    (id: string, patch: Partial<FrameLayout>) => {
-      pendingLayoutRef.current = { id, patch }
-      if (layoutRafRef.current !== null) return
-      layoutRafRef.current = window.requestAnimationFrame(() => {
-        const pending = pendingLayoutRef.current
-        pendingLayoutRef.current = null
-        layoutRafRef.current = null
-        if (pending) setLayout(pending.id, pending.patch)
-      })
-    },
-    [setLayout]
-  )
-
-  const handleLayoutWheel = useCallback(
-    (e: React.WheelEvent<HTMLDivElement>) => {
-      if (!activeFrame) return
-      const next = computeWheelFrameResize(
-        { width: activeFrame.layout.width, height: activeFrame.layout.height },
-        e.deltaY,
-        layoutWheelScalingEnabled,
-        e.shiftKey
-      )
-      if (!next) return
-      e.preventDefault()
-      e.stopPropagation()
-      setLayout(activeFrame.id, next)
-    },
-    [activeFrame, layoutWheelScalingEnabled, setLayout]
-  )
-
-  const updateGuideLineFromPointer = useCallback(
-    (id: string, axis: GuideAxis, clientX: number, clientY: number) => {
-      const rect = canvasStageRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const raw = axis === 'x'
-        ? ((clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
-        : ((clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
-      const nextPosition = normalizeGuideLinePosition(raw, axis === 'x' ? canvasWidth : canvasHeight)
-      if (nextPosition === null) {
-        setGuideLines((prev) => prev.filter((line) => line.id !== id))
-        setSelectedGuideLineId((selected) => (selected === id ? null : selected))
-        setGuideDragState(null)
-        return
-      }
-      setGuideLines((prev) =>
-        prev.map((line) => (line.id === id ? { ...line, position: nextPosition } : line))
-      )
-    },
-    [canvasHeight, canvasWidth]
-  )
-
-  const createGuideLine = (axis: GuideAxis, e: React.PointerEvent<HTMLElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const id = createWorkspaceId()
-    setGuideLines((prev) => [...prev, { id, axis, position: getGuideLineEdgeStartPosition() }])
-    setSelectedGuideLineId(id)
-    let hasEnteredCanvas = false
-    const onMove = (event: PointerEvent) => {
-      const rect = canvasStageRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const raw = axis === 'x'
-        ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
-        : ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
-      const max = axis === 'x' ? canvasWidth : canvasHeight
-      if (shouldIgnoreInitialGuideDrag(raw, max, hasEnteredCanvas)) return
-      hasEnteredCanvas = true
-      updateGuideLineFromPointer(id, axis, event.clientX, event.clientY)
-    }
-    const onUp = () => {
-      setGuideDragState(null)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-  }
-
-  const addGuideLine = (axis: GuideAxis) => {
-    const id = createWorkspaceId()
-    const position = axis === 'x' ? Math.round(canvasWidth / 2) : Math.round(canvasHeight / 2)
-    setGuideLines((prev) => [...prev, { id, axis, position }])
-    setSelectedGuideLineId(id)
-  }
-
-  useEffect(() => {
-    if (!guideDragState) return
-    const onMove = (e: PointerEvent) => {
-      updateGuideLineFromPointer(guideDragState.id, guideDragState.axis, e.clientX, e.clientY)
-    }
-    const onUp = () => setGuideDragState(null)
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-    }
-  }, [guideDragState, updateGuideLineFromPointer])
-
-
-  const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = Math.floor(((e.clientX - rect.left) / rect.width) * item.sourceWidth)
-    const y = Math.floor(((e.clientY - rect.top) / rect.height) * item.sourceHeight)
-    const img = await loadImage(item.sourceUrl)
-    const canvas = document.createElement('canvas')
-    canvas.width = item.sourceWidth
-    canvas.height = item.sourceHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(img, 0, 0)
-    const data = ctx.getImageData(Math.max(0, Math.min(item.sourceWidth - 1, x)), Math.max(0, Math.min(item.sourceHeight - 1, y)), 1, 1).data
-    setMatteParam(item.id, 'keyColor', [data[0]!, data[1]!, data[2]!])
-  }
-
-  const applyAllCenter = () => {
-    setFrames((prev) =>
-      prev.map((item) => ({
-        ...item,
-        layout: { ...item.layout, offsetX: 0, offsetY: 0 },
-        composedRevision: -1,
-      }))
-    )
-  }
-
-  const applyAllSize = (width: number, height: number) => {
-    setFrames((prev) =>
-      prev.map((item) => ({
-        ...item,
-        layout: { ...item.layout, width, height },
-        composedRevision: -1,
-      }))
-    )
-  }
-
-  const applyPresetSize = (mode: string) => {
-    if (frames.length === 0) return
-    if (mode === 'active' && activeFrame) {
-      applyAllSize(activeFrame.layout.width, activeFrame.layout.height)
-      return
-    }
-    if (mode === 'maxBoth') {
-      applyAllSize(Math.max(...frames.map((f) => f.layout.width)), Math.max(...frames.map((f) => f.layout.height)))
-      return
-    }
-    if (mode === 'maxWidth') {
-      const w = Math.max(...frames.map((f) => f.layout.width))
-      setFrames((prev) =>
-        prev.map((item) => {
-          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
-          return {
-            ...item,
-            layout: { ...item.layout, width: w, height: Math.max(1, Math.round(w / ratio)) },
-            composedRevision: -1,
-          }
-        })
-      )
-      return
-    }
-    if (mode === 'maxHeight') {
-      const h = Math.max(...frames.map((f) => f.layout.height))
-      setFrames((prev) =>
-        prev.map((item) => {
-          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
-          return {
-            ...item,
-            layout: { ...item.layout, width: Math.max(1, Math.round(h * ratio)), height: h },
-            composedRevision: -1,
-          }
-        })
-      )
-    }
-  }
-
-  const applyCanvasRatio = (percent: number, basis: 'width' | 'height') => {
-    setFrames((prev) =>
-      applyCanvasRatioToFrameLayouts(prev, { canvasWidth, canvasHeight, percent, basis })
-    )
-  }
-
-  const applyActiveCanvasRatio = (percent: number, basis: 'width' | 'height') => {
-    if (!activeFrame) return
-    setFrames((prev) =>
-      applyCanvasRatioToFrameLayouts(prev, { canvasWidth, canvasHeight, percent, basis, targetId: activeFrame.id })
-    )
-  }
-
-  const updateActiveRatio = (next: { percent?: number; basis?: 'width' | 'height' }) => {
-    const percent = next.percent ?? activeRatioPercent
-    const basis = next.basis ?? activeRatioBasis
-    if (next.percent !== undefined) setActiveRatioPercent(next.percent)
-    if (next.basis !== undefined) setActiveRatioBasis(next.basis)
-    applyActiveCanvasRatio(percent, basis)
-  }
-
-  const onPointerMove = useCallback(
-    (e: PointerEvent) => {
-      if (!dragState) return
-      const item = framesRef.current.find((x) => x.id === dragState.id)
-      if (!item) return
-      if (dragState.kind === 'move') {
-        scheduleLayout(dragState.id, {
-          offsetX: Math.round(dragState.startOffsetX + e.clientX - dragState.startX),
-          offsetY: Math.round(dragState.startOffsetY + e.clientY - dragState.startY),
-        })
-      } else {
-        const next = computeHandleResize({
-          startWidth: dragState.startWidth,
-          startHeight: dragState.startHeight,
-          deltaX: e.clientX - dragState.startX,
-          deltaY: e.clientY - dragState.startY,
-          handle: dragState.handle,
-          keepAspect: item.layout.keepAspect && ['nw', 'ne', 'se', 'sw'].includes(dragState.handle),
-          minSize: 1,
-        })
-        scheduleLayout(dragState.id, next)
-      }
-    },
-    [dragState, scheduleLayout]
-  )
-
-  useEffect(() => {
-    const up = () => setDragState(null)
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', up)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', up)
-    }
-  }, [onPointerMove])
 
   const uploadFileList: UploadFile[] = frames.map((item) => ({
     uid: item.id,

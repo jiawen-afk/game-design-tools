@@ -1,3 +1,397 @@
-export function useLayoutWorkspace() {
-  return null
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type * as React from 'react'
+import { message } from 'antd'
+
+import {
+  getGuideLineEdgeStartPosition,
+  normalizeGuideLinePosition,
+  shouldIgnoreInitialGuideDrag,
+} from './guideModel'
+import {
+  applyCanvasRatioToFrameLayouts,
+  computeHandleResize,
+  computeKeyboardOffset,
+  computeWheelFrameResize,
+} from './layoutModel'
+import { createWorkspaceId } from './imagePipeline'
+import { coerceLayoutDefaults, type LayoutDefaults } from './model'
+import { writeStoredLayoutDefaults } from './storage'
+import type { ComposeStyle, DragState, FrameItem, FrameLayout, GuideAxis, GuideDragState, GuideLine } from './types'
+
+export interface UseLayoutWorkspaceParams {
+  initialLayoutDefaults: LayoutDefaults
+  frames: FrameItem[]
+  activeFrame: FrameItem | null
+  detailPreview: { url: string; name: string } | null
+  setFrames: React.Dispatch<React.SetStateAction<FrameItem[]>>
+  updateFrame: (id: string, updater: (item: FrameItem) => FrameItem) => void
+}
+
+export function useLayoutWorkspace({
+  initialLayoutDefaults,
+  frames,
+  activeFrame,
+  detailPreview,
+  setFrames,
+  updateFrame,
+}: UseLayoutWorkspaceParams) {
+  const [canvasWidth, setCanvasWidth] = useState(initialLayoutDefaults.canvasWidth)
+  const [canvasHeight, setCanvasHeight] = useState(initialLayoutDefaults.canvasHeight)
+  const [dragState, setDragState] = useState<DragState>(null)
+  const [guideLines, setGuideLines] = useState<GuideLine[]>([])
+  const [selectedGuideLineId, setSelectedGuideLineId] = useState<string | null>(null)
+  const [guideDragState, setGuideDragState] = useState<GuideDragState | null>(null)
+  const [layoutDefaultsOpen, setLayoutDefaultsOpen] = useState(false)
+  const [layoutDefaultsDraft, setLayoutDefaultsDraft] = useState<LayoutDefaults>(initialLayoutDefaults)
+  const [canvasRatioPercent, setCanvasRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
+  const [canvasRatioBasis, setCanvasRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
+  const [activeRatioPercent, setActiveRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
+  const [activeRatioBasis, setActiveRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
+  const [strokeColor, setStrokeColor] = useState(initialLayoutDefaults.strokeColor)
+  const [strokeWidth, setStrokeWidth] = useState(initialLayoutDefaults.strokeWidth)
+  const [outlineColor, setOutlineColor] = useState(initialLayoutDefaults.outlineColor)
+  const [outlineWidth, setOutlineWidth] = useState(initialLayoutDefaults.outlineWidth)
+  const [layoutWheelScalingEnabled, setLayoutWheelScalingEnabled] = useState(false)
+  const layoutRafRef = useRef<number | null>(null)
+  const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
+
+  const composeStyle = useMemo<ComposeStyle>(
+    () => ({ strokeColor, strokeWidth, outlineColor, outlineWidth }),
+    [outlineColor, outlineWidth, strokeColor, strokeWidth]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (layoutRafRef.current !== null) window.cancelAnimationFrame(layoutRafRef.current)
+    }
+  }, [])
+
+  const setLayout = useCallback((id: string, patch: Partial<FrameLayout>) => {
+    updateFrame(id, (item) => ({ ...item, layout: { ...item.layout, ...patch }, composedRevision: -1 }))
+  }, [updateFrame])
+
+  const scheduleLayout = useCallback(
+    (id: string, patch: Partial<FrameLayout>) => {
+      pendingLayoutRef.current = { id, patch }
+      if (layoutRafRef.current !== null) return
+      layoutRafRef.current = window.requestAnimationFrame(() => {
+        const pending = pendingLayoutRef.current
+        pendingLayoutRef.current = null
+        layoutRafRef.current = null
+        if (pending) setLayout(pending.id, pending.patch)
+      })
+    },
+    [setLayout]
+  )
+
+  const handleLayoutWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (!activeFrame) return
+      const next = computeWheelFrameResize(
+        { width: activeFrame.layout.width, height: activeFrame.layout.height },
+        e.deltaY,
+        layoutWheelScalingEnabled,
+        e.shiftKey
+      )
+      if (!next) return
+      e.preventDefault()
+      e.stopPropagation()
+      setLayout(activeFrame.id, next)
+    },
+    [activeFrame, layoutWheelScalingEnabled, setLayout]
+  )
+
+  const updateGuideLineFromPointer = useCallback(
+    (id: string, axis: GuideAxis, clientX: number, clientY: number) => {
+      const rect = canvasStageRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const raw = axis === 'x'
+        ? ((clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
+        : ((clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
+      const nextPosition = normalizeGuideLinePosition(raw, axis === 'x' ? canvasWidth : canvasHeight)
+      if (nextPosition === null) {
+        setGuideLines((prev) => prev.filter((line) => line.id !== id))
+        setSelectedGuideLineId((selected) => (selected === id ? null : selected))
+        setGuideDragState(null)
+        return
+      }
+      setGuideLines((prev) =>
+        prev.map((line) => (line.id === id ? { ...line, position: nextPosition } : line))
+      )
+    },
+    [canvasHeight, canvasWidth]
+  )
+
+  const createGuideLine = (axis: GuideAxis, e: React.PointerEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const id = createWorkspaceId()
+    setGuideLines((prev) => [...prev, { id, axis, position: getGuideLineEdgeStartPosition() }])
+    setSelectedGuideLineId(id)
+    let hasEnteredCanvas = false
+    const onMove = (event: PointerEvent) => {
+      const rect = canvasStageRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const raw = axis === 'x'
+        ? ((event.clientX - rect.left) / Math.max(1, rect.width)) * canvasWidth
+        : ((event.clientY - rect.top) / Math.max(1, rect.height)) * canvasHeight
+      const max = axis === 'x' ? canvasWidth : canvasHeight
+      if (shouldIgnoreInitialGuideDrag(raw, max, hasEnteredCanvas)) return
+      hasEnteredCanvas = true
+      updateGuideLineFromPointer(id, axis, event.clientX, event.clientY)
+    }
+    const onUp = () => {
+      setGuideDragState(null)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
+  const addGuideLine = (axis: GuideAxis) => {
+    const id = createWorkspaceId()
+    const position = axis === 'x' ? Math.round(canvasWidth / 2) : Math.round(canvasHeight / 2)
+    setGuideLines((prev) => [...prev, { id, axis, position }])
+    setSelectedGuideLineId(id)
+  }
+
+  useEffect(() => {
+    if (!guideDragState) return
+    const onMove = (e: PointerEvent) => {
+      updateGuideLineFromPointer(guideDragState.id, guideDragState.axis, e.clientX, e.clientY)
+    }
+    const onUp = () => setGuideDragState(null)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [guideDragState, updateGuideLineFromPointer])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const el = document.activeElement
+      const tag = el?.tagName?.toLowerCase()
+      const editingText = tag === 'input' || tag === 'textarea' || (el instanceof HTMLElement && el.isContentEditable)
+      if (selectedGuideLineId && e.key === 'Delete' && !editingText) {
+        e.preventDefault()
+        setGuideLines((prev) => prev.filter((line) => line.id !== selectedGuideLineId))
+        setSelectedGuideLineId(null)
+        return
+      }
+      if (!activeFrame || detailPreview) return
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (editingText) return
+      e.preventDefault()
+      const next = computeKeyboardOffset(
+        { offsetX: activeFrame.layout.offsetX, offsetY: activeFrame.layout.offsetY },
+        e.key,
+        e.shiftKey
+      )
+      setLayout(activeFrame.id, next)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeFrame, detailPreview, selectedGuideLineId, setLayout])
+
+  const onPointerMove = useCallback(
+    (e: PointerEvent) => {
+      if (!dragState) return
+      const item = frames.find((x) => x.id === dragState.id)
+      if (!item) return
+      if (dragState.kind === 'move') {
+        scheduleLayout(dragState.id, {
+          offsetX: Math.round(dragState.startOffsetX + e.clientX - dragState.startX),
+          offsetY: Math.round(dragState.startOffsetY + e.clientY - dragState.startY),
+        })
+      } else {
+        const next = computeHandleResize({
+          startWidth: dragState.startWidth,
+          startHeight: dragState.startHeight,
+          deltaX: e.clientX - dragState.startX,
+          deltaY: e.clientY - dragState.startY,
+          handle: dragState.handle,
+          keepAspect: item.layout.keepAspect && ['nw', 'ne', 'se', 'sw'].includes(dragState.handle),
+          minSize: 1,
+        })
+        scheduleLayout(dragState.id, next)
+      }
+    },
+    [dragState, frames, scheduleLayout]
+  )
+
+  useEffect(() => {
+    const up = () => setDragState(null)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', up)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', up)
+    }
+  }, [onPointerMove])
+
+  const applyAllCenter = () => {
+    setFrames((prev) =>
+      prev.map((item) => ({
+        ...item,
+        layout: { ...item.layout, offsetX: 0, offsetY: 0 },
+        composedRevision: -1,
+      }))
+    )
+  }
+
+  const applyAllSize = (width: number, height: number) => {
+    setFrames((prev) =>
+      prev.map((item) => ({
+        ...item,
+        layout: { ...item.layout, width, height },
+        composedRevision: -1,
+      }))
+    )
+  }
+
+  const applyPresetSize = (mode: string) => {
+    if (frames.length === 0) return
+    if (mode === 'active' && activeFrame) {
+      applyAllSize(activeFrame.layout.width, activeFrame.layout.height)
+      return
+    }
+    if (mode === 'maxBoth') {
+      applyAllSize(Math.max(...frames.map((f) => f.layout.width)), Math.max(...frames.map((f) => f.layout.height)))
+      return
+    }
+    if (mode === 'maxWidth') {
+      const w = Math.max(...frames.map((f) => f.layout.width))
+      setFrames((prev) =>
+        prev.map((item) => {
+          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
+          return {
+            ...item,
+            layout: { ...item.layout, width: w, height: Math.max(1, Math.round(w / ratio)) },
+            composedRevision: -1,
+          }
+        })
+      )
+      return
+    }
+    if (mode === 'maxHeight') {
+      const h = Math.max(...frames.map((f) => f.layout.height))
+      setFrames((prev) =>
+        prev.map((item) => {
+          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
+          return {
+            ...item,
+            layout: { ...item.layout, width: Math.max(1, Math.round(h * ratio)), height: h },
+            composedRevision: -1,
+          }
+        })
+      )
+    }
+  }
+
+  const applyCanvasRatio = (percent: number, basis: 'width' | 'height') => {
+    setFrames((prev) =>
+      applyCanvasRatioToFrameLayouts(prev, { canvasWidth, canvasHeight, percent, basis })
+    )
+  }
+
+  const applyActiveCanvasRatio = (percent: number, basis: 'width' | 'height') => {
+    if (!activeFrame) return
+    setFrames((prev) =>
+      applyCanvasRatioToFrameLayouts(prev, { canvasWidth, canvasHeight, percent, basis, targetId: activeFrame.id })
+    )
+  }
+
+  const updateActiveRatio = (next: { percent?: number; basis?: 'width' | 'height' }) => {
+    const percent = next.percent ?? activeRatioPercent
+    const basis = next.basis ?? activeRatioBasis
+    if (next.percent !== undefined) setActiveRatioPercent(next.percent)
+    if (next.basis !== undefined) setActiveRatioBasis(next.basis)
+    applyActiveCanvasRatio(percent, basis)
+  }
+
+  const openLayoutDefaults = () => {
+    setLayoutDefaultsDraft(coerceLayoutDefaults({
+      canvasWidth,
+      canvasHeight,
+      ratioPercent: canvasRatioPercent,
+      ratioBasis: canvasRatioBasis,
+      strokeColor,
+      strokeWidth,
+      outlineColor,
+      outlineWidth,
+    }))
+    setLayoutDefaultsOpen(true)
+  }
+
+  const saveLayoutDefaults = () => {
+    const next = coerceLayoutDefaults(layoutDefaultsDraft)
+    setCanvasWidth(next.canvasWidth)
+    setCanvasHeight(next.canvasHeight)
+    setCanvasRatioPercent(next.ratioPercent)
+    setCanvasRatioBasis(next.ratioBasis)
+    setActiveRatioPercent(next.ratioPercent)
+    setActiveRatioBasis(next.ratioBasis)
+    setStrokeColor(next.strokeColor)
+    setStrokeWidth(next.strokeWidth)
+    setOutlineColor(next.outlineColor)
+    setOutlineWidth(next.outlineWidth)
+    try {
+      writeStoredLayoutDefaults(next)
+    } catch {
+      // 本地存储不可用时仍保留本次会话设置
+    }
+    setLayoutDefaultsOpen(false)
+    message.success('已保存公共参数配置')
+  }
+
+  return {
+    canvasWidth,
+    setCanvasWidth,
+    canvasHeight,
+    setCanvasHeight,
+    dragState,
+    setDragState,
+    guideLines,
+    setGuideLines,
+    selectedGuideLineId,
+    setSelectedGuideLineId,
+    setGuideDragState,
+    layoutDefaultsOpen,
+    setLayoutDefaultsOpen,
+    layoutDefaultsDraft,
+    setLayoutDefaultsDraft,
+    canvasRatioPercent,
+    setCanvasRatioPercent,
+    canvasRatioBasis,
+    setCanvasRatioBasis,
+    activeRatioPercent,
+    activeRatioBasis,
+    strokeColor,
+    setStrokeColor,
+    strokeWidth,
+    setStrokeWidth,
+    outlineColor,
+    setOutlineColor,
+    outlineWidth,
+    setOutlineWidth,
+    composeStyle,
+    layoutWheelScalingEnabled,
+    setLayoutWheelScalingEnabled,
+    canvasStageRef,
+    setLayout,
+    handleLayoutWheel,
+    createGuideLine,
+    addGuideLine,
+    applyAllCenter,
+    applyPresetSize,
+    applyCanvasRatio,
+    updateActiveRatio,
+    openLayoutDefaults,
+    saveLayoutDefaults,
+  }
 }

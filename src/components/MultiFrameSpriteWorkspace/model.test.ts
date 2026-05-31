@@ -187,8 +187,8 @@ test('workspace implementation delegates focused responsibilities to local modul
   assert.match(source, /from '\.\/SpriteSheetUploadPanel'/)
   assert.match(source, /from '\.\/VideoUploadPanel'/)
   assert.match(source, /from '\.\/useVideoWorkspace'/)
-  assert.match(source, /from '\.\/matteModel'/)
   assert.match(playbackHook, /from '\.\/playbackModel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8'), /from '\.\/matteModel'/)
   assert.match(videoHook, /from '\.\/cropModel'/)
   assert.match(videoHook, /from '\.\/videoModel'/)
   assert.match(videoHook, /from '\.\/videoFramePipeline'/)
@@ -206,6 +206,38 @@ test('workspace entry delegates stateful workflows to focused hooks', () => {
   assert.match(source, /from '\.\/useLayoutWorkspace'/)
   assert.match(source, /from '\.\/useMattePipeline'/)
   assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
+})
+
+test('matte pipeline hook owns matte and compose side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.doesNotMatch(source, /chromaKey/)
+  assert.doesNotMatch(source, /composeFrame/)
+  assert.doesNotMatch(source, /applyComposedFrameUrl/)
+  assert.doesNotMatch(source, /applyMatteParamsToFollowingFrames/)
+  assert.match(hook, /chromaKey/)
+  assert.match(hook, /composeFrame/)
+  assert.match(hook, /applyComposedFrameUrl/)
+  assert.match(hook, /applyMatteParamsToFollowingFrames/)
+  assert.ok(lineCount < 1320, `expected workspace entry to stay below 1320 lines after matte extraction, got ${lineCount}`)
+})
+
+test('layout workspace hook owns layout and guide side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.doesNotMatch(source, /computeHandleResize/)
+  assert.doesNotMatch(source, /computeKeyboardOffset/)
+  assert.doesNotMatch(source, /normalizeGuideLinePosition/)
+  assert.doesNotMatch(source, /applyCanvasRatioToFrameLayouts/)
+  assert.match(hook, /computeHandleResize/)
+  assert.match(hook, /computeKeyboardOffset/)
+  assert.match(hook, /normalizeGuideLinePosition/)
+  assert.match(hook, /applyCanvasRatioToFrameLayouts/)
+  assert.ok(lineCount < 1050, `expected workspace entry to stay below 1050 lines after layout extraction, got ${lineCount}`)
 })
 
 test('workspace model delegates crop and video helpers to focused modules', () => {
