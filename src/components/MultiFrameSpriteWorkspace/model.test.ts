@@ -48,6 +48,7 @@ import {
   shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
   queueUniqueFrameId,
+  resolvePipelineConcurrency,
   resolveSpillColor,
 } from './model'
 import { computeVideoPreviewCropState } from './videoFramePipeline'
@@ -832,6 +833,13 @@ test('matte params can be applied to all following frames without changing earli
 test('pipeline queues keep the latest request for a frame id', () => {
   assert.deepEqual(queueUniqueFrameId(['a', 'b', 'a'], 'b'), ['a', 'a', 'b'])
   assert.deepEqual(queueUniqueFrameId(['a', 'b'], 'c'), ['a', 'b', 'c'])
+})
+
+test('pipeline concurrency scales with available threads', () => {
+  assert.equal(resolvePipelineConcurrency(undefined), 4)
+  assert.equal(resolvePipelineConcurrency(4), 2)
+  assert.equal(resolvePipelineConcurrency(8), 4)
+  assert.equal(resolvePipelineConcurrency(16), 6)
 })
 
 test('layout defaults are clamped for saved public parameters', () => {

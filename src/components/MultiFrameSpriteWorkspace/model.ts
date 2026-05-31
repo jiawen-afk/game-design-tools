@@ -35,6 +35,7 @@ export {
   normalizeHexColor,
   normalizePickerColor,
   queueUniqueFrameId,
+  resolvePipelineConcurrency,
   resolveSpillColor,
   type ApplyMatteParamsToFollowingFramesResult,
   type MatteDefaults,

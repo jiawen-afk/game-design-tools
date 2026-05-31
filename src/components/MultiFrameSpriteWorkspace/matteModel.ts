@@ -29,6 +29,11 @@ export function queueUniqueFrameId(queue: string[], id: string): string[] {
   return [...queue.filter((queuedId) => queuedId !== id), id]
 }
 
+export function resolvePipelineConcurrency(availableThreads: number | undefined, fallback = 4): number {
+  if (!Number.isFinite(availableThreads) || !availableThreads || availableThreads <= 0) return fallback
+  return clampInt(Math.floor(availableThreads / 2), 2, 6)
+}
+
 function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
   return {
     ...matte,

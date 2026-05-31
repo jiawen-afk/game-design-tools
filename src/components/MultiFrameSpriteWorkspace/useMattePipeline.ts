@@ -9,14 +9,16 @@ import {
   normalizeHexColor,
   normalizePickerColor,
   queueUniqueFrameId,
+  resolvePipelineConcurrency,
   type MatteDefaults,
 } from './matteModel'
 import { applyComposedFrameUrl } from './model'
 import { readStoredMatteDefaults, writeStoredMatteDefaults } from './storage'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
 
-const MATTE_PIPELINE_CONCURRENCY = 2
-const COMPOSE_PIPELINE_CONCURRENCY = 2
+const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
+  typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
+)
 
 export interface UseMattePipelineParams {
   frames: FrameItem[]
@@ -72,7 +74,7 @@ export function useMattePipeline({
 
   const runComposeQueue = useCallback(
     () => {
-      while (composeActiveRef.current.size < COMPOSE_PIPELINE_CONCURRENCY) {
+      while (composeActiveRef.current.size < PIPELINE_CONCURRENCY) {
         const queueIndex = composeQueueRef.current.findIndex((queuedId) => !composeActiveRef.current.has(queuedId))
         if (queueIndex < 0) return
         const [id] = composeQueueRef.current.splice(queueIndex, 1)
@@ -139,7 +141,7 @@ export function useMattePipeline({
 
   const runMatteQueue = useCallback(
     () => {
-      while (matteActiveRef.current.size < MATTE_PIPELINE_CONCURRENCY) {
+      while (matteActiveRef.current.size < PIPELINE_CONCURRENCY) {
         const queueIndex = matteQueueRef.current.findIndex((queuedId) => !matteActiveRef.current.has(queuedId))
         if (queueIndex < 0) return
         const [id] = matteQueueRef.current.splice(queueIndex, 1)
