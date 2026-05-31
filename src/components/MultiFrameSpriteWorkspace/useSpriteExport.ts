@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { message } from 'antd'
-import JSZip from 'jszip'
 
 import { canvasToBlob, loadImage } from './imagePipeline'
 import { buildMultiFrameSpriteIndex } from './model'
@@ -61,6 +60,7 @@ export function useSpriteExport({
       const ctx = sheet.getContext('2d')
       if (!ctx) throw new Error('无法创建导出画布')
       ctx.clearRect(0, 0, sheet.width, sheet.height)
+      const { default: JSZip } = await import('jszip')
       const zip = new JSZip()
       for (let i = 0; i < visibleFrames.length; i += 1) {
         const item = visibleFrames[i]!
