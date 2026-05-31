@@ -1,6 +1,6 @@
 ﻿import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import {
   buildMultiFrameSpriteIndex,
@@ -174,12 +174,12 @@ test('workspace implementation delegates focused responsibilities to local modul
   const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
   const lineCount = source.split(/\r?\n/).length
 
-  assert.match(source, /from '\.\/types'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/types'/)
   assert.match(source, /from '\.\/constants'/)
   assert.match(source, /from '\.\/DetailPreviewModal'/)
   assert.match(source, /from '\.\/ExportPanel'/)
-  assert.match(source, /from '\.\/FrameThumbnailStrip'/)
-  assert.match(source, /from '\.\/imagePipeline'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/FrameThumbnailStrip'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8'), /from '\.\/imagePipeline'/)
   assert.match(source, /from '\.\/LayoutDefaultsModal'/)
   assert.match(source, /from '\.\/MatteFrameCard'/)
   assert.match(source, /from '\.\/MatteDefaultsModal'/)
@@ -205,6 +205,7 @@ test('workspace entry delegates stateful workflows to focused hooks', () => {
   assert.match(source, /from '\.\/useVideoWorkspace'/)
   assert.match(source, /from '\.\/useLayoutWorkspace'/)
   assert.match(source, /from '\.\/useMattePipeline'/)
+  assert.match(source, /from '\.\/useUploadWorkspace'/)
   assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
 })
 
@@ -238,6 +239,44 @@ test('layout workspace hook owns layout and guide side effects', () => {
   assert.match(hook, /normalizeGuideLinePosition/)
   assert.match(hook, /applyCanvasRatioToFrameLayouts/)
   assert.ok(lineCount < 1050, `expected workspace entry to stay below 1050 lines after layout extraction, got ${lineCount}`)
+})
+
+test('upload workspace hook owns image and sprite sheet upload side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const hookPath = 'src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(hookPath), 'expected upload workspace hook to exist')
+  const hook = readFileSync(hookPath, 'utf8')
+
+  assert.doesNotMatch(source, /makeFrameFromFile/)
+  assert.doesNotMatch(source, /splitSpriteSheetToPreviews/)
+  assert.doesNotMatch(source, /filterNewUploadFiles/)
+  assert.doesNotMatch(source, /pendingUploadKeysRef/)
+  assert.match(source, /from '\.\/useUploadWorkspace'/)
+  assert.match(hook, /makeFrameFromFile/)
+  assert.match(hook, /splitSpriteSheetToPreviews/)
+  assert.match(hook, /filterNewUploadFiles/)
+  assert.match(hook, /pendingUploadKeysRef/)
+  assert.ok(lineCount < 930, `expected workspace entry to stay below 930 lines after upload extraction, got ${lineCount}`)
+})
+
+test('layout workspace panel owns canvas editing view details', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const panelPath = 'src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(panelPath), 'expected layout workspace panel to exist')
+  const panel = readFileSync(panelPath, 'utf8')
+
+  assert.doesNotMatch(source, /HANDLE_CURSORS/)
+  assert.doesNotMatch(source, /getGuideRulerLabel/)
+  assert.doesNotMatch(source, /data-guide-line-overlay/)
+  assert.match(source, /from '\.\/LayoutWorkspacePanel'/)
+  assert.match(panel, /HANDLE_CURSORS/)
+  assert.match(panel, /getGuideRulerLabel/)
+  assert.match(panel, /data-guide-line-overlay/)
+  assert.ok(lineCount < 620, `expected workspace entry to stay below 620 lines after layout view extraction, got ${lineCount}`)
 })
 
 test('workspace model delegates crop and video helpers to focused modules', () => {
