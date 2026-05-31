@@ -47,6 +47,7 @@ import {
   shouldReplayVideoSegment,
   shouldIgnoreInitialGuideDrag,
   applyMatteParamsToFollowingFrames,
+  queueUniqueFrameId,
   resolveSpillColor,
 } from './model'
 import { computeVideoPreviewCropState } from './videoFramePipeline'
@@ -826,6 +827,11 @@ test('matte params can be applied to all following frames without changing earli
   assert.deepEqual(result.frames[2]?.matte, frames[1]?.matte)
   assert.deepEqual(result.frames[3]?.matte, frames[1]?.matte)
   assert.notEqual(result.frames[2]?.matte.keyColor, frames[1]?.matte.keyColor)
+})
+
+test('pipeline queues keep the latest request for a frame id', () => {
+  assert.deepEqual(queueUniqueFrameId(['a', 'b', 'a'], 'b'), ['a', 'a', 'b'])
+  assert.deepEqual(queueUniqueFrameId(['a', 'b'], 'c'), ['a', 'b', 'c'])
 })
 
 test('layout defaults are clamped for saved public parameters', () => {

@@ -25,6 +25,10 @@ export interface ApplyMatteParamsToFollowingFramesResult<T> {
   recomputeIds: string[]
 }
 
+export function queueUniqueFrameId(queue: string[], id: string): string[] {
+  return [...queue.filter((queuedId) => queuedId !== id), id]
+}
+
 function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
   return {
     ...matte,

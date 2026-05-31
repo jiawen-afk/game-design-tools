@@ -34,6 +34,7 @@ export {
   getSpillColorHex,
   normalizeHexColor,
   normalizePickerColor,
+  queueUniqueFrameId,
   resolveSpillColor,
   type ApplyMatteParamsToFollowingFramesResult,
   type MatteDefaults,

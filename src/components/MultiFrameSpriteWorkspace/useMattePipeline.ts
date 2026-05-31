@@ -8,11 +8,15 @@ import {
   coerceMatteDefaults,
   normalizeHexColor,
   normalizePickerColor,
+  queueUniqueFrameId,
   type MatteDefaults,
 } from './matteModel'
 import { applyComposedFrameUrl } from './model'
 import { readStoredMatteDefaults, writeStoredMatteDefaults } from './storage'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
+
+const MATTE_PIPELINE_CONCURRENCY = 2
+const COMPOSE_PIPELINE_CONCURRENCY = 2
 
 export interface UseMattePipelineParams {
   frames: FrameItem[]
@@ -42,71 +46,110 @@ export function useMattePipeline({
   const [matteDefaultsDraft, setMatteDefaultsDraft] = useState<MatteDefaults>(() => readStoredMatteDefaults())
   const timersRef = useRef(new Map<string, number>())
   const matteRunRef = useRef(new Map<string, number>())
+  const matteQueueRef = useRef<string[]>([])
+  const matteActiveRef = useRef(new Set<string>())
   const composeTimersRef = useRef(new Map<string, number>())
   const composeRunRef = useRef(new Map<string, number>())
+  const composeQueueRef = useRef<string[]>([])
+  const composeActiveRef = useRef(new Set<string>())
+  const runMatteQueueRef = useRef<() => void>(() => undefined)
+  const runComposeQueueRef = useRef<() => void>(() => undefined)
 
   const clearMattePipeline = useCallback(() => {
     timersRef.current.forEach((timer) => window.clearTimeout(timer))
     composeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
     timersRef.current.clear()
     matteRunRef.current.clear()
+    matteQueueRef.current = []
+    matteActiveRef.current.clear()
     composeTimersRef.current.clear()
     composeRunRef.current.clear()
+    composeQueueRef.current = []
+    composeActiveRef.current.clear()
   }, [])
 
   useEffect(() => clearMattePipeline, [clearMattePipeline])
 
-  const recomposeFrame = useCallback(
-    async (id: string) => {
-      const item = framesRef.current.find((x) => x.id === id)
-      if (!item?.matteUrl) return
-      const revision = item.matteRevision
-      const runId = (composeRunRef.current.get(id) ?? 0) + 1
-      composeRunRef.current.set(id, runId)
-      try {
-        const url = await composeFrame(item.matteUrl, canvasWidth, canvasHeight, item.layout, composeStyle)
-        if (composeRunRef.current.get(id) !== runId) {
-          URL.revokeObjectURL(url)
-          return
-        }
-        setFrames((prev) =>
-          applyComposedFrameUrl(prev, {
-            id,
-            matteRevision: revision,
-            url,
-            revoke: (u) => URL.revokeObjectURL(u),
+  const runComposeQueue = useCallback(
+    () => {
+      while (composeActiveRef.current.size < COMPOSE_PIPELINE_CONCURRENCY) {
+        const queueIndex = composeQueueRef.current.findIndex((queuedId) => !composeActiveRef.current.has(queuedId))
+        if (queueIndex < 0) return
+        const [id] = composeQueueRef.current.splice(queueIndex, 1)
+        if (!id) return
+        const item = framesRef.current.find((x) => x.id === id)
+        if (!item?.matteUrl) continue
+        const revision = item.matteRevision
+        const runId = (composeRunRef.current.get(id) ?? 0) + 1
+        composeRunRef.current.set(id, runId)
+        const layout = item.layout
+        composeActiveRef.current.add(id)
+        void composeFrame(item.matteUrl, canvasWidth, canvasHeight, layout, composeStyle)
+          .then((url) => {
+            const current = framesRef.current.find((x) => x.id === id)
+            if (
+              composeRunRef.current.get(id) !== runId ||
+              !current ||
+              current.matteRevision !== revision ||
+              current.layout !== layout
+            ) {
+              URL.revokeObjectURL(url)
+              if (current?.matteUrl) scheduleCompose(id, 80)
+              return
+            }
+            setFrames((prev) =>
+              applyComposedFrameUrl(prev, {
+                id,
+                matteRevision: revision,
+                url,
+                revoke: (u) => URL.revokeObjectURL(u),
+              })
+            )
           })
-        )
-      } catch (e) {
-        message.error(`合成失败：${String(e)}`)
+          .catch((e) => {
+            message.error(`合成失败：${String(e)}`)
+          })
+          .finally(() => {
+            composeActiveRef.current.delete(id)
+            runComposeQueueRef.current()
+          })
       }
     },
     [canvasHeight, canvasWidth, composeStyle, framesRef, setFrames]
   )
 
+  useEffect(() => {
+    runComposeQueueRef.current = runComposeQueue
+  }, [runComposeQueue])
+
   const scheduleCompose = useCallback(
     (id: string, delay = 120) => {
+      if (composeActiveRef.current.has(id) || composeQueueRef.current.includes(id)) return
       const old = composeTimersRef.current.get(id)
       if (old) window.clearTimeout(old)
       const timer = window.setTimeout(() => {
         composeTimersRef.current.delete(id)
-        void recomposeFrame(id)
+        composeQueueRef.current = queueUniqueFrameId(composeQueueRef.current, id)
+        runComposeQueueRef.current()
       }, delay)
       composeTimersRef.current.set(id, timer)
     },
-    [recomposeFrame]
+    []
   )
 
-  const scheduleMatte = useCallback(
-    (id: string) => {
-      const old = timersRef.current.get(id)
-      if (old) window.clearTimeout(old)
-      const timer = window.setTimeout(() => {
+  const runMatteQueue = useCallback(
+    () => {
+      while (matteActiveRef.current.size < MATTE_PIPELINE_CONCURRENCY) {
+        const queueIndex = matteQueueRef.current.findIndex((queuedId) => !matteActiveRef.current.has(queuedId))
+        if (queueIndex < 0) return
+        const [id] = matteQueueRef.current.splice(queueIndex, 1)
+        if (!id) return
         const item = framesRef.current.find((x) => x.id === id)
-        if (!item) return
-        const runId = (matteRunRef.current.get(id) ?? 0) + 1
-        matteRunRef.current.set(id, runId)
-        updateFrame(id, (cur) => ({ ...cur, processing: true }))
+        if (!item) continue
+        const runId = matteRunRef.current.get(id)
+        if (runId === undefined) continue
+        matteActiveRef.current.add(id)
+        updateFrame(id, (cur) => (cur.processing ? cur : { ...cur, processing: true }))
         void chromaKey(item.sourceUrl, item.matte)
           .then((result) => {
             if (matteRunRef.current.get(id) !== runId) {
@@ -129,13 +172,37 @@ export function useMattePipeline({
             )
           })
           .catch((e) => {
+            if (matteRunRef.current.get(id) !== runId) return
             updateFrame(id, (cur) => ({ ...cur, processing: false }))
             message.error(`抠图失败：${String(e)}`)
           })
+          .finally(() => {
+            matteActiveRef.current.delete(id)
+            runMatteQueueRef.current()
+          })
+      }
+    },
+    [framesRef, setFrames, updateFrame]
+  )
+
+  useEffect(() => {
+    runMatteQueueRef.current = runMatteQueue
+  }, [runMatteQueue])
+
+  const scheduleMatte = useCallback(
+    (id: string) => {
+      const old = timersRef.current.get(id)
+      if (old) window.clearTimeout(old)
+      const timer = window.setTimeout(() => {
+        timersRef.current.delete(id)
+        const runId = (matteRunRef.current.get(id) ?? 0) + 1
+        matteRunRef.current.set(id, runId)
+        matteQueueRef.current = queueUniqueFrameId(matteQueueRef.current, id)
+        runMatteQueueRef.current()
       }, 120)
       timersRef.current.set(id, timer)
     },
-    [framesRef, setFrames, updateFrame]
+    []
   )
 
   useEffect(() => {
