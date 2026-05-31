@@ -176,16 +176,16 @@ test('workspace implementation delegates focused responsibilities to local modul
 
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/types'/)
   assert.match(source, /from '\.\/constants'/)
-  assert.match(source, /from '\.\/DetailPreviewModal'/)
-  assert.match(source, /from '\.\/ExportPanel'/)
-  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/FrameThumbnailStrip'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/DetailPreviewModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8'), /from '\.\/ExportPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8'), /from '\.\/FrameThumbnailStrip'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8'), /from '\.\/imagePipeline'/)
-  assert.match(source, /from '\.\/LayoutDefaultsModal'/)
-  assert.match(source, /from '\.\/MatteFrameCard'/)
-  assert.match(source, /from '\.\/MatteDefaultsModal'/)
-  assert.match(source, /from '\.\/PlaybackPanel'/)
-  assert.match(source, /from '\.\/SpriteSheetUploadPanel'/)
-  assert.match(source, /from '\.\/VideoUploadPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/LayoutDefaultsModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8'), /from '\.\/MatteFrameCard'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/MatteDefaultsModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8'), /from '\.\/PlaybackPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/SpriteSheetUploadPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/VideoUploadPanel'/)
   assert.match(source, /from '\.\/useVideoWorkspace'/)
   assert.match(playbackHook, /from '\.\/playbackModel'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8'), /from '\.\/matteModel'/)
@@ -206,6 +206,7 @@ test('workspace entry delegates stateful workflows to focused hooks', () => {
   assert.match(source, /from '\.\/useLayoutWorkspace'/)
   assert.match(source, /from '\.\/useMattePipeline'/)
   assert.match(source, /from '\.\/useUploadWorkspace'/)
+  assert.match(source, /from '\.\/useWorkspaceReset'/)
   assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
 })
 
@@ -264,19 +265,81 @@ test('upload workspace hook owns image and sprite sheet upload side effects', ()
 test('layout workspace panel owns canvas editing view details', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const panelPath = 'src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx'
+  const canvasStagePath = 'src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx'
   const lineCount = source.split(/\r?\n/).length
 
   assert.ok(existsSync(panelPath), 'expected layout workspace panel to exist')
-  const panel = readFileSync(panelPath, 'utf8')
+  assert.ok(existsSync(canvasStagePath), 'expected canvas stage component to exist')
+  const canvasStage = readFileSync(canvasStagePath, 'utf8')
 
   assert.doesNotMatch(source, /HANDLE_CURSORS/)
   assert.doesNotMatch(source, /getGuideRulerLabel/)
   assert.doesNotMatch(source, /data-guide-line-overlay/)
   assert.match(source, /from '\.\/LayoutWorkspacePanel'/)
-  assert.match(panel, /HANDLE_CURSORS/)
-  assert.match(panel, /getGuideRulerLabel/)
-  assert.match(panel, /data-guide-line-overlay/)
+  assert.match(canvasStage, /HANDLE_CURSORS/)
+  assert.match(canvasStage, /getGuideRulerLabel/)
+  assert.match(canvasStage, /data-guide-line-overlay/)
   assert.ok(lineCount < 620, `expected workspace entry to stay below 620 lines after layout view extraction, got ${lineCount}`)
+})
+
+test('upload and matte panels own staged card view details', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const uploadPanelPath = 'src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx'
+  const mattePanelPath = 'src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(uploadPanelPath), 'expected upload workspace panel to exist')
+  assert.ok(existsSync(mattePanelPath), 'expected matte workspace panel to exist')
+  const uploadPanel = readFileSync(uploadPanelPath, 'utf8')
+  const mattePanel = readFileSync(mattePanelPath, 'utf8')
+
+  assert.doesNotMatch(source, /SpriteSheetUploadPanel/)
+  assert.doesNotMatch(source, /VideoUploadPanel/)
+  assert.doesNotMatch(source, /MatteFrameCard/)
+  assert.doesNotMatch(source, /<Tabs/)
+  assert.doesNotMatch(source, /<Upload\s/)
+  assert.match(source, /from '\.\/UploadWorkspacePanel'/)
+  assert.match(source, /from '\.\/MatteWorkspacePanel'/)
+  assert.match(uploadPanel, /SpriteSheetUploadPanel/)
+  assert.match(uploadPanel, /VideoUploadPanel/)
+  assert.match(uploadPanel, /<Tabs/)
+  assert.match(uploadPanel, /<Upload\s/)
+  assert.match(mattePanel, /MatteFrameCard/)
+  assert.ok(lineCount < 380, `expected workspace entry to stay below 380 lines after staged panel extraction, got ${lineCount}`)
+})
+
+test('workspace entry only composes focused panels and hooks', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const layoutPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+  const layoutLineCount = layoutPanel.split(/\r?\n/).length
+
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/useWorkspaceReset.ts'), 'expected reset hook to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx'), 'expected layout toolbar component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx'), 'expected canvas stage component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/ActiveFrameInspector.tsx'), 'expected active frame inspector component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx'), 'expected dialogs component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx'), 'expected output panel component to exist')
+
+  assert.doesNotMatch(source, /useEffect/)
+  assert.doesNotMatch(source, /removeAllFrames/)
+  assert.doesNotMatch(source, /setGuideDragState/)
+  assert.doesNotMatch(source, /canvasStageRef/)
+  assert.doesNotMatch(source, /handleLayoutWheel/)
+  assert.doesNotMatch(source, /PlaybackPanel/)
+  assert.doesNotMatch(source, /ExportPanel/)
+  assert.doesNotMatch(source, /MatteDefaultsModal/)
+  assert.doesNotMatch(source, /LayoutDefaultsModal/)
+  assert.doesNotMatch(source, /DetailPreviewModal/)
+  assert.match(source, /from '\.\/useWorkspaceReset'/)
+  assert.match(source, /from '\.\/WorkspaceDialogs'/)
+  assert.match(source, /from '\.\/OutputWorkspacePanel'/)
+
+  assert.match(layoutPanel, /LayoutWorkspaceToolbar/)
+  assert.match(layoutPanel, /CanvasStage/)
+  assert.match(layoutPanel, /ActiveFrameInspector/)
+  assert.ok(layoutLineCount < 260, `expected layout workspace panel to stay below 260 lines after tool extraction, got ${layoutLineCount}`)
+  assert.ok(lineCount < 260, `expected workspace entry to stay below 260 lines after final panel extraction, got ${lineCount}`)
 })
 
 test('workspace model delegates crop and video helpers to focused modules', () => {

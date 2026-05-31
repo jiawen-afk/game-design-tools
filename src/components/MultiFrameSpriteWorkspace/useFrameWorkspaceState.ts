@@ -25,6 +25,12 @@ export function useFrameWorkspaceState() {
   )
   const activeFrameIndex = activeFrame ? frames.findIndex((item) => item.id === activeFrame.id) : -1
 
+  useEffect(() => {
+    const ids = new Set(frames.map((item) => item.id))
+    setSelectedFrameIds((prev) => prev.filter((id) => ids.has(id)))
+    setSelectionAnchorId((prev) => (prev && ids.has(prev) ? prev : null))
+  }, [frames])
+
   const updateFrame = useCallback((id: string, updater: (item: FrameItem) => FrameItem) => {
     setFrames((prev) => prev.map((item) => (item.id === id ? updater(item) : item)))
   }, [])
