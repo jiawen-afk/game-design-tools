@@ -176,16 +176,17 @@
 
 .playback-workspace-grid {
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(340px, 460px) minmax(280px, 520px);
   gap: 16px;
   align-items: start;
+  justify-content: start;
 }
 
 .playback-frame-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   max-height: 360px;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
   padding-right: 4px;
 }

@@ -170,7 +170,8 @@ test('playback preview stays bounded when many frame rows are present', () => {
   assert.match(panel, /className="playback-frame-list"/)
   assert.match(panel, /className="playback-preview-box"/)
   assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
-  assert.match(css, /\.playback-frame-list\s*{[^}]*max-height:\s*360px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(340px,\s*460px\)\s+minmax\(280px,\s*520px\)/s)
+  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(150px,\s*1fr\)\)[^}]*max-height:\s*360px[^}]*overflow:\s*auto/s)
   assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
 })
 
