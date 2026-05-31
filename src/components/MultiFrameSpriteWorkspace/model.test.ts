@@ -840,6 +840,8 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   assert.doesNotMatch(controller, /existingFrameCount:\s*frame\.frames\.length/)
   assert.match(mattePanel, /buildMatteFrameGroups/)
   assert.match(mattePanel, /确定应用到该组所有帧/)
+  assert.match(mattePanel, /<span>\{group\.name\} · 第 1 帧<\/span>/)
+  assert.match(mattePanel, /<Text type="secondary">共 \{group\.frameCount\} 帧<\/Text>/)
   assert.doesNotMatch(videoHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
   assert.doesNotMatch(uploadHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
 })

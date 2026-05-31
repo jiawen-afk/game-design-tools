@@ -62,7 +62,12 @@ export function MatteWorkspacePanel({
               <MatteFrameCard
                 key={group.firstFrame.id}
                 item={group.firstFrame}
-                title={`${group.name} · 第 1 帧`}
+                title={(
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                    <span>{group.name} · 第 1 帧</span>
+                    <Text type="secondary">共 {group.frameCount} 帧</Text>
+                  </div>
+                )}
                 index={0}
                 frameCount={group.frameCount}
                 active={activeFrameId === group.firstFrame.id}

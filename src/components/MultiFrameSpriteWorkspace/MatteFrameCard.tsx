@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { Button, Card, ColorPicker, Input, Select, Slider, Space, Typography } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 
@@ -18,7 +18,7 @@ const MATTE_SLIDERS: Array<[string, keyof Pick<MatteParams, 'tolerance' | 'smoot
 
 export interface MatteFrameCardProps {
   item: FrameItem
-  title?: string
+  title?: ReactNode
   index: number
   frameCount: number
   active: boolean
