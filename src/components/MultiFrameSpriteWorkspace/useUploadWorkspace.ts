@@ -12,6 +12,7 @@ import type { MatteDefaults } from './matteModel'
 import {
   buildUploadFileKey,
   filterNewUploadFiles,
+  getInitialMatteFrameIds,
 } from './model'
 import type { FrameItem, SpriteSheetDraft, SpriteSlicePreview } from './types'
 
@@ -94,8 +95,12 @@ export function useUploadWorkspace({
     if (nextFiles.length === 0) return
     nextFiles.forEach((file) => pendingUploadKeysRef.current.add(buildUploadFileKey(file)))
     void Promise.all(nextFiles.map((file) => makeFrameFromFile(file, matteDefaults))).then((created) => {
+      const existingFrameCount = framesRef.current.length
       appendFrames(created)
-      created.forEach((item) => scheduleMatte(item.id))
+      getInitialMatteFrameIds({
+        existingFrameCount,
+        createdIds: created.map((item) => item.id),
+      }).forEach((id) => scheduleMatte(id))
     }).finally(() => {
       nextFiles.forEach((file) => pendingUploadKeysRef.current.delete(buildUploadFileKey(file)))
     })
@@ -124,8 +129,12 @@ export function useUploadWorkspace({
     try {
       const files = spriteSlices.map((slice) => new File([slice.blob], slice.name, { type: 'image/png' }))
       const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults)))
+      const existingFrameCount = framesRef.current.length
       appendFrames(created)
-      created.forEach((item) => scheduleMatte(item.id))
+      getInitialMatteFrameIds({
+        existingFrameCount,
+        createdIds: created.map((item) => item.id),
+      }).forEach((id) => scheduleMatte(id))
       message.success(`已添加 ${created.length} 帧到流程 2`)
     } catch (e) {
       message.error(`添加切分帧失败：${String(e)}`)

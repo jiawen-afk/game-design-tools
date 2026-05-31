@@ -21,9 +21,11 @@ import {
   shouldReplayVideoSegment,
 } from './videoModel'
 import type { MatteDefaults } from './matteModel'
+import { getInitialMatteFrameIds } from './model'
 import type { ExtractedVideoFrame, FrameItem, VideoCropDragState, VideoCropHandle, VideoDraft } from './types'
 
 export interface UseVideoWorkspaceParams {
+  existingFrameCount: number
   matteDefaults: MatteDefaults
   appendFrames: (frames: FrameItem[]) => void
   scheduleMatte: (id: string) => void
@@ -31,7 +33,7 @@ export interface UseVideoWorkspaceParams {
 
 export type VideoWorkspaceViewModel = ReturnType<typeof useVideoWorkspace>
 
-export function useVideoWorkspace({ matteDefaults, appendFrames, scheduleMatte }: UseVideoWorkspaceParams) {
+export function useVideoWorkspace({ existingFrameCount, matteDefaults, appendFrames, scheduleMatte }: UseVideoWorkspaceParams) {
   const [videoDraft, setVideoDraft] = useState<VideoDraft | null>(null)
   const [videoClipStart, setVideoClipStart] = useState(0)
   const [videoClipEnd, setVideoClipEnd] = useState(0)
@@ -348,7 +350,10 @@ export function useVideoWorkspace({ matteDefaults, appendFrames, scheduleMatte }
       )
       const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults)))
       appendFrames(created)
-      created.forEach((item) => scheduleMatte(item.id))
+      getInitialMatteFrameIds({
+        existingFrameCount,
+        createdIds: created.map((item) => item.id),
+      }).forEach((id) => scheduleMatte(id))
       message.success(`已添加 ${created.length} 帧到流程 2`)
     } catch (e) {
       message.error(`添加视频帧失败：${String(e)}`)

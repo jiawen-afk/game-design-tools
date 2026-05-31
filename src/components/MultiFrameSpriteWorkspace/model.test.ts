@@ -29,6 +29,7 @@ import {
   filterLivePlaybackFrameIds,
   filterNewUploadFiles,
   filterVisibleFrames,
+  getInitialMatteFrameIds,
   getGuideActionLabel,
   getGuideEmptyStateText,
   getGuideLineEdgeStartPosition,
@@ -720,6 +721,24 @@ test('upload filtering ignores files that already exist or are pending', () => {
     }),
     [c]
   )
+})
+
+test('initial matte processing only primes the first frame for a new workspace', () => {
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 0, createdIds: ['a', 'b', 'c'] }), ['a'])
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 3, createdIds: ['d', 'e'] }), [])
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 0, createdIds: [] }), [])
+})
+
+test('adding frames to flow 2 only schedules the initial matte frame', () => {
+  const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const uploadHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+
+  assert.match(videoHook, /getInitialMatteFrameIds/)
+  assert.match(uploadHook, /getInitialMatteFrameIds/)
+  assert.match(controller, /existingFrameCount:\s*frame\.frames\.length/)
+  assert.doesNotMatch(videoHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
+  assert.doesNotMatch(uploadHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
 })
 
 test('spill color options resolve to expected RGB colors', () => {

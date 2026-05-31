@@ -33,6 +33,7 @@ export {
   applyMatteParamsToFollowingFrames,
   coerceMatteDefaults,
   getSpillColorHex,
+  getInitialMatteFrameIds,
   normalizeHexColor,
   normalizePickerColor,
   queueUniqueFrameId,

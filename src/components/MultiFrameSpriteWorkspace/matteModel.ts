@@ -34,6 +34,16 @@ export function resolvePipelineConcurrency(availableThreads: number | undefined,
   return clampInt(Math.floor(availableThreads / 2), 2, 6)
 }
 
+export interface InitialMatteFrameInput {
+  existingFrameCount: number
+  createdIds: string[]
+}
+
+export function getInitialMatteFrameIds({ existingFrameCount, createdIds }: InitialMatteFrameInput): string[] {
+  if (existingFrameCount > 0) return []
+  return createdIds[0] ? [createdIds[0]] : []
+}
+
 function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
   return {
     ...matte,
