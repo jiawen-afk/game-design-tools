@@ -17,6 +17,8 @@ export interface UseSpriteExportParams {
   playbackMode: PlaybackMode
 }
 
+export type SpriteExportViewModel = ReturnType<typeof useSpriteExport>
+
 export function useSpriteExport({
   frames,
   visibleFrames,

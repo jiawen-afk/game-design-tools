@@ -28,6 +28,8 @@ export interface UsePlaybackWorkspaceParams {
   toggleFrameHidden: (id: string) => void
 }
 
+export type PlaybackWorkspaceViewModel = ReturnType<typeof usePlaybackWorkspace>
+
 export function usePlaybackWorkspace({
   frames,
   framesRef,

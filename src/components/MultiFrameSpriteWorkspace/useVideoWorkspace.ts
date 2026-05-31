@@ -29,6 +29,8 @@ export interface UseVideoWorkspaceParams {
   scheduleMatte: (id: string) => void
 }
 
+export type VideoWorkspaceViewModel = ReturnType<typeof useVideoWorkspace>
+
 export function useVideoWorkspace({ matteDefaults, appendFrames, scheduleMatte }: UseVideoWorkspaceParams) {
   const [videoDraft, setVideoDraft] = useState<VideoDraft | null>(null)
   const [videoClipStart, setVideoClipStart] = useState(0)

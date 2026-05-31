@@ -1,27 +1,20 @@
-import type { Dispatch, SetStateAction } from 'react'
-
 import { DetailPreviewModal } from './DetailPreviewModal'
 import { LayoutDefaultsModal } from './LayoutDefaultsModal'
 import { MatteDefaultsModal } from './MatteDefaultsModal'
-import type { useLayoutWorkspace } from './useLayoutWorkspace'
-import type { useMattePipeline } from './useMattePipeline'
+import type { FrameWorkspaceViewModel } from './useFrameWorkspaceState'
+import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
+import type { MattePipelineViewModel } from './useMattePipeline'
 
 export interface WorkspaceDialogsProps {
-  matte: ReturnType<typeof useMattePipeline>
-  layout: ReturnType<typeof useLayoutWorkspace>
-  detailPreview: { url: string; name: string } | null
-  detailZoom: number
-  setDetailZoom: Dispatch<SetStateAction<number>>
-  setDetailPreview: Dispatch<SetStateAction<{ url: string; name: string } | null>>
+  frame: FrameWorkspaceViewModel
+  matte: MattePipelineViewModel
+  layout: LayoutWorkspaceViewModel
 }
 
 export function WorkspaceDialogs({
+  frame,
   matte,
   layout,
-  detailPreview,
-  detailZoom,
-  setDetailZoom,
-  setDetailPreview,
 }: WorkspaceDialogsProps) {
   return (
     <>
@@ -42,10 +35,10 @@ export function WorkspaceDialogs({
       />
 
       <DetailPreviewModal
-        preview={detailPreview}
-        zoom={detailZoom}
-        onZoomChange={setDetailZoom}
-        onClose={() => setDetailPreview(null)}
+        preview={frame.detailPreview}
+        zoom={frame.detailZoom}
+        onZoomChange={frame.setDetailZoom}
+        onClose={() => frame.setDetailPreview(null)}
       />
     </>
   )

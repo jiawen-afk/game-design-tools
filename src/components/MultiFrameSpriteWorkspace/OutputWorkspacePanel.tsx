@@ -2,16 +2,16 @@ import { Divider, Typography } from 'antd'
 
 import { ExportPanel } from './ExportPanel'
 import { PlaybackPanel } from './PlaybackPanel'
-import type { usePlaybackWorkspace } from './usePlaybackWorkspace'
-import type { useSpriteExport } from './useSpriteExport'
+import type { PlaybackWorkspaceViewModel } from './usePlaybackWorkspace'
+import type { SpriteExportViewModel } from './useSpriteExport'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
 
 export interface OutputWorkspacePanelProps {
   frames: FrameItem[]
-  playback: ReturnType<typeof usePlaybackWorkspace>
-  spriteExport: ReturnType<typeof useSpriteExport>
+  playback: PlaybackWorkspaceViewModel
+  spriteExport: SpriteExportViewModel
   canvasWidth: number
   canvasHeight: number
 }

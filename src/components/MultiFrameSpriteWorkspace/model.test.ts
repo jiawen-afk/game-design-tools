@@ -170,6 +170,7 @@ test('workspace video styles live beside the workspace component', () => {
 
 test('workspace implementation delegates focused responsibilities to local modules', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
   const lineCount = source.split(/\r?\n/).length
@@ -186,7 +187,7 @@ test('workspace implementation delegates focused responsibilities to local modul
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8'), /from '\.\/PlaybackPanel'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/SpriteSheetUploadPanel'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/VideoUploadPanel'/)
-  assert.match(source, /from '\.\/useVideoWorkspace'/)
+  assert.match(controller, /from '\.\/useVideoWorkspace'/)
   assert.match(playbackHook, /from '\.\/playbackModel'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8'), /from '\.\/matteModel'/)
   assert.match(videoHook, /from '\.\/cropModel'/)
@@ -197,16 +198,18 @@ test('workspace implementation delegates focused responsibilities to local modul
 
 test('workspace entry delegates stateful workflows to focused hooks', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const lineCount = source.split(/\r?\n/).length
 
-  assert.match(source, /from '\.\/useFrameWorkspaceState'/)
-  assert.match(source, /from '\.\/usePlaybackWorkspace'/)
-  assert.match(source, /from '\.\/useSpriteExport'/)
-  assert.match(source, /from '\.\/useVideoWorkspace'/)
-  assert.match(source, /from '\.\/useLayoutWorkspace'/)
-  assert.match(source, /from '\.\/useMattePipeline'/)
-  assert.match(source, /from '\.\/useUploadWorkspace'/)
-  assert.match(source, /from '\.\/useWorkspaceReset'/)
+  assert.match(source, /from '\.\/useSpriteWorkspaceController'/)
+  assert.match(controller, /from '\.\/useFrameWorkspaceState'/)
+  assert.match(controller, /from '\.\/usePlaybackWorkspace'/)
+  assert.match(controller, /from '\.\/useSpriteExport'/)
+  assert.match(controller, /from '\.\/useVideoWorkspace'/)
+  assert.match(controller, /from '\.\/useLayoutWorkspace'/)
+  assert.match(controller, /from '\.\/useMattePipeline'/)
+  assert.match(controller, /from '\.\/useUploadWorkspace'/)
+  assert.match(controller, /from '\.\/useWorkspaceReset'/)
   assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
 })
 
@@ -244,6 +247,7 @@ test('layout workspace hook owns layout and guide side effects', () => {
 
 test('upload workspace hook owns image and sprite sheet upload side effects', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const hookPath = 'src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts'
   const lineCount = source.split(/\r?\n/).length
 
@@ -254,7 +258,7 @@ test('upload workspace hook owns image and sprite sheet upload side effects', ()
   assert.doesNotMatch(source, /splitSpriteSheetToPreviews/)
   assert.doesNotMatch(source, /filterNewUploadFiles/)
   assert.doesNotMatch(source, /pendingUploadKeysRef/)
-  assert.match(source, /from '\.\/useUploadWorkspace'/)
+  assert.match(controller, /from '\.\/useUploadWorkspace'/)
   assert.match(hook, /makeFrameFromFile/)
   assert.match(hook, /splitSpriteSheetToPreviews/)
   assert.match(hook, /filterNewUploadFiles/)
@@ -310,6 +314,7 @@ test('upload and matte panels own staged card view details', () => {
 
 test('workspace entry only composes focused panels and hooks', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const layoutPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8')
   const lineCount = source.split(/\r?\n/).length
   const layoutLineCount = layoutPanel.split(/\r?\n/).length
@@ -331,7 +336,7 @@ test('workspace entry only composes focused panels and hooks', () => {
   assert.doesNotMatch(source, /MatteDefaultsModal/)
   assert.doesNotMatch(source, /LayoutDefaultsModal/)
   assert.doesNotMatch(source, /DetailPreviewModal/)
-  assert.match(source, /from '\.\/useWorkspaceReset'/)
+  assert.match(controller, /from '\.\/useWorkspaceReset'/)
   assert.match(source, /from '\.\/WorkspaceDialogs'/)
   assert.match(source, /from '\.\/OutputWorkspacePanel'/)
 
@@ -340,6 +345,47 @@ test('workspace entry only composes focused panels and hooks', () => {
   assert.match(layoutPanel, /ActiveFrameInspector/)
   assert.ok(layoutLineCount < 260, `expected layout workspace panel to stay below 260 lines after tool extraction, got ${layoutLineCount}`)
   assert.ok(lineCount < 260, `expected workspace entry to stay below 260 lines after final panel extraction, got ${lineCount}`)
+})
+
+test('workspace entry delegates controller shell and view model boundaries', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controllerPath = 'src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts'
+  const shellPath = 'src/components/MultiFrameSpriteWorkspace/WorkspaceShell.tsx'
+  const frameHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8')
+  const layoutHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
+  const dialogs = readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(controllerPath), 'expected sprite workspace controller hook to exist')
+  assert.ok(existsSync(shellPath), 'expected workspace shell component to exist')
+  const controller = readFileSync(controllerPath, 'utf8')
+  const shell = readFileSync(shellPath, 'utf8')
+
+  assert.doesNotMatch(source, /useMemo/)
+  assert.doesNotMatch(source, /readStoredLayoutDefaults/)
+  assert.doesNotMatch(source, /useLayoutWorkspace/)
+  assert.doesNotMatch(source, /usePlaybackWorkspace/)
+  assert.doesNotMatch(source, /useSpriteExport/)
+  assert.doesNotMatch(source, /useMattePipeline/)
+  assert.doesNotMatch(source, /useUploadWorkspace/)
+  assert.doesNotMatch(source, /useVideoWorkspace/)
+  assert.doesNotMatch(source, /useWorkspaceReset/)
+  assert.doesNotMatch(source, /setDetailPreview/)
+  assert.doesNotMatch(source, /setDetailZoom/)
+  assert.match(source, /from '\.\/useSpriteWorkspaceController'/)
+  assert.match(source, /from '\.\/WorkspaceShell'/)
+  assert.match(controller, /useLayoutWorkspace/)
+  assert.match(controller, /usePlaybackWorkspace/)
+  assert.match(controller, /useWorkspaceReset/)
+  assert.match(shell, /多图动作精灵工作台/)
+  assert.match(frameHook, /openDetailPreview/)
+  assert.doesNotMatch(uploadPanel, /ReturnType/)
+  assert.doesNotMatch(outputPanel, /ReturnType/)
+  assert.doesNotMatch(dialogs, /ReturnType/)
+  assert.match(layoutHook, /export interface LayoutWorkspaceViewModel/)
+  assert.ok(lineCount < 90, `expected workspace entry to stay below 90 lines after controller extraction, got ${lineCount}`)
 })
 
 test('workspace model delegates crop and video helpers to focused modules', () => {

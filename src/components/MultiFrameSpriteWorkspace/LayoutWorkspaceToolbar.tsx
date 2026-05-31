@@ -12,7 +12,7 @@ import {
 import {
   getWheelScalingButtonLabel,
 } from './layoutModel'
-import type { useLayoutWorkspace } from './useLayoutWorkspace'
+import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
@@ -20,7 +20,7 @@ const { Text } = Typography
 export interface LayoutWorkspaceToolbarProps {
   frames: FrameItem[]
   activeFrame: FrameItem | null
-  layout: ReturnType<typeof useLayoutWorkspace>
+  layout: LayoutWorkspaceViewModel
   setActiveId: (id: string) => void
 }
 

@@ -27,6 +27,52 @@ export interface UseLayoutWorkspaceParams {
   updateFrame: (id: string, updater: (item: FrameItem) => FrameItem) => void
 }
 
+export interface LayoutWorkspaceViewModel {
+  canvasWidth: number
+  setCanvasWidth: React.Dispatch<React.SetStateAction<number>>
+  canvasHeight: number
+  setCanvasHeight: React.Dispatch<React.SetStateAction<number>>
+  dragState: DragState
+  setDragState: React.Dispatch<React.SetStateAction<DragState>>
+  guideLines: GuideLine[]
+  setGuideLines: React.Dispatch<React.SetStateAction<GuideLine[]>>
+  selectedGuideLineId: string | null
+  setSelectedGuideLineId: React.Dispatch<React.SetStateAction<string | null>>
+  setGuideDragState: React.Dispatch<React.SetStateAction<GuideDragState | null>>
+  layoutDefaultsOpen: boolean
+  setLayoutDefaultsOpen: React.Dispatch<React.SetStateAction<boolean>>
+  layoutDefaultsDraft: LayoutDefaults
+  setLayoutDefaultsDraft: React.Dispatch<React.SetStateAction<LayoutDefaults>>
+  canvasRatioPercent: number
+  setCanvasRatioPercent: React.Dispatch<React.SetStateAction<number>>
+  canvasRatioBasis: 'width' | 'height'
+  setCanvasRatioBasis: React.Dispatch<React.SetStateAction<'width' | 'height'>>
+  activeRatioPercent: number
+  activeRatioBasis: 'width' | 'height'
+  strokeColor: string
+  setStrokeColor: React.Dispatch<React.SetStateAction<string>>
+  strokeWidth: number
+  setStrokeWidth: React.Dispatch<React.SetStateAction<number>>
+  outlineColor: string
+  setOutlineColor: React.Dispatch<React.SetStateAction<string>>
+  outlineWidth: number
+  setOutlineWidth: React.Dispatch<React.SetStateAction<number>>
+  composeStyle: ComposeStyle
+  layoutWheelScalingEnabled: boolean
+  setLayoutWheelScalingEnabled: React.Dispatch<React.SetStateAction<boolean>>
+  canvasStageRef: React.RefObject<HTMLDivElement | null>
+  setLayout: (id: string, patch: Partial<FrameLayout>) => void
+  handleLayoutWheel: (e: React.WheelEvent<HTMLDivElement>) => void
+  createGuideLine: (axis: GuideAxis, e: React.PointerEvent<HTMLElement>) => void
+  addGuideLine: (axis: GuideAxis) => void
+  applyAllCenter: () => void
+  applyPresetSize: (mode: string) => void
+  applyCanvasRatio: (percent: number, basis: 'width' | 'height') => void
+  updateActiveRatio: (next: { percent?: number; basis?: 'width' | 'height' }) => void
+  openLayoutDefaults: () => void
+  saveLayoutDefaults: () => void
+}
+
 export function useLayoutWorkspace({
   initialLayoutDefaults,
   frames,
@@ -34,7 +80,7 @@ export function useLayoutWorkspace({
   detailPreview,
   setFrames,
   updateFrame,
-}: UseLayoutWorkspaceParams) {
+}: UseLayoutWorkspaceParams): LayoutWorkspaceViewModel {
   const [canvasWidth, setCanvasWidth] = useState(initialLayoutDefaults.canvasWidth)
   const [canvasHeight, setCanvasHeight] = useState(initialLayoutDefaults.canvasHeight)
   const [dragState, setDragState] = useState<DragState>(null)

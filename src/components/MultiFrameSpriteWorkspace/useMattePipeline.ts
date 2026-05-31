@@ -25,6 +25,8 @@ export interface UseMattePipelineParams {
   composingPaused: boolean
 }
 
+export type MattePipelineViewModel = ReturnType<typeof useMattePipeline>
+
 export function useMattePipeline({
   frames,
   framesRef,

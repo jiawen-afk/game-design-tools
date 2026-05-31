@@ -3,14 +3,14 @@ import { Card, Space } from 'antd'
 import { ActiveFrameInspector } from './ActiveFrameInspector'
 import { CanvasStage } from './CanvasStage'
 import { LayoutWorkspaceToolbar } from './LayoutWorkspaceToolbar'
-import type { useLayoutWorkspace } from './useLayoutWorkspace'
+import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
 import type { FrameItem } from './types'
 
 export interface LayoutWorkspacePanelProps {
   frames: FrameItem[]
   activeFrame: FrameItem | null
   activeFrameIndex: number
-  layout: ReturnType<typeof useLayoutWorkspace>
+  layout: LayoutWorkspaceViewModel
   setActiveId: (id: string) => void
 }
 

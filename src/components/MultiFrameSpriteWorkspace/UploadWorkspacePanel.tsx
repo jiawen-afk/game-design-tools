@@ -3,14 +3,14 @@ import { UploadOutlined } from '@ant-design/icons'
 
 import { SpriteSheetUploadPanel } from './SpriteSheetUploadPanel'
 import { VideoUploadPanel } from './VideoUploadPanel'
-import type { useUploadWorkspace } from './useUploadWorkspace'
-import type { useVideoWorkspace } from './useVideoWorkspace'
+import type { UploadWorkspaceViewModel } from './useUploadWorkspace'
+import type { VideoWorkspaceViewModel } from './useVideoWorkspace'
 
 export interface UploadWorkspacePanelProps {
   imageAccept: string[]
   videoAccept: string[]
-  upload: ReturnType<typeof useUploadWorkspace>
-  video: ReturnType<typeof useVideoWorkspace>
+  upload: UploadWorkspaceViewModel
+  video: VideoWorkspaceViewModel
 }
 
 export function UploadWorkspacePanel({

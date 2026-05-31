@@ -4,6 +4,8 @@ import { clearFrameCollection } from './playbackModel'
 import { revokeFrameUrls } from './imagePipeline'
 import type { FrameItem } from './types'
 
+export type FrameWorkspaceViewModel = ReturnType<typeof useFrameWorkspaceState>
+
 export function useFrameWorkspaceState() {
   const [frames, setFrames] = useState<FrameItem[]>([])
   const framesRef = useRef(frames)
@@ -75,6 +77,11 @@ export function useFrameWorkspaceState() {
     setFrames((prev) => prev.map((item) => (item.id === id ? { ...item, hidden: !item.hidden } : item)))
   }, [])
 
+  const openDetailPreview = useCallback((url: string, name: string) => {
+    setDetailPreview({ url, name })
+    setDetailZoom(1)
+  }, [])
+
   return {
     frames,
     setFrames,
@@ -91,6 +98,7 @@ export function useFrameWorkspaceState() {
     setDetailPreview,
     detailZoom,
     setDetailZoom,
+    openDetailPreview,
     dragOrderId,
     setDragOrderId,
     updateFrame,

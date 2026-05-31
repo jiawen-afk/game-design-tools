@@ -23,6 +23,8 @@ export interface UseUploadWorkspaceParams {
   scheduleMatte: (id: string) => void
 }
 
+export type UploadWorkspaceViewModel = ReturnType<typeof useUploadWorkspace>
+
 export function useUploadWorkspace({
   frames,
   framesRef,

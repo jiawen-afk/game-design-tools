@@ -1,6 +1,6 @@
 import { Button, Checkbox, InputNumber, Space, Typography } from 'antd'
 
-import type { useLayoutWorkspace } from './useLayoutWorkspace'
+import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
 import type { FrameItem, FrameLayout } from './types'
 
 const { Text } = Typography
@@ -9,7 +9,7 @@ export interface ActiveFrameInspectorProps {
   frames: FrameItem[]
   activeFrame: FrameItem | null
   activeFrameIndex: number
-  layout: ReturnType<typeof useLayoutWorkspace>
+  layout: LayoutWorkspaceViewModel
 }
 
 export function ActiveFrameInspector({

@@ -12,14 +12,14 @@ import {
   getGuideRulerLabel,
 } from './guideModel'
 import type { ResizeHandle } from './layoutModel'
-import type { useLayoutWorkspace } from './useLayoutWorkspace'
+import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
 
 export interface CanvasStageProps {
   activeFrame: FrameItem | null
-  layout: ReturnType<typeof useLayoutWorkspace>
+  layout: LayoutWorkspaceViewModel
 }
 
 export function CanvasStage({ activeFrame, layout }: CanvasStageProps) {
