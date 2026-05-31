@@ -162,6 +162,18 @@ test('video extracted frame preview layout keeps preview flexible and frame list
   assert.match(css, /\.video-confirm-action\s+\.ant-btn\s*{[^}]*width:\s*100%/s)
 })
 
+test('playback preview stays bounded when many frame rows are present', () => {
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/PlaybackPanel.tsx', 'utf8')
+
+  assert.match(panel, /className="playback-workspace-grid"/)
+  assert.match(panel, /className="playback-frame-list"/)
+  assert.match(panel, /className="playback-preview-box"/)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
+  assert.match(css, /\.playback-frame-list\s*{[^}]*max-height:\s*360px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
+})
+
 test('workspace video styles live beside the workspace component', () => {
   const appCss = readFileSync('src/styles/app.css', 'utf8')
   const workspaceCss = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')

@@ -77,8 +77,8 @@ export function PlaybackPanel({
             ]}
           />
         </Space>
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="playback-workspace-grid">
+          <div className="playback-frame-list">
             {frames.map((item, index) => (
               <PlaybackFrameRow
                 key={item.id}
@@ -94,13 +94,12 @@ export function PlaybackPanel({
               />
             ))}
           </div>
-          <div style={{ minHeight: 260, display: 'grid', placeItems: 'center', background: '#d9d0c4', border: '1px solid #9a8b78' }}>
+          <div className="playback-preview-box">
             {previewFrame?.composedUrl ? (
               <Space direction="vertical" align="center">
                 <img
                   src={previewFrame.composedUrl}
                   alt="preview"
-                  style={{ maxWidth: '100%', maxHeight: 360, objectFit: 'contain' }}
                 />
                 <Text type="secondary">帧 {Math.min(playIndex + 1, playbackFrameCount)} / {playbackFrameCount}</Text>
               </Space>
