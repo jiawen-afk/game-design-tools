@@ -184,11 +184,14 @@
 
 .playback-frame-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  max-height: 360px;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, minmax(0, max-content));
+  grid-auto-columns: minmax(150px, 1fr);
+  max-height: 500px;
   overflow: auto;
   gap: 8px;
   padding-right: 4px;
+  align-content: start;
 }
 
 .playback-preview-box {
@@ -219,6 +222,6 @@
   }
 
   .playback-frame-list {
-    max-height: 260px;
+    max-height: 500px;
   }
 }
