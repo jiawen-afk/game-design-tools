@@ -4,7 +4,7 @@ import { message } from 'antd'
 
 import { chromaKey, composeFrame, loadImage } from './imagePipeline'
 import {
-  applyMatteParamsToAllFrames,
+  applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
   coerceMatteDefaults,
   normalizeHexColor,
@@ -48,7 +48,7 @@ export function useMattePipeline({
   const [matteDefaults, setMatteDefaults] = useState<MatteDefaults>(() => readStoredMatteDefaults())
   const [matteDefaultsOpen, setMatteDefaultsOpen] = useState(false)
   const [matteDefaultsDraft, setMatteDefaultsDraft] = useState<MatteDefaults>(() => readStoredMatteDefaults())
-  const [bulkMatteProcessing, setBulkMatteProcessing] = useState(false)
+  const [bulkMatteGroupId, setBulkMatteGroupId] = useState<string | null>(null)
   const timersRef = useRef(new Map<string, number>())
   const matteRunRef = useRef(new Map<string, number>())
   const matteQueueRef = useRef<string[]>([])
@@ -226,22 +226,23 @@ export function useMattePipeline({
   }, [canvasHeight, canvasWidth, composeStyle, framesRef, scheduleCompose])
 
   useEffect(() => {
-    if (!bulkMatteProcessing) return
-    const items = framesRef.current
+    if (!bulkMatteGroupId) return
+    const items = framesRef.current.filter((item) => item.matteGroupId === bulkMatteGroupId)
+    const groupIds = new Set(items.map((item) => item.id))
     const pendingWork =
-      timersRef.current.size > 0 ||
-      matteQueueRef.current.length > 0 ||
-      matteActiveRef.current.size > 0 ||
+      [...timersRef.current.keys()].some((id) => groupIds.has(id)) ||
+      matteQueueRef.current.some((id) => groupIds.has(id)) ||
+      [...matteActiveRef.current].some((id) => groupIds.has(id)) ||
       items.some((item) => item.processing || !item.matteUrl)
     if (pendingWork) return
-    setBulkMatteProcessing(false)
+    setBulkMatteGroupId(null)
     message.open({
       key: BULK_MATTE_MESSAGE_KEY,
       type: 'success',
       content: `抠图处理完成，共 ${items.length} 帧`,
       duration: 2,
     })
-  }, [bulkMatteProcessing, frames, framesRef])
+  }, [bulkMatteGroupId, frames, framesRef])
 
   const setMatteParam = <K extends keyof MatteParams>(id: string, key: K, value: MatteParams[K]) => {
     updateFrame(id, (item) => ({ ...item, matte: { ...item.matte, [key]: value } }))
@@ -283,16 +284,16 @@ export function useMattePipeline({
     if (recomputeIds.length > 0) message.success(`已应用到后续 ${recomputeIds.length} 帧`)
   }
 
-  const applyFirstMatteToAllFrames = () => {
-    const sourceId = framesRef.current[0]?.id
-    if (!sourceId) {
+  const applyMatteGroupToFrames = (sourceId: string) => {
+    const source = framesRef.current.find((item) => item.id === sourceId)
+    if (!source) {
       message.info('请先添加帧')
       return
     }
-    const recomputeIds = applyMatteParamsToAllFrames(framesRef.current, sourceId).recomputeIds
+    const recomputeIds = applyMatteParamsToFrameGroup(framesRef.current, sourceId).recomputeIds
     if (recomputeIds.length === 0) return
-    setFrames((prev) => applyMatteParamsToAllFrames(prev, prev[0]?.id ?? sourceId).frames)
-    setBulkMatteProcessing(true)
+    setFrames((prev) => applyMatteParamsToFrameGroup(prev, sourceId).frames)
+    setBulkMatteGroupId(source.matteGroupId)
     message.open({
       key: BULK_MATTE_MESSAGE_KEY,
       type: 'loading',
@@ -347,14 +348,15 @@ export function useMattePipeline({
     setMatteDefaultsDraft,
     openMatteDefaults,
     saveMatteDefaults,
-    bulkMatteProcessing,
+    bulkMatteProcessing: Boolean(bulkMatteGroupId),
+    bulkMatteGroupId,
     scheduleMatte,
     clearMattePipeline,
     setMatteParam,
     setCustomSpillColor,
     setCustomSpillPickerColor,
     applyMatteToFollowingFrames,
-    applyFirstMatteToAllFrames,
+    applyMatteGroupToFrames,
     sampleColor,
   }
 }

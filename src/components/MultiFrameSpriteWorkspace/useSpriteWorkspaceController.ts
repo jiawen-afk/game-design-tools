@@ -63,7 +63,7 @@ export function useSpriteWorkspaceController() {
     scheduleMatte: matte.scheduleMatte,
   })
   const video = useVideoWorkspace({
-    existingFrameCount: frame.frames.length,
+    framesRef: frame.framesRef,
     matteDefaults: matte.matteDefaults,
     appendFrames: frame.appendFrames,
     scheduleMatte: matte.scheduleMatte,

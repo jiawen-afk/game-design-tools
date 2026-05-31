@@ -4,7 +4,7 @@ import { message } from 'antd'
 
 import { EMPTY_UNIFORM_CROP, MIN_VIDEO_CROP_SIZE, VIDEO_EXTRACTION_FRAME_LIMIT } from './constants'
 import { clampUniformCrop, type UniformCrop } from './cropModel'
-import { makeFrameFromFile } from './imagePipeline'
+import { createWorkspaceId, makeFrameFromFile } from './imagePipeline'
 import {
   computeVideoPreviewCropState,
   extractHtmlVideoFrames,
@@ -21,11 +21,11 @@ import {
   shouldReplayVideoSegment,
 } from './videoModel'
 import type { MatteDefaults } from './matteModel'
-import { getInitialMatteFrameIds } from './model'
+import { getInitialMatteFrameIds, getNextMatteGroupName } from './model'
 import type { ExtractedVideoFrame, FrameItem, VideoCropDragState, VideoCropHandle, VideoDraft } from './types'
 
 export interface UseVideoWorkspaceParams {
-  existingFrameCount: number
+  framesRef: React.RefObject<FrameItem[]>
   matteDefaults: MatteDefaults
   appendFrames: (frames: FrameItem[]) => void
   scheduleMatte: (id: string) => void
@@ -33,7 +33,7 @@ export interface UseVideoWorkspaceParams {
 
 export type VideoWorkspaceViewModel = ReturnType<typeof useVideoWorkspace>
 
-export function useVideoWorkspace({ existingFrameCount, matteDefaults, appendFrames, scheduleMatte }: UseVideoWorkspaceParams) {
+export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, scheduleMatte }: UseVideoWorkspaceParams) {
   const [videoDraft, setVideoDraft] = useState<VideoDraft | null>(null)
   const [videoClipStart, setVideoClipStart] = useState(0)
   const [videoClipEnd, setVideoClipEnd] = useState(0)
@@ -348,7 +348,13 @@ export function useVideoWorkspace({ existingFrameCount, matteDefaults, appendFra
       const files = await Promise.all(
         videoExtractedFrames.map((frame) => makeCroppedVideoFrameFile(frame, videoCrop, MIN_VIDEO_CROP_SIZE))
       )
-      const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults)))
+      const existingFrameCount = framesRef.current.length
+      const group = {
+        id: createWorkspaceId(),
+        name: getNextMatteGroupName(framesRef.current, 'video'),
+        kind: 'video' as const,
+      }
+      const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults, group)))
       appendFrames(created)
       getInitialMatteFrameIds({
         existingFrameCount,

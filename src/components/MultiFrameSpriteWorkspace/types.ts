@@ -20,6 +20,8 @@ export type FrameLayout = {
   offsetY: number
 }
 
+export type MatteImportGroupKind = 'video' | 'spriteSheet' | 'imageBatch'
+
 export type ComposeStyle = {
   strokeColor: string
   strokeWidth: number
@@ -31,6 +33,9 @@ export type FrameItem = {
   id: string
   file: File
   sourceName: string
+  matteGroupId: string
+  matteGroupName: string
+  matteGroupKind: MatteImportGroupKind
   sourceUrl: string
   sourceWidth: number
   sourceHeight: number

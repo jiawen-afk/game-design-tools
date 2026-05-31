@@ -18,6 +18,7 @@ const MATTE_SLIDERS: Array<[string, keyof Pick<MatteParams, 'tolerance' | 'smoot
 
 export interface MatteFrameCardProps {
   item: FrameItem
+  title?: string
   index: number
   frameCount: number
   active: boolean
@@ -36,6 +37,7 @@ export interface MatteFrameCardProps {
 
 export function MatteFrameCard({
   item,
+  title,
   index,
   frameCount,
   active,
@@ -54,7 +56,7 @@ export function MatteFrameCard({
   return (
     <Card
       size="small"
-      title={`帧 ${index + 1}`}
+      title={title ?? `帧 ${index + 1}`}
       extra={<Button danger size="small" icon={<DeleteOutlined />} onClick={() => onRemove(item.id)} />}
       onClick={() => onActivate(item.id)}
       style={{ borderColor: active ? '#b55233' : undefined }}

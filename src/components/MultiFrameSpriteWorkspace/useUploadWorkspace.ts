@@ -3,6 +3,7 @@ import { message } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
 
 import {
+  createWorkspaceId,
   loadImage,
   makeFrameFromFile,
   revokeSpriteSlicePreviews,
@@ -13,6 +14,7 @@ import {
   buildUploadFileKey,
   filterNewUploadFiles,
   getInitialMatteFrameIds,
+  getNextMatteGroupName,
 } from './model'
 import type { FrameItem, SpriteSheetDraft, SpriteSlicePreview } from './types'
 
@@ -94,8 +96,13 @@ export function useUploadWorkspace({
     })
     if (nextFiles.length === 0) return
     nextFiles.forEach((file) => pendingUploadKeysRef.current.add(buildUploadFileKey(file)))
-    void Promise.all(nextFiles.map((file) => makeFrameFromFile(file, matteDefaults))).then((created) => {
-      const existingFrameCount = framesRef.current.length
+    const existingFrameCount = framesRef.current.length
+    const group = {
+      id: createWorkspaceId(),
+      name: getNextMatteGroupName(framesRef.current, 'imageBatch'),
+      kind: 'imageBatch' as const,
+    }
+    void Promise.all(nextFiles.map((file) => makeFrameFromFile(file, matteDefaults, group))).then((created) => {
       appendFrames(created)
       getInitialMatteFrameIds({
         existingFrameCount,
@@ -128,8 +135,13 @@ export function useUploadWorkspace({
     setSpriteProcessing(true)
     try {
       const files = spriteSlices.map((slice) => new File([slice.blob], slice.name, { type: 'image/png' }))
-      const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults)))
       const existingFrameCount = framesRef.current.length
+      const group = {
+        id: createWorkspaceId(),
+        name: getNextMatteGroupName(framesRef.current, 'spriteSheet'),
+        kind: 'spriteSheet' as const,
+      }
+      const created = await Promise.all(files.map((file) => makeFrameFromFile(file, matteDefaults, group)))
       appendFrames(created)
       getInitialMatteFrameIds({
         existingFrameCount,

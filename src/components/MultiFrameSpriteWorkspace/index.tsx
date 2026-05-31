@@ -33,10 +33,10 @@ export default function MultiFrameSpriteWorkspace() {
         onSampleColor={(frame, event) => void workspace.matte.sampleColor(frame, event)}
         onPreview={workspace.frame.openDetailPreview}
         onMatteParamChange={workspace.matte.setMatteParam}
-        onConfirmApplyToAll={workspace.matte.applyFirstMatteToAllFrames}
+        onConfirmApplyToAll={workspace.matte.applyMatteGroupToFrames}
         onCustomSpillPickerColor={workspace.matte.setCustomSpillPickerColor}
         onCustomSpillColor={workspace.matte.setCustomSpillColor}
-        applyingToAll={workspace.matte.bulkMatteProcessing}
+        applyingGroupId={workspace.matte.bulkMatteGroupId}
       />
 
       <LayoutWorkspacePanel

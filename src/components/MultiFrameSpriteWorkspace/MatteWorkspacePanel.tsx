@@ -2,6 +2,7 @@ import { Button, Card, Space, Typography } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 
 import { MatteFrameCard, type MatteFrameCardProps } from './MatteFrameCard'
+import { buildMatteFrameGroups } from './model'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
@@ -19,7 +20,7 @@ export interface MatteWorkspacePanelProps {
   onConfirmApplyToAll: MatteFrameCardProps['onApplyToFollowing']
   onCustomSpillPickerColor: MatteFrameCardProps['onCustomSpillPickerColor']
   onCustomSpillColor: MatteFrameCardProps['onCustomSpillColor']
-  applyingToAll: boolean
+  applyingGroupId: string | null
 }
 
 export function MatteWorkspacePanel({
@@ -35,9 +36,9 @@ export function MatteWorkspacePanel({
   onConfirmApplyToAll,
   onCustomSpillPickerColor,
   onCustomSpillColor,
-  applyingToAll,
+  applyingGroupId,
 }: MatteWorkspacePanelProps) {
-  const firstFrame = frames[0] ?? null
+  const groups = buildMatteFrameGroups(frames)
 
   return (
     <Card
@@ -51,31 +52,34 @@ export function MatteWorkspacePanel({
         </Space>
       }
     >
-      {firstFrame ? (
+      {groups.length > 0 ? (
         <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
           <Text type="secondary">
-            仅显示第 1 帧用于调试去背参数。确认后会把当前参数应用到全部 {frames.length} 帧，并开始批量处理。
+            每个任务组仅显示第 1 帧用于调试去背参数。确认后只会应用到该任务组内的图片帧。
           </Text>
-          <div style={{ maxWidth: 620 }}>
-            <MatteFrameCard
-              key={firstFrame.id}
-              item={firstFrame}
-              index={0}
-              frameCount={frames.length}
-              active={activeFrameId === firstFrame.id}
-              onActivate={onActivate}
-              onRemove={onRemove}
-              onSampleColor={onSampleColor}
-              onPreview={onPreview}
-              onMatteParamChange={onMatteParamChange}
-              onApplyToFollowing={onConfirmApplyToAll}
-              onCustomSpillPickerColor={onCustomSpillPickerColor}
-              onCustomSpillColor={onCustomSpillColor}
-              applyButtonLabel="确定应用到所有帧"
-              applyButtonLoading={applyingToAll}
-              applyButtonDisabled={applyingToAll || frames.length === 0}
-            />
-          </div>
+          {groups.map((group) => (
+            <div key={group.id} style={{ maxWidth: 620 }}>
+              <MatteFrameCard
+                key={group.firstFrame.id}
+                item={group.firstFrame}
+                title={`${group.name} · 第 1 帧`}
+                index={0}
+                frameCount={group.frameCount}
+                active={activeFrameId === group.firstFrame.id}
+                onActivate={onActivate}
+                onRemove={onRemove}
+                onSampleColor={onSampleColor}
+                onPreview={onPreview}
+                onMatteParamChange={onMatteParamChange}
+                onApplyToFollowing={onConfirmApplyToAll}
+                onCustomSpillPickerColor={onCustomSpillPickerColor}
+                onCustomSpillColor={onCustomSpillColor}
+                applyButtonLabel="确定应用到该组所有帧"
+                applyButtonLoading={applyingGroupId === group.id}
+                applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0}
+              />
+            </div>
+          ))}
         </Space>
       ) : (
         <Text type="secondary">请先在流程 1 上传多张图片，或上传精灵图切分后添加到这里。</Text>

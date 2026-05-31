@@ -4,6 +4,7 @@ import type {
   ComposeStyle,
   FrameItem,
   FrameLayout,
+  MatteImportGroupKind,
   MatteParams,
   SpriteSheetDraft,
   SpriteSlicePreview,
@@ -217,13 +218,22 @@ export async function composeFrame(
   return URL.createObjectURL(await canvasToBlob(canvas))
 }
 
-export async function makeFrameFromFile(file: File, defaults: MatteDefaults): Promise<FrameItem> {
+export interface FrameImportGroupInput {
+  id: string
+  name: string
+  kind: MatteImportGroupKind
+}
+
+export async function makeFrameFromFile(file: File, defaults: MatteDefaults, group: FrameImportGroupInput): Promise<FrameItem> {
   const sourceUrl = URL.createObjectURL(file)
   const img = await loadImage(sourceUrl)
   return {
     id: createWorkspaceId(),
     file,
     sourceName: file.name,
+    matteGroupId: group.id,
+    matteGroupName: group.name,
+    matteGroupKind: group.kind,
     sourceUrl,
     sourceWidth: img.naturalWidth,
     sourceHeight: img.naturalHeight,
