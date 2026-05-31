@@ -1,6 +1,6 @@
 ﻿import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import {
   buildMultiFrameSpriteIndex,
@@ -22,13 +22,16 @@ import {
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
+  getPendingComposedFrameIds,
   computeWheelFrameResize,
   computeRatioSize,
   computeWheelResize,
   countPlayableFrames,
   filterLivePlaybackFrameIds,
   filterNewUploadFiles,
+  buildMatteFrameGroups,
   filterVisibleFrames,
+  getInitialMatteFrameIds,
   getGuideActionLabel,
   getGuideEmptyStateText,
   getGuideLineEdgeStartPosition,
@@ -46,9 +49,15 @@ import {
   getVideoSourceUrlToRevoke,
   shouldReplayVideoSegment,
   shouldIgnoreInitialGuideDrag,
+  applyMatteParamsToAllFrames,
+  applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
+  getNextMatteGroupName,
+  queueUniqueFrameId,
+  resolvePipelineConcurrency,
   resolveSpillColor,
 } from './model'
+import { computeVideoPreviewCropState } from './videoFramePipeline'
 
 test('auto columns make compact sprite sheets', () => {
   assert.equal(computeAutoSpriteColumns(1), 1)
@@ -128,8 +137,25 @@ test('uniform video crop reports the shared output frame size', () => {
   )
 })
 
+test('video preview crop state projects frame crop into preview coordinates', () => {
+  const state = computeVideoPreviewCropState(
+    { width: 100, height: 50 },
+    { width: 200, height: 200 },
+    { top: 5, bottom: 10, left: 10, right: 20 },
+    4
+  )
+
+  assert.deepEqual(state, {
+    imageRect: { left: 0, top: 50, width: 200, height: 100, scale: 2 },
+    safeCrop: { top: 5, bottom: 10, left: 10, right: 20 },
+    outputSize: { width: 70, height: 35 },
+    cropBox: { left: 20, top: 10, width: 140, height: 70 },
+  })
+  assert.equal(computeVideoPreviewCropState(undefined, { width: 200, height: 200 }, { top: 0, bottom: 0, left: 0, right: 0 }, 4), null)
+})
+
 test('video extracted frame preview layout keeps preview flexible and frame list scrollable', () => {
-  const css = readFileSync('src/styles/app.css', 'utf8')
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
 
   assert.match(css, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
   assert.match(css, /\.video-controls-column\s*{[^}]*grid-template-rows:\s*auto\s+auto[^}]*align-content:\s*start[^}]*gap:\s*12px/s)
@@ -139,6 +165,296 @@ test('video extracted frame preview layout keeps preview flexible and frame list
   assert.match(css, /\.video-preview-box\s*{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*220px/s)
   assert.match(css, /\.video-frame-list-panel\s*{[^}]*max-height:\s*156px[^}]*overflow:\s*auto/s)
   assert.match(css, /\.video-confirm-action\s+\.ant-btn\s*{[^}]*width:\s*100%/s)
+})
+
+test('playback preview stays bounded when many frame rows are present', () => {
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/PlaybackPanel.tsx', 'utf8')
+
+  assert.match(panel, /className="playback-workspace-grid"/)
+  assert.match(panel, /className="playback-frame-list"/)
+  assert.match(panel, /className="playback-preview-box"/)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(520px,\s*680px\)\s+minmax\(240px,\s*420px\)/s)
+  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column[^}]*grid-template-rows:\s*repeat\(7,\s*minmax\(0,\s*max-content\)\)[^}]*grid-auto-columns:\s*minmax\(150px,\s*1fr\)[^}]*max-height:\s*500px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
+})
+
+test('public ratio apply button exposes processing state while composed frames update', () => {
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasPublicParamsPanel.tsx', 'utf8')
+  const toolbar = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+
+  assert.match(panel, /ratioApplying:\s*boolean/)
+  assert.match(panel, /loading=\{ratioApplying\}/)
+  assert.match(panel, /disabled=\{ratioApplying\}/)
+  assert.match(toolbar, /ratioApplying=\{layout\.canvasRatioApplying\}/)
+  assert.match(hook, /canvasRatioApplying/)
+  assert.match(hook, /getPendingComposedFrameIds/)
+})
+
+test('pending composed frame ids track only ratio targets that still need composing', () => {
+  assert.deepEqual(
+    getPendingComposedFrameIds(
+      [
+        { id: 'a', matteUrl: 'blob:a', matteRevision: 2, composedRevision: -1 },
+        { id: 'b', matteUrl: 'blob:b', matteRevision: 3, composedRevision: 3 },
+        { id: 'c', matteUrl: null, matteRevision: 0, composedRevision: -1 },
+      ],
+      ['a', 'b', 'c']
+    ),
+    ['a']
+  )
+  assert.deepEqual(
+    getPendingComposedFrameIds(
+      [{ id: 'a', matteUrl: 'blob:a', matteRevision: 2, composedRevision: -1 }],
+      []
+    ),
+    []
+  )
+})
+
+test('workspace video styles live beside the workspace component', () => {
+  const appCss = readFileSync('src/styles/app.css', 'utf8')
+  const workspaceCss = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+
+  assert.doesNotMatch(appCss, /\.video-workspace-grid/)
+  assert.match(workspaceCss, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
+  assert.match(workspaceCss, /\.video-crop-layer\s*{[^}]*pointer-events:\s*auto/s)
+})
+
+test('workspace implementation delegates focused responsibilities to local modules', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/types'/)
+  assert.match(source, /from '\.\/constants'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/DetailPreviewModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8'), /from '\.\/ExportPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8'), /from '\.\/FrameThumbnailStrip'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8'), /from '\.\/imagePipeline'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/LayoutDefaultsModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8'), /from '\.\/MatteFrameCard'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8'), /from '\.\/MatteDefaultsModal'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8'), /from '\.\/PlaybackPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/SpriteSheetUploadPanel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8'), /from '\.\/VideoUploadPanel'/)
+  assert.match(controller, /from '\.\/useVideoWorkspace'/)
+  assert.match(playbackHook, /from '\.\/playbackModel'/)
+  assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8'), /from '\.\/matteModel'/)
+  assert.match(videoHook, /from '\.\/cropModel'/)
+  assert.match(videoHook, /from '\.\/videoModel'/)
+  assert.match(videoHook, /from '\.\/videoFramePipeline'/)
+  assert.ok(lineCount < 2700, `expected workspace entry to stay below 2700 lines, got ${lineCount}`)
+})
+
+test('workspace entry delegates stateful workflows to focused hooks', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(source, /from '\.\/useSpriteWorkspaceController'/)
+  assert.match(controller, /from '\.\/useFrameWorkspaceState'/)
+  assert.match(controller, /from '\.\/usePlaybackWorkspace'/)
+  assert.match(controller, /from '\.\/useSpriteExport'/)
+  assert.match(controller, /from '\.\/useVideoWorkspace'/)
+  assert.match(controller, /from '\.\/useLayoutWorkspace'/)
+  assert.match(controller, /from '\.\/useMattePipeline'/)
+  assert.match(controller, /from '\.\/useUploadWorkspace'/)
+  assert.match(controller, /from '\.\/useWorkspaceReset'/)
+  assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
+})
+
+test('matte pipeline hook owns matte and compose side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.doesNotMatch(source, /chromaKey/)
+  assert.doesNotMatch(source, /composeFrame/)
+  assert.doesNotMatch(source, /applyComposedFrameUrl/)
+  assert.doesNotMatch(source, /applyMatteParamsToFollowingFrames/)
+  assert.match(hook, /chromaKey/)
+  assert.match(hook, /composeFrame/)
+  assert.match(hook, /applyComposedFrameUrl/)
+  assert.match(hook, /applyMatteParamsToFollowingFrames/)
+  assert.ok(lineCount < 1320, `expected workspace entry to stay below 1320 lines after matte extraction, got ${lineCount}`)
+})
+
+test('layout workspace hook owns layout and guide side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.doesNotMatch(source, /computeHandleResize/)
+  assert.doesNotMatch(source, /computeKeyboardOffset/)
+  assert.doesNotMatch(source, /normalizeGuideLinePosition/)
+  assert.doesNotMatch(source, /applyCanvasRatioToFrameLayouts/)
+  assert.match(hook, /computeHandleResize/)
+  assert.match(hook, /computeKeyboardOffset/)
+  assert.match(hook, /normalizeGuideLinePosition/)
+  assert.match(hook, /applyCanvasRatioToFrameLayouts/)
+  assert.ok(lineCount < 1050, `expected workspace entry to stay below 1050 lines after layout extraction, got ${lineCount}`)
+})
+
+test('upload workspace hook owns image and sprite sheet upload side effects', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const hookPath = 'src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(hookPath), 'expected upload workspace hook to exist')
+  const hook = readFileSync(hookPath, 'utf8')
+
+  assert.doesNotMatch(source, /makeFrameFromFile/)
+  assert.doesNotMatch(source, /splitSpriteSheetToPreviews/)
+  assert.doesNotMatch(source, /filterNewUploadFiles/)
+  assert.doesNotMatch(source, /pendingUploadKeysRef/)
+  assert.match(controller, /from '\.\/useUploadWorkspace'/)
+  assert.match(hook, /makeFrameFromFile/)
+  assert.match(hook, /splitSpriteSheetToPreviews/)
+  assert.match(hook, /filterNewUploadFiles/)
+  assert.match(hook, /pendingUploadKeysRef/)
+  assert.ok(lineCount < 930, `expected workspace entry to stay below 930 lines after upload extraction, got ${lineCount}`)
+})
+
+test('layout workspace panel owns canvas editing view details', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const panelPath = 'src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx'
+  const canvasStagePath = 'src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(panelPath), 'expected layout workspace panel to exist')
+  assert.ok(existsSync(canvasStagePath), 'expected canvas stage component to exist')
+  const canvasStage = readFileSync(canvasStagePath, 'utf8')
+
+  assert.doesNotMatch(source, /HANDLE_CURSORS/)
+  assert.doesNotMatch(source, /getGuideRulerLabel/)
+  assert.doesNotMatch(source, /data-guide-line-overlay/)
+  assert.match(source, /from '\.\/LayoutWorkspacePanel'/)
+  assert.match(canvasStage, /HANDLE_CURSORS/)
+  assert.match(canvasStage, /getGuideRulerLabel/)
+  assert.match(canvasStage, /data-guide-line-overlay/)
+  assert.ok(lineCount < 620, `expected workspace entry to stay below 620 lines after layout view extraction, got ${lineCount}`)
+})
+
+test('upload and matte panels own staged card view details', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const uploadPanelPath = 'src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx'
+  const mattePanelPath = 'src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx'
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(uploadPanelPath), 'expected upload workspace panel to exist')
+  assert.ok(existsSync(mattePanelPath), 'expected matte workspace panel to exist')
+  const uploadPanel = readFileSync(uploadPanelPath, 'utf8')
+  const mattePanel = readFileSync(mattePanelPath, 'utf8')
+
+  assert.doesNotMatch(source, /SpriteSheetUploadPanel/)
+  assert.doesNotMatch(source, /VideoUploadPanel/)
+  assert.doesNotMatch(source, /MatteFrameCard/)
+  assert.doesNotMatch(source, /<Tabs/)
+  assert.doesNotMatch(source, /<Upload\s/)
+  assert.match(source, /from '\.\/UploadWorkspacePanel'/)
+  assert.match(source, /from '\.\/MatteWorkspacePanel'/)
+  assert.match(uploadPanel, /SpriteSheetUploadPanel/)
+  assert.match(uploadPanel, /VideoUploadPanel/)
+  assert.match(uploadPanel, /<Tabs/)
+  assert.match(uploadPanel, /<Upload\s/)
+  assert.match(mattePanel, /MatteFrameCard/)
+  assert.ok(lineCount < 380, `expected workspace entry to stay below 380 lines after staged panel extraction, got ${lineCount}`)
+})
+
+test('workspace entry only composes focused panels and hooks', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const layoutPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+  const layoutLineCount = layoutPanel.split(/\r?\n/).length
+
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/useWorkspaceReset.ts'), 'expected reset hook to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx'), 'expected layout toolbar component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx'), 'expected canvas stage component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/ActiveFrameInspector.tsx'), 'expected active frame inspector component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx'), 'expected dialogs component to exist')
+  assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx'), 'expected output panel component to exist')
+
+  assert.doesNotMatch(source, /useEffect/)
+  assert.doesNotMatch(source, /removeAllFrames/)
+  assert.doesNotMatch(source, /setGuideDragState/)
+  assert.doesNotMatch(source, /canvasStageRef/)
+  assert.doesNotMatch(source, /handleLayoutWheel/)
+  assert.doesNotMatch(source, /PlaybackPanel/)
+  assert.doesNotMatch(source, /ExportPanel/)
+  assert.doesNotMatch(source, /MatteDefaultsModal/)
+  assert.doesNotMatch(source, /LayoutDefaultsModal/)
+  assert.doesNotMatch(source, /DetailPreviewModal/)
+  assert.match(controller, /from '\.\/useWorkspaceReset'/)
+  assert.match(source, /from '\.\/WorkspaceDialogs'/)
+  assert.match(source, /from '\.\/OutputWorkspacePanel'/)
+
+  assert.match(layoutPanel, /LayoutWorkspaceToolbar/)
+  assert.match(layoutPanel, /CanvasStage/)
+  assert.match(layoutPanel, /ActiveFrameInspector/)
+  assert.ok(layoutLineCount < 260, `expected layout workspace panel to stay below 260 lines after tool extraction, got ${layoutLineCount}`)
+  assert.ok(lineCount < 260, `expected workspace entry to stay below 260 lines after final panel extraction, got ${lineCount}`)
+})
+
+test('workspace entry delegates controller shell and view model boundaries', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const controllerPath = 'src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts'
+  const shellPath = 'src/components/MultiFrameSpriteWorkspace/WorkspaceShell.tsx'
+  const frameHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8')
+  const layoutHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
+  const dialogs = readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.ok(existsSync(controllerPath), 'expected sprite workspace controller hook to exist')
+  assert.ok(existsSync(shellPath), 'expected workspace shell component to exist')
+  const controller = readFileSync(controllerPath, 'utf8')
+  const shell = readFileSync(shellPath, 'utf8')
+
+  assert.doesNotMatch(source, /useMemo/)
+  assert.doesNotMatch(source, /readStoredLayoutDefaults/)
+  assert.doesNotMatch(source, /useLayoutWorkspace/)
+  assert.doesNotMatch(source, /usePlaybackWorkspace/)
+  assert.doesNotMatch(source, /useSpriteExport/)
+  assert.doesNotMatch(source, /useMattePipeline/)
+  assert.doesNotMatch(source, /useUploadWorkspace/)
+  assert.doesNotMatch(source, /useVideoWorkspace/)
+  assert.doesNotMatch(source, /useWorkspaceReset/)
+  assert.doesNotMatch(source, /setDetailPreview/)
+  assert.doesNotMatch(source, /setDetailZoom/)
+  assert.match(source, /from '\.\/useSpriteWorkspaceController'/)
+  assert.match(source, /from '\.\/WorkspaceShell'/)
+  assert.match(controller, /useLayoutWorkspace/)
+  assert.match(controller, /usePlaybackWorkspace/)
+  assert.match(controller, /useWorkspaceReset/)
+  assert.match(shell, /多图动作精灵工作台/)
+  assert.match(frameHook, /openDetailPreview/)
+  assert.doesNotMatch(uploadPanel, /ReturnType/)
+  assert.doesNotMatch(outputPanel, /ReturnType/)
+  assert.doesNotMatch(dialogs, /ReturnType/)
+  assert.match(layoutHook, /export interface LayoutWorkspaceViewModel/)
+  assert.ok(lineCount < 90, `expected workspace entry to stay below 90 lines after controller extraction, got ${lineCount}`)
+})
+
+test('workspace model delegates crop and video helpers to focused modules', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/model.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(source, /from '\.\/numberUtils'/)
+  assert.match(source, /from '\.\/cropModel'/)
+  assert.match(source, /from '\.\/guideModel'/)
+  assert.match(source, /from '\.\/layoutModel'/)
+  assert.match(source, /from '\.\/matteModel'/)
+  assert.match(source, /from '\.\/playbackModel'/)
+  assert.match(source, /from '\.\/videoModel'/)
+  assert.ok(lineCount < 320, `expected workspace model to stay below 320 lines, got ${lineCount}`)
 })
 
 test('ratio sizing keeps a frame inside the shared canvas', () => {
@@ -445,6 +761,91 @@ test('upload filtering ignores files that already exist or are pending', () => {
   )
 })
 
+test('initial matte processing primes the first frame for every import group', () => {
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 0, createdIds: ['a', 'b', 'c'] }), ['a'])
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 3, createdIds: ['d', 'e'] }), ['d'])
+  assert.deepEqual(getInitialMatteFrameIds({ existingFrameCount: 0, createdIds: [] }), [])
+})
+
+test('matte import groups are named by import order and source type', () => {
+  const frames = [
+    { id: 'a', matteGroupId: 'g1', matteGroupName: '1-视频处理' },
+    { id: 'b', matteGroupId: 'g1', matteGroupName: '1-视频处理' },
+    { id: 'c', matteGroupId: 'g2', matteGroupName: '2-精灵图处理' },
+  ]
+
+  assert.equal(getNextMatteGroupName(frames, 'video'), '3-视频处理')
+  assert.equal(getNextMatteGroupName(frames, 'spriteSheet'), '3-精灵图处理')
+  assert.equal(getNextMatteGroupName(frames, 'imageBatch'), '3-批量图片')
+  assert.equal(
+    getNextMatteGroupName([{ matteGroupId: 'g9', matteGroupName: '9-批量图片' }], 'video'),
+    '10-视频处理'
+  )
+})
+
+test('matte workspace shows the first frame of each import group', () => {
+  const frames = [
+    { id: 'a', matteGroupId: 'g1', matteGroupName: '1-视频处理' },
+    { id: 'b', matteGroupId: 'g1', matteGroupName: '1-视频处理' },
+    { id: 'c', matteGroupId: 'g2', matteGroupName: '2-精灵图处理' },
+    { id: 'd', matteGroupId: 'g2', matteGroupName: '2-精灵图处理' },
+  ]
+
+  const groups = buildMatteFrameGroups(frames)
+
+  assert.deepEqual(groups.map((group) => group.name), ['1-视频处理', '2-精灵图处理'])
+  assert.deepEqual(groups.map((group) => group.firstFrame.id), ['a', 'c'])
+  assert.deepEqual(groups.map((group) => group.frameCount), [2, 2])
+})
+
+test('matte params apply only to frames in the same import group', () => {
+  const sourceMatte = {
+    keyColor: [1, 2, 3] as [number, number, number],
+    tolerance: 30,
+    smoothness: 40,
+    spill: 50,
+    spillColorMode: 'custom' as const,
+    customSpillHex: '#123456',
+    erosion: 2,
+  }
+  const otherMatte = {
+    ...sourceMatte,
+    keyColor: [9, 9, 9] as [number, number, number],
+    tolerance: 9,
+  }
+  const frames = [
+    { id: 'a', matteGroupId: 'g1', matte: sourceMatte },
+    { id: 'b', matteGroupId: 'g1', matte: otherMatte },
+    { id: 'c', matteGroupId: 'g2', matte: otherMatte },
+  ]
+
+  const result = applyMatteParamsToFrameGroup(frames, 'a')
+
+  assert.deepEqual(result.recomputeIds, ['a', 'b'])
+  assert.deepEqual(result.frames[1]?.matte, sourceMatte)
+  assert.deepEqual(result.frames[2]?.matte, otherMatte)
+})
+
+test('adding frames to flow 2 only schedules the initial matte frame', () => {
+  const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const uploadHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts', 'utf8')
+  const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.match(videoHook, /getInitialMatteFrameIds/)
+  assert.match(uploadHook, /getInitialMatteFrameIds/)
+  assert.match(videoHook, /getNextMatteGroupName\(framesRef\.current,\s*'video'\)/)
+  assert.match(uploadHook, /getNextMatteGroupName\(framesRef\.current,\s*'imageBatch'\)/)
+  assert.match(uploadHook, /getNextMatteGroupName\(framesRef\.current,\s*'spriteSheet'\)/)
+  assert.doesNotMatch(controller, /existingFrameCount:\s*frame\.frames\.length/)
+  assert.match(mattePanel, /buildMatteFrameGroups/)
+  assert.match(mattePanel, /确定应用到该组所有帧/)
+  assert.match(mattePanel, /<span>\{group\.name\} · 第 1 帧<\/span>/)
+  assert.match(mattePanel, /<Text type="secondary">共 \{group\.frameCount\} 帧<\/Text>/)
+  assert.doesNotMatch(videoHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
+  assert.doesNotMatch(uploadHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
+})
+
 test('spill color options resolve to expected RGB colors', () => {
   assert.deepEqual(resolveSpillColor('key', undefined, [12, 34, 56]), [12, 34, 56])
   assert.deepEqual(resolveSpillColor('green'), [0, 255, 0])
@@ -565,6 +966,67 @@ test('matte params can be applied to all following frames without changing earli
   assert.deepEqual(result.frames[2]?.matte, frames[1]?.matte)
   assert.deepEqual(result.frames[3]?.matte, frames[1]?.matte)
   assert.notEqual(result.frames[2]?.matte.keyColor, frames[1]?.matte.keyColor)
+})
+
+test('first frame matte params can be applied to every frame', () => {
+  const frames = [
+    {
+      id: 'first',
+      matte: {
+        keyColor: [10, 20, 30] as [number, number, number],
+        tolerance: 11,
+        smoothness: 22,
+        spill: 33,
+        erosion: 44,
+        spillColorMode: 'custom' as const,
+        customSpillHex: '#abcdef',
+      },
+    },
+    {
+      id: 'second',
+      matte: {
+        keyColor: [4, 5, 6] as [number, number, number],
+        tolerance: 5,
+        smoothness: 6,
+        spill: 7,
+        erosion: 8,
+        spillColorMode: 'blue' as const,
+        customSpillHex: '#222222',
+      },
+    },
+    {
+      id: 'third',
+      matte: {
+        keyColor: [7, 8, 9] as [number, number, number],
+        tolerance: 9,
+        smoothness: 10,
+        spill: 11,
+        erosion: 12,
+        spillColorMode: 'magenta' as const,
+        customSpillHex: '#333333',
+      },
+    },
+  ]
+
+  const result = applyMatteParamsToAllFrames(frames, 'first')
+
+  assert.deepEqual(result.recomputeIds, ['first', 'second', 'third'])
+  assert.deepEqual(result.frames[0], frames[0])
+  assert.deepEqual(result.frames[1]?.matte, frames[0]?.matte)
+  assert.deepEqual(result.frames[2]?.matte, frames[0]?.matte)
+  assert.notEqual(result.frames[1]?.matte.keyColor, frames[0]?.matte.keyColor)
+})
+
+test('pipeline queues keep the latest request for a frame id', () => {
+  assert.deepEqual(queueUniqueFrameId(['a', 'b', 'a'], 'b'), ['a', 'a', 'b'])
+  assert.deepEqual(queueUniqueFrameId(['a', 'b'], 'c'), ['a', 'b', 'c'])
+})
+
+test('pipeline concurrency scales with available threads', () => {
+  assert.equal(resolvePipelineConcurrency(undefined), 4)
+  assert.equal(resolvePipelineConcurrency(4), 2)
+  assert.equal(resolvePipelineConcurrency(8), 4)
+  assert.equal(resolvePipelineConcurrency(16), 6)
 })
 
 test('layout defaults are clamped for saved public parameters', () => {

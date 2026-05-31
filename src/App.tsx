@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Button } from 'antd'
 import { AppstoreOutlined, ArrowLeftOutlined, MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
-import MultiFrameSpriteWorkspace from './components/MultiFrameSpriteWorkspace'
+
+const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 
 type ToolId = 'multi-frame-sprite'
 
@@ -35,7 +36,9 @@ export default function App() {
           </div>
         </header>
         <main className="tool-surface">
-          <MultiFrameSpriteWorkspace />
+          <Suspense fallback={null}>
+            <MultiFrameSpriteWorkspace />
+          </Suspense>
         </main>
       </div>
     )
