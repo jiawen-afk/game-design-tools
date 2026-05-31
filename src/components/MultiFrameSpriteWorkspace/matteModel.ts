@@ -64,6 +64,26 @@ export function applyMatteParamsToFollowingFrames<T extends MatteFrameState>(
   return { frames: next, recomputeIds }
 }
 
+export function applyMatteParamsToAllFrames<T extends MatteFrameState>(
+  frames: T[],
+  sourceId: string
+): ApplyMatteParamsToFollowingFramesResult<T> {
+  const source = frames.find((frame) => frame.id === sourceId)
+  if (!source) return { frames, recomputeIds: [] }
+
+  const recomputeIds: string[] = []
+  const next = frames.map((frame) => {
+    recomputeIds.push(frame.id)
+    if (frame.id === sourceId) return frame
+    return {
+      ...frame,
+      matte: cloneMatteParams(source.matte),
+    }
+  })
+
+  return { frames: next, recomputeIds }
+}
+
 function parseHexColor(hex: string | undefined): [number, number, number] | null {
   const clean = normalizeHexColor(hex, '').replace(/^#/, '')
   if (!/^[0-9a-f]{6}$/i.test(clean)) return null

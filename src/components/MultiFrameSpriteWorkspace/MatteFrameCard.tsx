@@ -29,6 +29,9 @@ export interface MatteFrameCardProps {
   onApplyToFollowing: (id: string) => void
   onCustomSpillPickerColor: (id: string, color: unknown, hex: string | undefined) => void
   onCustomSpillColor: (id: string, hex: string) => void
+  applyButtonLabel?: string
+  applyButtonLoading?: boolean
+  applyButtonDisabled?: boolean
 }
 
 export function MatteFrameCard({
@@ -44,6 +47,9 @@ export function MatteFrameCard({
   onApplyToFollowing,
   onCustomSpillPickerColor,
   onCustomSpillColor,
+  applyButtonLabel = '应用到后续所有帧',
+  applyButtonLoading = false,
+  applyButtonDisabled,
 }: MatteFrameCardProps) {
   return (
     <Card
@@ -102,11 +108,13 @@ export function MatteFrameCard({
             )}
           />
           <Button
+            type="primary"
             size="small"
-            disabled={index === frameCount - 1}
+            loading={applyButtonLoading}
+            disabled={applyButtonDisabled ?? index === frameCount - 1}
             onClick={() => onApplyToFollowing(item.id)}
           >
-            应用到后续所有帧
+            {applyButtonLabel}
           </Button>
         </Space>
         {MATTE_SLIDERS.map(([label, key]) => (

@@ -16,9 +16,10 @@ export interface MatteWorkspacePanelProps {
   onSampleColor: MatteFrameCardProps['onSampleColor']
   onPreview: MatteFrameCardProps['onPreview']
   onMatteParamChange: MatteFrameCardProps['onMatteParamChange']
-  onApplyToFollowing: MatteFrameCardProps['onApplyToFollowing']
+  onConfirmApplyToAll: MatteFrameCardProps['onApplyToFollowing']
   onCustomSpillPickerColor: MatteFrameCardProps['onCustomSpillPickerColor']
   onCustomSpillColor: MatteFrameCardProps['onCustomSpillColor']
+  applyingToAll: boolean
 }
 
 export function MatteWorkspacePanel({
@@ -31,10 +32,13 @@ export function MatteWorkspacePanel({
   onSampleColor,
   onPreview,
   onMatteParamChange,
-  onApplyToFollowing,
+  onConfirmApplyToAll,
   onCustomSpillPickerColor,
   onCustomSpillColor,
+  applyingToAll,
 }: MatteWorkspacePanelProps) {
+  const firstFrame = frames[0] ?? null
+
   return (
     <Card
       title="2. 抠图去背"
@@ -47,26 +51,32 @@ export function MatteWorkspacePanel({
         </Space>
       }
     >
-      {frames.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
-          {frames.map((item, index) => (
+      {firstFrame ? (
+        <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
+          <Text type="secondary">
+            仅显示第 1 帧用于调试去背参数。确认后会把当前参数应用到全部 {frames.length} 帧，并开始批量处理。
+          </Text>
+          <div style={{ maxWidth: 620 }}>
             <MatteFrameCard
-              key={item.id}
-              item={item}
-              index={index}
+              key={firstFrame.id}
+              item={firstFrame}
+              index={0}
               frameCount={frames.length}
-              active={activeFrameId === item.id}
+              active={activeFrameId === firstFrame.id}
               onActivate={onActivate}
               onRemove={onRemove}
               onSampleColor={onSampleColor}
               onPreview={onPreview}
               onMatteParamChange={onMatteParamChange}
-              onApplyToFollowing={onApplyToFollowing}
+              onApplyToFollowing={onConfirmApplyToAll}
               onCustomSpillPickerColor={onCustomSpillPickerColor}
               onCustomSpillColor={onCustomSpillColor}
+              applyButtonLabel="确定应用到所有帧"
+              applyButtonLoading={applyingToAll}
+              applyButtonDisabled={applyingToAll || frames.length === 0}
             />
-          ))}
-        </div>
+          </div>
+        </Space>
       ) : (
         <Text type="secondary">请先在流程 1 上传多张图片，或上传精灵图切分后添加到这里。</Text>
       )}

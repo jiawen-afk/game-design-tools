@@ -29,6 +29,7 @@ export {
   type ResizeHandle,
 } from './layoutModel'
 export {
+  applyMatteParamsToAllFrames,
   applyMatteParamsToFollowingFrames,
   coerceMatteDefaults,
   getSpillColorHex,
