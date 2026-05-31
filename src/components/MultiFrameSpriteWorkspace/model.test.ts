@@ -49,6 +49,7 @@ import {
   applyMatteParamsToFollowingFrames,
   resolveSpillColor,
 } from './model'
+import { computeVideoPreviewCropState } from './videoFramePipeline'
 
 test('auto columns make compact sprite sheets', () => {
   assert.equal(computeAutoSpriteColumns(1), 1)
@@ -128,8 +129,25 @@ test('uniform video crop reports the shared output frame size', () => {
   )
 })
 
+test('video preview crop state projects frame crop into preview coordinates', () => {
+  const state = computeVideoPreviewCropState(
+    { width: 100, height: 50 },
+    { width: 200, height: 200 },
+    { top: 5, bottom: 10, left: 10, right: 20 },
+    4
+  )
+
+  assert.deepEqual(state, {
+    imageRect: { left: 0, top: 50, width: 200, height: 100, scale: 2 },
+    safeCrop: { top: 5, bottom: 10, left: 10, right: 20 },
+    outputSize: { width: 70, height: 35 },
+    cropBox: { left: 20, top: 10, width: 140, height: 70 },
+  })
+  assert.equal(computeVideoPreviewCropState(undefined, { width: 200, height: 200 }, { top: 0, bottom: 0, left: 0, right: 0 }, 4), null)
+})
+
 test('video extracted frame preview layout keeps preview flexible and frame list scrollable', () => {
-  const css = readFileSync('src/styles/app.css', 'utf8')
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
 
   assert.match(css, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
   assert.match(css, /\.video-controls-column\s*{[^}]*grid-template-rows:\s*auto\s+auto[^}]*align-content:\s*start[^}]*gap:\s*12px/s)
@@ -139,6 +157,69 @@ test('video extracted frame preview layout keeps preview flexible and frame list
   assert.match(css, /\.video-preview-box\s*{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*220px/s)
   assert.match(css, /\.video-frame-list-panel\s*{[^}]*max-height:\s*156px[^}]*overflow:\s*auto/s)
   assert.match(css, /\.video-confirm-action\s+\.ant-btn\s*{[^}]*width:\s*100%/s)
+})
+
+test('workspace video styles live beside the workspace component', () => {
+  const appCss = readFileSync('src/styles/app.css', 'utf8')
+  const workspaceCss = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+
+  assert.doesNotMatch(appCss, /\.video-workspace-grid/)
+  assert.match(workspaceCss, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
+  assert.match(workspaceCss, /\.video-crop-layer\s*{[^}]*pointer-events:\s*auto/s)
+})
+
+test('workspace implementation delegates focused responsibilities to local modules', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(source, /from '\.\/types'/)
+  assert.match(source, /from '\.\/constants'/)
+  assert.match(source, /from '\.\/DetailPreviewModal'/)
+  assert.match(source, /from '\.\/ExportPanel'/)
+  assert.match(source, /from '\.\/FrameThumbnailStrip'/)
+  assert.match(source, /from '\.\/imagePipeline'/)
+  assert.match(source, /from '\.\/LayoutDefaultsModal'/)
+  assert.match(source, /from '\.\/MatteFrameCard'/)
+  assert.match(source, /from '\.\/MatteDefaultsModal'/)
+  assert.match(source, /from '\.\/PlaybackPanel'/)
+  assert.match(source, /from '\.\/SpriteSheetUploadPanel'/)
+  assert.match(source, /from '\.\/VideoUploadPanel'/)
+  assert.match(source, /from '\.\/useVideoWorkspace'/)
+  assert.match(source, /from '\.\/matteModel'/)
+  assert.match(playbackHook, /from '\.\/playbackModel'/)
+  assert.match(videoHook, /from '\.\/cropModel'/)
+  assert.match(videoHook, /from '\.\/videoModel'/)
+  assert.match(videoHook, /from '\.\/videoFramePipeline'/)
+  assert.ok(lineCount < 2700, `expected workspace entry to stay below 2700 lines, got ${lineCount}`)
+})
+
+test('workspace entry delegates stateful workflows to focused hooks', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(source, /from '\.\/useFrameWorkspaceState'/)
+  assert.match(source, /from '\.\/usePlaybackWorkspace'/)
+  assert.match(source, /from '\.\/useSpriteExport'/)
+  assert.match(source, /from '\.\/useVideoWorkspace'/)
+  assert.match(source, /from '\.\/useLayoutWorkspace'/)
+  assert.match(source, /from '\.\/useMattePipeline'/)
+  assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
+})
+
+test('workspace model delegates crop and video helpers to focused modules', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/model.ts', 'utf8')
+  const lineCount = source.split(/\r?\n/).length
+
+  assert.match(source, /from '\.\/numberUtils'/)
+  assert.match(source, /from '\.\/cropModel'/)
+  assert.match(source, /from '\.\/guideModel'/)
+  assert.match(source, /from '\.\/layoutModel'/)
+  assert.match(source, /from '\.\/matteModel'/)
+  assert.match(source, /from '\.\/playbackModel'/)
+  assert.match(source, /from '\.\/videoModel'/)
+  assert.ok(lineCount < 320, `expected workspace model to stay below 320 lines, got ${lineCount}`)
 })
 
 test('ratio sizing keeps a frame inside the shared canvas', () => {

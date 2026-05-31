@@ -1,31 +1,71 @@
-export type PlaybackMode = 'loop' | 'pingpong'
+import { clampInt } from './numberUtils'
+import { normalizeHexColor } from './matteModel'
+import type { PlaybackMode } from './playbackModel'
 
-export type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
-
-export type SpillColorMode = 'key' | 'green' | 'blue' | 'magenta' | 'custom'
-
-export interface MatteDefaults {
-  tolerance: number
-  smoothness: number
-  spill: number
-  erosion: number
-  spillColorMode: SpillColorMode
-  customSpillHex: string
-}
-
-export interface MatteParamsState extends MatteDefaults {
-  keyColor: [number, number, number]
-}
-
-export interface MatteFrameState {
-  id: string
-  matte: MatteParamsState
-}
-
-export interface ApplyMatteParamsToFollowingFramesResult<T> {
-  frames: T[]
-  recomputeIds: string[]
-}
+export { clampUniformCrop, computeUniformCropSize, type UniformCrop } from './cropModel'
+export {
+  getGuideActionLabel,
+  getGuideEmptyStateText,
+  getGuideLineEdgeStartPosition,
+  getGuideRulerCursor,
+  getGuideRulerDragAxis,
+  getGuideRulerLabel,
+  normalizeGuideLinePosition,
+  shouldIgnoreInitialGuideDrag,
+} from './guideModel'
+export {
+  applyCanvasRatioToFrameLayouts,
+  clampPreviewZoom,
+  computeHandleResize,
+  computeKeyboardOffset,
+  computeRatioSize,
+  computeWheelFrameResize,
+  computeWheelResize,
+  getWheelScalingButtonLabel,
+  type ApplyCanvasRatioOptions,
+  type FrameOffset,
+  type HandleResizeInput,
+  type RatioFrameLayoutState,
+  type ResizeHandle,
+} from './layoutModel'
+export {
+  applyMatteParamsToFollowingFrames,
+  coerceMatteDefaults,
+  getSpillColorHex,
+  normalizeHexColor,
+  normalizePickerColor,
+  resolveSpillColor,
+  type ApplyMatteParamsToFollowingFramesResult,
+  type MatteDefaults,
+  type MatteFrameState,
+  type MatteParamsState,
+  type SpillColorMode,
+} from './matteModel'
+export { clampInt } from './numberUtils'
+export {
+  advancePlaybackCursor,
+  applyFrameTagSelection,
+  batchHideSelectedFrames,
+  buildPlaybackFrameIds,
+  clearFrameCollection,
+  countPlayableFrames,
+  filterLivePlaybackFrameIds,
+  filterVisibleFrames,
+  type ApplyFrameTagSelectionInput,
+  type FrameTagSelectionGesture,
+  type PlaybackFrameState,
+  type PlaybackMode,
+  type VisibleFrameState,
+} from './playbackModel'
+export {
+  buildVideoFrameTimestamps,
+  clampVideoClipRange,
+  getVideoExtractionFrameCount,
+  getVideoExtractionLimitMessage,
+  getVideoPreviewSeekTarget,
+  getVideoSourceUrlToRevoke,
+  shouldReplayVideoSegment,
+} from './videoModel'
 
 export interface LayoutDefaults {
   canvasWidth: number
@@ -82,16 +122,6 @@ export interface SpriteSheetGridCell {
   height: number
 }
 
-export interface HandleResizeInput {
-  startWidth: number
-  startHeight: number
-  deltaX: number
-  deltaY: number
-  handle: ResizeHandle
-  keepAspect: boolean
-  minSize?: number
-}
-
 export interface ComposedFrameState {
   id: string
   matteRevision: number
@@ -106,34 +136,6 @@ export interface ApplyComposedFrameUrlOptions {
   revoke: (url: string) => void
 }
 
-export interface FrameOffset {
-  offsetX: number
-  offsetY: number
-}
-
-export interface UniformCrop {
-  top: number
-  bottom: number
-  left: number
-  right: number
-}
-
-export interface RatioFrameLayoutState {
-  id: string
-  matteWidth: number
-  matteHeight: number
-  layout: { width: number; height: number }
-  composedRevision?: number
-}
-
-export interface ApplyCanvasRatioOptions {
-  canvasWidth: number
-  canvasHeight: number
-  percent: number
-  basis: 'width' | 'height'
-  targetId?: string
-}
-
 export interface UploadFileIdentity {
   name: string
   size: number
@@ -143,141 +145,6 @@ export interface UploadFileIdentity {
 export interface UploadFilterState {
   existingKeys: Set<string>
   pendingKeys: Set<string>
-}
-
-export interface VisibleFrameState {
-  hidden?: boolean
-}
-
-export interface PlaybackFrameState extends VisibleFrameState {
-  id: string
-  composedUrl?: string | null
-}
-
-export type FrameTagSelectionGesture = 'single' | 'range' | 'toggle'
-
-export interface ApplyFrameTagSelectionInput {
-  ids: string[]
-  currentSelectedIds: string[]
-  targetId: string
-  anchorId?: string | null
-  gesture: FrameTagSelectionGesture
-}
-
-export function filterVisibleFrames<T extends VisibleFrameState>(frames: T[]): T[] {
-  return frames.filter((frame) => !frame.hidden)
-}
-
-export function buildPlaybackFrameIds<T extends PlaybackFrameState>(frames: T[], selectedIds?: string[]): string[] {
-  const selected = selectedIds ? new Set(selectedIds) : null
-  return frames
-    .filter((frame) => !frame.hidden && !!frame.composedUrl && (!selected || selected.has(frame.id)))
-    .map((frame) => frame.id)
-}
-
-export function countPlayableFrames<T extends PlaybackFrameState>(frames: T[]): number {
-  let count = 0
-  for (const frame of frames) {
-    if (!frame.hidden && frame.composedUrl) count += 1
-  }
-  return count
-}
-
-export function filterLivePlaybackFrameIds<T extends PlaybackFrameState>(frames: T[], ids: string[]): string[] {
-  const liveIds = new Set<string>()
-  for (const frame of frames) {
-    if (!frame.hidden && frame.composedUrl) liveIds.add(frame.id)
-  }
-  return ids.filter((id) => liveIds.has(id))
-}
-
-export function advancePlaybackCursor(
-  currentIndex: number,
-  count: number,
-  playbackMode: PlaybackMode,
-  direction: number
-): { index: number; direction: number } {
-  if (count <= 1) return { index: 0, direction: 1 }
-  if (playbackMode === 'loop') return { index: (currentIndex + 1) % count, direction: 1 }
-
-  const step = direction < 0 ? -1 : 1
-  let nextIndex = currentIndex + step
-  let nextDirection = step
-  if (nextIndex >= count) {
-    nextIndex = Math.max(0, count - 2)
-    nextDirection = -1
-  } else if (nextIndex < 0) {
-    nextIndex = Math.min(count - 1, 1)
-    nextDirection = 1
-  }
-  return { index: nextIndex, direction: nextDirection }
-}
-
-export function applyFrameTagSelection(input: ApplyFrameTagSelectionInput): { selectedIds: string[]; anchorId: string | null } {
-  const ids = input.ids
-  if (!ids.includes(input.targetId)) {
-    return { selectedIds: input.currentSelectedIds.filter((id) => ids.includes(id)), anchorId: input.anchorId ?? null }
-  }
-
-  if (input.gesture === 'single') {
-    return { selectedIds: [input.targetId], anchorId: input.targetId }
-  }
-
-  if (input.gesture === 'toggle') {
-    const current = new Set(input.currentSelectedIds.filter((id) => ids.includes(id)))
-    if (current.has(input.targetId)) current.delete(input.targetId)
-    else current.add(input.targetId)
-    return { selectedIds: ids.filter((id) => current.has(id)), anchorId: input.targetId }
-  }
-
-  const fallbackAnchor = input.currentSelectedIds.find((id) => ids.includes(id)) ?? input.targetId
-  const anchorId = input.anchorId && ids.includes(input.anchorId) ? input.anchorId : fallbackAnchor
-  const start = ids.indexOf(anchorId)
-  const end = ids.indexOf(input.targetId)
-  const [from, to] = start <= end ? [start, end] : [end, start]
-  const current = new Set(input.currentSelectedIds.filter((id) => ids.includes(id)))
-  ids.slice(from, to + 1).forEach((id) => current.add(id))
-  return { selectedIds: ids.filter((id) => current.has(id)), anchorId }
-}
-
-export function batchHideSelectedFrames<T extends { id: string; hidden?: boolean }>(frames: T[], selectedIds: string[]): T[] {
-  const selected = new Set(selectedIds)
-  return frames.map((frame) => (selected.has(frame.id) ? { ...frame, hidden: true } : frame))
-}
-
-export function clearFrameCollection<T>(frames: T[], revokeFrame: (frame: T) => void): T[] {
-  frames.forEach(revokeFrame)
-  return []
-}
-
-function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
-  return {
-    ...matte,
-    keyColor: [...matte.keyColor] as [number, number, number],
-  }
-}
-
-export function applyMatteParamsToFollowingFrames<T extends MatteFrameState>(
-  frames: T[],
-  targetId: string
-): ApplyMatteParamsToFollowingFramesResult<T> {
-  const targetIndex = frames.findIndex((frame) => frame.id === targetId)
-  if (targetIndex < 0 || targetIndex >= frames.length - 1) {
-    return { frames, recomputeIds: [] }
-  }
-
-  const source = frames[targetIndex]
-  const recomputeIds: string[] = []
-  const next = frames.map((frame, index) => {
-    if (index <= targetIndex) return frame
-    recomputeIds.push(frame.id)
-    return {
-      ...frame,
-      matte: cloneMatteParams(source.matte),
-    }
-  })
-
-  return { frames: next, recomputeIds }
 }
 
 export function buildUploadFileKey(file: UploadFileIdentity): string {
@@ -301,80 +168,6 @@ export function filterNewUploadFiles<T extends UploadFileIdentity>(
   return next
 }
 
-function parseHexColor(hex: string | undefined): [number, number, number] | null {
-  const clean = normalizeHexColor(hex, '').replace(/^#/, '')
-  if (!/^[0-9a-f]{6}$/i.test(clean)) return null
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ]
-}
-
-export function normalizeHexColor(value: string | undefined, fallback = '#00ff00'): string {
-  const raw = (value ?? '').trim()
-  const rgbMatch = raw.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*[\d.]+)?\s*\)$/i)
-  if (rgbMatch) {
-    const channels = rgbMatch.slice(1, 4).map((channel) => clampInt(Number(channel), 0, 255))
-    return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
-  }
-  const clean = raw.replace(/^#/, '')
-  if (/^[0-9a-f]{6}$/i.test(clean)) return `#${clean.toLowerCase()}`
-  if (/^[0-9a-f]{8}$/i.test(clean)) return `#${clean.slice(0, 6).toLowerCase()}`
-  return fallback
-}
-
-export function normalizePickerColor(color: unknown, hex: string | undefined, fallback = '#00ff00'): string {
-  if (color && typeof color === 'object') {
-    const maybeColor = color as { toHexString?: () => string; toRgbString?: () => string }
-    if (typeof maybeColor.toHexString === 'function') {
-      const normalized = normalizeHexColor(maybeColor.toHexString(), '')
-      if (normalized) return normalized
-    }
-    if (typeof maybeColor.toRgbString === 'function') {
-      const normalized = normalizeHexColor(maybeColor.toRgbString(), '')
-      if (normalized) return normalized
-    }
-  }
-  return normalizeHexColor(hex, fallback)
-}
-
-export function resolveSpillColor(
-  mode: SpillColorMode,
-  customHex?: string,
-  keyColor: [number, number, number] = [0, 255, 0]
-): [number, number, number] {
-  if (mode === 'key') return keyColor
-  if (mode === 'blue') return [0, 0, 255]
-  if (mode === 'magenta') return [255, 0, 255]
-  if (mode === 'custom') return parseHexColor(customHex) ?? [0, 255, 0]
-  return [0, 255, 0]
-}
-
-export function getSpillColorHex(
-  mode: SpillColorMode,
-  customHex?: string,
-  keyColor: [number, number, number] = [0, 255, 0]
-): string {
-  const [r, g, b] = resolveSpillColor(mode, customHex, keyColor)
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-}
-
-function isSpillColorMode(value: unknown): value is SpillColorMode {
-  return value === 'key' || value === 'green' || value === 'blue' || value === 'magenta' || value === 'custom'
-}
-
-export function coerceMatteDefaults(input: Partial<MatteDefaults>): MatteDefaults {
-  return {
-    tolerance: clampInt(input.tolerance ?? 5, 0, 100),
-    smoothness: clampInt(input.smoothness ?? 5, 0, 100),
-    spill: clampInt(input.spill ?? 0, 0, 100),
-    erosion: clampInt(input.erosion ?? 5, 0, 100),
-    spillColorMode: isSpillColorMode(input.spillColorMode) ? input.spillColorMode : 'key',
-    customSpillHex: normalizeHexColor(input.customSpillHex, '#00ff00'),
-  }
-}
-
 export function coerceLayoutDefaults(input: Partial<LayoutDefaults>): LayoutDefaults {
   return {
     canvasWidth: clampInt(input.canvasWidth ?? 256, 1, 4096),
@@ -385,41 +178,6 @@ export function coerceLayoutDefaults(input: Partial<LayoutDefaults>): LayoutDefa
     strokeWidth: clampInt(input.strokeWidth ?? 0, 0, 128),
     outlineColor: normalizeHexColor(input.outlineColor, '#1a1a1a'),
     outlineWidth: clampInt(input.outlineWidth ?? 0, 0, 128),
-  }
-}
-
-export function clampInt(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min
-  return Math.max(min, Math.min(max, Math.round(value)))
-}
-
-export function clampUniformCrop(crop: UniformCrop, width: number, height: number, minSize = 1): UniformCrop {
-  const safeWidth = Math.max(1, clampInt(width, 1, Number.MAX_SAFE_INTEGER))
-  const safeHeight = Math.max(1, clampInt(height, 1, Number.MAX_SAFE_INTEGER))
-  const safeMinSize = clampInt(minSize, 1, Math.min(safeWidth, safeHeight))
-  const maxHorizontalCrop = Math.max(0, safeWidth - safeMinSize)
-  const maxVerticalCrop = Math.max(0, safeHeight - safeMinSize)
-  const left = clampInt(crop.left, 0, maxHorizontalCrop)
-  const right = clampInt(crop.right, 0, maxHorizontalCrop - left)
-  const top = clampInt(crop.top, 0, maxVerticalCrop)
-  const bottom = clampInt(crop.bottom, 0, maxVerticalCrop - top)
-
-  return { top, bottom, left, right }
-}
-
-export function computeUniformCropSize(
-  width: number,
-  height: number,
-  crop: UniformCrop,
-  minSize = 1
-): { width: number; height: number } {
-  const safeWidth = Math.max(1, clampInt(width, 1, Number.MAX_SAFE_INTEGER))
-  const safeHeight = Math.max(1, clampInt(height, 1, Number.MAX_SAFE_INTEGER))
-  const safeCrop = clampUniformCrop(crop, safeWidth, safeHeight, minSize)
-
-  return {
-    width: safeWidth - safeCrop.left - safeCrop.right,
-    height: safeHeight - safeCrop.top - safeCrop.bottom,
   }
 }
 
@@ -452,231 +210,6 @@ export function buildSpriteSheetGridCells(
     }
   }
   return cells
-}
-
-export function clampVideoClipRange(input: { duration: number; start: number; end: number }): { start: number; end: number } {
-  const duration = Number.isFinite(input.duration) ? Math.max(0, input.duration) : 0
-  const rawStart = Number.isFinite(input.start) ? input.start : 0
-  const rawEnd = Number.isFinite(input.end) ? input.end : duration
-  const start = Math.max(0, Math.min(duration, rawStart))
-  const end = Math.max(0, Math.min(duration, rawEnd))
-  const [from, to] = start <= end ? [start, end] : [end, start]
-  return {
-    start: Math.round(from * 1000) / 1000,
-    end: Math.round(to * 1000) / 1000,
-  }
-}
-
-export function getVideoExtractionFrameCount(start: number, end: number, fps: number): number {
-  const safeFps = clampInt(fps, 1, 60)
-  const duration = Math.max(0, end - start)
-  return Math.max(1, Math.floor(duration * safeFps) + 1)
-}
-
-export function buildVideoFrameTimestamps(start: number, end: number, fps: number): number[] {
-  const count = getVideoExtractionFrameCount(start, end, fps)
-  const step = 1 / clampInt(fps, 1, 60)
-  const timestamps: number[] = []
-  for (let index = 0; index < count; index += 1) {
-    const time = Math.min(end, start + index * step)
-    timestamps.push(Math.round(time * 1000) / 1000)
-  }
-  if (timestamps[timestamps.length - 1] !== Math.round(end * 1000) / 1000) {
-    timestamps.push(Math.round(end * 1000) / 1000)
-  }
-  return timestamps
-}
-
-export function getVideoExtractionLimitMessage(start: number, end: number, fps: number, limit: number): string | null {
-  const frameCount = getVideoExtractionFrameCount(start, end, fps)
-  if (frameCount <= limit) return null
-  return `预计提取 ${frameCount} 帧，已超过单次上限 ${limit} 帧。请缩短片段或降低 FPS。`
-}
-
-export function getVideoPreviewSeekTarget(previous: [number, number], next: [number, number]): number {
-  return next[0] !== previous[0] ? next[0] : next[1]
-}
-
-export function shouldReplayVideoSegment(currentTime: number, start: number, end: number): boolean {
-  return end > start && currentTime >= end - 0.05
-}
-
-export function getVideoSourceUrlToRevoke(previousUrl: string | null, nextUrl: string | null): string | null {
-  if (!previousUrl || previousUrl === nextUrl) return null
-  return previousUrl
-}
-
-export function clampPreviewZoom(value: number): number {
-  if (!Number.isFinite(value)) return 1
-  return Math.max(0.25, Math.min(8, Math.round(value * 100) / 100))
-}
-
-export function computeKeyboardOffset(current: FrameOffset, key: string, fast: boolean): FrameOffset {
-  const step = fast ? 10 : 1
-  if (key === 'ArrowLeft') return { ...current, offsetX: current.offsetX - step }
-  if (key === 'ArrowRight') return { ...current, offsetX: current.offsetX + step }
-  if (key === 'ArrowUp') return { ...current, offsetY: current.offsetY - step }
-  if (key === 'ArrowDown') return { ...current, offsetY: current.offsetY + step }
-  return current
-}
-
-export function computeWheelResize(
-  current: { width: number; height: number },
-  deltaY: number,
-  fast: boolean,
-  minSize: number = 1
-): { width: number; height: number } {
-  const step = fast ? 0.25 : 0.1
-  const scale = deltaY < 0 ? 1 + step : 1 / (1 + step)
-  return {
-    width: Math.max(minSize, Math.round(current.width * scale)),
-    height: Math.max(minSize, Math.round(current.height * scale)),
-  }
-}
-
-export function computeWheelFrameResize(
-  current: { width: number; height: number },
-  deltaY: number,
-  wheelScalingEnabled: boolean,
-  fast: boolean,
-  minSize: number = 1
-): { width: number; height: number } | null {
-  if (!wheelScalingEnabled) return null
-  return computeWheelResize(current, deltaY, fast, minSize)
-}
-
-export function getWheelScalingButtonLabel(wheelScalingEnabled: boolean): string {
-  return wheelScalingEnabled ? '禁止缩放滚轮' : '开放缩放滚轮'
-}
-
-export function normalizeGuideLinePosition(position: number, max: number): number | null {
-  if (!Number.isFinite(position)) return null
-  const rounded = Math.round(position)
-  if (rounded <= 0) return null
-  return Math.min(Math.max(1, rounded), Math.max(1, Math.round(max)))
-}
-
-export function getGuideLineEdgeStartPosition(): number {
-  return 1
-}
-
-export function shouldIgnoreInitialGuideDrag(position: number, max: number, hasEnteredCanvas: boolean): boolean {
-  if (hasEnteredCanvas) return false
-  if (!Number.isFinite(position)) return true
-  return position <= 0 || position > max
-}
-
-export function getGuideRulerLabel(axis: 'x' | 'y'): string {
-  return axis === 'x' ? 'X 轴' : 'Y 轴'
-}
-
-export function getGuideRulerDragAxis(rulerAxis: 'x' | 'y'): 'x' | 'y' {
-  return rulerAxis === 'x' ? 'y' : 'x'
-}
-
-export function getGuideRulerCursor(rulerAxis: 'x' | 'y'): 'ns-resize' | 'ew-resize' {
-  return rulerAxis === 'x' ? 'ns-resize' : 'ew-resize'
-}
-
-export function getGuideActionLabel(axis: 'x' | 'y'): string {
-  return axis === 'x' ? '添加竖向辅助线' : '添加横向辅助线'
-}
-
-export function getGuideEmptyStateText(): string {
-  return '从顶部或左侧标尺添加辅助线。请先上传图片开始调整。'
-}
-
-export function computeRatioSize(
-  sourceWidth: number,
-  sourceHeight: number,
-  canvasWidth: number,
-  canvasHeight: number,
-  percent: number,
-  basis: 'width' | 'height'
-): { width: number; height: number } {
-  const sw = Math.max(1, sourceWidth)
-  const sh = Math.max(1, sourceHeight)
-  const ratio = sw / sh
-  const p = Math.max(1, Math.min(300, percent)) / 100
-  if (basis === 'width') {
-    const width = Math.max(1, Math.round(Math.max(1, canvasWidth) * p))
-    return { width, height: Math.max(1, Math.round(width / ratio)) }
-  }
-  const height = Math.max(1, Math.round(Math.max(1, canvasHeight) * p))
-  return { width: Math.max(1, Math.round(height * ratio)), height }
-}
-
-export function applyCanvasRatioToFrameLayouts<T extends RatioFrameLayoutState>(
-  frames: T[],
-  options: ApplyCanvasRatioOptions
-): T[] {
-  return frames.map((frame) => {
-    if (options.targetId && frame.id !== options.targetId) return frame
-    return {
-      ...frame,
-      layout: {
-        ...frame.layout,
-        ...computeRatioSize(
-          frame.matteWidth,
-          frame.matteHeight,
-          options.canvasWidth,
-          options.canvasHeight,
-          options.percent,
-          options.basis
-        ),
-      },
-      composedRevision: -1,
-    }
-  })
-}
-
-function axisDelta(handle: ResizeHandle, deltaX: number, deltaY: number): { w: number; h: number } {
-  let dw = 0
-  let dh = 0
-  if (handle.includes('e')) dw = deltaX
-  if (handle.includes('w')) dw = -deltaX
-  if (handle.includes('s')) dh = deltaY
-  if (handle.includes('n')) dh = -deltaY
-  return { w: dw, h: dh }
-}
-
-export function computeHandleResize(input: HandleResizeInput): { width: number; height: number } {
-  const minSize = Math.max(1, input.minSize ?? 1)
-  const startWidth = Math.max(minSize, input.startWidth)
-  const startHeight = Math.max(minSize, input.startHeight)
-  const delta = axisDelta(input.handle, input.deltaX, input.deltaY)
-
-  if (!input.keepAspect) {
-    return {
-      width: Math.max(minSize, Math.round(startWidth + delta.w)),
-      height: Math.max(minSize, Math.round(startHeight + delta.h)),
-    }
-  }
-
-  const aspect = startWidth / startHeight
-  let nextWidth = startWidth
-  let nextHeight = startHeight
-
-  if (delta.w !== 0 || delta.h === 0) {
-    nextWidth = Math.max(minSize, startWidth + delta.w)
-    nextHeight = nextWidth / aspect
-  }
-  if (delta.h !== 0 && delta.w === 0) {
-    nextHeight = Math.max(minSize, startHeight + delta.h)
-    nextWidth = nextHeight * aspect
-  }
-  if (delta.w !== 0 && delta.h !== 0) {
-    const scaleFromW = Math.max(minSize, startWidth + delta.w) / startWidth
-    const scaleFromH = Math.max(minSize, startHeight + delta.h) / startHeight
-    const scale = Math.max(scaleFromW, scaleFromH)
-    nextWidth = startWidth * scale
-    nextHeight = startHeight * scale
-  }
-
-  return {
-    width: Math.max(minSize, Math.round(nextWidth)),
-    height: Math.max(minSize, Math.round(nextHeight)),
-  }
 }
 
 export function buildMultiFrameSpriteIndex(input: MultiFrameSpriteIndexInput): MultiFrameSpriteIndex {
