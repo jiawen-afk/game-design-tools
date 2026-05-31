@@ -12,11 +12,14 @@ import {
   computeHandleResize,
   computeKeyboardOffset,
   computeWheelFrameResize,
+  getPendingComposedFrameIds,
 } from './layoutModel'
 import { createWorkspaceId } from './imagePipeline'
 import { coerceLayoutDefaults, type LayoutDefaults } from './model'
 import { writeStoredLayoutDefaults } from './storage'
 import type { ComposeStyle, DragState, FrameItem, FrameLayout, GuideAxis, GuideDragState, GuideLine } from './types'
+
+const CANVAS_RATIO_MESSAGE_KEY = 'canvas-ratio-apply'
 
 export interface UseLayoutWorkspaceParams {
   initialLayoutDefaults: LayoutDefaults
@@ -47,6 +50,7 @@ export interface LayoutWorkspaceViewModel {
   setCanvasRatioPercent: React.Dispatch<React.SetStateAction<number>>
   canvasRatioBasis: 'width' | 'height'
   setCanvasRatioBasis: React.Dispatch<React.SetStateAction<'width' | 'height'>>
+  canvasRatioApplying: boolean
   activeRatioPercent: number
   activeRatioBasis: 'width' | 'height'
   strokeColor: string
@@ -91,6 +95,7 @@ export function useLayoutWorkspace({
   const [layoutDefaultsDraft, setLayoutDefaultsDraft] = useState<LayoutDefaults>(initialLayoutDefaults)
   const [canvasRatioPercent, setCanvasRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
   const [canvasRatioBasis, setCanvasRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
+  const [canvasRatioApplying, setCanvasRatioApplying] = useState(false)
   const [activeRatioPercent, setActiveRatioPercent] = useState(initialLayoutDefaults.ratioPercent)
   const [activeRatioBasis, setActiveRatioBasis] = useState<'width' | 'height'>(initialLayoutDefaults.ratioBasis)
   const [strokeColor, setStrokeColor] = useState(initialLayoutDefaults.strokeColor)
@@ -100,6 +105,8 @@ export function useLayoutWorkspace({
   const [layoutWheelScalingEnabled, setLayoutWheelScalingEnabled] = useState(false)
   const layoutRafRef = useRef<number | null>(null)
   const pendingLayoutRef = useRef<{ id: string; patch: Partial<FrameLayout> } | null>(null)
+  const canvasRatioApplyIdsRef = useRef<string[]>([])
+  const canvasRatioFallbackTimerRef = useRef<number | null>(null)
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
 
   const composeStyle = useMemo<ComposeStyle>(
@@ -110,8 +117,27 @@ export function useLayoutWorkspace({
   useEffect(() => {
     return () => {
       if (layoutRafRef.current !== null) window.cancelAnimationFrame(layoutRafRef.current)
+      if (canvasRatioFallbackTimerRef.current !== null) window.clearTimeout(canvasRatioFallbackTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!canvasRatioApplying) return
+    const pendingIds = getPendingComposedFrameIds(frames, canvasRatioApplyIdsRef.current)
+    if (pendingIds.length > 0) return
+    if (canvasRatioFallbackTimerRef.current !== null) {
+      window.clearTimeout(canvasRatioFallbackTimerRef.current)
+      canvasRatioFallbackTimerRef.current = null
+    }
+    canvasRatioApplyIdsRef.current = []
+    setCanvasRatioApplying(false)
+    message.open({
+      key: CANVAS_RATIO_MESSAGE_KEY,
+      type: 'success',
+      content: '图片宽高调整已应用完成',
+      duration: 2,
+    })
+  }, [canvasRatioApplying, frames])
 
   const setLayout = useCallback((id: string, patch: Partial<FrameLayout>) => {
     updateFrame(id, (item) => ({ ...item, layout: { ...item.layout, ...patch }, composedRevision: -1 }))
@@ -340,6 +366,29 @@ export function useLayoutWorkspace({
   }
 
   const applyCanvasRatio = (percent: number, basis: 'width' | 'height') => {
+    const targetIds = frames.filter((item) => item.matteUrl).map((item) => item.id)
+    if (targetIds.length > 0) {
+      canvasRatioApplyIdsRef.current = targetIds
+      setCanvasRatioApplying(true)
+      message.open({
+        key: CANVAS_RATIO_MESSAGE_KEY,
+        type: 'loading',
+        content: `正在应用图片宽高调整，共 ${targetIds.length} 帧...`,
+        duration: 0,
+      })
+      if (canvasRatioFallbackTimerRef.current !== null) window.clearTimeout(canvasRatioFallbackTimerRef.current)
+      canvasRatioFallbackTimerRef.current = window.setTimeout(() => {
+        canvasRatioFallbackTimerRef.current = null
+        canvasRatioApplyIdsRef.current = []
+        setCanvasRatioApplying(false)
+        message.open({
+          key: CANVAS_RATIO_MESSAGE_KEY,
+          type: 'warning',
+          content: '图片宽高调整仍未完成，请检查是否有帧处理失败',
+          duration: 3,
+        })
+      }, 60000)
+    }
     setFrames((prev) =>
       applyCanvasRatioToFrameLayouts(prev, { canvasWidth, canvasHeight, percent, basis })
     )
@@ -415,6 +464,7 @@ export function useLayoutWorkspace({
     setCanvasRatioPercent,
     canvasRatioBasis,
     setCanvasRatioBasis,
+    canvasRatioApplying,
     activeRatioPercent,
     activeRatioBasis,
     strokeColor,

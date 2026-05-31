@@ -23,6 +23,13 @@ export interface RatioFrameLayoutState {
   composedRevision?: number
 }
 
+export interface ComposedProgressFrameState {
+  id: string
+  matteUrl: string | null
+  matteRevision: number
+  composedRevision?: number
+}
+
 export interface ApplyCanvasRatioOptions {
   canvasWidth: number
   canvasHeight: number
@@ -116,6 +123,21 @@ export function applyCanvasRatioToFrameLayouts<T extends RatioFrameLayoutState>(
       composedRevision: -1,
     }
   })
+}
+
+export function getPendingComposedFrameIds<T extends ComposedProgressFrameState>(
+  frames: T[],
+  targetIds: string[]
+): string[] {
+  if (targetIds.length === 0) return []
+  const targets = new Set(targetIds)
+  return frames
+    .filter((frame) => (
+      targets.has(frame.id) &&
+      Boolean(frame.matteUrl) &&
+      frame.composedRevision !== frame.matteRevision
+    ))
+    .map((frame) => frame.id)
 }
 
 function axisDelta(handle: ResizeHandle, deltaX: number, deltaY: number): { w: number; h: number } {

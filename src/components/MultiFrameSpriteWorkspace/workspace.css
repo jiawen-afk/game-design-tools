@@ -176,7 +176,7 @@
 
 .playback-workspace-grid {
   display: grid;
-  grid-template-columns: minmax(340px, 460px) minmax(280px, 520px);
+  grid-template-columns: minmax(520px, 680px) minmax(240px, 420px);
   gap: 16px;
   align-items: start;
   justify-content: start;

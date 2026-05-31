@@ -24,6 +24,7 @@ export interface CanvasPublicParamsPanelProps {
   canvasHeight: number
   ratioPercent: number
   ratioBasis: 'width' | 'height'
+  ratioApplying: boolean
   strokeColor: string
   strokeWidth: number
   outlineColor: string
@@ -47,6 +48,7 @@ export function CanvasPublicParamsPanel({
   canvasHeight,
   ratioPercent,
   ratioBasis,
+  ratioApplying,
   strokeColor,
   strokeWidth,
   outlineColor,
@@ -91,7 +93,7 @@ export function CanvasPublicParamsPanel({
               style={RATIO_PERCENT_INPUT_STYLE}
             />
             <Text>大小</Text>
-            <Button onClick={onApplyRatio}>应用</Button>
+            <Button loading={ratioApplying} disabled={ratioApplying} onClick={onApplyRatio}>应用</Button>
           </span>
         </Space>
         <Space wrap>

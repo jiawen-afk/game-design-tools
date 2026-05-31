@@ -22,6 +22,7 @@ import {
   computeAutoSpriteColumns,
   computeHandleResize,
   computeKeyboardOffset,
+  getPendingComposedFrameIds,
   computeWheelFrameResize,
   computeRatioSize,
   computeWheelResize,
@@ -171,9 +172,43 @@ test('playback preview stays bounded when many frame rows are present', () => {
   assert.match(panel, /className="playback-frame-list"/)
   assert.match(panel, /className="playback-preview-box"/)
   assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
-  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(340px,\s*460px\)\s+minmax\(280px,\s*520px\)/s)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(520px,\s*680px\)\s+minmax\(240px,\s*420px\)/s)
   assert.match(css, /\.playback-frame-list\s*{[^}]*grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(150px,\s*1fr\)\)[^}]*max-height:\s*360px[^}]*overflow:\s*auto/s)
   assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
+})
+
+test('public ratio apply button exposes processing state while composed frames update', () => {
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasPublicParamsPanel.tsx', 'utf8')
+  const toolbar = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+
+  assert.match(panel, /ratioApplying:\s*boolean/)
+  assert.match(panel, /loading=\{ratioApplying\}/)
+  assert.match(panel, /disabled=\{ratioApplying\}/)
+  assert.match(toolbar, /ratioApplying=\{layout\.canvasRatioApplying\}/)
+  assert.match(hook, /canvasRatioApplying/)
+  assert.match(hook, /getPendingComposedFrameIds/)
+})
+
+test('pending composed frame ids track only ratio targets that still need composing', () => {
+  assert.deepEqual(
+    getPendingComposedFrameIds(
+      [
+        { id: 'a', matteUrl: 'blob:a', matteRevision: 2, composedRevision: -1 },
+        { id: 'b', matteUrl: 'blob:b', matteRevision: 3, composedRevision: 3 },
+        { id: 'c', matteUrl: null, matteRevision: 0, composedRevision: -1 },
+      ],
+      ['a', 'b', 'c']
+    ),
+    ['a']
+  )
+  assert.deepEqual(
+    getPendingComposedFrameIds(
+      [{ id: 'a', matteUrl: 'blob:a', matteRevision: 2, composedRevision: -1 }],
+      []
+    ),
+    []
+  )
 })
 
 test('workspace video styles live beside the workspace component', () => {

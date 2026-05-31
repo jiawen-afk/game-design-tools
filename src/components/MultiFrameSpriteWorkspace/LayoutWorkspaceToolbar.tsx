@@ -37,6 +37,7 @@ export function LayoutWorkspaceToolbar({
         canvasHeight={layout.canvasHeight}
         ratioPercent={layout.canvasRatioPercent}
         ratioBasis={layout.canvasRatioBasis}
+        ratioApplying={layout.canvasRatioApplying}
         strokeColor={layout.strokeColor}
         strokeWidth={layout.strokeWidth}
         outlineColor={layout.outlineColor}
