@@ -1,10 +1,17 @@
 import { lazy, Suspense, useState } from 'react'
-import { Button } from 'antd'
-import { AppstoreOutlined, ArrowLeftOutlined, MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { Button, Popover } from 'antd'
+import {
+  AppstoreOutlined,
+  ArrowLeftOutlined,
+  AudioOutlined,
+  MailOutlined,
+  SafetyCertificateOutlined,
+} from '@ant-design/icons'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
+const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
 
-type ToolId = 'multi-frame-sprite'
+type ToolId = 'multi-frame-sprite' | 'voice-deployment'
 
 const tools: Array<{
   id: ToolId
@@ -17,6 +24,12 @@ const tools: Array<{
     name: '多图动作精灵工作台',
     summary: '多图去背、统一画布、逐帧对齐、预览排序并导出精灵图。',
     details: '适合处理怪物动作、角色帧图和从整张精灵图切分出的连续帧。',
+  },
+  {
+    id: 'voice-deployment',
+    name: '游戏语音生成工作台',
+    summary: '检测本机显卡与显存，填写本地模型地址，并生成 VoxCPM 本地部署命令。',
+    details: '适合把 VoxCPM 部署到本机，优先支持 Docker，也提供直接部署命令，方便后续按本地地址调用。',
   },
 ]
 
@@ -35,8 +48,9 @@ function SiteFooter() {
 
 export default function App() {
   const [activeTool, setActiveTool] = useState<ToolId | null>(null)
+  const activeToolMeta = tools.find((tool) => tool.id === activeTool)
 
-  if (activeTool === 'multi-frame-sprite') {
+  if (activeTool !== null && activeToolMeta) {
     return (
       <div className="app-shell">
         <header className="topbar">
@@ -45,12 +59,12 @@ export default function App() {
           </Button>
           <div>
             <p className="kicker">工作台</p>
-            <h1>多图动作精灵工作台</h1>
+            <h1>{activeToolMeta.name}</h1>
           </div>
         </header>
         <main className="tool-surface">
           <Suspense fallback={null}>
-            <MultiFrameSpriteWorkspace />
+            {activeTool === 'multi-frame-sprite' ? <MultiFrameSpriteWorkspace /> : <VoiceDeploymentWorkspace />}
           </Suspense>
         </main>
         <SiteFooter />
@@ -68,39 +82,32 @@ export default function App() {
         </div>
       </header>
 
-      <main className="home-grid">
+      <main className="home-grid home-grid-single">
         <section className="tool-list" aria-labelledby="tool-list-title">
           <div className="section-heading">
             <AppstoreOutlined />
             <h2 id="tool-list-title">工具列表</h2>
           </div>
           {tools.map((tool) => (
-            <article className="tool-row" key={tool.id}>
-              <div>
-                <h3>{tool.name}</h3>
-                <p>{tool.summary}</p>
-              </div>
-              <Button type="primary" onClick={() => setActiveTool(tool.id)}>
-                打开工具
-              </Button>
-            </article>
+            <Popover
+              key={tool.id}
+              title={tool.name}
+              content={<p className="tool-popover-copy">{tool.details}</p>}
+              placement="right"
+              trigger="hover"
+            >
+              <article className="tool-row">
+                <div>
+                  <h3>{tool.name}</h3>
+                  <p>{tool.summary}</p>
+                </div>
+                <Button type="primary" icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : undefined} onClick={() => setActiveTool(tool.id)}>
+                  打开工具
+                </Button>
+              </article>
+            </Popover>
           ))}
         </section>
-
-        <aside className="tool-detail" aria-label="工具说明">
-          <h2>{tools[0].name}</h2>
-          <p>{tools[0].details}</p>
-          <dl>
-            <div>
-              <dt>输入</dt>
-              <dd>多张图片，或一张按网格切分的精灵图。</dd>
-            </div>
-            <div>
-              <dt>输出</dt>
-              <dd>一张 `sprite.png` 和一份 `index.json`。</dd>
-            </div>
-          </dl>
-        </aside>
       </main>
 
       <SiteFooter />
