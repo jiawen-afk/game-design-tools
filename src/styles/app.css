@@ -173,6 +173,21 @@ h1 {
   gap: 6px;
 }
 
+.footer-link,
+.beian-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer-link:hover,
+.beian-link:hover {
+  color: var(--color-brand-dark);
+  text-decoration: underline;
+}
+
 .topbar {
   position: sticky;
   top: 0;

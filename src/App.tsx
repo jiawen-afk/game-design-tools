@@ -20,6 +20,19 @@ const tools: Array<{
   },
 ]
 
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <a className="footer-link" href="mailto:catmumu@outlook.com">
+        <MailOutlined /> Catmumu
+      </a>
+      <a className="beian-link" href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">
+        <SafetyCertificateOutlined /> 浙ICP备2026016967号-1
+      </a>
+    </footer>
+  )
+}
+
 export default function App() {
   const [activeTool, setActiveTool] = useState<ToolId | null>(null)
 
@@ -40,6 +53,7 @@ export default function App() {
             <MultiFrameSpriteWorkspace />
           </Suspense>
         </main>
+        <SiteFooter />
       </div>
     )
   }
@@ -89,10 +103,7 @@ export default function App() {
         </aside>
       </main>
 
-      <footer className="site-footer">
-        <span><MailOutlined /> 联系方式占位符</span>
-        <span><SafetyCertificateOutlined /> 备案号占位符</span>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
