@@ -82,7 +82,19 @@ export default function VoiceDeploymentWorkspace() {
   }
 
   const copy = async (key: string, text: string) => {
-    await navigator.clipboard.writeText(text)
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // fallback for iframe / non-secure contexts
+      const el = document.createElement('textarea')
+      el.value = text
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
     setCopiedKey(key)
     window.setTimeout(() => setCopiedKey(null), 1600)
   }
