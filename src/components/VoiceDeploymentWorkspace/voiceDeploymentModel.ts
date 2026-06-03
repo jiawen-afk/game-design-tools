@@ -24,7 +24,7 @@ export const minimumVramGb = 8
 export const recommendedVramGb = 16
 
 // Remote script URLs — the scripts live in the repo and use CN mirrors
-const scriptBaseUrl = 'https://raw.githubusercontent.com/jiawen-afk/game-design-tools/master/scripts'
+const scriptBaseUrl = 'https://tools.linjiawen.com/scripts'
 
 export const gpuCheckCommand = 'nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits'
 
@@ -90,7 +90,7 @@ export function buildOneClickCommand(platform: Platform, modelPath: string): str
   const trimmed = modelPath.trim()
 
   if (platform === 'windows') {
-    const pathArg = trimmed || 'C:\\models\\VoxCPM2'
+    const pathArg = trimmed || 'D:\\models\\VoxCPM2'
     return `& ([scriptblock]::Create((irm ${url}))) '${pathArg}'`
   }
   // mac / linux
