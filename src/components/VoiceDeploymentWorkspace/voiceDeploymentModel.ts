@@ -87,12 +87,14 @@ export function validateModelPath(modelPath: string) {
 export function buildOneClickCommand(platform: Platform, modelPath: string): string {
   const scriptName = platform === 'windows' ? 'deploy-voxcpm.ps1' : 'deploy-voxcpm.sh'
   const url = `${scriptBaseUrl}/${scriptName}`
-  const pathArg = modelPath.trim() || '/data/models/VoxCPM2'
+  const trimmed = modelPath.trim()
 
   if (platform === 'windows') {
+    const pathArg = trimmed || 'C:\\models\\VoxCPM2'
     return `irm ${url} | iex -Args '${pathArg}'`
   }
   // mac / linux
+  const pathArg = trimmed || '/data/models/VoxCPM2'
   return `curl -fsSL ${url} | bash -s -- '${pathArg}'`
 }
 

@@ -33,11 +33,11 @@ const tools: Array<{
   },
   {
     id: 'voice-deployment',
-    name: '游戏语音生成工作台',
-    summary: '检测本机显卡与显存，填写本地模型地址，并生成 VoxCPM 本地部署命令。',
-    details: '适合把 VoxCPM 部署到本机，优先支持 Docker，也提供直接部署命令，方便后续按本地地址调用。',
-    input: '显卡检测结果、本地模型路径和部署方式',
-    output: 'Docker 或直接部署命令、本地调用示例',
+    name: '游戏角色语音工作台',
+    summary: '检测本地 VoxCPM 服务连接状态，一键部署或直接调用本地语音生成接口。',
+    details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键脚本，完成后通过 vLLM REST API 在浏览器内直接生成语音。',
+    input: '目标文本、音色名称',
+    output: 'WAV 音频（POST /v1/audio/speech）',
     shortcut: '2',
   },
 ]
