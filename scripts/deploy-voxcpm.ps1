@@ -21,10 +21,32 @@ try {
 
 # ── 1. Python ──────────────────────────────────────────────────────────────
 Write-Step "检测 Python 版本"
-$pyver = python --version 2>&1
-if ($LASTEXITCODE -ne 0) { Write-Fail "未找到 Python，请先安装 Python 3.10-3.12" }
-if ($pyver -notmatch "3\.(10|11|12)") { Write-Fail "需要 Python 3.10-3.12，当前：$pyver" }
-Write-OK $pyver
+
+# 优先尝试 py launcher 选择 3.12，再退回 python3.12，最后用默认 python
+$PythonExe = $null
+foreach ($candidate in @("py -3.12", "python3.12", "python")) {
+    $ver = Invoke-Expression "$candidate --version" 2>&1
+    if ($LASTEXITCODE -eq 0 -and $ver -match "3\.(10|11|12)") {
+        $PythonExe = $candidate
+        break
+    }
+}
+
+if (-not $PythonExe) {
+    $pyver = python --version 2>&1
+    Write-Host "`n    当前 Python：$pyver" -ForegroundColor Yellow
+    Write-Fail @"
+VoxCPM 需要 Python 3.10-3.12（当前版本不兼容）。
+
+请安装 Python 3.12 后重试：
+  https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+
+安装时勾选 "Add python.exe to PATH"，安装完成后重新打开 PowerShell 再执行本脚本。
+"@
+}
+
+$pyver = Invoke-Expression "$PythonExe --version" 2>&1
+Write-OK "$pyver（使用：$PythonExe）"
 
 # ── 2. 磁盘空间（至少 30GB） ────────────────────────────────────────────────
 Write-Step "检测磁盘空间"
@@ -41,17 +63,17 @@ else { Write-OK "GPU 驱动正常" }
 
 # ── 4. 安装 voxcpm + vllm-omni ────────────────────────────────────────────
 Write-Step "安装 Python 依赖（使用阿里云镜像）"
-python -m pip install -q --upgrade pip -i $PipMirror
-python -m pip install -q voxcpm nano-vllm-voxcpm -i $PipMirror
+Invoke-Expression "$PythonExe -m pip install -q --upgrade pip -i $PipMirror"
+Invoke-Expression "$PythonExe -m pip install -q voxcpm nano-vllm-voxcpm -i $PipMirror"
 Write-OK "依赖安装完成"
 
 # ── 5. 下载模型 ────────────────────────────────────────────────────────────
 if (-not $ModelPath) {
     Write-Step "下载模型（使用 hf-mirror.com）"
     $env:HF_ENDPOINT = $HfMirror
-    python -c "from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2')"
+    Invoke-Expression "$PythonExe -c `"from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2')`""
     Write-OK "模型下载完成"
-    $ModelPath = python -c "from huggingface_hub import snapshot_download; print(snapshot_download('openbmb/VoxCPM2'))"
+    $ModelPath = Invoke-Expression "$PythonExe -c `"from huggingface_hub import snapshot_download; print(snapshot_download('openbmb/VoxCPM2'))`""
 } else {
     Write-Step "使用本地模型: $ModelPath"
     if (-not (Test-Path $ModelPath)) { Write-Fail "路径不存在: $ModelPath" }
