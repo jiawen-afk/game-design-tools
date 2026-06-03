@@ -32,7 +32,7 @@ export const modelVramRequirements = {
   'VoxCPM-0.5B': 5,
 } as const
 
-const scriptBaseUrl = 'https://tools.linjiawen.com/scripts'
+const scriptBaseUrl = 'https://ghproxy.cn/https://raw.githubusercontent.com/jiawen-afk/game-design-tools/master/scripts'
 
 export const gpuCheckCommand = 'nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits'
 
