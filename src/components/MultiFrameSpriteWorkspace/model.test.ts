@@ -32,7 +32,6 @@ import {
   buildMatteFrameGroups,
   filterVisibleFrames,
   getInitialMatteFrameIds,
-  getGuideActionLabel,
   getGuideEmptyStateText,
   getGuideLineEdgeStartPosition,
   getGuideRulerCursor,
@@ -731,9 +730,12 @@ test('guide rulers create lines in the drag direction users expect', () => {
   assert.equal(getGuideRulerCursor('y'), 'ew-resize')
 })
 
-test('guide action labels create visible alignment lines', () => {
-  assert.equal(getGuideActionLabel('x'), '添加竖向辅助线')
-  assert.equal(getGuideActionLabel('y'), '添加横向辅助线')
+test('layout toolbar relies on rulers instead of guide add buttons', () => {
+  const toolbar = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8')
+  assert.doesNotMatch(toolbar, /getGuideActionLabel/)
+  assert.doesNotMatch(toolbar, /添加竖向辅助线/)
+  assert.doesNotMatch(toolbar, /添加横向辅助线/)
+  assert.match(toolbar, /清空辅助线/)
 })
 
 test('guide empty state explains rulers are available before upload', () => {

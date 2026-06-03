@@ -23,9 +23,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background:
-    radial-gradient(circle at top right, oklch(0.91 0.05 245), transparent 36rem),
-    var(--color-bg);
+  background: var(--color-bg);
 }
 
 button,
@@ -49,7 +47,11 @@ select {
 }
 
 .home-header {
-  padding: 56px 0 8px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 42px 0 4px;
 }
 
 .kicker {
@@ -69,9 +71,9 @@ p {
 h1 {
   margin-bottom: 12px;
   max-width: 720px;
-  font-size: clamp(2.4rem, 6vw, 5rem);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
+  font-size: 3.4rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
@@ -80,6 +82,32 @@ h1 {
   color: var(--color-muted);
   font-size: 1.1rem;
   line-height: 1.7;
+}
+
+.home-shortcuts {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
+.home-shortcuts kbd,
+.tool-shortcut {
+  min-width: 26px;
+  min-height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--color-brand) 32%, var(--color-line));
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--color-brand) 7%, var(--color-panel));
+  color: var(--color-brand-dark);
+  font: 700 0.82rem ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 .home-grid {
@@ -101,14 +129,17 @@ h1 {
 }
 
 .tool-list {
-  padding: 18px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .section-heading {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel-strong);
 }
 
 .section-heading h2,
@@ -117,34 +148,53 @@ h1 {
   font-size: 1.25rem;
 }
 
+.section-heading p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
 .tool-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 18px;
-  padding: 18px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
+  gap: 20px;
+  padding: 20px;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  border-radius: 0;
   background: var(--color-panel);
 }
 
-.tool-list .tool-row + .tool-row,
-.tool-list .ant-popover-open + .ant-popover-open {
-  margin-top: 12px;
+.tool-row:first-of-type {
+  border-top: 0;
 }
 
-.tool-list .tool-row {
-  margin-top: 12px;
+.tool-row-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
 }
 
-.tool-list .section-heading + .tool-row,
-.tool-list .section-heading + .ant-popover-open {
-  margin-top: 0;
+.tool-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .tool-row h3 {
-  margin-bottom: 6px;
+  margin-bottom: 0;
   font-size: 1.1rem;
+}
+
+.tool-row-title span {
+  padding: 2px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
 }
 
 .tool-row p,
@@ -153,6 +203,42 @@ h1 {
   margin-bottom: 0;
   color: var(--color-muted);
   line-height: 1.65;
+}
+
+.tool-details {
+  margin-top: 6px;
+}
+
+.tool-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.tool-meta div {
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 62%, white);
+}
+
+.tool-meta dt {
+  margin-bottom: 3px;
+  color: var(--color-brand-dark);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.tool-meta dd {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.tool-row .ant-btn {
+  align-self: center;
+  min-width: 120px;
 }
 
 .tool-detail {
@@ -174,13 +260,6 @@ h1 {
 
 .tool-detail dd {
   margin-left: 0;
-}
-
-.tool-popover-copy {
-  max-width: 34ch;
-  margin-bottom: 0;
-  color: var(--color-muted);
-  line-height: 1.65;
 }
 
 .site-footer {
@@ -247,6 +326,11 @@ h1 {
 }
 
 @media (max-width: 860px) {
+  .home-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .home-grid {
     grid-template-columns: 1fr;
   }
@@ -258,6 +342,10 @@ h1 {
   .tool-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .tool-meta {
+    grid-template-columns: 1fr;
   }
 }
 

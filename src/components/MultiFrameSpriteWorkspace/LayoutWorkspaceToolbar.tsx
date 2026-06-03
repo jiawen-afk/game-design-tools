@@ -7,9 +7,6 @@ import {
 import { CanvasPublicParamsPanel, ACTIVE_RATIO_GROUP_STYLE, RATIO_PERCENT_INPUT_STYLE } from './CanvasPublicParamsPanel'
 import { FrameThumbnailStrip } from './FrameThumbnailStrip'
 import {
-  getGuideActionLabel,
-} from './guideModel'
-import {
   getWheelScalingButtonLabel,
 } from './layoutModel'
 import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
@@ -71,12 +68,6 @@ export function LayoutWorkspaceToolbar({
           <Text type="secondary">
             当前：{layout.layoutWheelScalingEnabled ? '开放' : '禁止'}
           </Text>
-          <Button size="small" onClick={() => layout.addGuideLine('x')}>
-            {getGuideActionLabel('x')}
-          </Button>
-          <Button size="small" onClick={() => layout.addGuideLine('y')}>
-            {getGuideActionLabel('y')}
-          </Button>
           <Button size="small" disabled={layout.guideLines.length === 0} onClick={() => {
             layout.setGuideLines([])
             layout.setSelectedGuideLineId(null)
