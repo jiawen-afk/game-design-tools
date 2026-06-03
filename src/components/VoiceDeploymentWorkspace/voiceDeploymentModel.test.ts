@@ -5,6 +5,7 @@ import {
   buildOneClickCommand,
   buildVllmApiCall,
   evaluateHardware,
+  modelVramRequirements,
   parseNvidiaSmiReport,
   validateModelPath,
 } from './voiceDeploymentModel'
@@ -14,19 +15,50 @@ test('parses nvidia-smi CSV output and keeps the largest VRAM card', () => {
 NVIDIA GeForce RTX 3060, 12288
 NVIDIA GeForce GTX 1650, 4096
 `)
-  assert.deepEqual(report, { gpuName: 'NVIDIA GeForce RTX 3060', vramGb: 12 })
+  assert.deepEqual(report, { gpuName: 'NVIDIA GeForce RTX 3060', vramGb: 12, device: 'nvidia' })
 })
 
-test('blocks deployment when GPU VRAM is below the minimum', () => {
-  const result = evaluateHardware({ gpuName: 'NVIDIA GeForce GTX 1650', vramGb: 4 })
-  assert.equal(result.status, 'blocked')
-  assert.match(result.detail, /至少 8GB/)
+test('recommends VoxCPM2 when VRAM >= 8GB', () => {
+  const result = evaluateHardware({ gpuName: 'RTX 4090', vramGb: 24, device: 'nvidia' })
+  assert.equal(result.status, 'ready')
+  assert.equal(result.recommendedModel, 'VoxCPM2')
 })
 
-test('warns when GPU meets minimum but is below recommended VRAM', () => {
-  const result = evaluateHardware({ gpuName: 'NVIDIA GeForce RTX 3060', vramGb: 12 })
+test('recommends VoxCPM1.5 when VRAM is 6-7GB', () => {
+  const result = evaluateHardware({ gpuName: 'RTX 3060', vramGb: 6, device: 'nvidia' })
   assert.equal(result.status, 'warning')
-  assert.match(result.detail, /建议 16GB/)
+  assert.equal(result.recommendedModel, 'VoxCPM1.5')
+})
+
+test('recommends VoxCPM-0.5B when VRAM is 5GB', () => {
+  const result = evaluateHardware({ gpuName: 'GTX 1660', vramGb: 5, device: 'nvidia' })
+  assert.equal(result.status, 'warning')
+  assert.equal(result.recommendedModel, 'VoxCPM-0.5B')
+})
+
+test('blocks deployment when NVIDIA VRAM is below 5GB', () => {
+  const result = evaluateHardware({ gpuName: 'GTX 1650', vramGb: 4, device: 'nvidia' })
+  assert.equal(result.status, 'blocked')
+  assert.equal(result.recommendedModel, null)
+})
+
+test('Apple Silicon is always ready with VoxCPM-0.5B recommendation', () => {
+  const result = evaluateHardware({ gpuName: 'Apple Silicon', vramGb: 0, device: 'apple' })
+  assert.equal(result.status, 'ready')
+  assert.equal(result.recommendedModel, 'VoxCPM-0.5B')
+  assert.match(result.detail, /MPS/)
+})
+
+test('CPU mode is warning with VoxCPM-0.5B recommendation', () => {
+  const result = evaluateHardware({ gpuName: 'CPU', vramGb: 0, device: 'cpu' })
+  assert.equal(result.status, 'warning')
+  assert.equal(result.recommendedModel, 'VoxCPM-0.5B')
+})
+
+test('model VRAM requirements match VoxCPM documentation', () => {
+  assert.equal(modelVramRequirements['VoxCPM2'], 8)
+  assert.equal(modelVramRequirements['VoxCPM1.5'], 6)
+  assert.equal(modelVramRequirements['VoxCPM-0.5B'], 5)
 })
 
 test('requires a local model path before deployment', () => {
