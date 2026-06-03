@@ -1,6 +1,6 @@
-export type DeployMode = 'docker' | 'direct'
-
 export type HardwareStatus = 'unknown' | 'ready' | 'warning' | 'blocked'
+export type ConnectionStatus = 'idle' | 'checking' | 'connected' | 'disconnected'
+export type Platform = 'windows' | 'mac' | 'linux'
 
 export interface HardwareReport {
   gpuName: string
@@ -13,20 +13,20 @@ export interface HardwareEvaluation {
   detail: string
 }
 
-export interface DeployCommandOptions {
-  mode: DeployMode
-  modelPath: string
+export interface VllmApiCallOptions {
   port: number
+  text: string
+  voice?: string
 }
 
-export interface LocalServiceUsage {
-  browserUrl: string
-  healthCheck: string
-  pythonClient: string
-}
-
+export const defaultPort = 8000
 export const minimumVramGb = 8
 export const recommendedVramGb = 16
+
+// Remote script URLs — the scripts live in the repo and use CN mirrors
+const scriptBaseUrl = 'https://raw.githubusercontent.com/jiawen-afk/game-design-tools/master/scripts'
+
+export const gpuCheckCommand = 'nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits'
 
 export function parseNvidiaSmiReport(input: string): HardwareReport | null {
   const reports = input
@@ -36,23 +36,13 @@ export function parseNvidiaSmiReport(input: string): HardwareReport | null {
     .map((line) => {
       const [gpuName, memoryMb] = line.split(',').map((part) => part.trim())
       const memoryValue = Number(memoryMb)
-
-      if (!gpuName || !Number.isFinite(memoryValue)) {
-        return null
-      }
-
-      return {
-        gpuName,
-        vramGb: Math.round((memoryValue / 1024) * 10) / 10,
-      }
+      if (!gpuName || !Number.isFinite(memoryValue)) return null
+      return { gpuName, vramGb: Math.round((memoryValue / 1024) * 10) / 10 }
     })
-    .filter((report): report is HardwareReport => report !== null)
+    .filter((r): r is HardwareReport => r !== null)
 
-  if (reports.length === 0) {
-    return null
-  }
-
-  return reports.reduce((best, current) => (current.vramGb > best.vramGb ? current : best))
+  if (reports.length === 0) return null
+  return reports.reduce((best, cur) => (cur.vramGb > best.vramGb ? cur : best))
 }
 
 export function evaluateHardware(report: HardwareReport | null): HardwareEvaluation {
@@ -63,7 +53,6 @@ export function evaluateHardware(report: HardwareReport | null): HardwareEvaluat
       detail: '粘贴 nvidia-smi 检测结果后，工作台会判断显存是否满足本地部署。',
     }
   }
-
   if (report.vramGb < minimumVramGb) {
     return {
       status: 'blocked',
@@ -71,15 +60,13 @@ export function evaluateHardware(report: HardwareReport | null): HardwareEvaluat
       detail: `检测到 ${report.gpuName}，约 ${report.vramGb}GB 显存；至少 8GB 才建议部署 VoxCPM。`,
     }
   }
-
   if (report.vramGb < recommendedVramGb) {
     return {
       status: 'warning',
-      title: '可部署但需要控制负载',
+      title: '可部署但建议控制并发',
       detail: `检测到 ${report.gpuName}，约 ${report.vramGb}GB 显存；建议 16GB 以上以获得更稳定的语音生成体验。`,
     }
   }
-
   return {
     status: 'ready',
     title: '显卡满足建议配置',
@@ -89,61 +76,36 @@ export function evaluateHardware(report: HardwareReport | null): HardwareEvaluat
 
 export function validateModelPath(modelPath: string) {
   const value = modelPath.trim()
-
-  if (!value) {
-    return {
-      valid: false,
-      message: '请先填写本地模型目录，例如 D:\\models\\VoxCPM2。',
-    }
-  }
-
-  return {
-    valid: true,
-    message: '模型路径已填写。',
-  }
+  if (!value) return { valid: false, message: '请先填写本地模型目录，例如 D:\\models\\VoxCPM2。' }
+  return { valid: true, message: '模型路径已填写。' }
 }
 
-export function buildDeployCommand({ mode, modelPath, port }: DeployCommandOptions) {
-  const normalizedModelPath = modelPath.trim()
+/**
+ * Returns a single terminal command the user can run to download and execute
+ * the deploy script. Uses CN mirrors inside the script itself.
+ */
+export function buildOneClickCommand(platform: Platform, modelPath: string): string {
+  const scriptName = platform === 'windows' ? 'deploy-voxcpm.ps1' : 'deploy-voxcpm.sh'
+  const url = `${scriptBaseUrl}/${scriptName}`
+  const pathArg = modelPath.trim() || '/data/models/VoxCPM2'
 
-  if (mode === 'docker') {
-    return [
-      'docker run --rm --gpus all',
-      `-p ${port}:${port}`,
-      `-v '${normalizedModelPath}:/models/VoxCPM2:ro'`,
-      "-v '${PWD}/voxcpm-cache:/root/.cache/huggingface'",
-      'voxcpm:web-demo',
-      'python app.py',
-      `--port ${port}`,
-      '--device cuda',
-      '--model-id /models/VoxCPM2',
-    ].join(' ')
+  if (platform === 'windows') {
+    return `irm ${url} | iex -Args '${pathArg}'`
   }
+  // mac / linux
+  return `curl -fsSL ${url} | bash -s -- '${pathArg}'`
+}
 
+export function buildVllmApiCall({ port, text, voice = 'default' }: VllmApiCallOptions): string {
+  const url = `http://127.0.0.1:${port}/v1/audio/speech`
   return [
-    'python -m pip install -e .',
-    'python app.py',
-    `--port ${port}`,
-    '--device cuda',
-    `--model-id '${normalizedModelPath}'`,
-  ].join(' && ')
+    `curl ${url} \\`,
+    `  -H "Content-Type: application/json" \\`,
+    `  -d '{"model":"openbmb/VoxCPM2","input":"${text}","voice":"${voice}"}' \\`,
+    `  --output speech.wav`,
+  ].join('\n')
 }
 
-export const gpuCheckCommand =
-  "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits"
-
-export function buildLocalServiceUsage(port: number): LocalServiceUsage {
-  const browserUrl = `http://127.0.0.1:${port}`
-
-  return {
-    browserUrl,
-    healthCheck: `curl -I ${browserUrl}`,
-    pythonClient: [
-      'from gradio_client import Client',
-      '',
-      `client = Client('${browserUrl}')`,
-      '# 打开本地页面的 API 面板，按 VoxCPM 当前接口填写 predict 参数。',
-      '# result = client.predict(...)',
-    ].join('\n'),
-  }
+export function buildServiceUrl(port: number): string {
+  return `http://127.0.0.1:${port}`
 }
