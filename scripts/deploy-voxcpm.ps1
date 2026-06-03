@@ -1,6 +1,5 @@
 # VoxCPM 一键部署脚本 (Windows PowerShell)
-# 用法: irm <url> | iex -Args 'D:\models\VoxCPM2'
-# 或本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2'
+# 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2'
 
 param([string]$ModelPath = "")
 
@@ -11,7 +10,14 @@ $HfMirror = "https://hf-mirror.com"
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-OK($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
-function Write-Fail($msg) { Write-Host "    错误: $msg" -ForegroundColor Red; exit 1 }
+function Write-Fail($msg) {
+    Write-Host "`n    错误: $msg" -ForegroundColor Red
+    Write-Host "`n按任意键退出..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
+
+try {
 
 # ── 1. Python ──────────────────────────────────────────────────────────────
 Write-Step "检测 Python 版本"
@@ -56,3 +62,10 @@ Write-Step "启动 vLLM 服务（端口 $Port）"
 Write-Host "    服务地址: http://127.0.0.1:$Port" -ForegroundColor Green
 Write-Host "    按 Ctrl+C 停止服务`n"
 vllm serve $ModelPath --omni --port $Port
+
+} catch {
+    Write-Host "`n    错误: $_" -ForegroundColor Red
+    Write-Host "`n按任意键退出..." -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
