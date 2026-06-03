@@ -34,15 +34,34 @@ foreach ($candidate in @("py -3.12", "python3.12", "python")) {
 
 if (-not $PythonExe) {
     $pyver = python --version 2>&1
-    Write-Host "`n    当前 Python：$pyver" -ForegroundColor Yellow
-    Write-Fail @"
-VoxCPM 需要 Python 3.10-3.12（当前版本不兼容）。
+    Write-Host "    当前 Python：$pyver，版本不兼容，正在自动安装 Python 3.12..." -ForegroundColor Yellow
 
-请安装 Python 3.12 后重试：
-  https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+    # 用 winget 静默安装（Windows 10 1709+ 自带）
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "    使用 winget 安装 Python 3.12..." -ForegroundColor Cyan
+        winget install --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
+    } else {
+        # 降级：用阿里云镜像下载安装包
+        Write-Host "    winget 不可用，从阿里云镜像下载安装包..." -ForegroundColor Cyan
+        $installer = "$env:TEMP\python-3.12-amd64.exe"
+        $mirrorUrl = "https://mirrors.aliyun.com/python/3.12.10/python-3.12.10-amd64.exe"
+        Invoke-WebRequest -Uri $mirrorUrl -OutFile $installer -UseBasicParsing
+        Start-Process -FilePath $installer -ArgumentList "/quiet InstallAllUsers=0 PrependPath=1" -Wait
+        Remove-Item $installer -ErrorAction SilentlyContinue
+    }
 
-安装时勾选 "Add python.exe to PATH"，安装完成后重新打开 PowerShell 再执行本脚本。
-"@
+    # 刷新 PATH 后重新检测
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    foreach ($candidate in @("py -3.12", "python3.12", "python")) {
+        $ver = Invoke-Expression "$candidate --version" 2>&1
+        if ($LASTEXITCODE -eq 0 -and $ver -match "3\.(10|11|12)") {
+            $PythonExe = $candidate
+            break
+        }
+    }
+
+    if (-not $PythonExe) { Write-Fail "Python 3.12 安装失败，请手动安装后重试。" }
+    Write-OK "Python 3.12 安装完成"
 }
 
 $pyver = Invoke-Expression "$PythonExe --version" 2>&1
