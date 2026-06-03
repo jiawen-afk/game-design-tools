@@ -34,9 +34,9 @@ test('requires a local model path before deployment', () => {
   assert.equal(validateModelPath('D:\\models\\VoxCPM2').valid, true)
 })
 
-test('Windows one-click command uses PowerShell irm | iex', () => {
+test('Windows one-click command uses PowerShell scriptblock invocation', () => {
   const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2')
-  assert.match(cmd, /irm .+ \| iex/)
+  assert.match(cmd, /scriptblock/)
   assert.match(cmd, /deploy-voxcpm\.ps1/)
   assert.match(cmd, /D:\\models\\VoxCPM2/)
 })

@@ -91,7 +91,7 @@ export function buildOneClickCommand(platform: Platform, modelPath: string): str
 
   if (platform === 'windows') {
     const pathArg = trimmed || 'C:\\models\\VoxCPM2'
-    return `irm ${url} | iex -Args '${pathArg}'`
+    return `& ([scriptblock]::Create((irm ${url}))) '${pathArg}'`
   }
   // mac / linux
   const pathArg = trimmed || '/data/models/VoxCPM2'
