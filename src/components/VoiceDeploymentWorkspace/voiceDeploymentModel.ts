@@ -138,7 +138,7 @@ export function buildOneClickCommand(platform: Platform, modelPath: string): str
 
   if (platform === 'windows') {
     const pathArg = trimmed || 'D:\\models\\VoxCPM2'
-    return `& ([scriptblock]::Create((irm ${url}))) '${pathArg}'`
+    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}'; Remove-Item $f`
   }
   const pathArg = trimmed || '/data/models/VoxCPM2'
   return `curl -fsSL ${url} | bash -s -- '${pathArg}'`
