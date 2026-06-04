@@ -18,7 +18,7 @@ import {
   type Platform,
   buildOneClickCommand,
   buildServiceUrl,
-  buildVllmApiCall,
+  buildGradioApiCall,
   defaultPort,
   evaluateHardware,
   gpuCheckCommand,
@@ -39,7 +39,7 @@ const deviceOptions: Array<{ label: string; value: DeviceType }> = [
 
 async function checkConnection(port: number): Promise<boolean> {
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/v1/models`, {
+    const res = await fetch(`http://127.0.0.1:${port}/config`, {
       signal: AbortSignal.timeout(3000),
     })
     return res.ok
@@ -69,7 +69,7 @@ export default function VoiceDeploymentWorkspace() {
   const hardware = useMemo(() => evaluateHardware(hardwareReport), [hardwareReport])
   const modelValidation = useMemo(() => validateModelPath(modelPath), [modelPath])
   const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath), [platform, modelPath])
-  const apiCallExample = useMemo(() => buildVllmApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
+  const apiCallExample = useMemo(() => buildGradioApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
   const serviceUrl = buildServiceUrl(port)
   const connected = connectionStatus === 'connected'
 
@@ -139,7 +139,7 @@ export default function VoiceDeploymentWorkspace() {
 
       <div className="voice-panel port-row">
         <span className="port-label">服务地址</span>
-        <code>{serviceUrl}/v1/audio/speech</code>
+        <code>{serviceUrl}</code>
         <Input
           value={portInput}
           onChange={(e) => setPortInput(e.target.value)}
@@ -157,8 +157,8 @@ export default function VoiceDeploymentWorkspace() {
               <ApiOutlined />
               <h3 id="api-title">调用本地语音接口</h3>
             </div>
-            <p className="panel-copy">服务已就绪。通过 <code>POST /v1/audio/speech</code> 生成语音，返回 WAV 音频文件。</p>
-            <Input.TextArea className="deploy-command" value={apiCallExample} rows={5} readOnly />
+            <p className="panel-copy">服务已就绪。VoxCPM 以本地 Gradio 服务运行，可用 <code>gradio_client</code> 调用 <code>predict</code> 生成语音。</p>
+            <Input.TextArea className="deploy-command" value={apiCallExample} rows={9} readOnly />
             <div className="deploy-actions">
               <Button
                 type="primary"
@@ -167,7 +167,7 @@ export default function VoiceDeploymentWorkspace() {
               >
                 复制调用示例
               </Button>
-              <span>将 <code>input</code> 替换为目标文本，<code>voice</code> 可选角色音色名称。</span>
+              <span>具体 <code>api_name</code> 和参数以 <a href={serviceUrl} target="_blank" rel="noreferrer">本地页面</a> 底部的 "Use via API" 面板为准。</span>
             </div>
           </section>
         </div>
@@ -266,7 +266,7 @@ export default function VoiceDeploymentWorkspace() {
               type="info"
               showIcon
               title={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
-              description="脚本使用清华/阿里云镜像源安装 Python 依赖和模型，完成后服务自动在端口 8000 启动。"
+              description="脚本使用清华/阿里云镜像源安装 Python 依赖和模型，完成后 Gradio 服务自动在端口 8808 启动。"
             />
           </section>
         </div>

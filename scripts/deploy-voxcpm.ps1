@@ -1,7 +1,7 @@
-﻿# VoxCPM 一键部署脚本 (Windows PowerShell)
+﻿# VoxCPM Gradio 一键部署脚本 (Windows PowerShell)
 # 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2'
 
-param([string]$ModelPath = "")
+param([string]$ModelPath = "D:\models\VoxCPM2")
 
 # 强制 UTF-8 输出，避免中文在 GBK 控制台下乱码
 try {
@@ -11,7 +11,7 @@ try {
 } catch {}
 
 $ErrorActionPreference = "Stop"
-$Port = 8000
+$Port = 8808
 $PipMirror = "https://mirrors.aliyun.com/pypi/simple/"
 $HfMirror = "https://hf-mirror.com"
 
@@ -86,29 +86,47 @@ $smi = nvidia-smi 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Host "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）" -ForegroundColor Yellow }
 else { Write-OK "GPU 驱动正常" }
 
-# ── 4. 安装 voxcpm + vllm-omni ────────────────────────────────────────────
-Write-Step "安装 Python 依赖（使用阿里云镜像）"
-Invoke-Expression "$PythonExe -m pip install -q --upgrade pip -i $PipMirror"
-Invoke-Expression "$PythonExe -m pip install -q voxcpm nano-vllm-voxcpm -i $PipMirror"
-Write-OK "依赖安装完成"
+# ── 4. 检测 git ────────────────────────────────────────────────────────────
+Write-Step "检测 git"
+git --version 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Fail "未找到 git，请先安装 Git for Windows：https://git-scm.com/download/win" }
+Write-OK "git 可用"
 
-# ── 5. 下载模型 ────────────────────────────────────────────────────────────
-if (-not $ModelPath) {
-    Write-Step "下载模型（使用 hf-mirror.com）"
-    $env:HF_ENDPOINT = $HfMirror
-    Invoke-Expression "$PythonExe -c `"from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2')`""
-    Write-OK "模型下载完成"
-    $ModelPath = Invoke-Expression "$PythonExe -c `"from huggingface_hub import snapshot_download; print(snapshot_download('openbmb/VoxCPM2'))`""
+# ── 5. 克隆仓库 ────────────────────────────────────────────────────────────
+$RepoDir = Join-Path $ModelPath "VoxCPM"
+Write-Step "准备 VoxCPM 仓库到 $RepoDir"
+if (-not (Test-Path $ModelPath)) { New-Item -ItemType Directory -Force -Path $ModelPath | Out-Null }
+if (Test-Path (Join-Path $RepoDir ".git")) {
+    Write-OK "仓库已存在，跳过克隆"
 } else {
-    Write-Step "使用本地模型: $ModelPath"
-    if (-not (Test-Path $ModelPath)) { Write-Fail "路径不存在: $ModelPath" }
+    git clone --depth 1 https://gitclone.com/github.com/OpenBMB/VoxCPM.git $RepoDir
+    if ($LASTEXITCODE -ne 0) { Write-Fail "克隆失败，请检查网络或 git 配置" }
+    Write-OK "克隆完成"
 }
 
-# ── 6. 启动服务 ────────────────────────────────────────────────────────────
-Write-Step "启动 vLLM 服务（端口 $Port）"
+# ── 6. 安装依赖（阿里云镜像，检查退出码） ───────────────────────────────────
+Write-Step "安装 Python 依赖（使用阿里云镜像）"
+Invoke-Expression "$PythonExe -m pip install --upgrade pip -i $PipMirror"
+if ($LASTEXITCODE -ne 0) { Write-Fail "pip 升级失败" }
+Invoke-Expression "$PythonExe -m pip install voxcpm -i $PipMirror"
+if ($LASTEXITCODE -ne 0) { Write-Fail "voxcpm 安装失败" }
+Push-Location $RepoDir
+if (Test-Path "requirements.txt") {
+    Invoke-Expression "$PythonExe -m pip install -r requirements.txt -i $PipMirror"
+    if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Fail "依赖安装失败" }
+}
+Pop-Location
+Write-OK "依赖安装完成"
+
+# ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
+Write-Step "启动 Gradio 服务（端口 $Port）"
+Write-Host "    模型在首次启动时通过 hf-mirror.com 自动下载" -ForegroundColor Gray
 Write-Host "    服务地址: http://127.0.0.1:$Port" -ForegroundColor Green
 Write-Host "    按 Ctrl+C 停止服务`n"
-vllm serve $ModelPath --omni --port $Port
+$env:HF_ENDPOINT = $HfMirror
+Push-Location $RepoDir
+Invoke-Expression "$PythonExe app.py --port $Port --device auto"
+Pop-Location
 
 } catch {
     Write-Host "`n    错误: $_" -ForegroundColor Red

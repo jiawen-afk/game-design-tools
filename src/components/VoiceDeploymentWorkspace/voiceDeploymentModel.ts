@@ -17,13 +17,12 @@ export interface HardwareEvaluation {
   recommendedModel: 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B' | null
 }
 
-export interface VllmApiCallOptions {
+export interface GradioApiCallOptions {
   port: number
   text: string
-  voice?: string
 }
 
-export const defaultPort = 8000
+export const defaultPort = 8808
 
 // VRAM requirements per model (GB)
 export const modelVramRequirements = {
@@ -144,13 +143,21 @@ export function buildOneClickCommand(platform: Platform, modelPath: string): str
   return `curl -fsSL ${url} | bash -s -- '${pathArg}'`
 }
 
-export function buildVllmApiCall({ port, text, voice = 'default' }: VllmApiCallOptions): string {
-  const url = `http://127.0.0.1:${port}/v1/audio/speech`
+/**
+ * VoxCPM 的 Gradio 服务通过 gradio_client 调用。
+ * 给出 Python 调用示例，具体 predict 参数以本地页面 API 面板为准。
+ */
+export function buildGradioApiCall({ port, text }: GradioApiCallOptions): string {
+  const url = `http://127.0.0.1:${port}`
   return [
-    `curl ${url} \\`,
-    `  -H "Content-Type: application/json" \\`,
-    `  -d '{"model":"openbmb/VoxCPM2","input":"${text}","voice":"${voice}"}' \\`,
-    `  --output speech.wav`,
+    'from gradio_client import Client',
+    '',
+    `client = Client("${url}")`,
+    'result = client.predict(',
+    `    text="${text}",`,
+    '    api_name="/generate"  # 以本地页面 API 面板显示的 api_name 为准',
+    ')',
+    'print(result)  # 返回生成的音频文件路径',
   ].join('\n')
 }
 

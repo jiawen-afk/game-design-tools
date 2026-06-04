@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  buildGradioApiCall,
   buildOneClickCommand,
-  buildVllmApiCall,
+  defaultPort,
   evaluateHardware,
   modelVramRequirements,
   parseNvidiaSmiReport,
@@ -80,10 +81,14 @@ test('mac/linux one-click command uses curl | bash', () => {
   assert.match(cmd, /\/data\/models\/VoxCPM2/)
 })
 
-test('vLLM API call example targets /v1/audio/speech', () => {
-  const call = buildVllmApiCall({ port: 8000, text: '测试文本' })
-  assert.match(call, /127\.0\.0\.1:8000\/v1\/audio\/speech/)
-  assert.match(call, /openbmb\/VoxCPM2/)
+test('Gradio API call example uses gradio_client predict', () => {
+  const call = buildGradioApiCall({ port: 8808, text: '测试文本' })
+  assert.match(call, /gradio_client/)
+  assert.match(call, /127\.0\.0\.1:8808/)
+  assert.match(call, /\.predict\(/)
   assert.match(call, /测试文本/)
-  assert.match(call, /speech\.wav/)
+})
+
+test('default port is the Gradio web demo port 8808', () => {
+  assert.equal(defaultPort, 8808)
 })

@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# VoxCPM 一键部署脚本 (macOS / Linux)
+# VoxCPM Gradio 一键部署脚本 (macOS / Linux)
 # 用法: curl -fsSL <url> | bash -s -- '/data/models/VoxCPM2'
 # 或本地执行: bash deploy-voxcpm.sh '/data/models/VoxCPM2'
 
 set -euo pipefail
 
-MODEL_PATH="${1:-}"
-PORT=8000
+MODEL_PATH="${1:-/data/models/VoxCPM2}"
+PORT=8808
 PIP_MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 HF_MIRROR="https://hf-mirror.com"
+REPO_MIRROR="https://gitclone.com/github.com/OpenBMB/VoxCPM.git"
 
 step() { echo; echo "==> $1"; }
 ok()   { echo "    OK: $1"; }
@@ -46,26 +47,37 @@ else
   echo "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）"
 fi
 
-# ── 4. 安装依赖（使用阿里云镜像） ─────────────────────────────────────────
-step "安装 Python 依赖"
-python3 -m pip install -q --upgrade pip -i "$PIP_MIRROR"
-python3 -m pip install -q voxcpm nano-vllm-voxcpm -i "$PIP_MIRROR"
-ok "依赖安装完成"
+# ── 4. 检测 git ────────────────────────────────────────────────────────────
+step "检测 git"
+command -v git &>/dev/null || fail "未找到 git，请先安装 git"
+ok "git 可用"
 
-# ── 5. 下载模型 ────────────────────────────────────────────────────────────
-if [[ -z "$MODEL_PATH" ]]; then
-  step "下载模型（使用 hf-mirror.com）"
-  export HF_ENDPOINT="$HF_MIRROR"
-  MODEL_PATH=$(python3 -c "from huggingface_hub import snapshot_download; print(snapshot_download('openbmb/VoxCPM2'))")
-  ok "模型下载完成: $MODEL_PATH"
+# ── 5. 克隆仓库 ────────────────────────────────────────────────────────────
+REPO_DIR="$MODEL_PATH/VoxCPM"
+step "准备 VoxCPM 仓库到 $REPO_DIR"
+mkdir -p "$MODEL_PATH"
+if [[ -d "$REPO_DIR/.git" ]]; then
+  ok "仓库已存在，跳过克隆"
 else
-  step "使用本地模型: $MODEL_PATH"
-  [[ -d "$MODEL_PATH" ]] || fail "路径不存在: $MODEL_PATH"
+  git clone --depth 1 "$REPO_MIRROR" "$REPO_DIR" || fail "克隆失败，请检查网络或 git 配置"
+  ok "克隆完成"
 fi
 
-# ── 6. 启动服务 ────────────────────────────────────────────────────────────
-step "启动 vLLM 服务（端口 $PORT）"
+# ── 6. 安装依赖（使用阿里云镜像） ─────────────────────────────────────────
+step "安装 Python 依赖"
+python3 -m pip install --upgrade pip -i "$PIP_MIRROR" || fail "pip 升级失败"
+python3 -m pip install voxcpm -i "$PIP_MIRROR" || fail "voxcpm 安装失败"
+if [[ -f "$REPO_DIR/requirements.txt" ]]; then
+  python3 -m pip install -r "$REPO_DIR/requirements.txt" -i "$PIP_MIRROR" || fail "依赖安装失败"
+fi
+ok "依赖安装完成"
+
+# ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
+step "启动 Gradio 服务（端口 $PORT）"
+echo "    模型在首次启动时通过 hf-mirror.com 自动下载"
 echo "    服务地址: http://127.0.0.1:$PORT"
 echo "    按 Ctrl+C 停止服务"
 echo
-vllm serve "$MODEL_PATH" --omni --port "$PORT"
+export HF_ENDPOINT="$HF_MIRROR"
+cd "$REPO_DIR"
+exec python3 app.py --port "$PORT" --device auto
