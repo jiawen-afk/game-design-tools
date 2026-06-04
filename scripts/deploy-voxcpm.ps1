@@ -90,8 +90,9 @@ Write-OK "$pyver（使用：$PythonExe）"
 Write-Step "检测磁盘空间"
 $drive = (Get-Location).Drive.Name + ":"
 $free  = (Get-PSDrive $drive.TrimEnd(':')).Free / 1GB
-if ($free -lt 30) { Write-Fail "可用空间不足（${free:F1}GB），至少需要 30GB" }
-Write-OK "${free:F1}GB 可用"
+$freeStr = $free.ToString("F1")
+if ($free -lt 30) { Write-Fail "可用空间不足（${freeStr}GB），至少需要 30GB" }
+Write-OK "${freeStr}GB 可用"
 
 # ── 3. CUDA ────────────────────────────────────────────────────────────────
 Write-Step "检测 NVIDIA 驱动"
@@ -99,10 +100,23 @@ $smi = nvidia-smi 2>&1
 if ($LASTEXITCODE -ne 0) { Write-Host "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）" -ForegroundColor Yellow }
 else { Write-OK "GPU 驱动正常" }
 
-# ── 4. 检测 git ────────────────────────────────────────────────────────────
+# ── 4. 检测 git（缺失则自动安装） ───────────────────────────────────────────
 Write-Step "检测 git"
 git --version 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) { Write-Fail "未找到 git，请先安装 Git for Windows：https://git-scm.com/download/win" }
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "    未找到 git，正在自动安装..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements
+    } else {
+        Write-Fail "git 未安装且 winget 不可用，请手动安装：https://git-scm.com/download/win"
+    }
+    # 刷新 PATH（Git 默认装到 Program Files）
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    $gitExe = "$env:ProgramFiles\Git\cmd"
+    if (Test-Path $gitExe) { $env:Path = "$gitExe;$env:Path" }
+    git --version 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Fail "git 安装失败，请手动安装后重试：https://git-scm.com/download/win" }
+}
 Write-OK "git 可用"
 
 # ── 5. 克隆仓库 ────────────────────────────────────────────────────────────
