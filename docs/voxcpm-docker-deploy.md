@@ -1,6 +1,6 @@
 # VoxCPM Docker 部署文档（国内镜像源）
 
-本文面向 [OpenBMB/VoxCPM](https://github.com/OpenBMB/VoxCPM) 的 Web Demo 私有部署。官方仓库说明中，VoxCPM 需要 Python 3.10 到 3.12、PyTorch 2.5 及以上，CUDA 环境建议 12.0 及以上；Web Demo 通过 `python app.py --port 8808` 启动，`--device` 可选 `auto`、`cpu`、`mps`、`cuda`、`cuda:N`。
+本文面向 [OpenBMB/VoxCPM](https://github.com/OpenBMB/VoxCPM) 的 Web Demo 私有部署。官方仓库说明中，VoxCPM 需要 Python 3.10 到 3.12、PyTorch 2.5 及以上，CUDA 环境建议 12.0 及以上；Web Demo 通过 `python app.py --port 8808` 启动，可选 `--model-id` 指定模型（本地路径或 HuggingFace 仓库 ID，默认 `openbmb/VoxCPM2`）。设备由 app.py 启动时自动选择（检测到 CUDA 用 GPU，否则回退 CPU）。
 
 ## 目标
 
@@ -24,7 +24,7 @@ GPU 部署建议使用 NVIDIA 显卡，并安装：
 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
-如果只做 CPU 测试，可以把 compose 中的 GPU 配置删掉，并把启动参数 `--device cuda` 改成 `--device cpu`。CPU 推理会很慢，不建议作为长期私用方案。
+如果只做 CPU 测试，可以把 compose 中的 GPU 配置删掉。app.py 检测不到 CUDA 时会自动回退 CPU。CPU 推理会很慢，不建议作为长期私用方案。
 
 ## 建议目录结构
 
@@ -85,7 +85,7 @@ RUN python -m pip install --upgrade pip setuptools wheel \
 
 EXPOSE 8808
 
-CMD ["python", "app.py", "--port", "8808", "--device", "cuda"]
+CMD ["python", "app.py", "--port", "8808"]
 ```
 
 ## docker-compose.yml

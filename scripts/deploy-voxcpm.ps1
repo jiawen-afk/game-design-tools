@@ -158,7 +158,7 @@ Write-Host "    服务地址: http://127.0.0.1:$Port" -ForegroundColor Green
 Write-Host "    按 Ctrl+C 停止服务`n"
 $env:HF_ENDPOINT = $HfMirror
 Push-Location $RepoDir
-Invoke-Expression "$PythonExe app.py --port $Port --device auto --model-id $HfId"
+Invoke-Expression "$PythonExe app.py --port $Port --model-id $HfId"
 Pop-Location
 
 } catch {

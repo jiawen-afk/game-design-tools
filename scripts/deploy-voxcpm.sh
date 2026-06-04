@@ -89,4 +89,4 @@ echo "    按 Ctrl+C 停止服务"
 echo
 export HF_ENDPOINT="$HF_MIRROR"
 cd "$REPO_DIR"
-exec python3 app.py --port "$PORT" --device auto
+exec python3 app.py --port "$PORT" --model-id "$HF_ID"

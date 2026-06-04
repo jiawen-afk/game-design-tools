@@ -89,7 +89,7 @@ export function evaluateHardware(report: HardwareReport | null): HardwareEvaluat
     return {
       status: 'ready',
       title: 'Apple Silicon — MPS 加速',
-      detail: 'VoxCPM 原生支持 Apple Silicon MPS 后端（--device auto）。推荐部署 VoxCPM-0.5B 以获得最流畅的体验。',
+      detail: 'VoxCPM 原生支持 Apple Silicon MPS 后端，启动时自动选择。推荐部署 VoxCPM-0.5B 以获得最流畅的体验。',
       recommendedModel: 'VoxCPM-0.5B',
     }
   }
