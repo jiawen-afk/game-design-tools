@@ -11,6 +11,8 @@ SOURCE="${3:-auto}"
 PORT=8808
 PIP_MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 HF_MIRROR="https://hf-mirror.com"
+# PyTorch CUDA wheel 阿里云镜像（cu128 兼容 20/30/40/50 系）
+TORCH_CUDA_INDEX="https://mirrors.aliyun.com/pytorch-wheels/cu128/"
 REPO_MIRROR="https://gitclone.com/github.com/OpenBMB/VoxCPM.git"
 
 # 模型版本 -> HuggingFace 仓库 ID（小写 openbmb）
@@ -72,7 +74,9 @@ ok "${FREE_GB}GB 可用"
 
 # ── 3. GPU 检测 ────────────────────────────────────────────────────────────
 step "检测 GPU"
+HAS_NVIDIA=0
 if command -v nvidia-smi &>/dev/null; then
+  HAS_NVIDIA=1
   ok "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | head -1)"
 else
   echo "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）"
@@ -102,6 +106,24 @@ if [[ -f "$REPO_DIR/requirements.txt" ]]; then
   python3 -m pip install -r "$REPO_DIR/requirements.txt" -i "$PIP_MIRROR" || fail "依赖安装失败"
 fi
 ok "依赖安装完成"
+
+# ── 6b. 检查 PyTorch GPU 支持（N 卡用户修复 CPU-only torch） ─────────────────
+# pip install voxcpm 默认带 CPU 版 torch，N 卡上需换成 CUDA(cu128) 版才能用 GPU
+if [[ "${HAS_NVIDIA:-0}" == "1" ]]; then
+  step "检查 PyTorch 是否支持 GPU"
+  if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+    ok "PyTorch 已支持 GPU (CUDA)"
+  else
+    echo "    检测到 CPU 版 PyTorch，正在重装 GPU(cu128) 版（约 2.5GB，请耐心等待）..."
+    python3 -m pip uninstall -y torch torchaudio || true
+    python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
+    if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+      ok "GPU 版 PyTorch 安装完成，已启用 CUDA"
+    else
+      echo "    警告: 重装后仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）"
+    fi
+  fi
+fi
 
 # ── 7. 选择下载源（测速 / 手动） ─────────────────────────────────────────
 CHOSEN="$SOURCE"

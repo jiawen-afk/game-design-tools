@@ -18,6 +18,8 @@ $ErrorActionPreference = "Stop"
 $Port = 8808
 $PipMirror = "https://mirrors.aliyun.com/pypi/simple/"
 $HfMirror = "https://hf-mirror.com"
+# PyTorch CUDA wheel 阿里云镜像（cu128 兼容 20/30/40/50 系，含 RTX 50 Blackwell）
+$TorchCudaIndex = "https://mirrors.aliyun.com/pytorch-wheels/cu128/"
 
 # 模型版本 -> 仓库 ID（HF 小写 openbmb，ModelScope 大写 OpenBMB）
 $HfMap = @{
@@ -117,7 +119,8 @@ Write-OK "${freeStr}GB 可用"
 # ── 3. CUDA ────────────────────────────────────────────────────────────────
 Write-Step "检测 NVIDIA 驱动"
 $smi = nvidia-smi 2>&1
-if ($LASTEXITCODE -ne 0) { Write-Host "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）" -ForegroundColor Yellow }
+$HasNvidia = ($LASTEXITCODE -eq 0)
+if (-not $HasNvidia) { Write-Host "    警告: 未检测到 nvidia-smi，将使用 CPU 模式（速度较慢）" -ForegroundColor Yellow }
 else { Write-OK "GPU 驱动正常" }
 
 # ── 4. 检测 git（缺失则自动安装） ───────────────────────────────────────────
@@ -170,6 +173,24 @@ if (Test-Path "requirements.txt") {
 }
 Pop-Location
 Write-OK "依赖安装完成"
+
+# ── 6b. 检查 PyTorch GPU 支持（N 卡用户修复 CPU-only torch） ─────────────────
+# pip install voxcpm 默认带 CPU 版 torch，N 卡上需换成 CUDA(cu128) 版才能用 GPU
+if ($HasNvidia) {
+    Write-Step "检查 PyTorch 是否支持 GPU"
+    $cudaOk = (Invoke-Expression "$PythonExe -c `"import torch;print(torch.cuda.is_available())`"" 2>&1) -match "True"
+    if ($cudaOk) {
+        Write-OK "PyTorch 已支持 GPU (CUDA)"
+    } else {
+        Write-Host "    检测到 CPU 版 PyTorch，正在重装 GPU(cu128) 版（约 2.5GB，请耐心等待）..." -ForegroundColor Yellow
+        Invoke-Expression "$PythonExe -m pip uninstall -y torch torchaudio"
+        Invoke-Expression "$PythonExe -m pip install torch torchaudio --index-url $TorchCudaIndex"
+        if ($LASTEXITCODE -ne 0) { Write-Fail "GPU 版 PyTorch 安装失败" }
+        $cudaOk2 = (Invoke-Expression "$PythonExe -c `"import torch;print(torch.cuda.is_available())`"" 2>&1) -match "True"
+        if ($cudaOk2) { Write-OK "GPU 版 PyTorch 安装完成，已启用 CUDA" }
+        else { Write-Host "    警告: 重装后仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）" -ForegroundColor Yellow }
+    }
+}
 
 # ── 7. 选择下载源（测速 / 手动） ───────────────────────────────────────────
 $Chosen = $Source
