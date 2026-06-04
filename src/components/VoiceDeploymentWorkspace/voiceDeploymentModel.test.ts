@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
@@ -144,4 +145,11 @@ test('Gradio API call example uses gradio_client predict', () => {
 
 test('default port is the Gradio web demo port 8808', () => {
   assert.equal(defaultPort, 8808)
+})
+
+test('Windows deployment script installs ffmpeg for browser-recorded m4a reference audio', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Get-Command ffmpeg/)
+  assert.match(source, /Gyan\.FFmpeg/)
 })

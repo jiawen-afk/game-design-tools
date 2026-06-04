@@ -61,6 +61,35 @@ function Measure-Latency($url) {
     return $best
 }
 
+function Refresh-PathFromRegistry {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path","User")
+    $env:Path = "$machinePath;$userPath"
+}
+
+function Ensure-FfmpegAvailable {
+    Write-Step "检测 ffmpeg 音频解码器"
+    if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+        Write-OK "ffmpeg 可用"
+        return
+    }
+
+    Write-Host "    未找到 ffmpeg，浏览器麦克风录制的 m4a 参考音频会无法读取，正在自动安装..." -ForegroundColor Yellow
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id Gyan.FFmpeg --silent --accept-package-agreements --accept-source-agreements
+        Refresh-PathFromRegistry
+        foreach ($p in @("$env:LOCALAPPDATA\Microsoft\WinGet\Links", "$env:ProgramFiles\ffmpeg\bin", "$env:ProgramFiles\Gyan\FFmpeg\bin")) {
+            if ((Test-Path $p) -and ($env:Path -notlike "*$p*")) { $env:Path = "$p;$env:Path" }
+        }
+        if (Get-Command ffmpeg -ErrorAction SilentlyContinue) {
+            Write-OK "ffmpeg 安装完成"
+            return
+        }
+    }
+
+    Write-Fail "ffmpeg 未安装。请手动安装 FFmpeg 并重开 PowerShell 后重试，否则 m4a 参考音频无法用于克隆。"
+}
+
 try {
 
 # ── 1. Python ──────────────────────────────────────────────────────────────
@@ -149,6 +178,9 @@ if (-not (Test-GitAvailable)) {
     if (-not (Test-GitAvailable)) { Write-Fail "git 安装后仍未找到，请重开 PowerShell 再运行本脚本" }
 }
 Write-OK "git 可用"
+
+# ── 4b. 检测 ffmpeg（librosa/audioread 读取浏览器录制 m4a 需要） ─────────────
+Ensure-FfmpegAvailable
 
 # ── 5. 克隆仓库 ────────────────────────────────────────────────────────────
 $RepoDir = Join-Path $ModelPath "VoxCPM"
