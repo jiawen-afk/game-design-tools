@@ -1,7 +1,14 @@
-# VoxCPM 一键部署脚本 (Windows PowerShell)
+﻿# VoxCPM 一键部署脚本 (Windows PowerShell)
 # 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2'
 
 param([string]$ModelPath = "")
+
+# 强制 UTF-8 输出，避免中文在 GBK 控制台下乱码
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    chcp 65001 > $null
+} catch {}
 
 $ErrorActionPreference = "Stop"
 $Port = 8000
