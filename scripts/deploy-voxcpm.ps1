@@ -1,4 +1,4 @@
-﻿# VoxCPM Gradio 一键部署脚本 (Windows PowerShell)
+# VoxCPM Gradio 一键部署脚本 (Windows PowerShell)
 # 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2' 'VoxCPM2'
 
 param(
