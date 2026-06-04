@@ -36,7 +36,7 @@ Pure logic lives in `*Model.ts` / `*model.ts` files (e.g. `matteModel.ts`, `layo
 
 ### VoiceDeploymentWorkspace
 
-Thin workspace — all pure logic is in `voiceDeploymentModel.ts` (parses `nvidia-smi` output, evaluates VRAM against `minimumVramGb`/`recommendedVramGb`, generates Docker/direct deploy commands). The React component in `index.tsx` handles GPU detection and command rendering.
+Thin workspace — all pure logic is in `voiceDeploymentModel.ts`: `parseNvidiaSmiReport` reads `nvidia-smi` output, `evaluateHardware` maps VRAM to a recommended model version (`modelVramRequirements`: VoxCPM2≥8GB / VoxCPM1.5≥6GB / VoxCPM-0.5B≥5GB) and also handles Apple-Silicon/CPU `DeviceType`s, `buildOneClickCommand` emits a platform-specific shell one-liner that downloads + runs a deploy script from `scripts/`, and `buildGradioApiCall` produces a `gradio_client` example. The component in `index.tsx` auto-probes the local Gradio service (`/config` on port 8808) and switches between a deploy guide and an API-call panel based on connection status. The actual install scripts are `scripts/deploy-voxcpm.{ps1,sh}` (clone repo via CN mirror, `pip install` with Aliyun mirror, launch `app.py`). VoxCPM uses Gradio rather than vLLM because vLLM has no native Windows support.
 
 ## Tests
 
