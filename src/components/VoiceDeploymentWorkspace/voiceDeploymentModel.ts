@@ -3,6 +3,7 @@ export type ConnectionStatus = 'idle' | 'checking' | 'connected' | 'disconnected
 export type Platform = 'windows' | 'mac' | 'linux'
 export type DeviceType = 'nvidia' | 'apple' | 'cpu'
 export type ModelVersion = 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B'
+export type DownloadSource = 'auto' | 'hf' | 'ms'
 
 export interface HardwareReport {
   gpuName: string
@@ -45,6 +46,39 @@ export const voxcpmModels: Array<{
 ]
 
 const scriptBaseUrl = 'https://tools.linjiawen.com/scripts'
+
+// 模型下载源元数据。host 仅用于 UI 文案展示，真正的测速主机写死在部署脚本里。
+export interface DownloadSourceMeta {
+  id: DownloadSource
+  label: string
+  host: string
+  note: string
+}
+
+export const downloadSources: DownloadSourceMeta[] = [
+  {
+    id: 'auto',
+    label: '自动测速',
+    host: '',
+    note: '脚本启动时对两个源做延迟探测，自动选延迟低的下载。',
+  },
+  {
+    id: 'hf',
+    label: 'HF 镜像',
+    host: 'hf-mirror.com',
+    note: '通过 hf-mirror.com（HuggingFace 国内镜像）下载，由 app.py 自动拉取。',
+  },
+  {
+    id: 'ms',
+    label: 'ModelScope',
+    host: 'modelscope.cn',
+    note: '通过 modelscope.cn 下载到本地目录后再启动，国内通常更稳。',
+  },
+]
+
+// 延迟探测的诚实标注：延迟低 ≠ 下载快。UI 与测试共用此文案，避免漂移。
+export const latencyDisclaimer =
+  '测速基于连接延迟，不等于实际下载吞吐量。若自动选择的源下载偏慢，可手动切换另一个源。'
 
 export const gpuCheckCommand = 'nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits'
 
@@ -143,17 +177,22 @@ export function validateModelPath(modelPath: string) {
   return { valid: true, message: '模型路径已填写。' }
 }
 
-export function buildOneClickCommand(platform: Platform, modelPath: string, model: ModelVersion = 'VoxCPM2'): string {
+export function buildOneClickCommand(
+  platform: Platform,
+  modelPath: string,
+  model: ModelVersion = 'VoxCPM2',
+  source: DownloadSource = 'auto',
+): string {
   const scriptName = platform === 'windows' ? 'deploy-voxcpm.ps1' : 'deploy-voxcpm.sh'
   const url = `${scriptBaseUrl}/${scriptName}`
   const trimmed = modelPath.trim()
 
   if (platform === 'windows') {
     const pathArg = trimmed || 'D:\\models\\VoxCPM2'
-    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}' '${model}'; Remove-Item $f`
+    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}' '${model}' '${source}'; Remove-Item $f`
   }
   const pathArg = trimmed || '/data/models/VoxCPM2'
-  return `curl -fsSL ${url} | bash -s -- '${pathArg}' '${model}'`
+  return `curl -fsSL ${url} | bash -s -- '${pathArg}' '${model}' '${source}'`
 }
 
 /**

@@ -14,6 +14,7 @@ import './voiceDeploymentWorkspace.css'
 import {
   type ConnectionStatus,
   type DeviceType,
+  type DownloadSource,
   type HardwareReport,
   type ModelVersion,
   type Platform,
@@ -21,8 +22,10 @@ import {
   buildServiceUrl,
   buildGradioApiCall,
   defaultPort,
+  downloadSources,
   evaluateHardware,
   gpuCheckCommand,
+  latencyDisclaimer,
   parseNvidiaSmiReport,
   validateModelPath,
   voxcpmModels,
@@ -42,6 +45,11 @@ const deviceOptions: Array<{ label: string; value: DeviceType }> = [
 const modelOptions = voxcpmModels.map((m) => ({
   label: `${m.id} · 约 ${m.vramGb}GB`,
   value: m.id,
+}))
+
+const sourceOptions = downloadSources.map((s) => ({
+  label: s.label,
+  value: s.id,
 }))
 
 async function checkConnection(port: number): Promise<boolean> {
@@ -64,6 +72,7 @@ export default function VoiceDeploymentWorkspace() {
   const [modelPath, setModelPath] = useState('')
   const [platform, setPlatform] = useState<Platform>('windows')
   const [selectedModel, setSelectedModel] = useState<ModelVersion>('VoxCPM2')
+  const [downloadSource, setDownloadSource] = useState<DownloadSource>('auto')
   const [modelTouched, setModelTouched] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const checkRef = useRef(0)
@@ -77,7 +86,7 @@ export default function VoiceDeploymentWorkspace() {
 
   const hardware = useMemo(() => evaluateHardware(hardwareReport), [hardwareReport])
   const modelValidation = useMemo(() => validateModelPath(modelPath), [modelPath])
-  const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath, selectedModel), [platform, modelPath, selectedModel])
+  const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath, selectedModel, downloadSource), [platform, modelPath, selectedModel, downloadSource])
   const apiCallExample = useMemo(() => buildGradioApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
   const serviceUrl = buildServiceUrl(port)
   const connected = connectionStatus === 'connected'
@@ -272,6 +281,18 @@ export default function VoiceDeploymentWorkspace() {
               </p>
             </div>
 
+            <div className="model-select">
+              <span className="model-select-label">下载源</span>
+              <Segmented
+                value={downloadSource}
+                options={sourceOptions}
+                onChange={(v) => setDownloadSource(v as DownloadSource)}
+              />
+              <p className="model-select-note">
+                {downloadSources.find((s) => s.id === downloadSource)?.note}
+              </p>
+            </div>
+
             <Input
               value={modelPath}
               onChange={(e) => setModelPath(e.target.value)}
@@ -294,7 +315,7 @@ export default function VoiceDeploymentWorkspace() {
               type="info"
               showIcon
               title={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
-              description="脚本使用清华/阿里云镜像源安装 Python 依赖和模型，完成后 Gradio 服务自动在端口 8808 启动。"
+              description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型，完成后 Gradio 服务自动在端口 8808 启动。${latencyDisclaimer}`}
             />
           </section>
         </div>

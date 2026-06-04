@@ -3,7 +3,8 @@
 
 param(
     [string]$ModelPath = "D:\models\VoxCPM2",
-    [string]$ModelVariant = "VoxCPM2"
+    [string]$ModelVariant = "VoxCPM2",
+    [ValidateSet("auto","hf","ms")][string]$Source = "auto"
 )
 
 # 强制 UTF-8 输出，避免中文在 GBK 控制台下乱码
@@ -18,14 +19,19 @@ $Port = 8808
 $PipMirror = "https://mirrors.aliyun.com/pypi/simple/"
 $HfMirror = "https://hf-mirror.com"
 
-# 模型版本 -> HuggingFace 仓库 ID
-$ModelMap = @{
+# 模型版本 -> 仓库 ID（HF 小写 openbmb，ModelScope 大写 OpenBMB）
+$HfMap = @{
     "VoxCPM2"     = "openbmb/VoxCPM2"
     "VoxCPM1.5"   = "openbmb/VoxCPM1.5"
     "VoxCPM-0.5B" = "openbmb/VoxCPM-0.5B"
 }
-$HfId = $ModelMap[$ModelVariant]
-if (-not $HfId) { $HfId = "openbmb/VoxCPM2"; $ModelVariant = "VoxCPM2" }
+$MsMap = @{
+    "VoxCPM2"     = "OpenBMB/VoxCPM2"
+    "VoxCPM1.5"   = "OpenBMB/VoxCPM1.5"
+    "VoxCPM-0.5B" = "OpenBMB/VoxCPM-0.5B"
+}
+if (-not $HfMap[$ModelVariant]) { $ModelVariant = "VoxCPM2" }
+$HfId = $HfMap[$ModelVariant]
 
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
@@ -35,6 +41,20 @@ function Write-Fail($msg) {
     Write-Host "`n按任意键退出..." -ForegroundColor Gray
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     exit 1
+}
+
+# 对 url 发 3 次 HEAD 请求测延迟，取最小耗时（毫秒）；全部失败返回极大值表示不可用
+function Measure-Latency($url) {
+    $best = [double]::MaxValue
+    for ($i = 0; $i -lt 3; $i++) {
+        try {
+            $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 5 -UseBasicParsing | Out-Null
+            $sw.Stop()
+            if ($sw.Elapsed.TotalMilliseconds -lt $best) { $best = $sw.Elapsed.TotalMilliseconds }
+        } catch {}
+    }
+    return $best
 }
 
 try {
@@ -151,14 +171,59 @@ if (Test-Path "requirements.txt") {
 Pop-Location
 Write-OK "依赖安装完成"
 
-# ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
-Write-Step "启动 Gradio 服务（端口 $Port，模型 $ModelVariant）"
-Write-Host "    模型 $HfId 在首次启动时通过 hf-mirror.com 自动下载" -ForegroundColor Gray
+# ── 7. 选择下载源（测速 / 手动） ───────────────────────────────────────────
+$Chosen = $Source
+if ($Source -eq "auto") {
+    Write-Step "测速选择下载源（基于连接延迟，不代表下载速度）"
+    $hfMs = Measure-Latency "https://hf-mirror.com"
+    $msMs = Measure-Latency "https://modelscope.cn"
+    $hfStr = if ($hfMs -eq [double]::MaxValue) { "超时" } else { "$([int]$hfMs)ms" }
+    $msStr = if ($msMs -eq [double]::MaxValue) { "超时" } else { "$([int]$msMs)ms" }
+    Write-Host "    hf-mirror.com: $hfStr    modelscope.cn: $msStr" -ForegroundColor Gray
+    if ($hfMs -eq [double]::MaxValue -and $msMs -eq [double]::MaxValue) {
+        Write-Host "    两个源均不可达，回退 HF 镜像" -ForegroundColor Yellow
+        $Chosen = "hf"
+    } elseif ($msMs -lt $hfMs) { $Chosen = "ms" } else { $Chosen = "hf" }
+    Write-OK "已选择下载源：$Chosen"
+}
+
+# ── 8. 准备模型（按下载源分两条路径） ───────────────────────────────────────
+if ($Chosen -eq "ms") {
+    $MsId = $MsMap[$ModelVariant]
+    if (-not $MsId) { $MsId = "OpenBMB/VoxCPM2" }
+    $LocalDir = Join-Path $ModelPath "pretrained_models\$ModelVariant"
+    Write-Step "通过 ModelScope 下载 $MsId 到 $LocalDir"
+    Invoke-Expression "$PythonExe -m pip install modelscope -i $PipMirror"
+    if ($LASTEXITCODE -ne 0) { Write-Fail "modelscope 安装失败" }
+    # 用 here-string 构造 Python 代码，避免内层引号与反斜杠转义问题
+    $pyCode = @"
+from modelscope import snapshot_download
+snapshot_download('$MsId', local_dir=r'$LocalDir')
+"@
+    $pyFile = Join-Path $env:TEMP "voxcpm_ms_dl.py"
+    Set-Content -Path $pyFile -Value $pyCode -Encoding ascii
+    Invoke-Expression "$PythonExe `"$pyFile`""
+    $dlCode = $LASTEXITCODE
+    Remove-Item $pyFile -ErrorAction SilentlyContinue
+    if ($dlCode -ne 0) { Write-Fail "ModelScope 下载失败" }
+    Write-OK "模型已下载到本地"
+    $LaunchId = $LocalDir
+} else {
+    $env:HF_ENDPOINT = $HfMirror
+    $LaunchId = $HfId
+}
+
+# ── 9. 启动 Gradio 服务 ────────────────────────────────────────────────────
+Write-Step "启动 Gradio 服务（端口 $Port，模型 $ModelVariant，来源 $Chosen）"
+if ($Chosen -eq "ms") {
+    Write-Host "    使用本地模型: $LaunchId" -ForegroundColor Gray
+} else {
+    Write-Host "    模型 $LaunchId 在首次启动时通过 hf-mirror.com 自动下载" -ForegroundColor Gray
+}
 Write-Host "    服务地址: http://127.0.0.1:$Port" -ForegroundColor Green
 Write-Host "    按 Ctrl+C 停止服务`n"
-$env:HF_ENDPOINT = $HfMirror
 Push-Location $RepoDir
-Invoke-Expression "$PythonExe app.py --port $Port --model-id $HfId"
+Invoke-Expression "$PythonExe app.py --port $Port --model-id $LaunchId"
 Pop-Location
 
 } catch {

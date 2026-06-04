@@ -5,7 +5,9 @@ import {
   buildGradioApiCall,
   buildOneClickCommand,
   defaultPort,
+  downloadSources,
   evaluateHardware,
+  latencyDisclaimer,
   modelVramRequirements,
   parseNvidiaSmiReport,
   validateModelPath,
@@ -87,6 +89,40 @@ test('mac/linux one-click command uses curl | bash', () => {
 test('one-click command defaults to VoxCPM2 when model omitted', () => {
   const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2')
   assert.match(cmd, /'VoxCPM2'/)
+})
+
+test('one-click command defaults download source to auto when omitted', () => {
+  const win = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2')
+  assert.match(win, /'VoxCPM2'\s+'auto'/)
+  const mac = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM2')
+  assert.match(mac, /'VoxCPM2'\s+'auto'/)
+})
+
+test('one-click command appends download source as third positional arg', () => {
+  const ms = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2', 'ms')
+  assert.match(ms, /'VoxCPM2'\s+'ms'/)
+  const hf = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM1.5', 'hf')
+  assert.match(hf, /'VoxCPM1\.5'\s+'hf'/)
+})
+
+test('downloadSources metadata covers auto/hf/ms with correct hosts', () => {
+  assert.equal(downloadSources.length, 3)
+  const ids = downloadSources.map((s) => s.id)
+  assert.deepEqual(ids, ['auto', 'hf', 'ms'])
+  const byId = Object.fromEntries(downloadSources.map((s) => [s.id, s]))
+  assert.equal(byId.auto.host, '')
+  assert.equal(byId.hf.host, 'hf-mirror.com')
+  assert.equal(byId.ms.host, 'modelscope.cn')
+  for (const s of downloadSources) {
+    assert.ok(s.label.length > 0)
+    assert.ok(s.note.length > 0)
+  }
+})
+
+test('latencyDisclaimer honestly notes latency is not throughput', () => {
+  assert.ok(latencyDisclaimer.length > 0)
+  assert.match(latencyDisclaimer, /延迟/)
+  assert.match(latencyDisclaimer, /吞吐/)
 })
 
 test('voxcpmModels metadata matches VRAM requirements and HF ids', () => {

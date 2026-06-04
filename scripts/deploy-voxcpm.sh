@@ -7,18 +7,40 @@ set -euo pipefail
 
 MODEL_PATH="${1:-/data/models/VoxCPM2}"
 MODEL_VARIANT="${2:-VoxCPM2}"
+SOURCE="${3:-auto}"
 PORT=8808
 PIP_MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 HF_MIRROR="https://hf-mirror.com"
 REPO_MIRROR="https://gitclone.com/github.com/OpenBMB/VoxCPM.git"
 
-# 模型版本 -> HuggingFace 仓库 ID
+# 模型版本 -> HuggingFace 仓库 ID（小写 openbmb）
 case "$MODEL_VARIANT" in
   "VoxCPM2")     HF_ID="openbmb/VoxCPM2" ;;
   "VoxCPM1.5")   HF_ID="openbmb/VoxCPM1.5" ;;
   "VoxCPM-0.5B") HF_ID="openbmb/VoxCPM-0.5B" ;;
   *)             HF_ID="openbmb/VoxCPM2"; MODEL_VARIANT="VoxCPM2" ;;
 esac
+
+# 模型版本 -> ModelScope 仓库 ID（大写 OpenBMB）
+ms_id_for() {
+  case "$1" in
+    "VoxCPM2")     echo "OpenBMB/VoxCPM2" ;;
+    "VoxCPM1.5")   echo "OpenBMB/VoxCPM1.5" ;;
+    "VoxCPM-0.5B") echo "OpenBMB/VoxCPM-0.5B" ;;
+    *)             echo "OpenBMB/VoxCPM2" ;;
+  esac
+}
+
+# 对 url 发 3 次 HEAD 请求测延迟，取最小毫秒；失败计 99999 表示不可用
+measure_latency() {
+  local url="$1" best=99999 t ms
+  for i in 1 2 3; do
+    t=$(curl -o /dev/null -s -m 5 -w '%{time_total}' -I "$url" 2>/dev/null) || continue
+    ms=$(awk "BEGIN{printf \"%d\", $t*1000}")
+    if (( ms < best )); then best=$ms; fi
+  done
+  echo "$best"
+}
 
 step() { echo; echo "==> $1"; }
 ok()   { echo "    OK: $1"; }
@@ -81,12 +103,45 @@ if [[ -f "$REPO_DIR/requirements.txt" ]]; then
 fi
 ok "依赖安装完成"
 
-# ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
-step "启动 Gradio 服务（端口 $PORT，模型 $MODEL_VARIANT）"
-echo "    模型 $HF_ID 在首次启动时通过 hf-mirror.com 自动下载"
+# ── 7. 选择下载源（测速 / 手动） ─────────────────────────────────────────
+CHOSEN="$SOURCE"
+if [[ "$SOURCE" == "auto" ]]; then
+  step "测速选择下载源（基于连接延迟，不代表下载速度）"
+  HF_MS=$(measure_latency "https://hf-mirror.com")
+  MS_MS=$(measure_latency "https://modelscope.cn")
+  hf_str=$([[ "$HF_MS" -ge 99999 ]] && echo "超时" || echo "${HF_MS}ms")
+  ms_str=$([[ "$MS_MS" -ge 99999 ]] && echo "超时" || echo "${MS_MS}ms")
+  echo "    hf-mirror.com: $hf_str    modelscope.cn: $ms_str"
+  if [[ "$HF_MS" -ge 99999 && "$MS_MS" -ge 99999 ]]; then
+    echo "    两个源均不可达，回退 HF 镜像"
+    CHOSEN="hf"
+  elif (( MS_MS < HF_MS )); then CHOSEN="ms"; else CHOSEN="hf"; fi
+  ok "已选择下载源：$CHOSEN"
+fi
+
+# ── 8. 准备模型（按下载源分两条路径） ─────────────────────────────────────
+if [[ "$CHOSEN" == "ms" ]]; then
+  MS_ID=$(ms_id_for "$MODEL_VARIANT")
+  LOCAL_DIR="$MODEL_PATH/pretrained_models/$MODEL_VARIANT"
+  step "通过 ModelScope 下载 $MS_ID 到 $LOCAL_DIR"
+  python3 -m pip install modelscope -i "$PIP_MIRROR" || fail "modelscope 安装失败"
+  python3 -c "from modelscope import snapshot_download; snapshot_download('$MS_ID', local_dir='$LOCAL_DIR')" || fail "ModelScope 下载失败"
+  ok "模型已下载到本地"
+  LAUNCH_ID="$LOCAL_DIR"
+else
+  export HF_ENDPOINT="$HF_MIRROR"
+  LAUNCH_ID="$HF_ID"
+fi
+
+# ── 9. 启动 Gradio 服务 ────────────────────────────────────────────────────
+step "启动 Gradio 服务（端口 $PORT，模型 $MODEL_VARIANT，来源 $CHOSEN）"
+if [[ "$CHOSEN" == "ms" ]]; then
+  echo "    使用本地模型: $LAUNCH_ID"
+else
+  echo "    模型 $LAUNCH_ID 在首次启动时通过 hf-mirror.com 自动下载"
+fi
 echo "    服务地址: http://127.0.0.1:$PORT"
 echo "    按 Ctrl+C 停止服务"
 echo
-export HF_ENDPOINT="$HF_MIRROR"
 cd "$REPO_DIR"
-exec python3 app.py --port "$PORT" --model-id "$HF_ID"
+exec python3 app.py --port "$PORT" --model-id "$LAUNCH_ID"
