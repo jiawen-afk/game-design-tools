@@ -205,6 +205,19 @@ test('Windows service runner keeps native stderr warnings in the log', () => {
   assert.doesNotMatch(source, /BeginErrorReadLine/)
 })
 
+test('deployment scripts allow browser pages to call local Gradio', () => {
+  const windows = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+  const unix = readFileSync('scripts/deploy-voxcpm.sh', 'utf8')
+
+  for (const source of [windows, unix]) {
+    assert.match(source, /VOXCPM_ALLOWED_BROWSER_ORIGINS", "\*"/)
+    assert.match(source, /"\*" in allowed/)
+    assert.match(source, /VOXCPM_ALLOWED_BROWSER_ORIGINS/)
+    assert.match(source, /CustomCORSMiddleware/)
+    assert.match(source, /Access-Control-Allow-Private-Network/)
+  }
+})
+
 test('Windows service stores the real Python interpreter instead of the py launcher', () => {
   const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
 

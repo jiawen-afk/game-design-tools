@@ -67,6 +67,68 @@ function Write-Utf8PowerShellFile($path, $content) {
     [System.IO.File]::WriteAllText($path, $content, $encoding)
 }
 
+function Install-GradioCorsPatch($repoDir) {
+    $patchPath = Join-Path $repoDir "sitecustomize.py"
+    $patch = @'
+"""Allow browser pages to call the local VoxCPM Gradio server.
+
+Python imports sitecustomize.py automatically during startup when it is on
+sys.path. The VoxCPM service is launched from this repository directory, so this
+patch is applied before app.py imports Gradio.
+"""
+
+import os
+
+
+def _allowed_origins():
+    raw = os.environ.get("VOXCPM_ALLOWED_BROWSER_ORIGINS", "*")
+    return {origin.strip() for origin in raw.split(",") if origin.strip()}
+
+
+def _is_origin_allowed(origin):
+    allowed = _allowed_origins()
+    return "*" in allowed or origin in allowed
+
+
+def _install_tools_cors_patch():
+    try:
+        from gradio.routes import CustomCORSMiddleware
+    except Exception:
+        return
+
+    if getattr(CustomCORSMiddleware, "_tools_cors_patch_installed", False):
+        return
+
+    original_is_valid_origin = CustomCORSMiddleware.is_valid_origin
+    original_preflight_response = CustomCORSMiddleware.preflight_response
+
+    def is_valid_origin(self, request_headers):
+        origin = request_headers.get("origin")
+        if origin and _is_origin_allowed(origin):
+            return True
+        return original_is_valid_origin(self, request_headers)
+
+    def preflight_response(self, request_headers):
+        response = original_preflight_response(self, request_headers)
+        origin = request_headers.get("origin")
+        if (
+            origin
+            and _is_origin_allowed(origin)
+            and request_headers.get("access-control-request-private-network") == "true"
+        ):
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
+    CustomCORSMiddleware.is_valid_origin = is_valid_origin
+    CustomCORSMiddleware.preflight_response = preflight_response
+    CustomCORSMiddleware._tools_cors_patch_installed = True
+
+
+_install_tools_cors_patch()
+'@
+    Write-Utf8PowerShellFile $patchPath $patch
+}
+
 function Measure-Latency($url) {
     $best = [double]::MaxValue
     for ($i = 0; $i -lt 3; $i++) {
@@ -291,6 +353,7 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
     $stateDir = Join-Path $env:LOCALAPPDATA "GameDesignTools\VoxCPM"
     New-Item -ItemType Directory -Force -Path $cmdDir, $stateDir | Out-Null
     Add-UserPath $cmdDir
+    Install-GradioCorsPatch $repoDir
 
     $configPath = Join-Path $stateDir "voxcpm-config.json"
     $runnerPath = Join-Path $cmdDir "voxcpm-run.ps1"
@@ -308,6 +371,7 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
         ModelVariant = $modelVariant
         Source = $source
         Port = $Port
+        AllowedOrigins = @("*")
         HfMirror = $HfMirror
         LogPath = $logPath
         StderrPath = $stderrPath
@@ -319,6 +383,7 @@ $ErrorActionPreference = "Stop"
 $configPath = Join-Path $PSScriptRoot "..\VoxCPM\voxcpm-config.json"
 $config = Get-Content -Raw $configPath | ConvertFrom-Json
 $env:HF_ENDPOINT = [string]$config.HfMirror
+$env:VOXCPM_ALLOWED_BROWSER_ORIGINS = (($config.AllowedOrigins | ForEach-Object { [string]$_ }) -join ",")
 
 function Write-RunnerError($message) {
     try {

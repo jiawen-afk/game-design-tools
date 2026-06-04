@@ -49,6 +49,67 @@ step() { echo; echo "==> $1"; }
 ok()   { echo "    OK: $1"; }
 fail() { echo "    错误: $1" >&2; exit 1; }
 
+install_gradio_cors_patch() {
+  local repo_dir="$1"
+  cat > "$repo_dir/sitecustomize.py" <<'PY'
+"""Allow browser pages to call the local VoxCPM Gradio server.
+
+Python imports sitecustomize.py automatically during startup when it is on
+sys.path. The VoxCPM service is launched from this repository directory, so this
+patch is applied before app.py imports Gradio.
+"""
+
+import os
+
+
+def _allowed_origins():
+    raw = os.environ.get("VOXCPM_ALLOWED_BROWSER_ORIGINS", "*")
+    return {origin.strip() for origin in raw.split(",") if origin.strip()}
+
+
+def _is_origin_allowed(origin):
+    allowed = _allowed_origins()
+    return "*" in allowed or origin in allowed
+
+
+def _install_tools_cors_patch():
+    try:
+        from gradio.routes import CustomCORSMiddleware
+    except Exception:
+        return
+
+    if getattr(CustomCORSMiddleware, "_tools_cors_patch_installed", False):
+        return
+
+    original_is_valid_origin = CustomCORSMiddleware.is_valid_origin
+    original_preflight_response = CustomCORSMiddleware.preflight_response
+
+    def is_valid_origin(self, request_headers):
+        origin = request_headers.get("origin")
+        if origin and _is_origin_allowed(origin):
+            return True
+        return original_is_valid_origin(self, request_headers)
+
+    def preflight_response(self, request_headers):
+        response = original_preflight_response(self, request_headers)
+        origin = request_headers.get("origin")
+        if (
+            origin
+            and _is_origin_allowed(origin)
+            and request_headers.get("access-control-request-private-network") == "true"
+        ):
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
+    CustomCORSMiddleware.is_valid_origin = is_valid_origin
+    CustomCORSMiddleware.preflight_response = preflight_response
+    CustomCORSMiddleware._tools_cors_patch_installed = True
+
+
+_install_tools_cors_patch()
+PY
+}
+
 # ── 1. Python ──────────────────────────────────────────────────────────────
 step "检测 Python 版本"
 if ! command -v python3 &>/dev/null; then
@@ -184,4 +245,6 @@ echo "    服务地址: http://127.0.0.1:$PORT"
 echo "    按 Ctrl+C 停止服务"
 echo
 cd "$REPO_DIR"
+install_gradio_cors_patch "$REPO_DIR"
+export VOXCPM_ALLOWED_BROWSER_ORIGINS="${VOXCPM_ALLOWED_BROWSER_ORIGINS:-*}"
 exec python3 app.py --port "$PORT" --model-id "$LAUNCH_ID"
