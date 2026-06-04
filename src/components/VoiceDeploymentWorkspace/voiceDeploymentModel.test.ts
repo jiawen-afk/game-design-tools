@@ -9,6 +9,7 @@ import {
   modelVramRequirements,
   parseNvidiaSmiReport,
   validateModelPath,
+  voxcpmModels,
 } from './voiceDeploymentModel'
 
 test('parses nvidia-smi CSV output and keeps the largest VRAM card', () => {
@@ -68,17 +69,33 @@ test('requires a local model path before deployment', () => {
 })
 
 test('Windows one-click command downloads script to temp file then executes', () => {
-  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2')
+  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM-0.5B')
   assert.match(cmd, /irm .+ -OutFile/)
   assert.match(cmd, /deploy-voxcpm\.ps1/)
   assert.match(cmd, /D:\\models\\VoxCPM2/)
+  assert.match(cmd, /'VoxCPM-0\.5B'/)
 })
 
 test('mac/linux one-click command uses curl | bash', () => {
-  const cmd = buildOneClickCommand('mac', '/data/models/VoxCPM2')
+  const cmd = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM1.5')
   assert.match(cmd, /curl -fsSL .+ \| bash/)
   assert.match(cmd, /deploy-voxcpm\.sh/)
   assert.match(cmd, /\/data\/models\/VoxCPM2/)
+  assert.match(cmd, /'VoxCPM1\.5'/)
+})
+
+test('one-click command defaults to VoxCPM2 when model omitted', () => {
+  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2')
+  assert.match(cmd, /'VoxCPM2'/)
+})
+
+test('voxcpmModels metadata matches VRAM requirements and HF ids', () => {
+  assert.equal(voxcpmModels.length, 3)
+  for (const m of voxcpmModels) {
+    assert.equal(m.hfId, `openbmb/${m.id}`)
+    assert.equal(m.vramGb, modelVramRequirements[m.id])
+    assert.ok(m.note.length > 0)
+  }
 })
 
 test('Gradio API call example uses gradio_client predict', () => {

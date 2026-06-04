@@ -2,6 +2,7 @@ export type HardwareStatus = 'unknown' | 'ready' | 'warning' | 'blocked'
 export type ConnectionStatus = 'idle' | 'checking' | 'connected' | 'disconnected'
 export type Platform = 'windows' | 'mac' | 'linux'
 export type DeviceType = 'nvidia' | 'apple' | 'cpu'
+export type ModelVersion = 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B'
 
 export interface HardwareReport {
   gpuName: string
@@ -14,7 +15,7 @@ export interface HardwareEvaluation {
   title: string
   detail: string
   /** 推荐部署的模型版本 */
-  recommendedModel: 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B' | null
+  recommendedModel: ModelVersion | null
 }
 
 export interface GradioApiCallOptions {
@@ -30,6 +31,18 @@ export const modelVramRequirements = {
   'VoxCPM1.5': 6,
   'VoxCPM-0.5B': 5,
 } as const
+
+// 可部署的模型版本元数据：HF 仓库 ID、显存占用、适用说明
+export const voxcpmModels: Array<{
+  id: ModelVersion
+  hfId: string
+  vramGb: number
+  note: string
+}> = [
+  { id: 'VoxCPM2', hfId: 'openbmb/VoxCPM2', vramGb: modelVramRequirements['VoxCPM2'], note: '质量最高，适合 8GB 以上显卡' },
+  { id: 'VoxCPM1.5', hfId: 'openbmb/VoxCPM1.5', vramGb: modelVramRequirements['VoxCPM1.5'], note: '平衡质量与显存，适合 6GB 显卡' },
+  { id: 'VoxCPM-0.5B', hfId: 'openbmb/VoxCPM-0.5B', vramGb: modelVramRequirements['VoxCPM-0.5B'], note: '最轻量，适合 5GB 显卡 / Apple Silicon / CPU' },
+]
 
 const scriptBaseUrl = 'https://tools.linjiawen.com/scripts'
 
@@ -130,17 +143,17 @@ export function validateModelPath(modelPath: string) {
   return { valid: true, message: '模型路径已填写。' }
 }
 
-export function buildOneClickCommand(platform: Platform, modelPath: string): string {
+export function buildOneClickCommand(platform: Platform, modelPath: string, model: ModelVersion = 'VoxCPM2'): string {
   const scriptName = platform === 'windows' ? 'deploy-voxcpm.ps1' : 'deploy-voxcpm.sh'
   const url = `${scriptBaseUrl}/${scriptName}`
   const trimmed = modelPath.trim()
 
   if (platform === 'windows') {
     const pathArg = trimmed || 'D:\\models\\VoxCPM2'
-    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}'; Remove-Item $f`
+    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}' '${model}'; Remove-Item $f`
   }
   const pathArg = trimmed || '/data/models/VoxCPM2'
-  return `curl -fsSL ${url} | bash -s -- '${pathArg}'`
+  return `curl -fsSL ${url} | bash -s -- '${pathArg}' '${model}'`
 }
 
 /**

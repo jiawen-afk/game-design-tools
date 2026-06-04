@@ -1,7 +1,10 @@
 ﻿# VoxCPM Gradio 一键部署脚本 (Windows PowerShell)
-# 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2'
+# 本地执行: .\deploy-voxcpm.ps1 'D:\models\VoxCPM2' 'VoxCPM2'
 
-param([string]$ModelPath = "D:\models\VoxCPM2")
+param(
+    [string]$ModelPath = "D:\models\VoxCPM2",
+    [string]$ModelVariant = "VoxCPM2"
+)
 
 # 强制 UTF-8 输出，避免中文在 GBK 控制台下乱码
 try {
@@ -14,6 +17,16 @@ $ErrorActionPreference = "Stop"
 $Port = 8808
 $PipMirror = "https://mirrors.aliyun.com/pypi/simple/"
 $HfMirror = "https://hf-mirror.com"
+
+# 模型版本 -> HuggingFace 仓库 ID
+$ModelMap = @{
+    "VoxCPM2"     = "openbmb/VoxCPM2"
+    "VoxCPM1.5"   = "openbmb/VoxCPM1.5"
+    "VoxCPM-0.5B" = "openbmb/VoxCPM-0.5B"
+}
+$HfId = $ModelMap[$ModelVariant]
+if (-not $HfId) { $HfId = "openbmb/VoxCPM2"; $ModelVariant = "VoxCPM2" }
+
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-OK($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
@@ -119,13 +132,13 @@ Pop-Location
 Write-OK "依赖安装完成"
 
 # ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
-Write-Step "启动 Gradio 服务（端口 $Port）"
-Write-Host "    模型在首次启动时通过 hf-mirror.com 自动下载" -ForegroundColor Gray
+Write-Step "启动 Gradio 服务（端口 $Port，模型 $ModelVariant）"
+Write-Host "    模型 $HfId 在首次启动时通过 hf-mirror.com 自动下载" -ForegroundColor Gray
 Write-Host "    服务地址: http://127.0.0.1:$Port" -ForegroundColor Green
 Write-Host "    按 Ctrl+C 停止服务`n"
 $env:HF_ENDPOINT = $HfMirror
 Push-Location $RepoDir
-Invoke-Expression "$PythonExe app.py --port $Port --device auto"
+Invoke-Expression "$PythonExe app.py --port $Port --device auto --model-id $HfId"
 Pop-Location
 
 } catch {

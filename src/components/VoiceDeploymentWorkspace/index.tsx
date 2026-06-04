@@ -15,6 +15,7 @@ import {
   type ConnectionStatus,
   type DeviceType,
   type HardwareReport,
+  type ModelVersion,
   type Platform,
   buildOneClickCommand,
   buildServiceUrl,
@@ -24,6 +25,7 @@ import {
   gpuCheckCommand,
   parseNvidiaSmiReport,
   validateModelPath,
+  voxcpmModels,
 } from './voiceDeploymentModel'
 
 const platformOptions: Array<{ label: string; value: Platform }> = [
@@ -36,6 +38,11 @@ const deviceOptions: Array<{ label: string; value: DeviceType }> = [
   { label: 'Apple Silicon', value: 'apple' },
   { label: 'CPU', value: 'cpu' },
 ]
+
+const modelOptions = voxcpmModels.map((m) => ({
+  label: `${m.id} · 约 ${m.vramGb}GB`,
+  value: m.id,
+}))
 
 async function checkConnection(port: number): Promise<boolean> {
   try {
@@ -56,6 +63,8 @@ export default function VoiceDeploymentWorkspace() {
   const [gpuInput, setGpuInput] = useState('')
   const [modelPath, setModelPath] = useState('')
   const [platform, setPlatform] = useState<Platform>('windows')
+  const [selectedModel, setSelectedModel] = useState<ModelVersion>('VoxCPM2')
+  const [modelTouched, setModelTouched] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const checkRef = useRef(0)
 
@@ -68,7 +77,7 @@ export default function VoiceDeploymentWorkspace() {
 
   const hardware = useMemo(() => evaluateHardware(hardwareReport), [hardwareReport])
   const modelValidation = useMemo(() => validateModelPath(modelPath), [modelPath])
-  const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath), [platform, modelPath])
+  const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath, selectedModel), [platform, modelPath, selectedModel])
   const apiCallExample = useMemo(() => buildGradioApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
   const serviceUrl = buildServiceUrl(port)
   const connected = connectionStatus === 'connected'
@@ -82,6 +91,13 @@ export default function VoiceDeploymentWorkspace() {
   }, [])
 
   useEffect(() => { runCheck(defaultPort) }, [runCheck])
+
+  // 推荐模型变化时，若用户未手动选择则自动跟随推荐
+  useEffect(() => {
+    if (!modelTouched && hardware.recommendedModel) {
+      setSelectedModel(hardware.recommendedModel)
+    }
+  }, [hardware.recommendedModel, modelTouched])
 
   const applyPort = () => {
     const n = parseInt(portInput, 10)
@@ -235,7 +251,7 @@ export default function VoiceDeploymentWorkspace() {
               <h3 id="deploy-title">一键部署</h3>
             </div>
             <p className="panel-copy">
-              选择系统，复制命令到终端执行。脚本会自动检测环境、使用国内镜像源安装依赖并启动服务。
+              选择系统和模型版本，复制命令到终端执行。脚本会自动检测环境、使用国内镜像源安装依赖并启动服务。
             </p>
 
             <Segmented
@@ -243,6 +259,18 @@ export default function VoiceDeploymentWorkspace() {
               options={platformOptions}
               onChange={(v) => setPlatform(v as Platform)}
             />
+
+            <div className="model-select">
+              <span className="model-select-label">模型版本</span>
+              <Segmented
+                value={selectedModel}
+                options={modelOptions}
+                onChange={(v) => { setSelectedModel(v as ModelVersion); setModelTouched(true) }}
+              />
+              <p className="model-select-note">
+                {voxcpmModels.find((m) => m.id === selectedModel)?.note}
+              </p>
+            </div>
 
             <Input
               value={modelPath}

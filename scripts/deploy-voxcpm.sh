@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 # VoxCPM Gradio 一键部署脚本 (macOS / Linux)
-# 用法: curl -fsSL <url> | bash -s -- '/data/models/VoxCPM2'
-# 或本地执行: bash deploy-voxcpm.sh '/data/models/VoxCPM2'
+# 用法: curl -fsSL <url> | bash -s -- '/data/models/VoxCPM2' 'VoxCPM2'
+# 或本地执行: bash deploy-voxcpm.sh '/data/models/VoxCPM2' 'VoxCPM2'
 
 set -euo pipefail
 
 MODEL_PATH="${1:-/data/models/VoxCPM2}"
+MODEL_VARIANT="${2:-VoxCPM2}"
 PORT=8808
 PIP_MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 HF_MIRROR="https://hf-mirror.com"
 REPO_MIRROR="https://gitclone.com/github.com/OpenBMB/VoxCPM.git"
+
+# 模型版本 -> HuggingFace 仓库 ID
+case "$MODEL_VARIANT" in
+  "VoxCPM2")     HF_ID="openbmb/VoxCPM2" ;;
+  "VoxCPM1.5")   HF_ID="openbmb/VoxCPM1.5" ;;
+  "VoxCPM-0.5B") HF_ID="openbmb/VoxCPM-0.5B" ;;
+  *)             HF_ID="openbmb/VoxCPM2"; MODEL_VARIANT="VoxCPM2" ;;
+esac
 
 step() { echo; echo "==> $1"; }
 ok()   { echo "    OK: $1"; }
@@ -73,8 +82,8 @@ fi
 ok "依赖安装完成"
 
 # ── 7. 启动 Gradio 服务 ────────────────────────────────────────────────────
-step "启动 Gradio 服务（端口 $PORT）"
-echo "    模型在首次启动时通过 hf-mirror.com 自动下载"
+step "启动 Gradio 服务（端口 $PORT，模型 $MODEL_VARIANT）"
+echo "    模型 $HF_ID 在首次启动时通过 hf-mirror.com 自动下载"
 echo "    服务地址: http://127.0.0.1:$PORT"
 echo "    按 Ctrl+C 停止服务"
 echo
