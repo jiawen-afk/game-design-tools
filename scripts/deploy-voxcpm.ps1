@@ -164,6 +164,16 @@ if (Test-Path (Join-Path $RepoDir ".git")) {
 Write-Step "安装 Python 依赖（使用阿里云镜像）"
 Invoke-Expression "$PythonExe -m pip install --upgrade pip -i $PipMirror"
 if ($LASTEXITCODE -ne 0) { Write-Fail "pip 升级失败" }
+
+# N 卡：先从 cu128 源装好 GPU 版 torch，避免随后 voxcpm 把 CPU 版 torch 拉进来。
+# 若本机已残留 CPU 版 torch（版本号可能更高导致此处跳过），由后面步骤 6b 兜底卸载重装。
+if ($HasNvidia) {
+    Write-Step "安装 GPU 版 PyTorch（cu128，约 2.5GB，请耐心等待）"
+    Invoke-Expression "$PythonExe -m pip install torch torchaudio --index-url $TorchCudaIndex"
+    if ($LASTEXITCODE -ne 0) { Write-Fail "GPU 版 PyTorch 安装失败" }
+    Write-OK "GPU 版 PyTorch 安装完成"
+}
+
 Invoke-Expression "$PythonExe -m pip install voxcpm -i $PipMirror"
 if ($LASTEXITCODE -ne 0) { Write-Fail "voxcpm 安装失败" }
 Push-Location $RepoDir
@@ -174,21 +184,20 @@ if (Test-Path "requirements.txt") {
 Pop-Location
 Write-OK "依赖安装完成"
 
-# ── 6b. 检查 PyTorch GPU 支持（N 卡用户修复 CPU-only torch） ─────────────────
-# pip install voxcpm 默认带 CPU 版 torch，N 卡上需换成 CUDA(cu128) 版才能用 GPU
+# ── 6b. 校验 PyTorch GPU 支持（兜底：万一仍是 CPU 版则重装） ─────────────────
 if ($HasNvidia) {
-    Write-Step "检查 PyTorch 是否支持 GPU"
+    Write-Step "校验 PyTorch GPU 支持"
     $cudaOk = (Invoke-Expression "$PythonExe -c `"import torch;print(torch.cuda.is_available())`"" 2>&1) -match "True"
     if ($cudaOk) {
-        Write-OK "PyTorch 已支持 GPU (CUDA)"
+        Write-OK "PyTorch 已启用 GPU (CUDA)"
     } else {
-        Write-Host "    检测到 CPU 版 PyTorch，正在重装 GPU(cu128) 版（约 2.5GB，请耐心等待）..." -ForegroundColor Yellow
+        Write-Host "    PyTorch 仍为 CPU 版，重装 GPU(cu128) 版..." -ForegroundColor Yellow
         Invoke-Expression "$PythonExe -m pip uninstall -y torch torchaudio"
         Invoke-Expression "$PythonExe -m pip install torch torchaudio --index-url $TorchCudaIndex"
         if ($LASTEXITCODE -ne 0) { Write-Fail "GPU 版 PyTorch 安装失败" }
         $cudaOk2 = (Invoke-Expression "$PythonExe -c `"import torch;print(torch.cuda.is_available())`"" 2>&1) -match "True"
         if ($cudaOk2) { Write-OK "GPU 版 PyTorch 安装完成，已启用 CUDA" }
-        else { Write-Host "    警告: 重装后仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）" -ForegroundColor Yellow }
+        else { Write-Host "    警告: 仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）" -ForegroundColor Yellow }
     }
 }
 

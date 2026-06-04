@@ -101,26 +101,34 @@ fi
 # ── 6. 安装依赖（使用阿里云镜像） ─────────────────────────────────────────
 step "安装 Python 依赖"
 python3 -m pip install --upgrade pip -i "$PIP_MIRROR" || fail "pip 升级失败"
+
+# N 卡：先从 cu128 源装好 GPU 版 torch，避免随后 voxcpm 把 CPU 版 torch 拉进来。
+# 若本机已残留 CPU 版 torch（版本号可能更高导致此处跳过），由后面步骤 6b 兜底卸载重装。
+if [[ "${HAS_NVIDIA:-0}" == "1" ]]; then
+  step "安装 GPU 版 PyTorch（cu128，约 2.5GB，请耐心等待）"
+  python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
+  ok "GPU 版 PyTorch 安装完成"
+fi
+
 python3 -m pip install voxcpm -i "$PIP_MIRROR" || fail "voxcpm 安装失败"
 if [[ -f "$REPO_DIR/requirements.txt" ]]; then
   python3 -m pip install -r "$REPO_DIR/requirements.txt" -i "$PIP_MIRROR" || fail "依赖安装失败"
 fi
 ok "依赖安装完成"
 
-# ── 6b. 检查 PyTorch GPU 支持（N 卡用户修复 CPU-only torch） ─────────────────
-# pip install voxcpm 默认带 CPU 版 torch，N 卡上需换成 CUDA(cu128) 版才能用 GPU
+# ── 6b. 校验 PyTorch GPU 支持（兜底：万一仍是 CPU 版则重装） ─────────────────
 if [[ "${HAS_NVIDIA:-0}" == "1" ]]; then
-  step "检查 PyTorch 是否支持 GPU"
+  step "校验 PyTorch GPU 支持"
   if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
-    ok "PyTorch 已支持 GPU (CUDA)"
+    ok "PyTorch 已启用 GPU (CUDA)"
   else
-    echo "    检测到 CPU 版 PyTorch，正在重装 GPU(cu128) 版（约 2.5GB，请耐心等待）..."
+    echo "    PyTorch 仍为 CPU 版，重装 GPU(cu128) 版..."
     python3 -m pip uninstall -y torch torchaudio || true
     python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
     if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
       ok "GPU 版 PyTorch 安装完成，已启用 CUDA"
     else
-      echo "    警告: 重装后仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）"
+      echo "    警告: 仍未检测到 CUDA，将以 CPU 模式运行（请检查显卡驱动）"
     fi
   fi
 fi
