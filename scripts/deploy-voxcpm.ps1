@@ -92,7 +92,7 @@ function Resolve-PythonCandidate {
         if (-not $cmd) { continue }
         try {
             $ver = & $cmd.Source @($candidate.Args) --version 2>&1
-            if ($LASTEXITCODE -eq 0 -and "$ver" -match "3\.(10|11|12)\.") {
+            if ($LASTEXITCODE -eq 0 -and "$ver" -match "3\.12\.") {
                 return @{
                     Command = $cmd.Source
                     Args = @($candidate.Args)
@@ -105,11 +105,20 @@ function Resolve-PythonCandidate {
     return $null
 }
 
+function Resolve-PythonExecutablePath($command, $args) {
+    $probeArgs = @($args) + @("-c", "import sys; print(sys.executable)")
+    $output = & $command @probeArgs 2>&1
+    if ($LASTEXITCODE -ne 0) { return $null }
+    $path = ($output | Select-Object -Last 1).ToString().Trim()
+    if ($path -and (Test-Path $path)) { return $path }
+    return $null
+}
+
 function Ensure-PythonAvailable {
     Write-Step "检测 Python 版本"
     $candidate = Resolve-PythonCandidate
     if (-not $candidate) {
-        Write-Host "    未找到兼容的 Python 3.10-3.12，正在自动安装 Python 3.12..." -ForegroundColor Yellow
+        Write-Host "    未找到兼容的 Python 3.12，正在自动安装 Python 3.12..." -ForegroundColor Yellow
         if (Get-Command winget -ErrorAction SilentlyContinue) {
             winget install --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements
         } else {
@@ -123,9 +132,12 @@ function Ensure-PythonAvailable {
         $candidate = Resolve-PythonCandidate
     }
 
-    if (-not $candidate) { Write-Fail "Python 3.12 安装失败，请手动安装 Python 3.10-3.12 后重试。" }
-    $script:PythonCommand = $candidate.Command
-    $script:PythonArgs = @($candidate.Args)
+    if (-not $candidate) { Write-Fail "Python 3.12 安装失败，请手动安装 Python 3.12 后重试。" }
+    $realCommand = Resolve-PythonExecutablePath $candidate.Command @($candidate.Args)
+    if (-not $realCommand) { Write-Fail "无法解析 Python 解释器路径，请手动检查 Python 安装。" }
+    $candidate.RealCommand = $realCommand
+    $script:PythonCommand = $candidate.RealCommand
+    $script:PythonArgs = @()
     Write-OK "$($candidate.Version)（使用：$($candidate.Display)）"
 }
 
@@ -284,6 +296,7 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
     $runnerPath = Join-Path $cmdDir "voxcpm-run.ps1"
     $servicePath = Join-Path $cmdDir "voxcpm-service.ps1"
     $logPath = Join-Path $stateDir "voxcpm.log"
+    $stderrPath = Join-Path $stateDir "voxcpm.err.log"
     $pidPath = Join-Path $stateDir "voxcpm.pid"
 
     @{
@@ -297,6 +310,7 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
         Port = $Port
         HfMirror = $HfMirror
         LogPath = $logPath
+        StderrPath = $stderrPath
         PidPath = $pidPath
     } | ConvertTo-Json -Depth 4 | Set-Content -Path $configPath -Encoding utf8
 
@@ -305,34 +319,6 @@ $ErrorActionPreference = "Stop"
 $configPath = Join-Path $PSScriptRoot "..\VoxCPM\voxcpm-config.json"
 $config = Get-Content -Raw $configPath | ConvertFrom-Json
 $env:HF_ENDPOINT = [string]$config.HfMirror
-
-function ConvertTo-WindowsArgument([string]$value) {
-    if ($value -eq "") { return '""' }
-    if ($value -notmatch '[\s"]') { return $value }
-
-    $result = '"'
-    $backslashes = 0
-    foreach ($char in $value.ToCharArray()) {
-        if ($char -eq '\') {
-            $backslashes += 1
-            continue
-        }
-        if ($char -eq '"') {
-            $result += ('\' * (($backslashes * 2) + 1))
-            $result += '"'
-            $backslashes = 0
-            continue
-        }
-        if ($backslashes -gt 0) {
-            $result += ('\' * $backslashes)
-            $backslashes = 0
-        }
-        $result += $char
-    }
-    if ($backslashes -gt 0) { $result += ('\' * ($backslashes * 2)) }
-    $result += '"'
-    return $result
-}
 
 function Write-RunnerError($message) {
     try {
@@ -344,40 +330,13 @@ try {
     $argsList = @()
     foreach ($item in @($config.PythonArgs)) { if ($null -ne $item -and "$item" -ne "") { $argsList += [string]$item } }
     $argsList += @("app.py", "--port", [string]$config.Port, "--model-id", [string]$config.LaunchId)
-    $encoding = [System.Text.UTF8Encoding]::new($true)
-    $logWriter = [System.IO.StreamWriter]::new([string]$config.LogPath, $false, $encoding)
-    $logWriter.AutoFlush = $true
-
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $startInfo.FileName = [string]$config.PythonCommand
-    $startInfo.Arguments = ($argsList | ForEach-Object { ConvertTo-WindowsArgument ([string]$_) }) -join " "
-    $startInfo.WorkingDirectory = [string]$config.RepoDir
-    $startInfo.UseShellExecute = $false
-    $startInfo.RedirectStandardOutput = $true
-    $startInfo.RedirectStandardError = $true
-    $startInfo.CreateNoWindow = $true
-
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $startInfo
-    $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{ param($sender, $eventArgs) if ($null -ne $eventArgs.Data) { $logWriter.WriteLine($eventArgs.Data) } }
-    $errorHandler = [System.Diagnostics.DataReceivedEventHandler]{ param($sender, $eventArgs) if ($null -ne $eventArgs.Data) { $logWriter.WriteLine($eventArgs.Data) } }
-    $process.add_OutputDataReceived($outputHandler)
-    $process.add_ErrorDataReceived($errorHandler)
-
-    try {
-        if (-not $process.Start()) { throw "Python 进程启动失败" }
-        $process.BeginOutputReadLine()
-        $process.BeginErrorReadLine()
-        $process.WaitForExit()
-        exit $process.ExitCode
-    } finally {
-        if ($process) {
-            try { $process.remove_OutputDataReceived($outputHandler) } catch {}
-            try { $process.remove_ErrorDataReceived($errorHandler) } catch {}
-            $process.Dispose()
-        }
-        if ($logWriter) { $logWriter.Dispose() }
-    }
+    $stdoutPath = [string]$config.LogPath
+    $stderrPath = if ($config.StderrPath) { [string]$config.StderrPath } else { [string]$config.LogPath }
+    New-Item -ItemType File -Force -Path $stdoutPath, $stderrPath | Out-Null
+    $process = Start-Process -FilePath ([string]$config.PythonCommand) -ArgumentList $argsList -WorkingDirectory ([string]$config.RepoDir) -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+    Set-Content -Path ([string]$config.PidPath) -Value $process.Id -Encoding ascii
+    $process.WaitForExit()
+    exit $process.ExitCode
 } catch {
     Write-RunnerError "[runner] $_"
     exit 1
@@ -410,8 +369,7 @@ function Start-Vox {
         Write-Host "VoxCPM 已在运行：http://127.0.0.1:$($config.Port)"
         return
     }
-    $process = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $runnerPath) -WindowStyle Hidden -PassThru
-    Set-Content -Path ([string]$config.PidPath) -Value $process.Id -Encoding ascii
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $runnerPath) -WindowStyle Hidden | Out-Null
     Write-Host "VoxCPM 正在后台启动：http://127.0.0.1:$($config.Port)"
     Write-Host "日志：$($config.LogPath)"
 }

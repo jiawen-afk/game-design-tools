@@ -196,11 +196,39 @@ test('Windows service command scripts preserve Chinese console output', () => {
 test('Windows service runner keeps native stderr warnings in the log', () => {
   const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
 
-  assert.match(source, /System\.Diagnostics\.ProcessStartInfo/)
-  assert.match(source, /RedirectStandardError = \$true/)
-  assert.match(source, /BeginErrorReadLine/)
+  assert.match(source, /Start-Process -FilePath \(\[string\]\$config\.PythonCommand\)/)
+  assert.match(source, /-RedirectStandardOutput \$stdoutPath/)
+  assert.match(source, /-RedirectStandardError \$stderrPath/)
+  assert.match(source, /voxcpm\.err\.log/)
   assert.match(source, /taskkill/)
   assert.doesNotMatch(source, /\*\> \(\[string\]\$config\.LogPath\)/)
+  assert.doesNotMatch(source, /BeginErrorReadLine/)
+})
+
+test('Windows service stores the real Python interpreter instead of the py launcher', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Resolve-PythonExecutablePath/)
+  assert.match(source, /sys\.executable/)
+  assert.match(source, /RealCommand/)
+  assert.match(source, /PythonArgs = @\(\)/)
+})
+
+test('Windows deployment script requires Python 3.12 for setup and service commands', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /py"; Args = @\("-3\.12"\)/)
+  assert.match(source, /Python 3\.12/)
+  assert.match(source, /-match "3\\\.12\\\."/)
+  assert.doesNotMatch(source, /3\\\.\(10\|11\|12\)\\\./)
+  assert.doesNotMatch(source, /Python 3\.10-3\.12/)
+})
+
+test('Windows service runner tracks the actual long-lived Python process id', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Set-Content -Path \(\[string\]\$config\.PidPath\) -Value \$process\.Id/)
+  assert.doesNotMatch(source, /Set-Content -Path \(\[string\]\$config\.PidPath\) -Value \$process\.Id -Encoding ascii\s+Write-Host "VoxCPM 正在后台启动/)
 })
 
 test('home voice card describes Gradio instead of stale vLLM REST output', () => {
