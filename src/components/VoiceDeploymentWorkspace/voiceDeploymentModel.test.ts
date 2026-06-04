@@ -67,7 +67,7 @@ test('model VRAM requirements match VoxCPM documentation', () => {
 })
 
 test('requires a local model path before deployment', () => {
-  assert.equal(validateModelPath('').valid, false)
+  assert.equal(validateModelPath('').valid, true)
   assert.equal(validateModelPath('D:\\models\\VoxCPM2').valid, true)
 })
 
@@ -152,4 +152,44 @@ test('Windows deployment script installs ffmpeg for browser-recorded m4a referen
 
   assert.match(source, /Get-Command ffmpeg/)
   assert.match(source, /Gyan\.FFmpeg/)
+})
+
+test('Windows deployment script prepares service commands without auto-starting Gradio', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Install-ServiceCommands/)
+  assert.match(source, /voxcpm-start/)
+  assert.match(source, /voxcpm-stop/)
+  assert.match(source, /voxcpm-restart/)
+  assert.match(source, /voxcpm-status/)
+  assert.doesNotMatch(source, /Invoke-Expression "\$PythonExe app\.py --port/)
+})
+
+test('Windows deployment script safely detects optional tools and checks the model drive', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Get-Command \$candidate\.Command -ErrorAction SilentlyContinue/)
+  assert.match(source, /Get-Command nvidia-smi -ErrorAction SilentlyContinue/)
+  assert.match(source, /Resolve-ModelDriveName/)
+  assert.doesNotMatch(source, /\$pyver = python --version/)
+  assert.doesNotMatch(source, /\$smi = nvidia-smi 2>&1/)
+})
+
+test('Windows deployment script keeps command arguments and generated files safe', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /Invoke-Python/)
+  assert.match(source, /Start-Process -FilePath \$script:PythonCommand/)
+  assert.match(source, /-Encoding utf8/)
+  assert.match(source, /sm_120/)
+  assert.doesNotMatch(source, /Set-Content -Path \$pyFile -Value \$pyCode -Encoding ascii/)
+})
+
+test('home voice card describes Gradio instead of stale vLLM REST output', () => {
+  const source = readFileSync('src/App.tsx', 'utf8')
+
+  assert.doesNotMatch(source, /vLLM/)
+  assert.doesNotMatch(source, /\/v1\/audio\/speech/)
+  assert.match(source, /Gradio/)
+  assert.match(source, /gradio_client/)
 })

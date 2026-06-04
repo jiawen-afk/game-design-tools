@@ -257,10 +257,10 @@ export default function VoiceDeploymentWorkspace() {
           <section className="voice-panel" aria-labelledby="deploy-title">
             <div className="panel-title">
               <ThunderboltOutlined />
-              <h3 id="deploy-title">一键部署</h3>
+              <h3 id="deploy-title">一键准备</h3>
             </div>
             <p className="panel-copy">
-              选择系统和模型版本，复制命令到终端执行。脚本会自动检测环境、使用国内镜像源安装依赖并启动服务。
+              选择系统和模型版本，复制命令到终端执行。脚本会自动检测环境、使用国内镜像源安装依赖，并安装本机服务管理命令。
             </p>
 
             <Segmented
@@ -315,7 +315,7 @@ export default function VoiceDeploymentWorkspace() {
               type="info"
               showIcon
               title={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
-              description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型，完成后 Gradio 服务自动在端口 8808 启动。${latencyDisclaimer}`}
+              description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
             />
           </section>
         </div>

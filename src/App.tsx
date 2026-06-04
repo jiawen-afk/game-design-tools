@@ -34,10 +34,10 @@ const tools: Array<{
   {
     id: 'voice-deployment',
     name: '游戏角色语音工作台',
-    summary: '检测本地 VoxCPM 服务连接状态，一键部署或直接调用本地语音生成接口。',
-    details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键脚本，完成后通过 vLLM REST API 在浏览器内直接生成语音。',
-    input: '目标文本、音色名称',
-    output: 'WAV 音频（POST /v1/audio/speech）',
+    summary: '检测本地 VoxCPM Gradio 服务连接状态，准备部署环境并调用本地语音生成接口。',
+    details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键准备脚本，完成后可用 gradio_client 调用本地 Gradio 服务生成语音。',
+    input: '目标文本、控制描述、参考音频',
+    output: 'WAV 音频（Gradio generate 接口）',
     shortcut: '2',
   },
 ]

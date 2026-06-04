@@ -173,7 +173,7 @@ export function evaluateHardware(report: HardwareReport | null): HardwareEvaluat
 
 export function validateModelPath(modelPath: string) {
   const value = modelPath.trim()
-  if (!value) return { valid: false, message: '请先填写本地模型目录，例如 D:\\models\\VoxCPM2。' }
+  if (!value) return { valid: true, message: '留空时脚本会使用默认模型目录。' }
   return { valid: true, message: '模型路径已填写。' }
 }
 
