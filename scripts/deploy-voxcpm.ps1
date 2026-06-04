@@ -62,6 +62,11 @@ function Add-UserPath($path) {
     if (($env:Path -split ';') -notcontains $path) { $env:Path = "$path;$env:Path" }
 }
 
+function Write-Utf8PowerShellFile($path, $content) {
+    $encoding = [System.Text.UTF8Encoding]::new($true)
+    [System.IO.File]::WriteAllText($path, $content, $encoding)
+}
+
 function Measure-Latency($url) {
     $best = [double]::MaxValue
     for ($i = 0; $i -lt 3; $i++) {
@@ -300,18 +305,86 @@ $ErrorActionPreference = "Stop"
 $configPath = Join-Path $PSScriptRoot "..\VoxCPM\voxcpm-config.json"
 $config = Get-Content -Raw $configPath | ConvertFrom-Json
 $env:HF_ENDPOINT = [string]$config.HfMirror
-Push-Location ([string]$config.RepoDir)
+
+function ConvertTo-WindowsArgument([string]$value) {
+    if ($value -eq "") { return '""' }
+    if ($value -notmatch '[\s"]') { return $value }
+
+    $result = '"'
+    $backslashes = 0
+    foreach ($char in $value.ToCharArray()) {
+        if ($char -eq '\') {
+            $backslashes += 1
+            continue
+        }
+        if ($char -eq '"') {
+            $result += ('\' * (($backslashes * 2) + 1))
+            $result += '"'
+            $backslashes = 0
+            continue
+        }
+        if ($backslashes -gt 0) {
+            $result += ('\' * $backslashes)
+            $backslashes = 0
+        }
+        $result += $char
+    }
+    if ($backslashes -gt 0) { $result += ('\' * ($backslashes * 2)) }
+    $result += '"'
+    return $result
+}
+
+function Write-RunnerError($message) {
+    try {
+        Add-Content -Path ([string]$config.LogPath) -Value $message -Encoding utf8
+    } catch {}
+}
+
 try {
     $argsList = @()
     foreach ($item in @($config.PythonArgs)) { if ($null -ne $item -and "$item" -ne "") { $argsList += [string]$item } }
     $argsList += @("app.py", "--port", [string]$config.Port, "--model-id", [string]$config.LaunchId)
-    & ([string]$config.PythonCommand) @argsList *> ([string]$config.LogPath)
-    exit $LASTEXITCODE
+    $encoding = [System.Text.UTF8Encoding]::new($true)
+    $logWriter = [System.IO.StreamWriter]::new([string]$config.LogPath, $false, $encoding)
+    $logWriter.AutoFlush = $true
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = [string]$config.PythonCommand
+    $startInfo.Arguments = ($argsList | ForEach-Object { ConvertTo-WindowsArgument ([string]$_) }) -join " "
+    $startInfo.WorkingDirectory = [string]$config.RepoDir
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $outputHandler = [System.Diagnostics.DataReceivedEventHandler]{ param($sender, $eventArgs) if ($null -ne $eventArgs.Data) { $logWriter.WriteLine($eventArgs.Data) } }
+    $errorHandler = [System.Diagnostics.DataReceivedEventHandler]{ param($sender, $eventArgs) if ($null -ne $eventArgs.Data) { $logWriter.WriteLine($eventArgs.Data) } }
+    $process.add_OutputDataReceived($outputHandler)
+    $process.add_ErrorDataReceived($errorHandler)
+
+    try {
+        if (-not $process.Start()) { throw "Python 进程启动失败" }
+        $process.BeginOutputReadLine()
+        $process.BeginErrorReadLine()
+        $process.WaitForExit()
+        exit $process.ExitCode
+    } finally {
+        if ($process) {
+            try { $process.remove_OutputDataReceived($outputHandler) } catch {}
+            try { $process.remove_ErrorDataReceived($errorHandler) } catch {}
+            $process.Dispose()
+        }
+        if ($logWriter) { $logWriter.Dispose() }
+    }
+} catch {
+    Write-RunnerError "[runner] $_"
+    exit 1
 } finally {
-    Pop-Location
 }
 '@
-    Set-Content -Path $runnerPath -Value $runner -Encoding utf8
+    Write-Utf8PowerShellFile $runnerPath $runner
 
     $service = @'
 param(
@@ -350,7 +423,8 @@ function Stop-Vox {
         Write-Host "VoxCPM 未运行"
         return
     }
-    Stop-Process -Id $existing.Id -Force
+    & taskkill /PID $existing.Id /T /F | Out-Null
+    if ($LASTEXITCODE -ne 0) { Stop-Process -Id $existing.Id -Force -ErrorAction SilentlyContinue }
     Remove-Item ([string]$config.PidPath) -ErrorAction SilentlyContinue
     Write-Host "VoxCPM 已停止"
 }
@@ -379,12 +453,12 @@ switch ($Action) {
     "status" { Show-Status }
 }
 '@
-    Set-Content -Path $servicePath -Value $service -Encoding utf8
+    Write-Utf8PowerShellFile $servicePath $service
 
     foreach ($name in @("start","stop","restart","status")) {
         $cmdName = "voxcpm-$name.cmd"
         $cmdPath = Join-Path $cmdDir $cmdName
-        $cmdText = "@echo off`r`npowershell -NoProfile -ExecutionPolicy Bypass -File ""%~dp0voxcpm-service.ps1"" $name %*`r`n"
+        $cmdText = "@echo off`r`nchcp 65001 >nul`r`npowershell -NoProfile -ExecutionPolicy Bypass -File ""%~dp0voxcpm-service.ps1"" $name %*`r`n"
         Set-Content -Path $cmdPath -Value $cmdText -Encoding ascii
     }
 

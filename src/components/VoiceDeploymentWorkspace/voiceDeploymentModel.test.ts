@@ -185,6 +185,24 @@ test('Windows deployment script keeps command arguments and generated files safe
   assert.doesNotMatch(source, /Set-Content -Path \$pyFile -Value \$pyCode -Encoding ascii/)
 })
 
+test('Windows service command scripts preserve Chinese console output', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /UTF8Encoding\]::new\(\$true\)/)
+  assert.match(source, /Write-Utf8PowerShellFile/)
+  assert.match(source, /chcp 65001/)
+})
+
+test('Windows service runner keeps native stderr warnings in the log', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+
+  assert.match(source, /System\.Diagnostics\.ProcessStartInfo/)
+  assert.match(source, /RedirectStandardError = \$true/)
+  assert.match(source, /BeginErrorReadLine/)
+  assert.match(source, /taskkill/)
+  assert.doesNotMatch(source, /\*\> \(\[string\]\$config\.LogPath\)/)
+})
+
 test('home voice card describes Gradio instead of stale vLLM REST output', () => {
   const source = readFileSync('src/App.tsx', 'utf8')
 
