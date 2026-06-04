@@ -24,12 +24,15 @@ Write-Step "检测 Python 版本"
 
 # 优先尝试 py launcher 选择 3.12，再退回 python3.12，最后用默认 python
 $PythonExe = $null
+function Test-PyCandidate($candidate) {
+    try {
+        $ver = Invoke-Expression "$candidate --version" 2>&1
+        if ($LASTEXITCODE -eq 0 -and "$ver" -match "3\.(10|11|12)\.") { return $true }
+    } catch {}
+    return $false
+}
 foreach ($candidate in @("py -3.12", "python3.12", "python")) {
-    $ver = Invoke-Expression "$candidate --version" 2>&1
-    if ($LASTEXITCODE -eq 0 -and $ver -match "3\.(10|11|12)") {
-        $PythonExe = $candidate
-        break
-    }
+    if (Test-PyCandidate $candidate) { $PythonExe = $candidate; break }
 }
 
 if (-not $PythonExe) {
@@ -53,11 +56,7 @@ if (-not $PythonExe) {
     # 刷新 PATH 后重新检测
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
     foreach ($candidate in @("py -3.12", "python3.12", "python")) {
-        $ver = Invoke-Expression "$candidate --version" 2>&1
-        if ($LASTEXITCODE -eq 0 -and $ver -match "3\.(10|11|12)") {
-            $PythonExe = $candidate
-            break
-        }
+        if (Test-PyCandidate $candidate) { $PythonExe = $candidate; break }
     }
 
     if (-not $PythonExe) { Write-Fail "Python 3.12 安装失败，请手动安装后重试。" }
