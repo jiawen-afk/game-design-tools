@@ -11,8 +11,9 @@ SOURCE="${3:-auto}"
 PORT=8808
 PIP_MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 HF_MIRROR="https://hf-mirror.com"
-# PyTorch CUDA wheel 阿里云镜像（cu128 兼容 20/30/40/50 系）
-TORCH_CUDA_INDEX="https://mirrors.aliyun.com/pytorch-wheels/cu128/"
+# PyTorch CUDA wheel 官方源（cu128 兼容 20/30/40/50 系）。必须用官方源：
+# 阿里云 pytorch-wheels 是扁平目录，不兼容 pip --index-url，且与 PyPI 混用会误选 CPU 版。
+TORCH_CUDA_INDEX="https://download.pytorch.org/whl/cu128"
 REPO_MIRROR="https://gitclone.com/github.com/OpenBMB/VoxCPM.git"
 
 # 模型版本 -> HuggingFace 仓库 ID（小写 openbmb）
@@ -102,12 +103,21 @@ fi
 step "安装 Python 依赖"
 python3 -m pip install --upgrade pip -i "$PIP_MIRROR" || fail "pip 升级失败"
 
-# N 卡：先从 cu128 源装好 GPU 版 torch，避免随后 voxcpm 把 CPU 版 torch 拉进来。
-# 若本机已残留 CPU 版 torch（版本号可能更高导致此处跳过），由后面步骤 6b 兜底卸载重装。
+# 先确定该装哪种 PyTorch：有 N 卡 -> CUDA(cu128) 版；否则 -> CPU 版（voxcpm 自带）。
+# N 卡时先检测现有 torch：已是 CUDA 版则跳过；是 CPU 版/版本不符则卸载，再装 cu128。
 if [[ "${HAS_NVIDIA:-0}" == "1" ]]; then
-  step "安装 GPU 版 PyTorch（cu128，约 2.5GB，请耐心等待）"
-  python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
-  ok "GPU 版 PyTorch 安装完成"
+  step "检测 PyTorch 版本（目标：GPU/cu128）"
+  if python3 -c "import torch,sys; sys.exit(0 if torch.version.cuda else 1)" 2>/dev/null; then
+    ok "已安装 CUDA 版 PyTorch，跳过"
+  else
+    if python3 -c "import torch" 2>/dev/null; then
+      echo "    检测到非 CUDA 版 PyTorch，正在卸载..."
+      python3 -m pip uninstall -y torch torchaudio || true
+    fi
+    step "安装 GPU 版 PyTorch（cu128，约 2.5GB，请耐心等待）"
+    python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
+    ok "GPU 版 PyTorch 安装完成"
+  fi
 fi
 
 python3 -m pip install voxcpm -i "$PIP_MIRROR" || fail "voxcpm 安装失败"
@@ -116,13 +126,13 @@ if [[ -f "$REPO_DIR/requirements.txt" ]]; then
 fi
 ok "依赖安装完成"
 
-# ── 6b. 校验 PyTorch GPU 支持（兜底：万一仍是 CPU 版则重装） ─────────────────
+# ── 6b. 校验 PyTorch GPU 支持（确认 cuda 可用；万一被覆盖成 CPU 版则重装） ────
 if [[ "${HAS_NVIDIA:-0}" == "1" ]]; then
   step "校验 PyTorch GPU 支持"
   if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
     ok "PyTorch 已启用 GPU (CUDA)"
   else
-    echo "    PyTorch 仍为 CPU 版，重装 GPU(cu128) 版..."
+    echo "    PyTorch 不可用 GPU，重装 cu128 版..."
     python3 -m pip uninstall -y torch torchaudio || true
     python3 -m pip install torch torchaudio --index-url "$TORCH_CUDA_INDEX" || fail "GPU 版 PyTorch 安装失败"
     if python3 -c "import torch,sys; sys.exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
