@@ -102,20 +102,26 @@ else { Write-OK "GPU 驱动正常" }
 
 # ── 4. 检测 git（缺失则自动安装） ───────────────────────────────────────────
 Write-Step "检测 git"
-git --version 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
+
+function Test-GitAvailable {
+    # 先把注册表里的最新 PATH 和常见 git 目录补进当前会话，再检测
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path","User")
+    $env:Path = "$machinePath;$userPath"
+    foreach ($p in @("$env:ProgramFiles\Git\cmd", "${env:ProgramFiles(x86)}\Git\cmd", "$env:LOCALAPPDATA\Programs\Git\cmd")) {
+        if ((Test-Path $p) -and ($env:Path -notlike "*$p*")) { $env:Path = "$p;$env:Path" }
+    }
+    return [bool](Get-Command git -ErrorAction SilentlyContinue)
+}
+
+if (-not (Test-GitAvailable)) {
     Write-Host "    未找到 git，正在自动安装..." -ForegroundColor Yellow
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements
     } else {
         Write-Fail "git 未安装且 winget 不可用，请手动安装：https://git-scm.com/download/win"
     }
-    # 刷新 PATH（Git 默认装到 Program Files）
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-    $gitExe = "$env:ProgramFiles\Git\cmd"
-    if (Test-Path $gitExe) { $env:Path = "$gitExe;$env:Path" }
-    git --version 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Fail "git 安装失败，请手动安装后重试：https://git-scm.com/download/win" }
+    if (-not (Test-GitAvailable)) { Write-Fail "git 安装后仍未找到，请重开 PowerShell 再运行本脚本" }
 }
 Write-OK "git 可用"
 
