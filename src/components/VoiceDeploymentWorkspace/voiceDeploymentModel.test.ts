@@ -383,6 +383,7 @@ test('voice history library renders outside the connected-only generator branch'
 
 test('voice records can be collected into personal space assets', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const collectorSource = readFileSync('src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.ts', 'utf8')
 
   assert.match(source, /收藏到个人空间/)
   assert.match(source, /收藏并关联角色/)
@@ -391,8 +392,14 @@ test('voice records can be collected into personal space assets', () => {
   assert.match(source, /Dropdown\.Button/)
   assert.match(source, /personalSpaceVoiceAssets/)
   assert.match(source, /label: `个人空间 \$\{personalSpaceVoiceAssets\.length\}`/)
-  assert.match(source, /createVoiceAssetFromRecord/)
-  assert.match(source, /writeAssetResourcesToDirectory/)
+  assert.match(source, /collectVoiceRecordToPersonalSpace/)
+  assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
+  assert.match(collectorSource, /createVoiceAssetFromRecord/)
+  assert.match(collectorSource, /writeAssetResourcesToDirectory/)
+  assert.match(collectorSource, /getPersonalSpaceDirectoryHandle/)
+  assert.match(collectorSource, /assignAssetToCharacterColumn/)
+  assert.match(collectorSource, /linkEffectAssetToVoice/)
+  assert.match(collectorSource, /assignVoiceToStoryboardGroup/)
   assert.doesNotMatch(source, /星标/)
   assert.doesNotMatch(source, /StarOutlined/)
   assert.doesNotMatch(source, /StarFilled/)

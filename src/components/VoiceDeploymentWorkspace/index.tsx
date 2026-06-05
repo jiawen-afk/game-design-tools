@@ -20,7 +20,6 @@ import {
   type ConnectionStatus,
   type DeviceType,
   type DownloadSource,
-  type GradioFileData,
   type HardwareReport,
   type ModelVersion,
   type Platform,
@@ -49,22 +48,20 @@ import {
   voxcpmModels,
 } from './voiceDeploymentModel'
 import {
-  archiveAssetForStorageDirectory,
-  assignAssetToCharacterColumn,
-  assignVoiceToStoryboardGroup,
-  createVoiceAssetFromRecord,
-  linkEffectAssetToVoice,
   type PersonalSpaceAsset,
   readPersonalSpaceState,
-  updatePersonalSpaceAsset,
-  writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
-  getPersonalSpaceDirectoryHandle,
-  writeAssetResourcesToDirectory,
-} from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
-
-const recordsStorageKey = 'game-design-tools.voxcpm.records.v1'
+  checkConnection,
+  normalizeAudioResult,
+  readGradioEventResult,
+  uploadReferenceAudio,
+} from './voiceDeploymentService'
+import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
+import {
+  collectVoiceRecordToPersonalSpace,
+  type VoiceCollectLinkTarget,
+} from './voicePersonalSpaceCollector'
 
 const platformOptions: Array<{ label: string; value: Platform }> = [
   { label: 'Windows', value: 'windows' },
@@ -99,8 +96,6 @@ const quickDesignPrompts = [
   '机械助手，清晰，冷静，轻微电子质感',
 ]
 
-type VoiceCollectLinkTarget = 'character' | 'effect' | 'storyboard'
-
 interface PendingVoiceCollectLink {
   record: VoiceGenerationRecord
   target: VoiceCollectLinkTarget
@@ -110,152 +105,6 @@ interface PendingVoiceCollectLink {
 function randomId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-async function checkConnection(port: number): Promise<boolean> {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/config`, {
-      signal: AbortSignal.timeout(3000),
-    })
-    return res.ok
-  } catch {
-    return false
-  }
-}
-
-function readStoredRecords(): VoiceGenerationRecord[] {
-  try {
-    const raw = localStorage.getItem(recordsStorageKey)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((record) => record && typeof record.id === 'string')
-      .map((record) => ({
-        id: record.id,
-        name: record.name,
-        createdAt: record.createdAt,
-        audioUrl: record.audioUrl,
-        audioPath: record.audioPath,
-        params: record.params,
-      }))
-  } catch {
-    return []
-  }
-}
-
-function writeStoredRecords(records: VoiceGenerationRecord[]) {
-  try {
-    localStorage.setItem(recordsStorageKey, JSON.stringify(records.slice(0, 80)))
-  } catch {}
-}
-
-function voiceResourceFileName(record: VoiceGenerationRecord) {
-  const fromPath = record.audioPath?.split(/[\\/]/).pop()?.trim()
-  if (fromPath) return fromPath
-  const fromUrl = record.audioUrl.split('/').pop()?.split('?')[0]?.trim()
-  return fromUrl || 'voice.wav'
-}
-
-async function readVoiceRecordBlob(record: VoiceGenerationRecord) {
-  const source = record.audioUrl || record.audioPath
-  if (!source) throw new Error('配音记录没有可读取的音频资源')
-  const response = await fetch(source)
-  if (!response.ok) throw new Error(`读取配音资源失败：${response.status}`)
-  return response.blob()
-}
-
-async function uploadReferenceAudio(port: number, file: File): Promise<GradioFileData> {
-  const form = new FormData()
-  form.append('files', file)
-  const res = await fetch(`http://127.0.0.1:${port}/gradio_api/upload`, {
-    method: 'POST',
-    body: form,
-  })
-  if (!res.ok) throw new Error(`参考音频上传失败：${res.status}`)
-  const data = await res.json()
-  const first = Array.isArray(data) ? data[0] : data
-  if (typeof first === 'string') {
-    return { path: first, orig_name: file.name, mime_type: file.type, meta: { _type: 'gradio.FileData' } }
-  }
-  if (first && typeof first.path === 'string') {
-    return {
-      path: first.path,
-      orig_name: first.orig_name || file.name,
-      mime_type: first.mime_type || file.type,
-      meta: { _type: 'gradio.FileData' },
-    }
-  }
-  throw new Error('参考音频上传结果无法识别')
-}
-
-async function readGradioEventResult(res: Response): Promise<unknown[]> {
-  if (!res.ok) throw new Error(`生成请求失败：${res.status}`)
-  if (!res.body) {
-    const text = await res.text()
-    return parseGradioEventText(text)
-  }
-
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done })
-    const blocks = buffer.split(/\n\n/)
-    buffer = blocks.pop() ?? ''
-
-    for (const block of blocks) {
-      const parsed = parseGradioEventBlock(block)
-      if (!parsed) continue
-      if (parsed.event === 'error') throw new Error(String(parsed.data || 'VoxCPM 生成失败'))
-      if (parsed.event === 'complete') return Array.isArray(parsed.data) ? parsed.data : [parsed.data]
-    }
-
-    if (done) break
-  }
-
-  return parseGradioEventText(buffer)
-}
-
-function parseGradioEventText(text: string): unknown[] {
-  for (const block of text.split(/\n\n/)) {
-    const parsed = parseGradioEventBlock(block)
-    if (!parsed) continue
-    if (parsed.event === 'error') throw new Error(String(parsed.data || 'VoxCPM 生成失败'))
-    if (parsed.event === 'complete') return Array.isArray(parsed.data) ? parsed.data : [parsed.data]
-  }
-  throw new Error('没有收到 VoxCPM 生成结果')
-}
-
-function parseGradioEventBlock(block: string): { event: string; data: unknown } | null {
-  const event = block.match(/^event:\s*(.+)$/m)?.[1]?.trim()
-  const dataLine = block.match(/^data:\s*(.*)$/m)?.[1]
-  if (!event) return null
-  let data: unknown = dataLine ?? null
-  if (dataLine) {
-    try {
-      data = JSON.parse(dataLine)
-    } catch {}
-  }
-  return { event, data }
-}
-
-function normalizeAudioResult(data: unknown[], serviceUrl: string) {
-  const first = data[0]
-  if (first && typeof first === 'object') {
-    const file = first as { url?: string; path?: string; name?: string }
-    const url = file.url
-      ? file.url.startsWith('http') ? file.url : `${serviceUrl}${file.url}`
-      : file.path ? `${serviceUrl}/gradio_api/file=${encodeURIComponent(file.path)}` : ''
-    return { audioUrl: url, audioPath: file.path ?? null }
-  }
-  if (typeof first === 'string') {
-    const url = first.startsWith('http') ? first : `${serviceUrl}/gradio_api/file=${encodeURIComponent(first)}`
-    return { audioUrl: url, audioPath: first }
-  }
-  throw new Error('没有找到生成音频文件')
 }
 
 function HelpTip({ text }: { text: string }) {
@@ -461,33 +310,7 @@ export default function VoiceDeploymentWorkspace() {
     link?: { target: VoiceCollectLinkTarget; targetId: string },
   ) => {
     try {
-      const space = readPersonalSpaceState()
-      const baseAsset = createVoiceAssetFromRecord(record)
-      const directoryHandle = getPersonalSpaceDirectoryHandle()
-      let asset = archiveAssetForStorageDirectory(space, baseAsset)
-      if (directoryHandle) {
-        try {
-          asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
-            { name: voiceResourceFileName(record), data: await readVoiceRecordBlob(record) },
-          ])
-        } catch {
-          asset = archiveAssetForStorageDirectory(space, baseAsset)
-        }
-      }
-      let nextSpace = {
-        ...space,
-        assets: [asset, ...space.assets],
-      }
-      if (link?.target === 'character') {
-        nextSpace = assignAssetToCharacterColumn(nextSpace, link.targetId, asset.id, 'voice', ['角色配音'])
-      }
-      if (link?.target === 'effect') {
-        nextSpace = linkEffectAssetToVoice(nextSpace, link.targetId, asset.id)
-      }
-      if (link?.target === 'storyboard') {
-        nextSpace = assignVoiceToStoryboardGroup(nextSpace, link.targetId, asset.id, record.params.text)
-      }
-      writePersonalSpaceState(nextSpace)
+      const nextSpace = await collectVoiceRecordToPersonalSpace(record, link)
       setPersonalSpaceSnapshot(nextSpace)
       const linkLabel = link?.target === 'character' ? '并关联角色'
         : link?.target === 'effect' ? '并关联特效'

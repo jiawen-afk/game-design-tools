@@ -106,6 +106,22 @@ test('Ant Design alerts use v6 title prop instead of deprecated message prop', (
   assert.doesNotMatch(source, /<Alert[^>]*\bmessage=/)
 })
 
+test('voice deployment workspace delegates service, record, and personal space side effects', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/voiceDeploymentService'/)
+  assert.match(source, /from '\.\/voiceRecordStorage'/)
+  assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
+  assert.match(source, /collectVoiceRecordToPersonalSpace/)
+  assert.doesNotMatch(source, /function checkConnection/)
+  assert.doesNotMatch(source, /function uploadReferenceAudio/)
+  assert.doesNotMatch(source, /function readStoredRecords/)
+  assert.doesNotMatch(source, /function writeStoredRecords/)
+  assert.doesNotMatch(source, /function readVoiceRecordBlob/)
+  assert.doesNotMatch(source, /writeAssetResourcesToDirectory/)
+  assert.doesNotMatch(source, /getPersonalSpaceDirectoryHandle/)
+})
+
 test('personal space settings save gives visible feedback', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
 
