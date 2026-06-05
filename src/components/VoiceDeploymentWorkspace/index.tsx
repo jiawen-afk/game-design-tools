@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { Alert, Button, Input, InputNumber, message, Modal, Segmented, Select, Slider, Switch, Tabs, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Input, InputNumber, message, Modal, Segmented, Select, Slider, Switch, Tag, Tooltip, Upload } from 'antd'
 import {
   ApiOutlined,
   CheckCircleOutlined,
@@ -11,7 +11,6 @@ import {
   ReloadOutlined,
   ThunderboltOutlined,
   UploadOutlined,
-  UserOutlined,
 } from '@ant-design/icons'
 
 import './voiceDeploymentWorkspace.css'
@@ -58,7 +57,7 @@ import {
   collectVoiceRecordToPersonalSpace,
   type VoiceCollectLinkTarget,
 } from './voicePersonalSpaceCollector'
-import { PersonalSpaceVoiceAssetList, VoiceRecordList } from './VoiceRecordLists'
+import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 
 const platformOptions: Array<{ label: string; value: Platform }> = [
   { label: 'Windows', value: 'windows' },
@@ -357,42 +356,6 @@ export default function VoiceDeploymentWorkspace() {
           }
         : null
 
-  const libraryPanel = (
-    <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
-      <div className="panel-title">
-        <UserOutlined />
-        <h3 id="voice-library-title">音频记录</h3>
-      </div>
-      <Tabs
-        items={[
-          {
-            key: 'history',
-            label: `历史 ${records.length}`,
-            children: (
-              <VoiceRecordList
-                records={records}
-                lastGeneratedId={lastGeneratedId}
-                onLoad={loadParams}
-                onClone={cloneFromRecord}
-                onDelete={deleteRecord}
-                onRename={renameRecord}
-                onCollect={(record) => void collectRecordToPersonalSpace(record)}
-                onCollectWithLink={openCollectLinkDialog}
-              />
-            ),
-          },
-          {
-            key: 'personal-space',
-            label: `个人空间 ${personalSpaceVoiceAssets.length}`,
-            children: (
-              <PersonalSpaceVoiceAssetList assets={personalSpaceVoiceAssets} />
-            ),
-          },
-        ]}
-      />
-    </section>
-  )
-
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
       {messageContextHolder}
@@ -590,7 +553,17 @@ export default function VoiceDeploymentWorkspace() {
             </div>
           </section>
 
-          {libraryPanel}
+          <VoiceLibraryPanel
+            records={records}
+            lastGeneratedId={lastGeneratedId}
+            personalSpaceVoiceAssets={personalSpaceVoiceAssets}
+            onLoad={loadParams}
+            onClone={cloneFromRecord}
+            onDelete={deleteRecord}
+            onRename={renameRecord}
+            onCollect={(record) => void collectRecordToPersonalSpace(record)}
+            onCollectWithLink={openCollectLinkDialog}
+          />
         </div>
       ) : (
         <div className="voice-grid">
@@ -713,7 +686,17 @@ export default function VoiceDeploymentWorkspace() {
                 />
           </section>
 
-          {libraryPanel}
+          <VoiceLibraryPanel
+            records={records}
+            lastGeneratedId={lastGeneratedId}
+            personalSpaceVoiceAssets={personalSpaceVoiceAssets}
+            onLoad={loadParams}
+            onClone={cloneFromRecord}
+            onDelete={deleteRecord}
+            onRename={renameRecord}
+            onCollect={(record) => void collectRecordToPersonalSpace(record)}
+            onCollectWithLink={openCollectLinkDialog}
+          />
         </div>
       )}
     </section>

@@ -373,16 +373,15 @@ test('home voice card describes Gradio instead of stale vLLM REST output', () =>
 test('voice history library renders outside the connected-only generator branch', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
 
-  const libraryIndex = source.indexOf('voice-library')
-  const connectedBranchIndex = source.indexOf('{connected ? (')
+  const libraryMatches = source.match(/<VoiceLibraryPanel/g) ?? []
 
-  assert.ok(libraryIndex > -1)
-  assert.ok(connectedBranchIndex > -1)
-  assert.ok(libraryIndex < connectedBranchIndex)
+  assert.equal(libraryMatches.length, 2)
+  assert.match(source, /\{connected \? \([\s\S]*<VoiceLibraryPanel[\s\S]*\) : \([\s\S]*<VoiceLibraryPanel/)
 })
 
 test('voice records can be collected into personal space assets', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
   const listSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx', 'utf8')
   const collectorSource = readFileSync('src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.ts', 'utf8')
 
@@ -392,7 +391,7 @@ test('voice records can be collected into personal space assets', () => {
   assert.match(listSource, /收藏并关联剧情/)
   assert.match(listSource, /Dropdown\.Button/)
   assert.match(source, /personalSpaceVoiceAssets/)
-  assert.match(source, /label: `个人空间 \$\{personalSpaceVoiceAssets\.length\}`/)
+  assert.match(panelSource, /label: `个人空间 \$\{personalSpaceVoiceAssets\.length\}`/)
   assert.match(source, /collectVoiceRecordToPersonalSpace/)
   assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
   assert.match(collectorSource, /createVoiceAssetFromRecord/)
