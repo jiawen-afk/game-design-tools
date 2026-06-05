@@ -228,6 +228,7 @@ test('workspace implementation delegates focused responsibilities to local modul
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const videoPreviewHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
   const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
   const lineCount = source.split(/\r?\n/).length
 
@@ -246,7 +247,8 @@ test('workspace implementation delegates focused responsibilities to local modul
   assert.match(controller, /from '\.\/useVideoWorkspace'/)
   assert.match(playbackHook, /from '\.\/playbackModel'/)
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8'), /from '\.\/matteModel'/)
-  assert.match(videoHook, /from '\.\/cropModel'/)
+  assert.match(videoPreviewHook, /from '\.\/cropModel'/)
+  assert.match(videoHook, /from '\.\/useVideoFramePreviewWorkspace'/)
   assert.match(videoHook, /from '\.\/videoModel'/)
   assert.match(videoHook, /from '\.\/videoFramePipeline'/)
   assert.ok(lineCount < 2700, `expected workspace entry to stay below 2700 lines, got ${lineCount}`)

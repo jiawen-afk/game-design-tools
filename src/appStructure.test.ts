@@ -434,3 +434,20 @@ test('layout workspace delegates canvas ratio apply feedback to a focused hook',
   assert.match(feedbackSource, /startCanvasRatioApplyFeedback/)
   assert.match(feedbackSource, /canvasRatioApplying/)
 })
+
+test('video workspace delegates extracted frame preview and crop interactions to a focused hook', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const previewSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useVideoFramePreviewWorkspace'/)
+  assert.match(source, /useVideoFramePreviewWorkspace/)
+  assert.doesNotMatch(source, /ResizeObserver/)
+  assert.doesNotMatch(source, /setInterval/)
+  assert.doesNotMatch(source, /videoCropDrag/)
+  assert.doesNotMatch(source, /getContainedImageRect/)
+  assert.match(previewSource, /ResizeObserver/)
+  assert.match(previewSource, /setInterval/)
+  assert.match(previewSource, /videoCropDrag/)
+  assert.match(previewSource, /getContainedImageRect/)
+  assert.match(previewSource, /startVideoCropDrag/)
+})
