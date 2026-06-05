@@ -348,3 +348,32 @@ test('personal space model delegates asset factories and storage paths', () => {
   assert.match(assetSource, /function sanitizePathPart/)
   assert.match(assetSource, /function groupNameForUploadedResource/)
 })
+
+test('personal space model delegates storyboard operations', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const storyboardSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceStoryboards.ts', 'utf8')
+
+  assert.match(source, /from '\.\/personalSpaceStoryboards'/)
+  assert.match(source, /export \{[\s\S]*addStoryboardGroup[\s\S]*assignVoiceToStoryboardGroup[\s\S]*exportStoryboardReference[\s\S]*\} from '\.\/personalSpaceStoryboards'/)
+  assert.doesNotMatch(source, /export function addStoryboardGroup/)
+  assert.doesNotMatch(source, /export function assignVoiceToStoryboardGroup/)
+  assert.doesNotMatch(source, /export function exportStoryboardReference/)
+  assert.match(storyboardSource, /export function addStoryboardGroup/)
+  assert.match(storyboardSource, /export function assignVoiceToStoryboardGroup/)
+  assert.match(storyboardSource, /export function exportStoryboardReference/)
+})
+
+test('personal space model delegates state persistence and cloning', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const stateSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceState.ts', 'utf8')
+
+  assert.match(source, /from '\.\/personalSpaceState'/)
+  assert.match(source, /export \{[\s\S]*clonePersonalSpaceState[\s\S]*readPersonalSpaceState[\s\S]*writePersonalSpaceState[\s\S]*\} from '\.\/personalSpaceState'/)
+  assert.doesNotMatch(source, /export const defaultPersonalSpaceState/)
+  assert.doesNotMatch(source, /export function clonePersonalSpaceState/)
+  assert.doesNotMatch(source, /export function readPersonalSpaceState/)
+  assert.doesNotMatch(source, /export function writePersonalSpaceState/)
+  assert.match(stateSource, /export const defaultPersonalSpaceState/)
+  assert.match(stateSource, /export function clonePersonalSpaceState/)
+  assert.match(stateSource, /export function createPersonalSpaceId/)
+})
