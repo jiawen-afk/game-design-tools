@@ -130,6 +130,23 @@ test('voice deployment workspace delegates service, record, and personal space s
   assert.match(serviceSource, /normalizeAudioResult/)
 })
 
+test('voice deployment workspace delegates record library view components', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const listSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/VoiceRecordLists'/)
+  assert.match(source, /<VoiceRecordList/)
+  assert.match(source, /<PersonalSpaceVoiceAssetList/)
+  assert.doesNotMatch(source, /function VoiceRecordList/)
+  assert.doesNotMatch(source, /function PersonalSpaceVoiceAssetList/)
+  assert.match(listSource, /interface VoiceRecordListProps/)
+  assert.match(listSource, /function VoiceRecordList/)
+  assert.match(listSource, /function PersonalSpaceVoiceAssetList/)
+  assert.match(listSource, /Dropdown\.Button/)
+  assert.match(listSource, /收藏到个人空间/)
+  assert.match(listSource, /收藏并关联角色/)
+})
+
 test('personal space settings save gives visible feedback', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
 

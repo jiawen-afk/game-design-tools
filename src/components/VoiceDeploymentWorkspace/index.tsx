@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { Alert, Button, Dropdown, Empty, Input, InputNumber, message, Modal, Segmented, Select, Slider, Switch, Tabs, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Input, InputNumber, message, Modal, Segmented, Select, Slider, Switch, Tabs, Tag, Tooltip, Upload } from 'antd'
 import {
   ApiOutlined,
   CheckCircleOutlined,
   CopyOutlined,
-  DeleteOutlined,
   DesktopOutlined,
   LoadingOutlined,
   QuestionCircleOutlined,
@@ -47,7 +46,6 @@ import {
   voxcpmModels,
 } from './voiceDeploymentModel'
 import {
-  type PersonalSpaceAsset,
   readPersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
@@ -60,6 +58,7 @@ import {
   collectVoiceRecordToPersonalSpace,
   type VoiceCollectLinkTarget,
 } from './voicePersonalSpaceCollector'
+import { PersonalSpaceVoiceAssetList, VoiceRecordList } from './VoiceRecordLists'
 
 const platformOptions: Array<{ label: string; value: Platform }> = [
   { label: 'Windows', value: 'windows' },
@@ -718,106 +717,5 @@ export default function VoiceDeploymentWorkspace() {
         </div>
       )}
     </section>
-  )
-}
-
-interface VoiceRecordListProps {
-  records: VoiceGenerationRecord[]
-  lastGeneratedId: string | null
-  onLoad: (record: VoiceGenerationRecord) => void
-  onClone: (record: VoiceGenerationRecord) => void
-  onDelete: (id: string) => void
-  onRename: (id: string, name: string) => void
-  onCollect: (record: VoiceGenerationRecord) => void
-  onCollectWithLink: (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => void
-}
-
-function VoiceRecordList({
-  records,
-  lastGeneratedId,
-  onLoad,
-  onClone,
-  onDelete,
-  onRename,
-  onCollect,
-  onCollectWithLink,
-}: VoiceRecordListProps) {
-  if (records.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有生成音频" />
-  }
-
-  return (
-    <div className="voice-record-list">
-      {records.map((record) => {
-        const mode = voiceModeMeta.find((item) => item.id === record.params.mode)?.label ?? '语音'
-        return (
-          <article key={record.id} className={record.id === lastGeneratedId ? 'voice-record is-new' : 'voice-record'}>
-            <div className="record-heading">
-              <Input
-                value={record.name}
-                aria-label="音频名称"
-                onChange={(e) => onRename(record.id, e.target.value)}
-              />
-            </div>
-
-            <div className="record-meta">
-              <Tag>{mode}</Tag>
-              <span>{new Date(record.createdAt).toLocaleString()}</span>
-            </div>
-
-            <audio controls src={record.audioUrl} />
-
-            <p className="record-text">{record.params.text}</p>
-
-            <div className="record-actions">
-              <Button size="small" onClick={() => onLoad(record)}>载入参数</Button>
-              <Button size="small" disabled={!record.audioPath} onClick={() => onClone(record)}>克隆音频</Button>
-              <Dropdown.Button
-                size="small"
-                menu={{
-                  items: [
-                    { key: 'character', label: '收藏并关联角色' },
-                    { key: 'effect', label: '收藏并关联特效' },
-                    { key: 'storyboard', label: '收藏并关联剧情' },
-                  ],
-                  onClick: ({ key }) => onCollectWithLink(record, key as VoiceCollectLinkTarget),
-                }}
-                onClick={() => onCollect(record)}
-              >
-                收藏到个人空间
-              </Dropdown.Button>
-              <Button size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(record.id)}>删除</Button>
-            </div>
-          </article>
-        )
-      })}
-    </div>
-  )
-}
-
-function PersonalSpaceVoiceAssetList({ assets }: { assets: PersonalSpaceAsset[] }) {
-  if (assets.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到个人空间的配音" />
-  }
-
-  return (
-    <div className="voice-record-list">
-      {assets.map((asset) => (
-        <article key={asset.id} className="voice-record">
-          <div className="record-heading">
-            <strong className="record-asset-title">{asset.name}</strong>
-          </div>
-          <div className="record-meta">
-            <Tag>配音素材</Tag>
-            <span>{new Date(asset.createdAt).toLocaleString()}</span>
-          </div>
-          <p className="record-text">{asset.resourcePaths.join('、') || '未绑定本地文件'}</p>
-          <div className="record-meta">
-            <span>角色 {asset.linkedCharacterIds.length}</span>
-            <span>剧情 {asset.linkedStoryboardIds.length}</span>
-          </div>
-        </article>
-      ))}
-    </div>
   )
 }
