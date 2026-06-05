@@ -5,13 +5,9 @@ import { CheckCircleOutlined, DeleteOutlined, DownOutlined, ExportOutlined, Fold
 import {
   addCharacterProfile,
   addStoryboardGroup,
-  archiveAssetForStorageDirectory,
   assignAssetToCharacterColumn,
   assignVoiceToStoryboardGroup,
-  createPortraitAssetFromUpload,
-  createResourceAssetFromUpload,
   deleteCharacterProfile,
-  deletePersonalSpaceAsset,
   deleteStoryboardGroup,
   exportStoryboardReference,
   linkEffectAssetToVoice,
@@ -22,7 +18,6 @@ import {
   reorderCharacterVoice,
   reorderStoryboardVoice,
   setStoryboardCharacters,
-  storyboardReferenceFileName,
   type CommonAssetKind,
   type PersonalSpaceState,
   updatePersonalSpaceAsset,
@@ -30,14 +25,19 @@ import {
   writePersonalSpaceState,
 } from './personalSpaceModel'
 import {
-  deleteStoredResourceFiles,
   type PersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
   persistPersonalSpaceDirectoryHandle,
   setPersonalSpaceDirectoryHandle,
-  writeJsonFileToDirectory,
-  writeAssetResourcesToDirectory,
 } from './personalSpaceFileStorage'
+import {
+  applyAssetDeleteResult,
+  createCommonResourceAssetForUpload,
+  createPortraitAssetForUpload,
+  deleteAssetWithOptionalResources,
+  exportStoryboardAssetToTarget,
+  pickPersonalSpaceDirectory,
+} from './personalSpaceResourceActions'
 
 import '../VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css'
 import './personalSpace.css'
@@ -55,27 +55,6 @@ function EmptyBlock({ description }: { description: string }) {
 
 function splitTags(value: string) {
   return value.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean)
-}
-
-function supportsDirectoryPicker() {
-  return typeof window !== 'undefined' && 'showDirectoryPicker' in window
-}
-
-function downloadJsonFile(fileName: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.click()
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
-}
-
-async function pickDirectoryHandle() {
-  if (!supportsDirectoryPicker()) return null
-  const picker = window as unknown as Window & {
-    showDirectoryPicker: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>
-  }
-  return (await picker.showDirectoryPicker({ mode: 'readwrite' })) as PersonalSpaceDirectoryHandle
 }
 
 export default function PersonalSpaceWorkspace() {
@@ -125,7 +104,7 @@ export default function PersonalSpaceWorkspace() {
 
   const chooseStorageDirectory = async () => {
     try {
-      const handle = await pickDirectoryHandle()
+      const handle = await pickPersonalSpaceDirectory()
       if (!handle) {
         void messageApi.warning('当前浏览器不支持授权本地目录，请继续使用路径记录模式。')
         return
@@ -160,16 +139,11 @@ export default function PersonalSpaceWorkspace() {
   }
 
   const exportStoryboardAsset = async (id: string) => {
-    const exported = exportStoryboardReference(space, id)
-    const fileName = storyboardReferenceFileName(exported.group.name)
     try {
-      if (directoryHandle) {
-        const storedPath = await writeJsonFileToDirectory(directoryHandle, ['剧情编排资产'], fileName, exported)
-        void messageApi.success(`已导出剧情编排资产：${storedPath}`)
-        return
-      }
-      downloadJsonFile(fileName, exported)
-      void messageApi.success('已下载剧情编排资产')
+      const result = await exportStoryboardAssetToTarget(space, id, directoryHandle)
+      void messageApi.success(result.kind === 'directory'
+        ? `已导出剧情编排资产：${result.path}`
+        : '已下载剧情编排资产')
     } catch (error) {
       void messageApi.error(`导出剧情编排资产失败：${String(error)}`)
     }
@@ -177,14 +151,7 @@ export default function PersonalSpaceWorkspace() {
 
   const uploadCharacterPortrait = async (characterId: string, file: File) => {
     try {
-      const objectUrl = URL.createObjectURL(file)
-      const baseAsset = createPortraitAssetFromUpload({
-        name: file.name,
-        portraitPath: objectUrl,
-      })
-      const storedAsset = directoryHandle
-        ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: file.name || 'portrait.png', data: file }])
-        : archiveAssetForStorageDirectory(space, baseAsset)
+      const storedAsset = await createPortraitAssetForUpload(space, file, directoryHandle)
       setSpace((current) => {
         const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
         return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'portrait', ['肖像'])
@@ -197,15 +164,7 @@ export default function PersonalSpaceWorkspace() {
 
   const uploadCommonResource = async (kind: CommonAssetKind, file: File) => {
     try {
-      const objectUrl = URL.createObjectURL(file)
-      const baseAsset = createResourceAssetFromUpload({
-        kind,
-        name: file.name,
-        resourcePath: objectUrl,
-      })
-      const storedAsset = directoryHandle
-        ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: file.name, data: file }])
-        : archiveAssetForStorageDirectory(space, baseAsset)
+      const storedAsset = await createCommonResourceAssetForUpload(space, kind, file, directoryHandle)
       setSpace((current) => ({ ...current, assets: [storedAsset, ...current.assets] }))
       void messageApi.success(`已导入${assetKindLabel(kind)}素材`)
     } catch (error) {
@@ -214,24 +173,15 @@ export default function PersonalSpaceWorkspace() {
   }
 
   const deleteAsset = async (assetId: string) => {
-    const asset = space.assets.find((item) => item.id === assetId)
-    if (space.settings.deleteResourcesWithContent && asset?.storageResourcePaths.length && directoryHandle) {
-      const cleanup = await deleteStoredResourceFiles(directoryHandle, asset.storageResourcePaths)
-      setSpace((current) => ({
-        ...deletePersonalSpaceAsset(current, assetId, { resourcesDeleted: cleanup.pendingPaths.length === 0 }),
-        pendingDeletedResourcePaths: Array.from(new Set([
-          ...current.pendingDeletedResourcePaths,
-          ...cleanup.pendingPaths,
-        ])),
-      }))
-      if (cleanup.pendingPaths.length > 0) {
+    const result = await deleteAssetWithOptionalResources(space, assetId, directoryHandle)
+    setSpace((current) => applyAssetDeleteResult(current, assetId, result))
+    if (result.attemptedResourceDeletion) {
+      if (result.pendingDeletedPaths.length > 0) {
         void messageApi.warning('部分资源未能删除，已记录到待删除资源路径。')
       } else {
         void messageApi.success('已删除资源和存储目录文件。')
       }
-      return
     }
-    setSpace((current) => deletePersonalSpaceAsset(current, assetId))
   }
 
   const portraitUploadProps = (characterId: string): UploadProps => ({
