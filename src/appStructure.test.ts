@@ -330,3 +330,21 @@ test('personal space workspace delegates resource IO and filesystem side effects
   assert.match(actionsSource, /writeJsonFileToDirectory/)
   assert.match(actionsSource, /deleteStoredResourceFiles/)
 })
+
+test('personal space model delegates asset factories and storage paths', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const assetSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceAssets.ts', 'utf8')
+
+  assert.match(source, /from '\.\/personalSpaceAssets'/)
+  assert.match(source, /export \{[\s\S]*createPersonalSpaceAsset[\s\S]*archiveAssetForStorageDirectory[\s\S]*createResourceAssetFromUpload[\s\S]*\} from '\.\/personalSpaceAssets'/)
+  assert.doesNotMatch(source, /function sanitizePathPart/)
+  assert.doesNotMatch(source, /function groupNameForUploadedResource/)
+  assert.doesNotMatch(source, /export function createPersonalSpaceAsset/)
+  assert.doesNotMatch(source, /export function archiveAssetForStorageDirectory/)
+  assert.doesNotMatch(source, /export function createResourceAssetFromUpload/)
+  assert.match(assetSource, /export function createPersonalSpaceAsset/)
+  assert.match(assetSource, /export function archiveAssetForStorageDirectory/)
+  assert.match(assetSource, /export function createResourceAssetFromUpload/)
+  assert.match(assetSource, /function sanitizePathPart/)
+  assert.match(assetSource, /function groupNameForUploadedResource/)
+})
