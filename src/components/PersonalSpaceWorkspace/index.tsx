@@ -38,6 +38,7 @@ import {
   exportStoryboardAssetToTarget,
   pickPersonalSpaceDirectory,
 } from './personalSpaceResourceActions'
+import { PersonalResourceSection } from './PersonalResourceSections'
 
 import '../VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css'
 import './personalSpace.css'
@@ -47,10 +48,6 @@ function assetKindLabel(kind: string) {
   if (kind === 'voice') return '配音'
   if (kind === 'effect') return '特效'
   return '地图'
-}
-
-function EmptyBlock({ description }: { description: string }) {
-  return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description} />
 }
 
 function splitTags(value: string) {
@@ -249,101 +246,6 @@ export default function PersonalSpaceWorkspace() {
       .filter((entry) => entry.assetId === assetId)
       .map((entry) => `${group.name} #${entry.order + 1}`))
 
-  const renderResourceSection = (section: (typeof resourceSections)[number]) => (
-    <section className="space-panel">
-      <section className="resource-section" aria-labelledby={`resource-${section.kind}-title`}>
-        <div className="resource-section-head">
-          <div>
-            <h3 id={`resource-${section.kind}-title`}>{section.title}</h3>
-            <p className="panel-copy">{section.description}</p>
-          </div>
-          <div className="resource-section-actions">
-            <Tag>{section.assets.length} 个</Tag>
-            <Upload {...commonResourceUploadProps(section.kind)}>
-              <Button icon={<UploadOutlined />}>{section.importLabel}</Button>
-            </Upload>
-          </div>
-        </div>
-
-        {section.assets.length === 0 ? (
-          <EmptyBlock description={section.emptyDescription} />
-        ) : (
-          <div className="resource-list">
-            {section.assets.map((item) => (
-              <article className="space-record" key={item.id}>
-                <div className="command-row">
-                  <Input
-                    value={item.name}
-                    aria-label={`${section.title}名称`}
-                    onChange={(event) => setSpace((current) => updatePersonalSpaceAsset(current, item.id, { name: event.target.value }))}
-                  />
-                  <Space>
-                    <Tag>{assetKindLabel(item.kind)}</Tag>
-                    <Popconfirm title="删除资源" description="会移除角色和剧情中的关联；勾选设置后会尝试同步删除存储目录资源。" onConfirm={() => void deleteAsset(item.id)}>
-                      <Button size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  </Space>
-                </div>
-                <div className="form-stack">
-                  <Input
-                    value={item.groupName}
-                    aria-label={`${section.title}分组`}
-                    addonBefore="分组"
-                    onChange={(event) => setSpace((current) => updatePersonalSpaceAsset(current, item.id, { groupName: event.target.value }))}
-                  />
-                  <Input
-                    value={item.tags.join('、')}
-                    aria-label={`${section.title}标签`}
-                    addonBefore="标签"
-                    onChange={(event) => setSpace((current) => updatePersonalSpaceAsset(current, item.id, { tags: event.target.value.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean) }))}
-                  />
-                  <span className="field-note">{item.resourcePaths.join('、') || '未绑定本地文件'}</span>
-                  {item.storageResourcePaths.length > 0 && (
-                    <span className="field-note">存储目标：{item.storageResourcePaths.join('、')}</span>
-                  )}
-                  {item.kind === 'effect' && (
-                    <label className="form-field">
-                      <span className="field-label">关联配音素材</span>
-                      <Select
-                        mode="multiple"
-                        value={item.linkedVoiceAssetIds}
-                        options={assetOptions(voiceAssets)}
-                        onChange={(voiceIds) => setSpace((current) => voiceIds.reduce((next, voiceId) => linkEffectAssetToVoice(next, item.id, voiceId), updatePersonalSpaceAsset(current, item.id, { linkedVoiceAssetIds: [] })))}
-                      />
-                    </label>
-                  )}
-                  {item.kind === 'voice' && (
-                    <>
-                      <label className="form-field">
-                        <span className="field-label">关联角色</span>
-                        <Select
-                          mode="multiple"
-                          value={item.linkedCharacterIds}
-                          options={characterOptions}
-                          onChange={(characterIds) => setSpace((current) => updatePersonalSpaceAsset(current, item.id, { linkedCharacterIds: characterIds }))}
-                        />
-                      </label>
-                      <label className="form-field">
-                        <span className="field-label">关联剧情组</span>
-                        <Select
-                          mode="multiple"
-                          value={item.linkedStoryboardIds}
-                          options={space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
-                          onChange={(storyboardIds) => setSpace((current) => updatePersonalSpaceAsset(current, item.id, { linkedStoryboardIds: storyboardIds }))}
-                        />
-                      </label>
-                      <span className="field-note">剧情顺序：{storyboardVoiceRefs(item.id).join('、') || '未编排到剧情组'}</span>
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </section>
-  )
-
   return (
     <section className="personal-space" aria-labelledby="personal-space-title">
       {contextHolder}
@@ -405,7 +307,7 @@ export default function PersonalSpaceWorkspace() {
                 </Space.Compact>
                 <strong>角色列表</strong>
                 {space.characters.length === 0 ? (
-                  <EmptyBlock description="还没有角色。创建后可继续关联肖像、精灵图和配音。" />
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有角色。创建后可继续关联肖像、精灵图和配音。" />
                 ) : (
                   <div className="form-stack">
                     {[...space.characters].sort((a, b) => a.order - b.order).map((item) => (
@@ -513,7 +415,7 @@ export default function PersonalSpaceWorkspace() {
                 </Space.Compact>
                 <strong>剧情分组</strong>
                 {space.storyboardGroups.length === 0 ? (
-                  <EmptyBlock description="还没有剧情分组。创建后可导入角色、导入配音、填写对白文本，并按组导出剧情编排资产。" />
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有剧情分组。创建后可导入角色、导入配音、填写对白文本，并按组导出剧情编排资产。" />
                 ) : (
                   <div className="form-stack">
                     {space.storyboardGroups.map((item) => (
@@ -580,7 +482,25 @@ export default function PersonalSpaceWorkspace() {
           ...resourceSections.map((section) => ({
             key: `resource-${section.kind}`,
             label: section.title,
-            children: renderResourceSection(section),
+            children: (
+              <PersonalResourceSection
+                section={section}
+                voiceAssets={voiceAssets}
+                characterOptions={characterOptions}
+                storyboardOptions={space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
+                uploadProps={commonResourceUploadProps(section.kind)}
+                getAssetOptions={assetOptions}
+                getAssetKindLabel={assetKindLabel}
+                getStoryboardVoiceRefs={storyboardVoiceRefs}
+                onRenameAsset={(assetId, name) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { name }))}
+                onChangeGroupName={(assetId, groupName) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { groupName }))}
+                onChangeTags={(assetId, tags) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { tags }))}
+                onChangeEffectVoiceLinks={(assetId, voiceIds) => setSpace((current) => voiceIds.reduce((next, voiceId) => linkEffectAssetToVoice(next, assetId, voiceId), updatePersonalSpaceAsset(current, assetId, { linkedVoiceAssetIds: [] })))}
+                onChangeVoiceCharacterLinks={(assetId, linkedCharacterIds) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { linkedCharacterIds }))}
+                onChangeVoiceStoryboardLinks={(assetId, linkedStoryboardIds) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { linkedStoryboardIds }))}
+                onDeleteAsset={(assetId) => void deleteAsset(assetId)}
+              />
+            ),
           })),
           {
             key: 'settings',

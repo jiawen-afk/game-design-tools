@@ -190,6 +190,7 @@ test('personal space settings save gives visible feedback', () => {
 
 test('personal space resource kinds are first-level tabs instead of a common resource tab', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const sectionsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8')
 
   assert.match(source, /const resourceSections/)
   assert.match(source, /title: '地图素材'/)
@@ -201,7 +202,16 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(source, /resourceSections\.map/)
   assert.match(source, /key: `resource-\$\{section\.kind\}`/)
   assert.match(source, /label: section\.title/)
-  assert.match(source, /section\.assets\.map/)
+  assert.match(source, /<PersonalResourceSection/)
+  assert.doesNotMatch(source, /const renderResourceSection = /)
+  assert.doesNotMatch(source, /section\.assets\.map/)
+  assert.match(sectionsSource, /function PersonalResourceSection/)
+  assert.match(sectionsSource, /section\.assets\.map/)
+  assert.match(sectionsSource, /关联配音素材/)
+  assert.match(sectionsSource, /关联角色/)
+  assert.match(sectionsSource, /关联剧情组/)
+  assert.match(sectionsSource, /剧情顺序/)
+  assert.match(sectionsSource, /存储目标/)
   assert.doesNotMatch(source, /key: 'assets'/)
   assert.doesNotMatch(source, /label: '通用资源管理'/)
   assert.doesNotMatch(source, /<strong>地图素材 \/ 特效素材 \/ 配音素材<\/strong>/)
