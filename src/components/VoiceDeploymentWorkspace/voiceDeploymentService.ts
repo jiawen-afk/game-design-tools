@@ -1,4 +1,9 @@
-import type { GradioFileData } from './voiceDeploymentModel'
+import { buildGradioGeneratePayload, type GradioFileData, type VoiceGenerationParams } from './voiceDeploymentModel'
+
+export interface GeneratedVoiceAudio {
+  audioUrl: string
+  audioPath: string | null
+}
 
 export async function checkConnection(port: number): Promise<boolean> {
   try {
@@ -33,6 +38,24 @@ export async function uploadReferenceAudio(port: number, file: File): Promise<Gr
     }
   }
   throw new Error('参考音频上传结果无法识别')
+}
+
+export async function generateVoiceAudio(
+  serviceUrl: string,
+  params: VoiceGenerationParams,
+): Promise<GeneratedVoiceAudio> {
+  const start = await fetch(`${serviceUrl}/gradio_api/call/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildGradioGeneratePayload(params)),
+  })
+  if (!start.ok) throw new Error(`VoxCPM 队列提交失败：${start.status}`)
+  const queued = await start.json() as { event_id?: string }
+  if (!queued.event_id) throw new Error('VoxCPM 没有返回生成事件 ID')
+
+  const resultResponse = await fetch(`${serviceUrl}/gradio_api/call/generate/${queued.event_id}`)
+  const resultData = await readGradioEventResult(resultResponse)
+  return normalizeAudioResult(resultData, serviceUrl)
 }
 
 export async function readGradioEventResult(res: Response): Promise<unknown[]> {

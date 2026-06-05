@@ -28,7 +28,6 @@ import {
   type VoiceGenerationParams,
   type VoiceGenerationRecord,
   buildGradioApiCall,
-  buildGradioGeneratePayload,
   buildOneClickCommand,
   buildServiceUrl,
   cloneVoiceParams,
@@ -53,8 +52,7 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   checkConnection,
-  normalizeAudioResult,
-  readGradioEventResult,
+  generateVoiceAudio,
   uploadReferenceAudio,
 } from './voiceDeploymentService'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
@@ -257,18 +255,7 @@ export default function VoiceDeploymentWorkspace() {
         setPendingReferenceFile(null)
       }
 
-      const start = await fetch(`${serviceUrl}/gradio_api/call/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildGradioGeneratePayload(paramsForRequest)),
-      })
-      if (!start.ok) throw new Error(`VoxCPM 队列提交失败：${start.status}`)
-      const queued = await start.json() as { event_id?: string }
-      if (!queued.event_id) throw new Error('VoxCPM 没有返回生成事件 ID')
-
-      const resultResponse = await fetch(`${serviceUrl}/gradio_api/call/generate/${queued.event_id}`)
-      const resultData = await readGradioEventResult(resultResponse)
-      const audio = normalizeAudioResult(resultData, serviceUrl)
+      const audio = await generateVoiceAudio(serviceUrl, paramsForRequest)
       const record: VoiceGenerationRecord = {
         id: randomId(),
         name: createVoiceRecordName(paramsForRequest, records.length + 1),
