@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { Alert, Button, Checkbox, Empty, Input, message, Popconfirm, Select, Space, Tabs, Tag } from 'antd'
-import { CheckCircleOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FolderOpenOutlined, PlusOutlined, SaveOutlined, UpOutlined } from '@ant-design/icons'
+import { Alert, Button, Checkbox, Input, message, Space, Tabs, Tag } from 'antd'
+import { CheckCircleOutlined, FolderOpenOutlined, SaveOutlined } from '@ant-design/icons'
 import {
   addCharacterProfile,
   addStoryboardGroup,
@@ -40,6 +40,7 @@ import {
 } from './personalSpaceResourceActions'
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { PersonalResourceSection } from './PersonalResourceSections'
+import { PersonalStoryboardPanel } from './PersonalStoryboardPanel'
 
 import '../VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css'
 import './personalSpace.css'
@@ -316,80 +317,24 @@ export default function PersonalSpaceWorkspace() {
             key: 'storyboards',
             label: '剧情编排',
             children: (
-              <section className="space-panel">
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    value={newStoryboardName}
-                    onChange={(event) => setNewStoryboardName(event.target.value)}
-                    onPressEnter={createStoryboard}
-                    placeholder="新剧情分组名称"
-                  />
-                  <Button type="primary" icon={<PlusOutlined />} onClick={createStoryboard}>创建剧情组</Button>
-                </Space.Compact>
-                <strong>剧情分组</strong>
-                {space.storyboardGroups.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有剧情分组。创建后可导入角色、导入配音、填写对白文本，并按组导出剧情编排资产。" />
-                ) : (
-                  <div className="form-stack">
-                    {space.storyboardGroups.map((item) => (
-                      <article className="space-record" key={item.id}>
-                        <div className="command-row">
-                          <Input
-                            value={item.name}
-                            aria-label="剧情组名称"
-                            onChange={(event) => setSpace((current) => renameStoryboardGroup(current, item.id, event.target.value))}
-                          />
-                          <Space>
-                            <Button size="small" icon={<ExportOutlined />} onClick={() => copyStoryboardReference(item.id)}>复制参考资产</Button>
-                            <Button size="small" icon={<ExportOutlined />} onClick={() => void exportStoryboardAsset(item.id)}>导出参考资产</Button>
-                            <Popconfirm title="删除剧情组" description="会移除素材中关联到该剧情组的关系。" onConfirm={() => setSpace((current) => deleteStoryboardGroup(current, item.id))}>
-                              <Button size="small" danger icon={<DeleteOutlined />} />
-                            </Popconfirm>
-                          </Space>
-                        </div>
-                        <span className="field-note">角色 {item.characterIds.length} · 配音 {item.voiceAssetIds.length}</span>
-                        <div className="form-stack">
-                          <label className="form-field">
-                            <span className="field-label">导入角色</span>
-                            <Select
-                              mode="multiple"
-                              value={item.characterIds}
-                              options={characterOptions}
-                              onChange={(characterIds) => setSpace((current) => setStoryboardCharacters(current, item.id, characterIds))}
-                            />
-                          </label>
-                          <label className="form-field">
-                            <span className="field-label">导入配音</span>
-                            <Select
-                              placeholder="选择配音素材"
-                              options={assetOptions(voiceAssets)}
-                              onChange={(assetId) => setSpace((current) => assignVoiceToStoryboardGroup(current, item.id, assetId, ''))}
-                            />
-                          </label>
-                          {[...item.voiceEntries].sort((a, b) => a.order - b.order).map((entry) => (
-                            <div className="command-row" key={entry.assetId}>
-                              <label className="form-field">
-                                <span className="field-label">对白文本 #{entry.order + 1} · {space.assets.find((asset) => asset.id === entry.assetId)?.name ?? '配音'}</span>
-                                <Input.TextArea
-                                  rows={2}
-                                  value={entry.text}
-                                  aria-label="对白文本"
-                                  placeholder="对白文本"
-                                  onChange={(event) => setSpace((current) => updateStoryboardVoiceText(current, item.id, entry.assetId, event.target.value))}
-                                />
-                              </label>
-                              <Space>
-                                <Button size="small" icon={<UpOutlined />} onClick={() => setSpace((current) => reorderStoryboardVoice(current, item.id, entry.assetId, 'up'))} />
-                                <Button size="small" icon={<DownOutlined />} onClick={() => setSpace((current) => reorderStoryboardVoice(current, item.id, entry.assetId, 'down'))} />
-                              </Space>
-                            </div>
-                          ))}
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+              <PersonalStoryboardPanel
+                storyboardGroups={space.storyboardGroups}
+                newStoryboardName={newStoryboardName}
+                characterOptions={characterOptions}
+                voiceAssets={voiceAssets}
+                allAssets={space.assets}
+                getAssetOptions={assetOptions}
+                onNewStoryboardNameChange={setNewStoryboardName}
+                onCreateStoryboard={createStoryboard}
+                onRenameStoryboard={(groupId, name) => setSpace((current) => renameStoryboardGroup(current, groupId, name))}
+                onCopyStoryboardReference={copyStoryboardReference}
+                onExportStoryboardAsset={(groupId) => void exportStoryboardAsset(groupId)}
+                onDeleteStoryboard={(groupId) => setSpace((current) => deleteStoryboardGroup(current, groupId))}
+                onSetStoryboardCharacters={(groupId, characterIds) => setSpace((current) => setStoryboardCharacters(current, groupId, characterIds))}
+                onAssignVoiceToStoryboard={(groupId, assetId) => setSpace((current) => assignVoiceToStoryboardGroup(current, groupId, assetId, ''))}
+                onUpdateStoryboardVoiceText={(groupId, assetId, text) => setSpace((current) => updateStoryboardVoiceText(current, groupId, assetId, text))}
+                onReorderStoryboardVoice={(groupId, assetId, direction) => setSpace((current) => reorderStoryboardVoice(current, groupId, assetId, direction))}
+              />
             ),
           },
           ...resourceSections.map((section) => ({

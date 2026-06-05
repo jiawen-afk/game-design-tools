@@ -44,6 +44,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
   ].join('\n')
 
   assert.doesNotMatch(source, /\bList\b/)
@@ -239,6 +240,26 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(panelSource, /角色配音/)
   assert.match(panelSource, /上传肖像/)
   assert.match(panelSource, /onReorderCharacterVoice/)
+})
+
+test('personal space workspace delegates storyboard management panel', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/PersonalStoryboardPanel'/)
+  assert.match(source, /<PersonalStoryboardPanel/)
+  assert.doesNotMatch(source, /剧情分组/)
+  assert.doesNotMatch(source, /复制参考资产/)
+  assert.doesNotMatch(source, /导出参考资产/)
+  assert.doesNotMatch(source, /对白文本/)
+  assert.match(panelSource, /function PersonalStoryboardPanel/)
+  assert.match(panelSource, /剧情分组/)
+  assert.match(panelSource, /复制参考资产/)
+  assert.match(panelSource, /导出参考资产/)
+  assert.match(panelSource, /导入角色/)
+  assert.match(panelSource, /导入配音/)
+  assert.match(panelSource, /对白文本/)
+  assert.match(panelSource, /onReorderStoryboardVoice/)
 })
 
 test('personal space workspace delegates resource IO and filesystem side effects', () => {
