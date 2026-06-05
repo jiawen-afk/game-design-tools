@@ -337,6 +337,17 @@ test('Windows deployment script requires Python 3.12 for setup and service comma
   assert.doesNotMatch(source, /Python 3\.10-3\.12/)
 })
 
+test('Windows deployment script refuses to install VoxCPM with a non-3.12 interpreter', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+  const invokePython = source.match(/function Invoke-Python\([\s\S]*?\n\}/)?.[0] || ''
+
+  assert.match(source, /function Assert-PythonRuntimeCompatible/)
+  assert.match(source, /sys\.version_info\.major/)
+  assert.match(source, /sys\.version_info\.minor/)
+  assert.match(source, /Write-Fail "\$context：需要 Python 3\.12/)
+  assert.match(invokePython, /Assert-PythonRuntimeCompatible \$failureMessage/)
+})
+
 test('Windows service runner tracks the actual long-lived Python process id', () => {
   const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
 

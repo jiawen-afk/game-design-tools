@@ -176,6 +176,23 @@ function Resolve-PythonExecutablePath($command, $args) {
     return $null
 }
 
+function Assert-PythonRuntimeCompatible($context) {
+    if (-not $script:PythonCommand) {
+        Write-Fail "$context：未设置 Python 解释器，请重新运行最新部署脚本。"
+    }
+    $probeCode = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}'); print(sys.executable)"
+    $allArgs = @($script:PythonArgs) + @("-c", $probeCode)
+    $probe = & $script:PythonCommand @allArgs 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "$context：无法检查 Python 版本。$($probe -join ' ')"
+    }
+    $version = if ($probe.Count -gt 0) { "$($probe[0])".Trim() } else { "" }
+    $executable = if ($probe.Count -gt 1) { "$($probe[1])".Trim() } else { [string]$script:PythonCommand }
+    if ($version -ne "3.12") {
+        Write-Fail "$context：需要 Python 3.12，当前 $version（$executable）。请重新运行最新部署脚本。"
+    }
+}
+
 function Ensure-PythonAvailable {
     Write-Step "检测 Python 版本"
     $candidate = Resolve-PythonCandidate
@@ -200,16 +217,19 @@ function Ensure-PythonAvailable {
     $candidate.RealCommand = $realCommand
     $script:PythonCommand = $candidate.RealCommand
     $script:PythonArgs = @()
+    Assert-PythonRuntimeCompatible "Python 环境检查"
     Write-OK "$($candidate.Version)（使用：$($candidate.Display)）"
 }
 
 function Invoke-Python($arguments, $failureMessage) {
+    Assert-PythonRuntimeCompatible $failureMessage
     $allArgs = @($script:PythonArgs) + @($arguments)
     $process = Start-Process -FilePath $script:PythonCommand -ArgumentList $allArgs -NoNewWindow -Wait -PassThru
     if ($process.ExitCode -ne 0) { Write-Fail $failureMessage }
 }
 
 function Invoke-PythonOutput($arguments) {
+    Assert-PythonRuntimeCompatible "Python 命令输出"
     $allArgs = @($script:PythonArgs) + @($arguments)
     $output = & $script:PythonCommand @allArgs 2>&1
     return @{ Output = @($output); ExitCode = $LASTEXITCODE }
