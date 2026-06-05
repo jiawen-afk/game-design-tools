@@ -1,8 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { copyFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+
+function copyDeploymentScripts() {
+  return {
+    name: 'copy-deployment-scripts',
+    closeBundle() {
+      const outputDir = join(process.cwd(), 'dist/scripts')
+      mkdirSync(outputDir, { recursive: true })
+      for (const fileName of ['deploy-voxcpm.ps1', 'deploy-voxcpm.sh']) {
+        copyFileSync(join(process.cwd(), 'scripts', fileName), join(outputDir, fileName))
+      }
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), copyDeploymentScripts()],
   build: {
     rollupOptions: {
       output: {
