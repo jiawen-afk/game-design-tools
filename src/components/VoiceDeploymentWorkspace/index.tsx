@@ -49,12 +49,7 @@ import {
 import { VoiceGenerationPanel } from './VoiceGenerationPanel'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 import { VoiceSetupPanels } from './VoiceSetupPanels'
-
-interface PendingVoiceCollectLink {
-  record: VoiceGenerationRecord
-  target: VoiceCollectLinkTarget
-  targetId: string | null
-}
+import { useVoiceCollectLinkDialog } from './useVoiceCollectLinkDialog'
 
 function randomId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
@@ -78,7 +73,6 @@ export default function VoiceDeploymentWorkspace() {
   const [pendingReferenceFile, setPendingReferenceFile] = useState<File | null>(null)
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
   const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
-  const [pendingCollectLink, setPendingCollectLink] = useState<PendingVoiceCollectLink | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generationError, setGenerationError] = useState('')
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
@@ -224,7 +218,7 @@ export default function VoiceDeploymentWorkspace() {
     setRecords((current) => deleteVoiceRecord(current, id))
   }
 
-  const collectRecordToPersonalSpace = async (
+  const collectRecordToPersonalSpace = useCallback(async (
     record: VoiceGenerationRecord,
     link?: { target: VoiceCollectLinkTarget; targetId: string },
   ) => {
@@ -239,21 +233,22 @@ export default function VoiceDeploymentWorkspace() {
     } catch {
       void messageApi.error('收藏到个人空间失败，请检查浏览器存储权限。')
     }
-  }
+  }, [messageApi])
 
-  const openCollectLinkDialog = (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => {
-    setPersonalSpaceSnapshot(readPersonalSpaceState())
-    setPendingCollectLink({ record, target, targetId: null })
-  }
-
-  const confirmCollectLink = () => {
-    if (!pendingCollectLink?.targetId) return
-    void collectRecordToPersonalSpace(pendingCollectLink.record, {
-      target: pendingCollectLink.target,
-      targetId: pendingCollectLink.targetId,
-    })
-    setPendingCollectLink(null)
-  }
+  const {
+    pendingCollectLink,
+    collectLinkMeta,
+    openCollectLinkDialog,
+    closeCollectLinkDialog,
+    updateCollectLinkTargetId,
+    confirmCollectLink,
+  } = useVoiceCollectLinkDialog({
+    characterLinkOptions,
+    effectLinkOptions,
+    storyboardLinkOptions,
+    onOpen: () => setPersonalSpaceSnapshot(readPersonalSpaceState()),
+    onConfirm: (record, link) => void collectRecordToPersonalSpace(record, link),
+  })
 
   const connectionTag = {
     idle: <Tag>未检测</Tag>,
@@ -267,29 +262,6 @@ export default function VoiceDeploymentWorkspace() {
     : hardware.status === 'warning' ? 'warning'
     : 'info'
 
-  const collectLinkMeta = pendingCollectLink?.target === 'character'
-    ? {
-        title: '收藏并关联角色',
-        label: '选择角色',
-        options: characterLinkOptions,
-        empty: '个人空间还没有角色。请先在个人空间创建角色。',
-      }
-    : pendingCollectLink?.target === 'effect'
-      ? {
-          title: '收藏并关联特效',
-          label: '选择特效素材',
-          options: effectLinkOptions,
-          empty: '个人空间还没有特效素材。请先在个人空间导入特效素材。',
-        }
-      : pendingCollectLink?.target === 'storyboard'
-        ? {
-            title: '收藏并关联剧情',
-            label: '选择剧情组',
-            options: storyboardLinkOptions,
-            empty: '个人空间还没有剧情组。请先在个人空间创建剧情编排。',
-          }
-        : null
-
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
       {messageContextHolder}
@@ -300,7 +272,7 @@ export default function VoiceDeploymentWorkspace() {
         cancelText="取消"
         okButtonProps={{ disabled: !pendingCollectLink?.targetId }}
         onOk={confirmCollectLink}
-        onCancel={() => setPendingCollectLink(null)}
+        onCancel={closeCollectLinkDialog}
       >
         {collectLinkMeta && (
           <div className="modal-grid">
@@ -311,7 +283,7 @@ export default function VoiceDeploymentWorkspace() {
                 options={collectLinkMeta.options}
                 placeholder={collectLinkMeta.label}
                 notFoundContent={collectLinkMeta.empty}
-                onChange={(targetId) => setPendingCollectLink((current) => (current ? { ...current, targetId } : current))}
+                onChange={updateCollectLinkTargetId}
               />
             </label>
             <p className="field-note">会先把当前配音收藏到个人空间，再建立这条关联。</p>

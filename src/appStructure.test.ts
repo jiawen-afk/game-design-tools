@@ -203,6 +203,22 @@ test('voice deployment workspace delegates connected generation panel', () => {
   assert.match(panelSource, /onCopyApiExample/)
 })
 
+test('voice deployment workspace delegates collect-link dialog state', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceCollectLinkDialog.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useVoiceCollectLinkDialog'/)
+  assert.match(source, /useVoiceCollectLinkDialog/)
+  assert.doesNotMatch(source, /interface PendingVoiceCollectLink/)
+  assert.doesNotMatch(source, /setPendingCollectLink/)
+  assert.doesNotMatch(source, /const collectLinkMeta = /)
+  assert.match(hookSource, /interface PendingVoiceCollectLink/)
+  assert.match(hookSource, /setPendingCollectLink/)
+  assert.match(hookSource, /collectLinkMeta/)
+  assert.match(hookSource, /openCollectLinkDialog/)
+  assert.match(hookSource, /confirmCollectLink/)
+})
+
 test('personal space settings save gives visible feedback', () => {
   const source = [
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
