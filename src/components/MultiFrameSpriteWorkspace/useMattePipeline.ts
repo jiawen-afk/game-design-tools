@@ -6,16 +6,14 @@ import { chromaKey, composeFrame, loadImage } from './imagePipeline'
 import {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
-  coerceMatteDefaults,
   normalizeHexColor,
   normalizePickerColor,
   queueUniqueFrameId,
   resolvePipelineConcurrency,
-  type MatteDefaults,
 } from './matteModel'
 import { applyComposedFrameUrl } from './model'
-import { readStoredMatteDefaults, writeStoredMatteDefaults } from './storage'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
+import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
@@ -45,9 +43,7 @@ export function useMattePipeline({
   composeStyle,
   composingPaused,
 }: UseMattePipelineParams) {
-  const [matteDefaults, setMatteDefaults] = useState<MatteDefaults>(() => readStoredMatteDefaults())
-  const [matteDefaultsOpen, setMatteDefaultsOpen] = useState(false)
-  const [matteDefaultsDraft, setMatteDefaultsDraft] = useState<MatteDefaults>(() => readStoredMatteDefaults())
+  const matteDefaultsWorkspace = useMatteDefaultsWorkspace()
   const [bulkMatteGroupId, setBulkMatteGroupId] = useState<string | null>(null)
   const timersRef = useRef(new Map<string, number>())
   const matteRunRef = useRef(new Map<string, number>())
@@ -323,31 +319,8 @@ export function useMattePipeline({
     setMatteParam(item.id, 'keyColor', [data[0]!, data[1]!, data[2]!])
   }
 
-  const openMatteDefaults = () => {
-    setMatteDefaultsDraft(matteDefaults)
-    setMatteDefaultsOpen(true)
-  }
-
-  const saveMatteDefaults = () => {
-    const next = coerceMatteDefaults(matteDefaultsDraft)
-    setMatteDefaults(next)
-    try {
-      writeStoredMatteDefaults(next)
-    } catch {
-      // 本地存储不可用时仍保留本次会话设置
-    }
-    setMatteDefaultsOpen(false)
-    message.success('已保存抠图默认参数')
-  }
-
   return {
-    matteDefaults,
-    matteDefaultsOpen,
-    setMatteDefaultsOpen,
-    matteDefaultsDraft,
-    setMatteDefaultsDraft,
-    openMatteDefaults,
-    saveMatteDefaults,
+    ...matteDefaultsWorkspace,
     bulkMatteProcessing: Boolean(bulkMatteGroupId),
     bulkMatteGroupId,
     scheduleMatte,

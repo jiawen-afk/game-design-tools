@@ -521,6 +521,23 @@ test('layout workspace delegates pointer and keyboard interactions to a focused 
   assert.match(interactionSource, /guideDragState/)
 })
 
+test('matte pipeline delegates default parameter persistence to a focused hook', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const defaultsHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMatteDefaultsWorkspace.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useMatteDefaultsWorkspace'/)
+  assert.match(source, /useMatteDefaultsWorkspace/)
+  assert.doesNotMatch(source, /readStoredMatteDefaults/)
+  assert.doesNotMatch(source, /writeStoredMatteDefaults/)
+  assert.doesNotMatch(source, /const openMatteDefaults = /)
+  assert.doesNotMatch(source, /const saveMatteDefaults = /)
+  assert.match(defaultsHook, /readStoredMatteDefaults/)
+  assert.match(defaultsHook, /writeStoredMatteDefaults/)
+  assert.match(defaultsHook, /coerceMatteDefaults/)
+  assert.match(defaultsHook, /openMatteDefaults/)
+  assert.match(defaultsHook, /saveMatteDefaults/)
+})
+
 test('video workspace delegates extracted frame preview and crop interactions to a focused hook', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const previewSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
