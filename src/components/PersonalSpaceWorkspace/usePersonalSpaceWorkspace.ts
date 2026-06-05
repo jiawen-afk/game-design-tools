@@ -23,19 +23,13 @@ import {
   writePersonalSpaceState,
 } from './personalSpaceModel'
 import {
-  type PersonalSpaceDirectoryHandle,
-  loadPersistedPersonalSpaceDirectoryHandle,
-  persistPersonalSpaceDirectoryHandle,
-  setPersonalSpaceDirectoryHandle,
-} from './personalSpaceFileStorage'
-import {
   applyAssetDeleteResult,
   createCommonResourceAssetForUpload,
   createPortraitAssetForUpload,
   deleteAssetWithOptionalResources,
   exportStoryboardAssetToTarget,
-  pickPersonalSpaceDirectory,
 } from './personalSpaceResourceActions'
+import { usePersonalSpaceSettingsWorkspace } from './usePersonalSpaceSettingsWorkspace'
 
 interface PersonalSpaceMessageApi {
   success: (content: string) => void
@@ -52,68 +46,17 @@ function assetKindLabel(kind: string) {
 
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())
-  const [draftStorageDirectory, setDraftStorageDirectory] = useState(space.settings.storageDirectory)
   const [newCharacterName, setNewCharacterName] = useState('')
   const [newStoryboardName, setNewStoryboardName] = useState('')
-  const [directoryHandle, setDirectoryHandle] = useState<PersonalSpaceDirectoryHandle | null>(null)
-  const [savedSettings, setSavedSettings] = useState(false)
+  const settingsWorkspace = usePersonalSpaceSettingsWorkspace({
+    storageDirectory: space.settings.storageDirectory,
+    setSpace,
+    messageApi,
+  })
 
   useEffect(() => {
     writePersonalSpaceState(space)
   }, [space])
-
-  useEffect(() => {
-    let mounted = true
-    loadPersistedPersonalSpaceDirectoryHandle()
-      .then((handle) => {
-        if (!mounted || !handle) return
-        setDirectoryHandle(handle)
-        setPersonalSpaceDirectoryHandle(handle)
-        if (!space.settings.storageDirectory) {
-          setDraftStorageDirectory(handle.name)
-          setSpace((current) => ({
-            ...current,
-            settings: { ...current.settings, storageDirectory: handle.name },
-          }))
-        }
-      })
-      .catch(() => {})
-    return () => { mounted = false }
-  }, [space.settings.storageDirectory])
-
-  const saveSettings = () => {
-    setSpace((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        storageDirectory: draftStorageDirectory.trim(),
-      },
-    }))
-    setSavedSettings(true)
-    window.setTimeout(() => setSavedSettings(false), 1600)
-    void messageApi.success('已保存个人空间设置')
-  }
-
-  const chooseStorageDirectory = async () => {
-    try {
-      const handle = await pickPersonalSpaceDirectory()
-      if (!handle) {
-        void messageApi.warning('当前浏览器不支持授权本地目录，请继续使用路径记录模式。')
-        return
-      }
-      setDirectoryHandle(handle)
-      setPersonalSpaceDirectoryHandle(handle)
-      await persistPersonalSpaceDirectoryHandle(handle)
-      setDraftStorageDirectory(handle.name)
-      setSpace((current) => ({
-        ...current,
-        settings: { ...current.settings, storageDirectory: handle.name },
-      }))
-      void messageApi.success('已授权资源存储目录')
-    } catch {
-      void messageApi.warning('未选择资源存储目录')
-    }
-  }
 
   const createCharacter = () => {
     setSpace((current) => addCharacterProfile(current, newCharacterName))
@@ -132,7 +75,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const exportStoryboardAsset = async (id: string) => {
     try {
-      const result = await exportStoryboardAssetToTarget(space, id, directoryHandle)
+      const result = await exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle)
       void messageApi.success(result.kind === 'directory'
         ? `已导出剧情编排资产：${result.path}`
         : '已下载剧情编排资产')
@@ -143,7 +86,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const uploadCharacterPortrait = async (characterId: string, file: File) => {
     try {
-      const storedAsset = await createPortraitAssetForUpload(space, file, directoryHandle)
+      const storedAsset = await createPortraitAssetForUpload(space, file, settingsWorkspace.directoryHandle)
       setSpace((current) => {
         const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
         return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'portrait', ['肖像'])
@@ -156,7 +99,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const uploadCommonResource = async (kind: CommonAssetKind, file: File) => {
     try {
-      const storedAsset = await createCommonResourceAssetForUpload(space, kind, file, directoryHandle)
+      const storedAsset = await createCommonResourceAssetForUpload(space, kind, file, settingsWorkspace.directoryHandle)
       setSpace((current) => ({ ...current, assets: [storedAsset, ...current.assets] }))
       void messageApi.success(`已导入${assetKindLabel(kind)}素材`)
     } catch (error) {
@@ -165,7 +108,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }
 
   const deleteAsset = async (assetId: string) => {
-    const result = await deleteAssetWithOptionalResources(space, assetId, directoryHandle)
+    const result = await deleteAssetWithOptionalResources(space, assetId, settingsWorkspace.directoryHandle)
     setSpace((current) => applyAssetDeleteResult(current, assetId, result))
     if (result.attemptedResourceDeletion) {
       if (result.pendingDeletedPaths.length > 0) {
@@ -243,22 +186,17 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   return {
     space,
-    draftStorageDirectory,
+    ...settingsWorkspace,
     newCharacterName,
     newStoryboardName,
-    directoryHandle,
-    savedSettings,
     portraitAssets,
     spriteAssets,
     voiceAssets,
     characterOptions,
     resourceSections,
     assetCounts,
-    setDraftStorageDirectory,
     setNewCharacterName,
     setNewStoryboardName,
-    saveSettings,
-    chooseStorageDirectory,
     createCharacter,
     createStoryboard,
     copyStoryboardReference,

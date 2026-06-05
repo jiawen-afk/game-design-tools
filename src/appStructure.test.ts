@@ -271,6 +271,7 @@ test('personal space settings save gives visible feedback', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8'),
   ].join('\n')
 
   assert.match(source, /const saveSettings = \(\) =>/)
@@ -299,6 +300,26 @@ test('personal space workspace delegates settings panel', () => {
   assert.match(panelSource, /待删除资源路径/)
   assert.match(panelSource, /onChooseStorageDirectory/)
   assert.match(panelSource, /onDeleteResourcesWithContentChange/)
+})
+
+test('personal space workspace delegates settings and directory authorization to a focused hook', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+
+  assert.match(source, /from '\.\/usePersonalSpaceSettingsWorkspace'/)
+  assert.match(source, /usePersonalSpaceSettingsWorkspace/)
+  assert.doesNotMatch(source, /loadPersistedPersonalSpaceDirectoryHandle/)
+  assert.doesNotMatch(source, /persistPersonalSpaceDirectoryHandle/)
+  assert.doesNotMatch(source, /setPersonalSpaceDirectoryHandle/)
+  assert.doesNotMatch(source, /pickPersonalSpaceDirectory/)
+  assert.doesNotMatch(source, /const saveSettings = /)
+  assert.doesNotMatch(source, /const chooseStorageDirectory = /)
+  assert.match(settingsHookSource, /loadPersistedPersonalSpaceDirectoryHandle/)
+  assert.match(settingsHookSource, /persistPersonalSpaceDirectoryHandle/)
+  assert.match(settingsHookSource, /setPersonalSpaceDirectoryHandle/)
+  assert.match(settingsHookSource, /pickPersonalSpaceDirectory/)
+  assert.match(settingsHookSource, /saveSettings/)
+  assert.match(settingsHookSource, /chooseStorageDirectory/)
 })
 
 test('personal space resource kinds are first-level tabs instead of a common resource tab', () => {
@@ -374,10 +395,11 @@ test('personal space workspace delegates storyboard management panel', () => {
 test('personal space workspace delegates resource IO and filesystem side effects', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
   const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
 
   assert.match(hookSource, /from '\.\/personalSpaceResourceActions'/)
-  assert.match(hookSource, /pickPersonalSpaceDirectory/)
+  assert.match(settingsHookSource, /pickPersonalSpaceDirectory/)
   assert.match(hookSource, /exportStoryboardAssetToTarget/)
   assert.match(hookSource, /createPortraitAssetForUpload/)
   assert.match(hookSource, /createCommonResourceAssetForUpload/)
@@ -418,7 +440,7 @@ test('personal space workspace delegates page state and resource workflow', () =
   assert.match(hookSource, /useEffect/)
   assert.match(hookSource, /readPersonalSpaceState/)
   assert.match(hookSource, /writePersonalSpaceState/)
-  assert.match(hookSource, /chooseStorageDirectory/)
+  assert.match(hookSource, /usePersonalSpaceSettingsWorkspace/)
   assert.match(hookSource, /uploadCharacterPortrait/)
   assert.match(hookSource, /uploadCommonResource/)
   assert.match(hookSource, /deleteAsset/)
