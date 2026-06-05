@@ -504,6 +504,23 @@ test('layout workspace delegates canvas ratio apply feedback to a focused hook',
   assert.match(feedbackSource, /canvasRatioApplying/)
 })
 
+test('layout workspace delegates pointer and keyboard interactions to a focused hook', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const interactionSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutPointerInteractions.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useLayoutPointerInteractions'/)
+  assert.match(source, /useLayoutPointerInteractions/)
+  assert.doesNotMatch(source, /const onPointerMove = useCallback/)
+  assert.doesNotMatch(source, /window\.addEventListener\('pointermove'/)
+  assert.doesNotMatch(source, /window\.addEventListener\('keydown'/)
+  assert.doesNotMatch(source, /const onKeyDown = \(e: KeyboardEvent\)/)
+  assert.match(interactionSource, /window\.addEventListener\('pointermove'/)
+  assert.match(interactionSource, /window\.addEventListener\('keydown'/)
+  assert.match(interactionSource, /computeKeyboardOffset/)
+  assert.match(interactionSource, /computeHandleResize/)
+  assert.match(interactionSource, /guideDragState/)
+})
+
 test('video workspace delegates extracted frame preview and crop interactions to a focused hook', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const previewSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')

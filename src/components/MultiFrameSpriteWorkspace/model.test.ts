@@ -290,16 +290,18 @@ test('matte pipeline hook owns matte and compose side effects', () => {
 test('layout workspace hook owns layout and guide side effects', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const interactionHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutPointerInteractions.ts', 'utf8')
   const lineCount = source.split(/\r?\n/).length
 
   assert.doesNotMatch(source, /computeHandleResize/)
   assert.doesNotMatch(source, /computeKeyboardOffset/)
   assert.doesNotMatch(source, /normalizeGuideLinePosition/)
   assert.doesNotMatch(source, /applyCanvasRatioToFrameLayouts/)
-  assert.match(hook, /computeHandleResize/)
-  assert.match(hook, /computeKeyboardOffset/)
-  assert.match(hook, /normalizeGuideLinePosition/)
+  assert.match(hook, /useLayoutPointerInteractions/)
   assert.match(hook, /applyCanvasRatioToFrameLayouts/)
+  assert.match(interactionHook, /computeHandleResize/)
+  assert.match(interactionHook, /computeKeyboardOffset/)
+  assert.match(interactionHook, /normalizeGuideLinePosition/)
   assert.ok(lineCount < 1050, `expected workspace entry to stay below 1050 lines after layout extraction, got ${lineCount}`)
 })
 
