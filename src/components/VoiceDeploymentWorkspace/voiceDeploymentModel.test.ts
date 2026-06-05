@@ -238,9 +238,10 @@ test('voice records can be renamed, favorited, deleted, and loaded for cloning',
   assert.equal(favorited[0].favorite, true)
   assert.deepEqual(deleteVoiceRecord(favorited, 'r1'), [])
 
-  const cloneParams = prepareCloneFromRecord(record)
+  const cloneParams = prepareCloneFromRecord(renamed[0])
   assert.equal(cloneParams.mode, 'reference-clone')
-  assert.equal(cloneParams.referenceAudioPath, '/tmp/ref.wav')
+  assert.equal(cloneParams.referenceAudioPath, '/tmp/out.wav')
+  assert.equal(cloneParams.referenceAudioName, '角色 A')
 })
 
 test('Windows deployment script installs ffmpeg for browser-recorded m4a reference audio', () => {

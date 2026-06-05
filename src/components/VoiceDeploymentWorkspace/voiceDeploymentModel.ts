@@ -351,5 +351,7 @@ export function prepareCloneFromRecord(record: VoiceGenerationRecord): VoiceGene
   return {
     ...cloneVoiceParams(record.params),
     mode: 'reference-clone',
+    referenceAudioName: record.name,
+    referenceAudioPath: record.audioPath,
   }
 }
