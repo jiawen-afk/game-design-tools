@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { Alert, Button, Checkbox, Empty, Input, message, Popconfirm, Select, Space, Tabs, Tag, Upload } from 'antd'
-import { CheckCircleOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FolderOpenOutlined, PlusOutlined, SaveOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Button, Checkbox, Empty, Input, message, Popconfirm, Select, Space, Tabs, Tag } from 'antd'
+import { CheckCircleOutlined, DeleteOutlined, DownOutlined, ExportOutlined, FolderOpenOutlined, PlusOutlined, SaveOutlined, UpOutlined } from '@ant-design/icons'
 import {
   addCharacterProfile,
   addStoryboardGroup,
@@ -38,6 +38,7 @@ import {
   exportStoryboardAssetToTarget,
   pickPersonalSpaceDirectory,
 } from './personalSpaceResourceActions'
+import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { PersonalResourceSection } from './PersonalResourceSections'
 
 import '../VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css'
@@ -48,10 +49,6 @@ function assetKindLabel(kind: string) {
   if (kind === 'voice') return '配音'
   if (kind === 'effect') return '特效'
   return '地图'
-}
-
-function splitTags(value: string) {
-  return value.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean)
 }
 
 export default function PersonalSpaceWorkspace() {
@@ -295,108 +292,24 @@ export default function PersonalSpaceWorkspace() {
             key: 'characters',
             label: '角色',
             children: (
-              <section className="space-panel">
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    value={newCharacterName}
-                    onChange={(event) => setNewCharacterName(event.target.value)}
-                    onPressEnter={createCharacter}
-                    placeholder="新角色名称"
-                  />
-                  <Button type="primary" icon={<PlusOutlined />} onClick={createCharacter}>创建角色</Button>
-                </Space.Compact>
-                <strong>角色列表</strong>
-                {space.characters.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有角色。创建后可继续关联肖像、精灵图和配音。" />
-                ) : (
-                  <div className="form-stack">
-                    {[...space.characters].sort((a, b) => a.order - b.order).map((item) => (
-                      <article className="space-record" key={item.id}>
-                        <div className="command-row">
-                          <Input
-                            value={item.name}
-                            aria-label="角色名称"
-                            onChange={(event) => setSpace((current) => renameCharacterProfile(current, item.id, event.target.value))}
-                          />
-                          <Space>
-                            <Button size="small" icon={<UpOutlined />} onClick={() => setSpace((current) => reorderCharacterProfile(current, item.id, 'up'))} />
-                            <Button size="small" icon={<DownOutlined />} onClick={() => setSpace((current) => reorderCharacterProfile(current, item.id, 'down'))} />
-                            <Popconfirm title="删除角色" description="会移除该角色与素材、剧情组的关联。" onConfirm={() => setSpace((current) => deleteCharacterProfile(current, item.id))}>
-                              <Button size="small" danger icon={<DeleteOutlined />} />
-                            </Popconfirm>
-                          </Space>
-                        </div>
-                        <span className="field-note">肖像 {item.portraitAssetIds.length} · 精灵图 {item.spriteAssetIds.length} · 配音 {item.voiceAssetIds.length}</span>
-                        <div className="space-columns">
-                          <div className="space-column">
-                            <strong>角色肖像</strong>
-                            <Upload {...portraitUploadProps(item.id)}>
-                              <Button icon={<UploadOutlined />}>上传肖像</Button>
-                            </Upload>
-                            <Select
-                              placeholder="关联肖像资源"
-                              options={assetOptions(portraitAssets)}
-                              onChange={(assetId) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, assetId, 'portrait', ['肖像']))}
-                            />
-                            {item.portraitAssets.map((link) => (
-                              <Input
-                                key={link.assetId}
-                                addonBefore={space.assets.find((asset) => asset.id === link.assetId)?.name ?? '肖像'}
-                                value={link.tags.join('、')}
-                                aria-label="角色肖像标签"
-                                onChange={(event) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, link.assetId, 'portrait', splitTags(event.target.value)))}
-                              />
-                            ))}
-                          </div>
-                          <div className="space-column">
-                            <strong>角色精灵图</strong>
-                            <Select
-                              placeholder="关联精灵图资源"
-                              options={assetOptions(spriteAssets)}
-                              onChange={(assetId) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, assetId, 'sprite', ['站立']))}
-                            />
-                            {item.spriteAssets.map((link) => (
-                              <Input
-                                key={link.assetId}
-                                addonBefore={space.assets.find((asset) => asset.id === link.assetId)?.name ?? '精灵图'}
-                                value={link.tags.join('、')}
-                                aria-label="角色精灵图标签"
-                                placeholder="站立、上走、下走、左走、右走、奔跑、互动、攻击、施法、受伤、死亡"
-                                onChange={(event) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, link.assetId, 'sprite', splitTags(event.target.value)))}
-                              />
-                            ))}
-                          </div>
-                          <div className="space-column">
-                            <strong>角色配音</strong>
-                            <Select
-                              placeholder="关联配音资源"
-                              options={assetOptions(voiceAssets)}
-                              onChange={(assetId) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, assetId, 'voice', ['角色配音']))}
-                            />
-                            {item.voiceAssets.map((link) => (
-                              <div className="form-stack" key={link.assetId}>
-                                <div className="command-row">
-                                  <Input
-                                    addonBefore={space.assets.find((asset) => asset.id === link.assetId)?.name ?? '配音'}
-                                    value={link.tags.join('、')}
-                                    aria-label="角色配音标签"
-                                    onChange={(event) => setSpace((current) => assignAssetToCharacterColumn(current, item.id, link.assetId, 'voice', splitTags(event.target.value)))}
-                                  />
-                                  <Space>
-                                    <Button size="small" icon={<UpOutlined />} onClick={() => setSpace((current) => reorderCharacterVoice(current, item.id, link.assetId, 'up'))} />
-                                    <Button size="small" icon={<DownOutlined />} onClick={() => setSpace((current) => reorderCharacterVoice(current, item.id, link.assetId, 'down'))} />
-                                  </Space>
-                                </div>
-                                <span className="field-note">剧情顺序：{storyboardVoiceRefs(link.assetId).join('、') || '未关联剧情组'}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+              <PersonalCharacterPanel
+                characters={space.characters}
+                newCharacterName={newCharacterName}
+                portraitAssets={portraitAssets}
+                spriteAssets={spriteAssets}
+                voiceAssets={voiceAssets}
+                allAssets={space.assets}
+                getAssetOptions={assetOptions}
+                getStoryboardVoiceRefs={storyboardVoiceRefs}
+                getPortraitUploadProps={portraitUploadProps}
+                onNewCharacterNameChange={setNewCharacterName}
+                onCreateCharacter={createCharacter}
+                onRenameCharacter={(characterId, name) => setSpace((current) => renameCharacterProfile(current, characterId, name))}
+                onReorderCharacter={(characterId, direction) => setSpace((current) => reorderCharacterProfile(current, characterId, direction))}
+                onDeleteCharacter={(characterId) => setSpace((current) => deleteCharacterProfile(current, characterId))}
+                onAssignAsset={(characterId, assetId, column, tags) => setSpace((current) => assignAssetToCharacterColumn(current, characterId, assetId, column, tags))}
+                onReorderCharacterVoice={(characterId, assetId, direction) => setSpace((current) => reorderCharacterVoice(current, characterId, assetId, direction))}
+              />
             ),
           },
           {

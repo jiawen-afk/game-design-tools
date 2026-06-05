@@ -40,7 +40,11 @@ test('personal space is global navigation instead of a tool list item', () => {
 })
 
 test('personal space page covers required management modules', () => {
-  const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const source = [
+    readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
+  ].join('\n')
 
   assert.doesNotMatch(source, /\bList\b/)
   assert.match(source, /label: '角色'/)
@@ -216,6 +220,25 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.doesNotMatch(source, /label: '通用资源管理'/)
   assert.doesNotMatch(source, /<strong>地图素材 \/ 特效素材 \/ 配音素材<\/strong>/)
   assert.doesNotMatch(source, /space\.assets\.map\(\(item\)/)
+})
+
+test('personal space workspace delegates character management panel', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/PersonalCharacterPanel'/)
+  assert.match(source, /<PersonalCharacterPanel/)
+  assert.doesNotMatch(source, /角色列表/)
+  assert.doesNotMatch(source, /<strong>角色肖像<\/strong>/)
+  assert.doesNotMatch(source, /<strong>角色精灵图<\/strong>/)
+  assert.doesNotMatch(source, /<strong>角色配音<\/strong>/)
+  assert.match(panelSource, /function PersonalCharacterPanel/)
+  assert.match(panelSource, /角色列表/)
+  assert.match(panelSource, /角色肖像/)
+  assert.match(panelSource, /角色精灵图/)
+  assert.match(panelSource, /角色配音/)
+  assert.match(panelSource, /上传肖像/)
+  assert.match(panelSource, /onReorderCharacterVoice/)
 })
 
 test('personal space workspace delegates resource IO and filesystem side effects', () => {
