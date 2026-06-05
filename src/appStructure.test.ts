@@ -44,6 +44,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
   ].join('\n')
 
@@ -203,7 +204,10 @@ test('voice deployment workspace delegates connected generation panel', () => {
 })
 
 test('personal space settings save gives visible feedback', () => {
-  const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const source = [
+    readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8'),
+  ].join('\n')
 
   assert.match(source, /const saveSettings = \(\) =>/)
   assert.match(source, /messageApi\.success\('已保存个人空间设置'\)/)
@@ -212,6 +216,25 @@ test('personal space settings save gives visible feedback', () => {
   assert.match(source, /setSavedSettings\(false\)/)
   assert.match(source, /CheckCircleOutlined/)
   assert.match(source, /savedSettings \? '已保存' : '保存设置'/)
+})
+
+test('personal space workspace delegates settings panel', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/PersonalSettingsPanel'/)
+  assert.match(source, /<PersonalSettingsPanel/)
+  assert.doesNotMatch(source, /<span className="field-label">资源存储目录<\/span>/)
+  assert.doesNotMatch(source, /选择授权目录/)
+  assert.doesNotMatch(source, /删除内容同时删除资源/)
+  assert.doesNotMatch(source, /title="待删除资源路径"/)
+  assert.match(panelSource, /function PersonalSettingsPanel/)
+  assert.match(panelSource, /资源存储目录/)
+  assert.match(panelSource, /选择授权目录/)
+  assert.match(panelSource, /删除内容同时删除资源/)
+  assert.match(panelSource, /待删除资源路径/)
+  assert.match(panelSource, /onChooseStorageDirectory/)
+  assert.match(panelSource, /onDeleteResourcesWithContentChange/)
 })
 
 test('personal space resource kinds are first-level tabs instead of a common resource tab', () => {
