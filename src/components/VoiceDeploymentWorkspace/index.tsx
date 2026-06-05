@@ -14,21 +14,14 @@ import {
   type HardwareReport,
   type ModelVersion,
   type Platform,
-  type VoiceAdvancedParams,
-  type VoiceGenerationMode,
-  type VoiceGenerationParams,
   type VoiceGenerationRecord,
   buildGradioApiCall,
   buildOneClickCommand,
   buildServiceUrl,
-  cloneVoiceParams,
-  createVoiceRecordName,
   defaultPort,
-  defaultVoiceGenerationParams,
   deleteVoiceRecord,
   evaluateHardware,
   parseNvidiaSmiReport,
-  prepareCloneFromRecord,
   updateRecordName,
   validateModelPath,
   voiceModeMeta,
@@ -38,8 +31,6 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   checkConnection,
-  generateVoiceAudio,
-  uploadReferenceAudio,
 } from './voiceDeploymentService'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
 import {
@@ -50,11 +41,7 @@ import { VoiceGenerationPanel } from './VoiceGenerationPanel'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 import { VoiceSetupPanels } from './VoiceSetupPanels'
 import { useVoiceCollectLinkDialog } from './useVoiceCollectLinkDialog'
-
-function randomId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
+import { useVoiceGenerationWorkflow } from './useVoiceGenerationWorkflow'
 
 export default function VoiceDeploymentWorkspace() {
   const [messageApi, messageContextHolder] = message.useMessage()
@@ -69,12 +56,8 @@ export default function VoiceDeploymentWorkspace() {
   const [downloadSource, setDownloadSource] = useState<DownloadSource>('auto')
   const [modelTouched, setModelTouched] = useState(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [voiceParams, setVoiceParams] = useState<VoiceGenerationParams>(() => cloneVoiceParams(defaultVoiceGenerationParams))
-  const [pendingReferenceFile, setPendingReferenceFile] = useState<File | null>(null)
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
   const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
-  const [generating, setGenerating] = useState(false)
-  const [generationError, setGenerationError] = useState('')
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
   const checkRef = useRef(0)
 
@@ -92,7 +75,6 @@ export default function VoiceDeploymentWorkspace() {
   const apiCallExample = useMemo(() => buildGradioApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
   const serviceUrl = buildServiceUrl(port)
   const connected = connectionStatus === 'connected'
-  const selectedMode = voiceModeMeta.find((item) => item.id === voiceParams.mode) ?? voiceModeMeta[0]
   const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
   const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
   const effectLinkOptions = personalSpaceSnapshot.assets
@@ -116,18 +98,6 @@ export default function VoiceDeploymentWorkspace() {
     }
   }, [hardware.recommendedModel, modelTouched])
 
-  const updateParams = (patch: Partial<VoiceGenerationParams>) => {
-    setVoiceParams((current) => ({ ...current, ...patch }))
-  }
-
-  const updateAdvanced = (patch: Partial<VoiceAdvancedParams>) => {
-    setVoiceParams((current) => ({ ...current, advanced: { ...current.advanced, ...patch } }))
-  }
-
-  const setMode = (mode: VoiceGenerationMode) => {
-    setVoiceParams((current) => ({ ...current, mode }))
-  }
-
   const applyPort = () => {
     const n = parseInt(portInput, 10)
     if (n > 0 && n < 65536) { setPort(n); runCheck(n) }
@@ -148,66 +118,6 @@ export default function VoiceDeploymentWorkspace() {
     }
     setCopiedKey(key)
     window.setTimeout(() => setCopiedKey(null), 1600)
-  }
-
-  const selectReferenceFile = (file: File) => {
-    setPendingReferenceFile(file)
-    updateParams({
-      referenceAudioName: file.name,
-      referenceAudioPath: null,
-    })
-  }
-
-  const canGenerate = connected
-    && !generating
-    && voiceParams.text.trim().length > 0
-    && (voiceParams.mode === 'blind-box' || voiceParams.mode === 'voice-design' || Boolean(pendingReferenceFile || voiceParams.referenceAudioPath))
-    && (voiceParams.mode !== 'high-similarity-clone' || voiceParams.promptText.trim().length > 0)
-
-  const generateVoice = async () => {
-    if (!canGenerate) return
-    setGenerating(true)
-    setGenerationError('')
-    try {
-      let paramsForRequest = cloneVoiceParams(voiceParams)
-      if (pendingReferenceFile) {
-        const uploaded = await uploadReferenceAudio(port, pendingReferenceFile)
-        paramsForRequest = {
-          ...paramsForRequest,
-          referenceAudioName: uploaded.orig_name || pendingReferenceFile.name,
-          referenceAudioPath: uploaded.path,
-        }
-        setVoiceParams(paramsForRequest)
-        setPendingReferenceFile(null)
-      }
-
-      const audio = await generateVoiceAudio(serviceUrl, paramsForRequest)
-      const record: VoiceGenerationRecord = {
-        id: randomId(),
-        name: createVoiceRecordName(paramsForRequest, records.length + 1),
-        createdAt: new Date().toISOString(),
-        audioUrl: audio.audioUrl,
-        audioPath: audio.audioPath,
-        params: cloneVoiceParams(paramsForRequest),
-      }
-      setRecords((current) => [record, ...current].slice(0, 80))
-      setLastGeneratedId(record.id)
-    } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : 'VoxCPM 生成失败')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const loadParams = (record: VoiceGenerationRecord) => {
-    setVoiceParams(cloneVoiceParams(record.params))
-    setPendingReferenceFile(null)
-  }
-
-  const cloneFromRecord = (record: VoiceGenerationRecord) => {
-    if (!record.audioPath) return
-    setVoiceParams(prepareCloneFromRecord(record))
-    setPendingReferenceFile(null)
   }
 
   const renameRecord = (id: string, name: string) => {
@@ -234,6 +144,32 @@ export default function VoiceDeploymentWorkspace() {
       void messageApi.error('收藏到个人空间失败，请检查浏览器存储权限。')
     }
   }, [messageApi])
+
+  const {
+    voiceParams,
+    generating,
+    generationError,
+    canGenerate,
+    updateParams,
+    updateAdvanced,
+    setMode,
+    resetParams,
+    selectReferenceFile,
+    loadParams,
+    cloneFromRecord,
+    generateVoice,
+  } = useVoiceGenerationWorkflow({
+    connected,
+    port,
+    serviceUrl,
+    recordCount: records.length,
+    onRecordCreated: (record) => {
+      setRecords((current) => [record, ...current].slice(0, 80))
+      setLastGeneratedId(record.id)
+    },
+  })
+
+  const selectedMode = voiceModeMeta.find((item) => item.id === voiceParams.mode) ?? voiceModeMeta[0]
 
   const {
     pendingCollectLink,
@@ -335,7 +271,7 @@ export default function VoiceDeploymentWorkspace() {
             onAdvancedChange={updateAdvanced}
             onReferenceFileSelected={selectReferenceFile}
             onGenerate={() => void generateVoice()}
-            onResetParams={() => setVoiceParams(cloneVoiceParams(defaultVoiceGenerationParams))}
+            onResetParams={resetParams}
             onCopyApiExample={() => void copy('api', apiCallExample)}
           />
 

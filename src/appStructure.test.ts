@@ -114,12 +114,14 @@ test('Ant Design alerts use v6 title prop instead of deprecated message prop', (
 test('voice deployment workspace delegates service, record, and personal space side effects', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
   const serviceSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentService.ts', 'utf8')
+  const generationHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
 
   assert.match(source, /from '\.\/voiceDeploymentService'/)
   assert.match(source, /from '\.\/voiceRecordStorage'/)
   assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
-  assert.match(source, /generateVoiceAudio/)
+  assert.match(source, /useVoiceGenerationWorkflow/)
   assert.match(source, /collectVoiceRecordToPersonalSpace/)
+  assert.match(generationHookSource, /generateVoiceAudio/)
   assert.doesNotMatch(source, /function checkConnection/)
   assert.doesNotMatch(source, /function uploadReferenceAudio/)
   assert.doesNotMatch(source, /function readStoredRecords/)
@@ -217,6 +219,25 @@ test('voice deployment workspace delegates collect-link dialog state', () => {
   assert.match(hookSource, /collectLinkMeta/)
   assert.match(hookSource, /openCollectLinkDialog/)
   assert.match(hookSource, /confirmCollectLink/)
+})
+
+test('voice deployment workspace delegates generation request workflow', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useVoiceGenerationWorkflow'/)
+  assert.match(source, /useVoiceGenerationWorkflow/)
+  assert.doesNotMatch(source, /pendingReferenceFile/)
+  assert.doesNotMatch(source, /setGenerating/)
+  assert.doesNotMatch(source, /setGenerationError/)
+  assert.doesNotMatch(source, /const generateVoice = async/)
+  assert.doesNotMatch(source, /uploadReferenceAudio/)
+  assert.match(hookSource, /pendingReferenceFile/)
+  assert.match(hookSource, /setGenerating/)
+  assert.match(hookSource, /setGenerationError/)
+  assert.match(hookSource, /generateVoice/)
+  assert.match(hookSource, /uploadReferenceAudio/)
+  assert.match(hookSource, /generateVoiceAudio/)
 })
 
 test('personal space settings save gives visible feedback', () => {
