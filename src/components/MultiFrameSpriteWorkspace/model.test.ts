@@ -184,13 +184,14 @@ test('public ratio apply button exposes processing state while composed frames u
   const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasPublicParamsPanel.tsx', 'utf8')
   const toolbar = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8')
   const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const feedbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useCanvasRatioApplyFeedback.ts', 'utf8')
 
   assert.match(panel, /ratioApplying:\s*boolean/)
   assert.match(panel, /loading=\{ratioApplying\}/)
   assert.match(panel, /disabled=\{ratioApplying\}/)
   assert.match(toolbar, /ratioApplying=\{layout\.canvasRatioApplying\}/)
   assert.match(hook, /canvasRatioApplying/)
-  assert.match(hook, /getPendingComposedFrameIds/)
+  assert.match(feedbackHook, /getPendingComposedFrameIds/)
 })
 
 test('pending composed frame ids track only ratio targets that still need composing', () => {

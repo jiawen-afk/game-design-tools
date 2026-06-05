@@ -418,3 +418,19 @@ test('layout workspace delegates batch frame layout presets to the model', () =>
   assert.doesNotMatch(source, /Math\.max\(\.\.\.frames\.map\(\(f\) => f\.layout\.width\)\)/)
   assert.doesNotMatch(source, /item\.matteWidth \/ Math\.max\(1, item\.matteHeight\)/)
 })
+
+test('layout workspace delegates canvas ratio apply feedback to a focused hook', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const feedbackSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useCanvasRatioApplyFeedback.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useCanvasRatioApplyFeedback'/)
+  assert.match(source, /useCanvasRatioApplyFeedback/)
+  assert.doesNotMatch(source, /CANVAS_RATIO_MESSAGE_KEY/)
+  assert.doesNotMatch(source, /canvasRatioApplyIdsRef/)
+  assert.doesNotMatch(source, /canvasRatioFallbackTimerRef/)
+  assert.doesNotMatch(source, /getPendingComposedFrameIds/)
+  assert.match(feedbackSource, /CANVAS_RATIO_MESSAGE_KEY/)
+  assert.match(feedbackSource, /getPendingComposedFrameIds/)
+  assert.match(feedbackSource, /startCanvasRatioApplyFeedback/)
+  assert.match(feedbackSource, /canvasRatioApplying/)
+})
