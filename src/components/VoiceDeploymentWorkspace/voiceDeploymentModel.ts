@@ -4,6 +4,7 @@ export type Platform = 'windows' | 'mac' | 'linux'
 export type DeviceType = 'nvidia' | 'apple' | 'cpu'
 export type ModelVersion = 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B'
 export type DownloadSource = 'auto' | 'hf' | 'ms'
+export type VoiceGenerationMode = 'blind-box' | 'voice-design' | 'reference-clone' | 'high-similarity-clone'
 
 export interface HardwareReport {
   gpuName: string
@@ -24,7 +25,81 @@ export interface GradioApiCallOptions {
   text: string
 }
 
+export interface VoiceAdvancedParams {
+  cfgValue: number
+  normalize: boolean
+  denoise: boolean
+  ditSteps: number
+}
+
+export interface VoiceGenerationParams {
+  mode: VoiceGenerationMode
+  text: string
+  controlInstruction: string
+  promptText: string
+  referenceAudioName: string
+  referenceAudioPath: string | null
+  advanced: VoiceAdvancedParams
+}
+
+export interface VoiceGenerationRecord {
+  id: string
+  name: string
+  createdAt: string
+  audioUrl: string
+  audioPath: string | null
+  params: VoiceGenerationParams
+  favorite: boolean
+}
+
+export interface GradioFileData {
+  path: string
+  orig_name?: string
+  mime_type?: string
+  meta: { _type: 'gradio.FileData' }
+}
+
+export interface GradioGeneratePayload {
+  data: [
+    string,
+    string,
+    GradioFileData | null,
+    boolean,
+    string,
+    number,
+    boolean,
+    boolean,
+    number,
+  ]
+}
+
 export const defaultPort = 8808
+
+export const voiceModeMeta: Array<{
+  id: VoiceGenerationMode
+  label: string
+  note: string
+}> = [
+  { id: 'blind-box', label: '声音盲盒', note: '只输入台词，让 VoxCPM 随机生成一个可用音色，适合快速找灵感。' },
+  { id: 'voice-design', label: '声音设计', note: '用自然语言描述年龄、情绪、语速、质感等声音特征，不需要参考音频。' },
+  { id: 'reference-clone', label: '参考音频克隆', note: '上传参考音频，主要复刻音色，可继续用描述微调语气或风格。' },
+  { id: 'high-similarity-clone', label: '高相似度克隆', note: '上传参考音频并填写对应文本，按音频续写方式保留更多细节。' },
+]
+
+export const defaultVoiceGenerationParams: VoiceGenerationParams = {
+  mode: 'blind-box',
+  text: '你好，欢迎来到我们的游戏世界。',
+  controlInstruction: '',
+  promptText: '',
+  referenceAudioName: '',
+  referenceAudioPath: null,
+  advanced: {
+    cfgValue: 2,
+    normalize: false,
+    denoise: false,
+    ditSteps: 10,
+  },
+}
 
 // VRAM requirements per model (GB)
 export const modelVramRequirements = {
@@ -215,4 +290,66 @@ export function buildGradioApiCall({ port, text }: GradioApiCallOptions): string
 
 export function buildServiceUrl(port: number): string {
   return `http://127.0.0.1:${port}`
+}
+
+export function createVoiceRecordName(params: VoiceGenerationParams, index: number): string {
+  const mode = voiceModeMeta.find((item) => item.id === params.mode)?.label ?? '语音'
+  const text = params.text.trim().replace(/\s+/g, ' ')
+  const suffix = text ? ` · ${text.slice(0, 12)}` : ''
+  return `${mode} ${index}${suffix}`
+}
+
+export function cloneVoiceParams(params: VoiceGenerationParams): VoiceGenerationParams {
+  return {
+    ...params,
+    advanced: { ...params.advanced },
+  }
+}
+
+export function buildReferenceFileData(params: VoiceGenerationParams): GradioFileData | null {
+  if (!params.referenceAudioPath) return null
+  return {
+    path: params.referenceAudioPath,
+    orig_name: params.referenceAudioName || undefined,
+    meta: { _type: 'gradio.FileData' },
+  }
+}
+
+export function buildGradioGeneratePayload(params: VoiceGenerationParams): GradioGeneratePayload {
+  const usePromptText = params.mode === 'high-similarity-clone'
+  const canUseControl = params.mode === 'voice-design' || params.mode === 'reference-clone'
+  return {
+    data: [
+      params.text,
+      canUseControl ? params.controlInstruction : '',
+      buildReferenceFileData(params),
+      usePromptText,
+      usePromptText ? params.promptText : '',
+      params.advanced.cfgValue,
+      params.advanced.normalize,
+      params.advanced.denoise,
+      params.advanced.ditSteps,
+    ],
+  }
+}
+
+export function updateRecordName(records: VoiceGenerationRecord[], id: string, name: string): VoiceGenerationRecord[] {
+  const trimmed = name.trim()
+  if (!trimmed) return records
+  return records.map((record) => (record.id === id ? { ...record, name: trimmed } : record))
+}
+
+export function toggleRecordFavorite(records: VoiceGenerationRecord[], id: string): VoiceGenerationRecord[] {
+  return records.map((record) => (record.id === id ? { ...record, favorite: !record.favorite } : record))
+}
+
+export function deleteVoiceRecord(records: VoiceGenerationRecord[], id: string): VoiceGenerationRecord[] {
+  return records.filter((record) => record.id !== id)
+}
+
+export function prepareCloneFromRecord(record: VoiceGenerationRecord): VoiceGenerationParams {
+  return {
+    ...cloneVoiceParams(record.params),
+    mode: 'reference-clone',
+  }
 }

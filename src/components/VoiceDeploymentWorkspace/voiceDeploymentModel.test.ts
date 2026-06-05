@@ -3,16 +3,25 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
+  buildGradioGeneratePayload,
   buildGradioApiCall,
   buildOneClickCommand,
+  createVoiceRecordName,
+  defaultVoiceGenerationParams,
   defaultPort,
+  deleteVoiceRecord,
   downloadSources,
   evaluateHardware,
   latencyDisclaimer,
   modelVramRequirements,
   parseNvidiaSmiReport,
+  prepareCloneFromRecord,
+  toggleRecordFavorite,
+  updateRecordName,
   validateModelPath,
+  voiceModeMeta,
   voxcpmModels,
+  type VoiceGenerationRecord,
 } from './voiceDeploymentModel'
 
 test('parses nvidia-smi CSV output and keeps the largest VRAM card', () => {
@@ -145,6 +154,93 @@ test('Gradio API call example uses gradio_client predict', () => {
 
 test('default port is the Gradio web demo port 8808', () => {
   assert.equal(defaultPort, 8808)
+})
+
+test('voice modes cover blind box, design, reference clone, and high similarity clone', () => {
+  assert.deepEqual(voiceModeMeta.map((item) => item.id), [
+    'blind-box',
+    'voice-design',
+    'reference-clone',
+    'high-similarity-clone',
+  ])
+  for (const mode of voiceModeMeta) {
+    assert.ok(mode.label.length > 0)
+    assert.ok(mode.note.length > 0)
+  }
+})
+
+test('Gradio generate payload maps voice modes to VoxCPM API order', () => {
+  const payload = buildGradioGeneratePayload({
+    ...defaultVoiceGenerationParams,
+    mode: 'high-similarity-clone',
+    text: '生成台词',
+    controlInstruction: '温柔',
+    promptText: '参考文本',
+    referenceAudioName: 'ref.wav',
+    referenceAudioPath: '/tmp/ref.wav',
+    advanced: {
+      cfgValue: 2.4,
+      normalize: true,
+      denoise: true,
+      ditSteps: 18,
+    },
+  })
+
+  assert.equal(payload.data[0], '生成台词')
+  assert.equal(payload.data[1], '')
+  assert.deepEqual(payload.data[2], {
+    path: '/tmp/ref.wav',
+    orig_name: 'ref.wav',
+    meta: { _type: 'gradio.FileData' },
+  })
+  assert.equal(payload.data[3], true)
+  assert.equal(payload.data[4], '参考文本')
+  assert.equal(payload.data[5], 2.4)
+  assert.equal(payload.data[6], true)
+  assert.equal(payload.data[7], true)
+  assert.equal(payload.data[8], 18)
+})
+
+test('reference clone payload keeps control instruction and disables prompt text', () => {
+  const payload = buildGradioGeneratePayload({
+    ...defaultVoiceGenerationParams,
+    mode: 'reference-clone',
+    controlInstruction: '更年轻，语速稍快',
+    promptText: '不会发送',
+  })
+
+  assert.equal(payload.data[1], '更年轻，语速稍快')
+  assert.equal(payload.data[3], false)
+  assert.equal(payload.data[4], '')
+})
+
+test('voice records can be renamed, favorited, deleted, and loaded for cloning', () => {
+  const record: VoiceGenerationRecord = {
+    id: 'r1',
+    name: createVoiceRecordName(defaultVoiceGenerationParams, 1),
+    createdAt: '2026-06-05T00:00:00.000Z',
+    audioUrl: 'blob:voice',
+    audioPath: '/tmp/out.wav',
+    favorite: false,
+    params: {
+      ...defaultVoiceGenerationParams,
+      mode: 'high-similarity-clone',
+      referenceAudioPath: '/tmp/ref.wav',
+      referenceAudioName: 'ref.wav',
+    },
+  }
+
+  const renamed = updateRecordName([record], 'r1', '角色 A')
+  assert.equal(renamed[0].name, '角色 A')
+  assert.equal(updateRecordName(renamed, 'r1', '   ')[0].name, '角色 A')
+
+  const favorited = toggleRecordFavorite(renamed, 'r1')
+  assert.equal(favorited[0].favorite, true)
+  assert.deepEqual(deleteVoiceRecord(favorited, 'r1'), [])
+
+  const cloneParams = prepareCloneFromRecord(record)
+  assert.equal(cloneParams.mode, 'reference-clone')
+  assert.equal(cloneParams.referenceAudioPath, '/tmp/ref.wav')
 })
 
 test('Windows deployment script installs ffmpeg for browser-recorded m4a reference audio', () => {

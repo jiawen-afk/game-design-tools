@@ -45,6 +45,13 @@
   gap: 18px;
 }
 
+.voice-studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .modal-grid {
   padding-top: 4px;
 }
@@ -72,6 +79,35 @@
 
 .panel-title.compact {
   margin-bottom: 10px;
+}
+
+.help-icon {
+  color: var(--color-muted);
+  cursor: help;
+  font-size: 0.92rem;
+}
+
+.form-stack,
+.form-field {
+  display: grid;
+  gap: 8px;
+}
+
+.form-stack {
+  gap: 16px;
+}
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink);
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.voice-generator .ant-segmented {
+  max-width: 100%;
 }
 
 .command-row {
@@ -109,6 +145,90 @@
 
 .mode-block {
   padding-top: 8px;
+}
+
+.prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.prompt-chips button {
+  padding: 5px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-panel-strong) 58%, white);
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.prompt-chips button:hover,
+.prompt-chips button:focus-visible {
+  border-color: var(--color-brand);
+  color: var(--color-brand-dark);
+}
+
+.reference-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.reference-row span {
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.advanced-box {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 42%, white);
+}
+
+.advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: 10px;
+  align-items: center;
+}
+
+.switch-row {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.switch-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.generate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .usage-list {
@@ -187,6 +307,81 @@
   gap: 12px;
 }
 
+.voice-library {
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+}
+
+.voice-library .ant-tabs {
+  min-height: 0;
+}
+
+.voice-record-list {
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.voice-record {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.voice-record.is-new {
+  border-color: color-mix(in oklch, var(--color-accent) 62%, var(--color-line));
+  background: color-mix(in oklch, var(--color-accent) 8%, var(--color-panel));
+}
+
+.record-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+  align-items: center;
+}
+
+.record-heading .ant-input {
+  font-weight: 700;
+}
+
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.voice-record audio {
+  width: 100%;
+  height: 34px;
+}
+
+.record-text {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .model-select {
   display: grid;
   gap: 6px;
@@ -205,7 +400,9 @@
 }
 
 @media (max-width: 900px) {
-  .voice-grid {
+  .voice-grid,
+  .voice-studio,
+  .advanced-grid {
     grid-template-columns: 1fr;
   }
 
@@ -220,5 +417,26 @@
 
   .voice-hero {
     display: grid;
+  }
+
+  .voice-library {
+    position: static;
+    max-height: none;
+  }
+
+  .voice-record-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .slider-row,
+  .record-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-generator .ant-segmented-item-label {
+    padding-inline: 6px;
+    font-size: 0.82rem;
   }
 }
