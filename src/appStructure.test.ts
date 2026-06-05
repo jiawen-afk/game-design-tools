@@ -393,3 +393,17 @@ test('personal space model delegates character operations', () => {
   assert.match(characterSource, /export function reorderCharacterVoice/)
   assert.match(characterSource, /function normalizeCharacterOrder/)
 })
+
+test('personal space model delegates asset update and delete operations', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const operationsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceAssetOperations.ts', 'utf8')
+
+  assert.match(source, /from '\.\/personalSpaceAssetOperations'/)
+  assert.match(source, /export \{[\s\S]*deletePersonalSpaceAsset[\s\S]*updatePersonalSpaceAsset[\s\S]*\} from '\.\/personalSpaceAssetOperations'/)
+  assert.doesNotMatch(source, /export function updatePersonalSpaceAsset/)
+  assert.doesNotMatch(source, /export function deletePersonalSpaceAsset/)
+  assert.doesNotMatch(source, /normalizeAssetLinks/)
+  assert.match(operationsSource, /export function updatePersonalSpaceAsset/)
+  assert.match(operationsSource, /export function deletePersonalSpaceAsset/)
+  assert.match(operationsSource, /normalizeAssetLinks/)
+})

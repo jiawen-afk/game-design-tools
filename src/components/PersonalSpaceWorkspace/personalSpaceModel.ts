@@ -1,6 +1,3 @@
-import { clonePersonalSpaceState } from './personalSpaceState'
-import { normalizeAssetLinks } from './personalSpaceCharacters'
-
 export type PersonalSpaceModule = 'characters' | 'storyboards' | 'assets' | 'settings'
 export type CommonAssetKind = 'map' | 'effect' | 'voice' | 'sprite'
 
@@ -135,43 +132,7 @@ export {
   reorderCharacterVoice,
 } from './personalSpaceCharacters'
 
-export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'tags' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
-  const next = clonePersonalSpaceState(state)
-  next.assets = next.assets.map((asset) => {
-    if (asset.id !== id) return asset
-    return {
-      ...asset,
-      name: patch.name?.trim() || asset.name,
-      groupName: patch.groupName?.trim() || asset.groupName,
-      tags: patch.tags ? [...patch.tags] : asset.tags,
-      linkedCharacterIds: patch.linkedCharacterIds ? [...patch.linkedCharacterIds] : asset.linkedCharacterIds,
-      linkedStoryboardIds: patch.linkedStoryboardIds ? [...patch.linkedStoryboardIds] : asset.linkedStoryboardIds,
-      linkedVoiceAssetIds: patch.linkedVoiceAssetIds ? [...patch.linkedVoiceAssetIds] : asset.linkedVoiceAssetIds,
-    }
-  })
-  return next
-}
-
-export function deletePersonalSpaceAsset(state: PersonalSpaceState, id: string, options: { resourcesDeleted?: boolean } = {}): PersonalSpaceState {
-  const next = clonePersonalSpaceState(state)
-  const deletedAsset = next.assets.find((asset) => asset.id === id)
-  next.assets = next.assets.filter((asset) => asset.id !== id)
-  next.characters = next.characters.map((character) => ({
-    ...character,
-    portraitAssets: normalizeAssetLinks(character.portraitAssets.filter((link) => link.assetId !== id)),
-    spriteAssets: normalizeAssetLinks(character.spriteAssets.filter((link) => link.assetId !== id)),
-    voiceAssets: normalizeAssetLinks(character.voiceAssets.filter((link) => link.assetId !== id)),
-    portraitAssetIds: character.portraitAssetIds.filter((assetId) => assetId !== id),
-    spriteAssetIds: character.spriteAssetIds.filter((assetId) => assetId !== id),
-    voiceAssetIds: character.voiceAssetIds.filter((assetId) => assetId !== id),
-  }))
-  next.storyboardGroups = next.storyboardGroups.map((group) => ({
-    ...group,
-    voiceEntries: group.voiceEntries.filter((entry) => entry.assetId !== id).map((entry, index) => ({ ...entry, order: index })),
-    voiceAssetIds: group.voiceAssetIds.filter((assetId) => assetId !== id),
-  }))
-  if (next.settings.deleteResourcesWithContent && deletedAsset && !options.resourcesDeleted) {
-    next.pendingDeletedResourcePaths = Array.from(new Set([...next.pendingDeletedResourcePaths, ...deletedAsset.storageResourcePaths]))
-  }
-  return next
-}
+export {
+  deletePersonalSpaceAsset,
+  updatePersonalSpaceAsset,
+} from './personalSpaceAssetOperations'
