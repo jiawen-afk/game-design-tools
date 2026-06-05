@@ -6,6 +6,16 @@ import { buildMultiFrameSpriteIndex } from './model'
 import { clampInt } from './numberUtils'
 import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
+import {
+  archiveAssetForStorageDirectory,
+  createSpriteAssetFromExport,
+  readPersonalSpaceState,
+  writePersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  getPersonalSpaceDirectoryHandle,
+  writeAssetResourcesToDirectory,
+} from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 
 export interface UseSpriteExportParams {
   frames: FrameItem[]
@@ -18,6 +28,40 @@ export interface UseSpriteExportParams {
 
 export type SpriteExportViewModel = ReturnType<typeof useSpriteExport>
 
+async function buildSpriteExportPackage(input: {
+  columns: number
+  visibleFrames: FrameItem[]
+  canvasWidth: number
+  canvasHeight: number
+  fps: number
+  playbackMode: PlaybackMode
+}) {
+  const cols = clampInt(input.columns, 1, Math.max(1, input.visibleFrames.length))
+  const index = buildMultiFrameSpriteIndex({
+    canvasWidth: input.canvasWidth,
+    canvasHeight: input.canvasHeight,
+    columns: cols,
+    fps: input.fps,
+    playbackMode: input.playbackMode,
+    frames: input.visibleFrames.map((item) => ({ id: item.id, sourceName: item.sourceName })),
+  })
+  const sheet = document.createElement('canvas')
+  sheet.width = index.sheet_size.w
+  sheet.height = index.sheet_size.h
+  const ctx = sheet.getContext('2d')
+  if (!ctx) throw new Error('无法创建导出画布')
+  ctx.clearRect(0, 0, sheet.width, sheet.height)
+  for (let i = 0; i < input.visibleFrames.length; i += 1) {
+    const item = input.visibleFrames[i]!
+    const img = await loadImage(item.composedUrl!)
+    const meta = index.frames[i]!
+    ctx.drawImage(img, meta.x, meta.y, meta.w, meta.h)
+  }
+  const spriteBlob = await canvasToBlob(sheet)
+  const indexJson = JSON.stringify(index, null, 2)
+  return { spriteBlob, indexJson }
+}
+
 export function useSpriteExport({
   frames,
   visibleFrames,
@@ -29,48 +73,39 @@ export function useSpriteExport({
   const [columns, setColumns] = useState(4)
   const [exporting, setExporting] = useState(false)
 
-  const exportAll = async () => {
+  const validateExportableFrames = () => {
     if (frames.length === 0) {
       message.warning('请先上传图片')
-      return
+      return false
     }
     if (visibleFrames.length === 0) {
       message.warning('没有可导出的可见帧')
-      return
+      return false
     }
     const missing = visibleFrames.find((item) => !item.composedUrl)
     if (missing) {
       message.warning('仍有帧未处理完成，请稍后再导出')
-      return
+      return false
     }
+    return true
+  }
+
+  const exportAll = async () => {
+    if (!validateExportableFrames()) return
     setExporting(true)
     try {
-      const cols = clampInt(columns, 1, Math.max(1, visibleFrames.length))
-      const index = buildMultiFrameSpriteIndex({
+      const { default: JSZip } = await import('jszip')
+      const { spriteBlob, indexJson } = await buildSpriteExportPackage({
+        columns,
+        visibleFrames,
         canvasWidth,
         canvasHeight,
-        columns: cols,
         fps,
         playbackMode,
-        frames: visibleFrames.map((item) => ({ id: item.id, sourceName: item.sourceName })),
       })
-      const sheet = document.createElement('canvas')
-      sheet.width = index.sheet_size.w
-      sheet.height = index.sheet_size.h
-      const ctx = sheet.getContext('2d')
-      if (!ctx) throw new Error('无法创建导出画布')
-      ctx.clearRect(0, 0, sheet.width, sheet.height)
-      const { default: JSZip } = await import('jszip')
       const zip = new JSZip()
-      for (let i = 0; i < visibleFrames.length; i += 1) {
-        const item = visibleFrames[i]!
-        const img = await loadImage(item.composedUrl!)
-        const meta = index.frames[i]!
-        ctx.drawImage(img, meta.x, meta.y, meta.w, meta.h)
-      }
-      const spriteBlob = await canvasToBlob(sheet)
       zip.file('sprite.png', spriteBlob)
-      zip.file('index.json', JSON.stringify(index, null, 2))
+      zip.file('index.json', indexJson)
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(zipBlob)
@@ -85,5 +120,44 @@ export function useSpriteExport({
     }
   }
 
-  return { columns, setColumns, exporting, exportAll }
+  const collectToPersonalSpace = async () => {
+    if (!validateExportableFrames()) return
+    setExporting(true)
+    try {
+      const { spriteBlob, indexJson } = await buildSpriteExportPackage({
+        columns,
+        visibleFrames,
+        canvasWidth,
+        canvasHeight,
+        fps,
+        playbackMode,
+      })
+      const spritePath = URL.createObjectURL(spriteBlob)
+      const indexPath = URL.createObjectURL(new Blob([indexJson], { type: 'application/json' }))
+      const space = readPersonalSpaceState()
+      const baseAsset = createSpriteAssetFromExport({
+        name: 'sprite.png',
+        spritePath,
+        indexPath,
+      })
+      const directoryHandle = getPersonalSpaceDirectoryHandle()
+      const asset = directoryHandle
+        ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
+          { name: 'sprite.png', data: spriteBlob },
+          { name: 'index.json', data: new Blob([indexJson], { type: 'application/json' }) },
+        ])
+        : archiveAssetForStorageDirectory(space, baseAsset)
+      writePersonalSpaceState({
+        ...space,
+        assets: [asset, ...space.assets],
+      })
+      message.success('已收藏到个人空间')
+    } catch (e) {
+      message.error(`收藏到个人空间失败：${String(e)}`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return { columns, setColumns, exporting, exportAll, collectToPersonalSpace }
 }

@@ -1,5 +1,5 @@
 import { Button, Card, InputNumber, Radio, Space, Typography } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, StarOutlined } from '@ant-design/icons'
 
 import { computeAutoSpriteColumns } from './model'
 
@@ -11,9 +11,17 @@ export interface ExportPanelProps {
   exporting: boolean
   onColumnsChange: (columns: number) => void
   onExport: () => void
+  onCollectToPersonalSpace: () => void
 }
 
-export function ExportPanel({ columns, visibleFrameCount, exporting, onColumnsChange, onExport }: ExportPanelProps) {
+export function ExportPanel({
+  columns,
+  visibleFrameCount,
+  exporting,
+  onColumnsChange,
+  onExport,
+  onCollectToPersonalSpace,
+}: ExportPanelProps) {
   return (
     <Card title="5. 合并导出">
       <Space direction="vertical" size={12}>
@@ -26,6 +34,9 @@ export function ExportPanel({ columns, visibleFrameCount, exporting, onColumnsCh
           <Button onClick={() => onColumnsChange(computeAutoSpriteColumns(visibleFrameCount))}>自动接近正方形</Button>
           <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={onExport}>
             导出 ZIP
+          </Button>
+          <Button icon={<StarOutlined />} loading={exporting} onClick={onCollectToPersonalSpace}>
+            收藏到个人空间
           </Button>
         </Space>
         <Text type="secondary">

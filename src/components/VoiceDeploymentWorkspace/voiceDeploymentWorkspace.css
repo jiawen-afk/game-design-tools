@@ -15,12 +15,12 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  padding: 22px;
+  padding: 18px;
 }
 
 .voice-hero h2 {
-  margin: 0 0 10px;
-  font-size: 1.7rem;
+  margin: 0 0 8px;
+  font-size: 1.5rem;
   line-height: 1.18;
   text-wrap: balance;
 }
@@ -271,7 +271,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 12px 18px;
+  padding: 10px 14px;
 }
 
 .port-label {
@@ -341,14 +341,20 @@
 }
 
 .record-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
-  gap: 6px;
+  display: flex;
+  min-width: 0;
   align-items: center;
 }
 
 .record-heading .ant-input {
   font-weight: 700;
+}
+
+.record-asset-title {
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
 }
 
 .record-meta {
@@ -380,6 +386,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.record-actions .ant-dropdown-button {
+  display: inline-flex;
 }
 
 .model-select {
@@ -430,8 +440,7 @@
 }
 
 @media (max-width: 640px) {
-  .slider-row,
-  .record-heading {
+  .slider-row {
     grid-template-columns: 1fr;
   }
 

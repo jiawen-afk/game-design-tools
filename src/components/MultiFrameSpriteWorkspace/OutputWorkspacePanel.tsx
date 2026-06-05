@@ -55,6 +55,7 @@ export function OutputWorkspacePanel({
         exporting={spriteExport.exporting}
         onColumnsChange={spriteExport.setColumns}
         onExport={() => void spriteExport.exportAll()}
+        onCollectToPersonalSpace={() => void spriteExport.collectToPersonalSpace()}
       />
 
       <Divider />

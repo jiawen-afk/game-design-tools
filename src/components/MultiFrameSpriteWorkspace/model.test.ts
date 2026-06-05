@@ -433,7 +433,8 @@ test('workspace entry delegates controller shell and view model boundaries', () 
   assert.match(controller, /useLayoutWorkspace/)
   assert.match(controller, /usePlaybackWorkspace/)
   assert.match(controller, /useWorkspaceReset/)
-  assert.match(shell, /多图动作精灵工作台/)
+  assert.match(shell, /精灵图工作台/)
+  assert.doesNotMatch(shell, /多图动作精灵工作台/)
   assert.match(frameHook, /openDetailPreview/)
   assert.doesNotMatch(uploadPanel, /ReturnType/)
   assert.doesNotMatch(outputPanel, /ReturnType/)
@@ -555,6 +556,22 @@ test('sprite index records frame cells and playback metadata', () => {
       { i: 2, id: 'c', name: 'turn.png', x: 0, y: 48, w: 64, h: 48, t: 0.167 },
     ],
   })
+})
+
+test('sprite export can be collected into personal space with sprite and index resources', () => {
+  const exportPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/ExportPanel.tsx', 'utf8')
+  const exportHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteExport.ts', 'utf8')
+  const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
+
+  assert.match(exportPanel, /收藏到个人空间/)
+  assert.match(exportPanel, /onCollectToPersonalSpace/)
+  assert.match(outputPanel, /collectToPersonalSpace/)
+  assert.match(exportHook, /createSpriteAssetFromExport/)
+  assert.match(exportHook, /writeAssetResourcesToDirectory/)
+  assert.match(exportHook, /readPersonalSpaceState/)
+  assert.match(exportHook, /writePersonalSpaceState/)
+  assert.match(exportHook, /sprite\.png/)
+  assert.match(exportHook, /index\.json/)
 })
 
 test('hidden frames are skipped for playback and export lists', () => {

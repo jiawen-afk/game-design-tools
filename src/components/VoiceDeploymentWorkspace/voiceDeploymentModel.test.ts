@@ -16,7 +16,6 @@ import {
   modelVramRequirements,
   parseNvidiaSmiReport,
   prepareCloneFromRecord,
-  toggleRecordFavorite,
   updateRecordName,
   validateModelPath,
   voiceModeMeta,
@@ -214,14 +213,13 @@ test('reference clone payload keeps control instruction and disables prompt text
   assert.equal(payload.data[4], '')
 })
 
-test('voice records can be renamed, favorited, deleted, and loaded for cloning', () => {
+test('voice records can be renamed, deleted, and loaded for cloning without star state', () => {
   const record: VoiceGenerationRecord = {
     id: 'r1',
     name: createVoiceRecordName(defaultVoiceGenerationParams, 1),
     createdAt: '2026-06-05T00:00:00.000Z',
     audioUrl: 'blob:voice',
     audioPath: '/tmp/out.wav',
-    favorite: false,
     params: {
       ...defaultVoiceGenerationParams,
       mode: 'high-similarity-clone',
@@ -234,9 +232,7 @@ test('voice records can be renamed, favorited, deleted, and loaded for cloning',
   assert.equal(renamed[0].name, '角色 A')
   assert.equal(updateRecordName(renamed, 'r1', '   ')[0].name, '角色 A')
 
-  const favorited = toggleRecordFavorite(renamed, 'r1')
-  assert.equal(favorited[0].favorite, true)
-  assert.deepEqual(deleteVoiceRecord(favorited, 'r1'), [])
+  assert.deepEqual(deleteVoiceRecord(renamed, 'r1'), [])
 
   const cloneParams = prepareCloneFromRecord(renamed[0])
   assert.equal(cloneParams.mode, 'reference-clone')
@@ -383,4 +379,25 @@ test('voice history library renders outside the connected-only generator branch'
   assert.ok(libraryIndex > -1)
   assert.ok(connectedBranchIndex > -1)
   assert.ok(libraryIndex < connectedBranchIndex)
+})
+
+test('voice records can be collected into personal space assets', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+
+  assert.match(source, /收藏到个人空间/)
+  assert.match(source, /收藏并关联角色/)
+  assert.match(source, /收藏并关联特效/)
+  assert.match(source, /收藏并关联剧情/)
+  assert.match(source, /Dropdown\.Button/)
+  assert.match(source, /personalSpaceVoiceAssets/)
+  assert.match(source, /label: `个人空间 \$\{personalSpaceVoiceAssets\.length\}`/)
+  assert.match(source, /createVoiceAssetFromRecord/)
+  assert.match(source, /writeAssetResourcesToDirectory/)
+  assert.doesNotMatch(source, /星标/)
+  assert.doesNotMatch(source, /StarOutlined/)
+  assert.doesNotMatch(source, /StarFilled/)
+  assert.doesNotMatch(source, /favoriteRecords/)
+  assert.doesNotMatch(source, /toggleRecordFavorite/)
+  assert.doesNotMatch(source, /onToggleFavorite/)
+  assert.doesNotMatch(source, /type="primary" ghost onClick=\{\(\) => onCollect\(record\)\}/)
 })

@@ -5,13 +5,16 @@ import {
   ArrowLeftOutlined,
   AudioOutlined,
   MailOutlined,
+  UserOutlined,
   SafetyCertificateOutlined,
 } from '@ant-design/icons'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
+const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWorkspace'))
 
 type ToolId = 'multi-frame-sprite' | 'voice-deployment'
+type ActiveSurface = ToolId | 'personal-space'
 
 const tools: Array<{
   id: ToolId
@@ -24,7 +27,7 @@ const tools: Array<{
 }> = [
   {
     id: 'multi-frame-sprite',
-    name: '多图动作精灵工作台',
+    name: '精灵图工作台',
     summary: '多图去背、统一画布、逐帧对齐、预览排序并导出精灵图。',
     details: '适合处理怪物动作、角色帧图和从整张精灵图切分出的连续帧。',
     input: '多张图片、整张精灵图或视频片段',
@@ -33,7 +36,7 @@ const tools: Array<{
   },
   {
     id: 'voice-deployment',
-    name: '游戏角色语音工作台',
+    name: '配音工作台',
     summary: '检测本地 VoxCPM Gradio 服务连接状态，准备部署环境并调用本地语音生成接口。',
     details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键准备脚本，完成后可用 gradio_client 调用本地 Gradio 服务生成语音。',
     input: '目标文本、控制描述、参考音频',
@@ -62,43 +65,56 @@ function SiteFooter() {
 }
 
 export default function App() {
-  const [activeTool, setActiveTool] = useState<ToolId | null>(null)
-  const activeToolMeta = tools.find((tool) => tool.id === activeTool)
+  const [activeSurface, setActiveSurface] = useState<ActiveSurface | null>(null)
+  const activeToolMeta = tools.find((tool) => tool.id === activeSurface)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableShortcutTarget(event.target)) return
-      if (event.key === 'Escape' && activeTool !== null) {
+      if (event.key === 'Escape' && activeSurface !== null) {
         event.preventDefault()
-        setActiveTool(null)
+        setActiveSurface(null)
         return
       }
-      if (activeTool !== null || event.altKey || event.ctrlKey || event.metaKey) return
+      if (activeSurface !== null || event.altKey || event.ctrlKey || event.metaKey) return
       const matchingTool = tools.find((tool) => event.key === tool.shortcut)
       if (!matchingTool) return
       event.preventDefault()
-      setActiveTool(matchingTool.id)
+      setActiveSurface(matchingTool.id)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeTool])
+  }, [activeSurface])
 
-  if (activeTool !== null && activeToolMeta) {
+  if (activeSurface !== null) {
+    const activeWorkspace = activeSurface === 'multi-frame-sprite'
+      ? <MultiFrameSpriteWorkspace />
+      : activeSurface === 'voice-deployment'
+        ? <VoiceDeploymentWorkspace />
+        : <PersonalSpaceWorkspace />
+    const surfaceTitle = activeSurface === 'personal-space' ? '个人空间' : activeToolMeta?.name
+    const surfaceKicker = activeSurface === 'personal-space' ? '全局空间' : '工作台'
+
     return (
       <div className="app-shell">
         <header className="topbar">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => setActiveTool(null)}>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => setActiveSurface(null)}>
             返回工具列表
           </Button>
-          <div>
-            <p className="kicker">工作台</p>
-            <h1>{activeToolMeta.name}</h1>
+          <div className="topbar-title">
+            <p className="kicker">{surfaceKicker}</p>
+            <h1>{surfaceTitle}</h1>
           </div>
+          {activeSurface !== 'personal-space' && (
+            <Button className="topbar-space" icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
+              打开个人空间
+            </Button>
+          )}
         </header>
         <main className="tool-surface">
           <Suspense fallback={null}>
-            {activeTool === 'multi-frame-sprite' ? <MultiFrameSpriteWorkspace /> : <VoiceDeploymentWorkspace />}
+            {activeWorkspace}
           </Suspense>
         </main>
         <SiteFooter />
@@ -114,12 +130,17 @@ export default function App() {
           <h1>游戏设计工具</h1>
           <p className="home-lede">把常用素材处理流程放在一个清楚的本地工作台里。</p>
         </div>
-        <div className="home-shortcuts" aria-label="快捷键">
-          <span>快捷键</span>
-          <kbd>1</kbd>
-          <span>精灵</span>
-          <kbd>2</kbd>
-          <span>语音</span>
+        <div className="home-actions">
+          <div className="home-shortcuts" aria-label="快捷键">
+            <span>快捷键</span>
+            <kbd>1</kbd>
+            <span>精灵</span>
+            <kbd>2</kbd>
+            <span>配音</span>
+          </div>
+          <Button icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
+            打开个人空间
+          </Button>
         </div>
       </header>
 
@@ -155,7 +176,11 @@ export default function App() {
                   </dl>
                 </div>
               </div>
-              <Button type="primary" icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : undefined} onClick={() => setActiveTool(tool.id)}>
+              <Button
+                type="primary"
+                icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : undefined}
+                onClick={() => setActiveSurface(tool.id)}
+              >
                 打开工具
               </Button>
             </article>

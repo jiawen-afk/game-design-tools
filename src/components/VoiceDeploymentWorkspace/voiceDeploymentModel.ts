@@ -49,7 +49,6 @@ export interface VoiceGenerationRecord {
   audioUrl: string
   audioPath: string | null
   params: VoiceGenerationParams
-  favorite: boolean
 }
 
 export interface GradioFileData {
@@ -337,10 +336,6 @@ export function updateRecordName(records: VoiceGenerationRecord[], id: string, n
   const trimmed = name.trim()
   if (!trimmed) return records
   return records.map((record) => (record.id === id ? { ...record, name: trimmed } : record))
-}
-
-export function toggleRecordFavorite(records: VoiceGenerationRecord[], id: string): VoiceGenerationRecord[] {
-  return records.map((record) => (record.id === id ? { ...record, favorite: !record.favorite } : record))
 }
 
 export function deleteVoiceRecord(records: VoiceGenerationRecord[], id: string): VoiceGenerationRecord[] {

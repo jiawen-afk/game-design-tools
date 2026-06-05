@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { Alert, Button, Empty, Input, InputNumber, Segmented, Slider, Switch, Tabs, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Dropdown, Empty, Input, InputNumber, message, Modal, Segmented, Select, Slider, Switch, Tabs, Tag, Tooltip, Upload } from 'antd'
 import {
   ApiOutlined,
   CheckCircleOutlined,
@@ -10,10 +10,9 @@ import {
   LoadingOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
-  StarFilled,
-  StarOutlined,
   ThunderboltOutlined,
   UploadOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 
 import './voiceDeploymentWorkspace.css'
@@ -44,12 +43,26 @@ import {
   latencyDisclaimer,
   parseNvidiaSmiReport,
   prepareCloneFromRecord,
-  toggleRecordFavorite,
   updateRecordName,
   validateModelPath,
   voiceModeMeta,
   voxcpmModels,
 } from './voiceDeploymentModel'
+import {
+  archiveAssetForStorageDirectory,
+  assignAssetToCharacterColumn,
+  assignVoiceToStoryboardGroup,
+  createVoiceAssetFromRecord,
+  linkEffectAssetToVoice,
+  type PersonalSpaceAsset,
+  readPersonalSpaceState,
+  updatePersonalSpaceAsset,
+  writePersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  getPersonalSpaceDirectoryHandle,
+  writeAssetResourcesToDirectory,
+} from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 
 const recordsStorageKey = 'game-design-tools.voxcpm.records.v1'
 
@@ -86,6 +99,14 @@ const quickDesignPrompts = [
   '机械助手，清晰，冷静，轻微电子质感',
 ]
 
+type VoiceCollectLinkTarget = 'character' | 'effect' | 'storyboard'
+
+interface PendingVoiceCollectLink {
+  record: VoiceGenerationRecord
+  target: VoiceCollectLinkTarget
+  targetId: string | null
+}
+
 function randomId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -107,7 +128,17 @@ function readStoredRecords(): VoiceGenerationRecord[] {
     const raw = localStorage.getItem(recordsStorageKey)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((record) => record && typeof record.id === 'string')
+      .map((record) => ({
+        id: record.id,
+        name: record.name,
+        createdAt: record.createdAt,
+        audioUrl: record.audioUrl,
+        audioPath: record.audioPath,
+        params: record.params,
+      }))
   } catch {
     return []
   }
@@ -117,6 +148,21 @@ function writeStoredRecords(records: VoiceGenerationRecord[]) {
   try {
     localStorage.setItem(recordsStorageKey, JSON.stringify(records.slice(0, 80)))
   } catch {}
+}
+
+function voiceResourceFileName(record: VoiceGenerationRecord) {
+  const fromPath = record.audioPath?.split(/[\\/]/).pop()?.trim()
+  if (fromPath) return fromPath
+  const fromUrl = record.audioUrl.split('/').pop()?.split('?')[0]?.trim()
+  return fromUrl || 'voice.wav'
+}
+
+async function readVoiceRecordBlob(record: VoiceGenerationRecord) {
+  const source = record.audioUrl || record.audioPath
+  if (!source) throw new Error('配音记录没有可读取的音频资源')
+  const response = await fetch(source)
+  if (!response.ok) throw new Error(`读取配音资源失败：${response.status}`)
+  return response.blob()
 }
 
 async function uploadReferenceAudio(port: number, file: File): Promise<GradioFileData> {
@@ -230,6 +276,7 @@ function FieldLabel({ label, help }: { label: string; help: string }) {
 }
 
 export default function VoiceDeploymentWorkspace() {
+  const [messageApi, messageContextHolder] = message.useMessage()
   const [port, setPort] = useState(defaultPort)
   const [portInput, setPortInput] = useState(String(defaultPort))
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
@@ -244,6 +291,8 @@ export default function VoiceDeploymentWorkspace() {
   const [voiceParams, setVoiceParams] = useState<VoiceGenerationParams>(() => cloneVoiceParams(defaultVoiceGenerationParams))
   const [pendingReferenceFile, setPendingReferenceFile] = useState<File | null>(null)
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
+  const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
+  const [pendingCollectLink, setPendingCollectLink] = useState<PendingVoiceCollectLink | null>(null)
   const [generating, setGenerating] = useState(false)
   const [generationError, setGenerationError] = useState('')
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
@@ -264,7 +313,12 @@ export default function VoiceDeploymentWorkspace() {
   const serviceUrl = buildServiceUrl(port)
   const connected = connectionStatus === 'connected'
   const selectedMode = voiceModeMeta.find((item) => item.id === voiceParams.mode) ?? voiceModeMeta[0]
-  const favoriteRecords = records.filter((record) => record.favorite)
+  const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
+  const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
+  const effectLinkOptions = personalSpaceSnapshot.assets
+    .filter((asset) => asset.kind === 'effect')
+    .map((asset) => ({ label: asset.name, value: asset.id }))
+  const storyboardLinkOptions = personalSpaceSnapshot.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))
 
   const runCheck = useCallback(async (targetPort: number) => {
     const id = ++checkRef.current
@@ -373,7 +427,6 @@ export default function VoiceDeploymentWorkspace() {
         audioUrl: audio.audioUrl,
         audioPath: audio.audioPath,
         params: cloneVoiceParams(paramsForRequest),
-        favorite: false,
       }
       setRecords((current) => [record, ...current].slice(0, 80))
       setLastGeneratedId(record.id)
@@ -403,6 +456,63 @@ export default function VoiceDeploymentWorkspace() {
     setRecords((current) => deleteVoiceRecord(current, id))
   }
 
+  const collectRecordToPersonalSpace = async (
+    record: VoiceGenerationRecord,
+    link?: { target: VoiceCollectLinkTarget; targetId: string },
+  ) => {
+    try {
+      const space = readPersonalSpaceState()
+      const baseAsset = createVoiceAssetFromRecord(record)
+      const directoryHandle = getPersonalSpaceDirectoryHandle()
+      let asset = archiveAssetForStorageDirectory(space, baseAsset)
+      if (directoryHandle) {
+        try {
+          asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
+            { name: voiceResourceFileName(record), data: await readVoiceRecordBlob(record) },
+          ])
+        } catch {
+          asset = archiveAssetForStorageDirectory(space, baseAsset)
+        }
+      }
+      let nextSpace = {
+        ...space,
+        assets: [asset, ...space.assets],
+      }
+      if (link?.target === 'character') {
+        nextSpace = assignAssetToCharacterColumn(nextSpace, link.targetId, asset.id, 'voice', ['角色配音'])
+      }
+      if (link?.target === 'effect') {
+        nextSpace = linkEffectAssetToVoice(nextSpace, link.targetId, asset.id)
+      }
+      if (link?.target === 'storyboard') {
+        nextSpace = assignVoiceToStoryboardGroup(nextSpace, link.targetId, asset.id, record.params.text)
+      }
+      writePersonalSpaceState(nextSpace)
+      setPersonalSpaceSnapshot(nextSpace)
+      const linkLabel = link?.target === 'character' ? '并关联角色'
+        : link?.target === 'effect' ? '并关联特效'
+        : link?.target === 'storyboard' ? '并关联剧情'
+        : ''
+      void messageApi.success(`已收藏到个人空间${linkLabel}`)
+    } catch {
+      void messageApi.error('收藏到个人空间失败，请检查浏览器存储权限。')
+    }
+  }
+
+  const openCollectLinkDialog = (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => {
+    setPersonalSpaceSnapshot(readPersonalSpaceState())
+    setPendingCollectLink({ record, target, targetId: null })
+  }
+
+  const confirmCollectLink = () => {
+    if (!pendingCollectLink?.targetId) return
+    void collectRecordToPersonalSpace(pendingCollectLink.record, {
+      target: pendingCollectLink.target,
+      targetId: pendingCollectLink.targetId,
+    })
+    setPendingCollectLink(null)
+  }
+
   const connectionTag = {
     idle: <Tag>未检测</Tag>,
     checking: <Tag icon={<LoadingOutlined />} color="blue">检测中</Tag>,
@@ -415,10 +525,33 @@ export default function VoiceDeploymentWorkspace() {
     : hardware.status === 'warning' ? 'warning'
     : 'info'
 
+  const collectLinkMeta = pendingCollectLink?.target === 'character'
+    ? {
+        title: '收藏并关联角色',
+        label: '选择角色',
+        options: characterLinkOptions,
+        empty: '个人空间还没有角色。请先在个人空间创建角色。',
+      }
+    : pendingCollectLink?.target === 'effect'
+      ? {
+          title: '收藏并关联特效',
+          label: '选择特效素材',
+          options: effectLinkOptions,
+          empty: '个人空间还没有特效素材。请先在个人空间导入特效素材。',
+        }
+      : pendingCollectLink?.target === 'storyboard'
+        ? {
+            title: '收藏并关联剧情',
+            label: '选择剧情组',
+            options: storyboardLinkOptions,
+            empty: '个人空间还没有剧情组。请先在个人空间创建剧情编排。',
+          }
+        : null
+
   const libraryPanel = (
     <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
       <div className="panel-title">
-        <StarOutlined />
+        <UserOutlined />
         <h3 id="voice-library-title">音频记录</h3>
       </div>
       <Tabs
@@ -434,23 +567,16 @@ export default function VoiceDeploymentWorkspace() {
                 onClone={cloneFromRecord}
                 onDelete={deleteRecord}
                 onRename={renameRecord}
-                onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
+                onCollect={(record) => void collectRecordToPersonalSpace(record)}
+                onCollectWithLink={openCollectLinkDialog}
               />
             ),
           },
           {
-            key: 'favorites',
-            label: `收藏 ${favoriteRecords.length}`,
+            key: 'personal-space',
+            label: `个人空间 ${personalSpaceVoiceAssets.length}`,
             children: (
-              <VoiceRecordList
-                records={favoriteRecords}
-                lastGeneratedId={lastGeneratedId}
-                onLoad={loadParams}
-                onClone={cloneFromRecord}
-                onDelete={deleteRecord}
-                onRename={renameRecord}
-                onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
-              />
+              <PersonalSpaceVoiceAssetList assets={personalSpaceVoiceAssets} />
             ),
           },
         ]}
@@ -460,10 +586,36 @@ export default function VoiceDeploymentWorkspace() {
 
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
+      {messageContextHolder}
+      <Modal
+        title={collectLinkMeta?.title}
+        open={Boolean(pendingCollectLink)}
+        okText="收藏并关联"
+        cancelText="取消"
+        okButtonProps={{ disabled: !pendingCollectLink?.targetId }}
+        onOk={confirmCollectLink}
+        onCancel={() => setPendingCollectLink(null)}
+      >
+        {collectLinkMeta && (
+          <div className="modal-grid">
+            <label className="form-field">
+              <span className="field-label">{collectLinkMeta.label}</span>
+              <Select
+                value={pendingCollectLink?.targetId}
+                options={collectLinkMeta.options}
+                placeholder={collectLinkMeta.label}
+                notFoundContent={collectLinkMeta.empty}
+                onChange={(targetId) => setPendingCollectLink((current) => (current ? { ...current, targetId } : current))}
+              />
+            </label>
+            <p className="field-note">会先把当前配音收藏到个人空间，再建立这条关联。</p>
+          </div>
+        )}
+      </Modal>
       <div className="voice-hero">
         <div>
           <p className="kicker">本地语音部署</p>
-          <h2 id="voice-workspace-title">游戏角色语音工作台</h2>
+          <h2 id="voice-workspace-title">配音工作台</h2>
           <p>通过 VoxCPM 在本机运行语音生成服务，工作台直接调用本地接口完成语音生成，无需把素材发送到外部服务器。</p>
         </div>
         <div className="hero-status">
@@ -542,7 +694,7 @@ export default function VoiceDeploymentWorkspace() {
 
               {(voiceParams.mode === 'reference-clone' || voiceParams.mode === 'high-similarity-clone') && (
                 <div className="form-field">
-                  <FieldLabel label="参考音频" help="用于提取音色。可以上传本地音频，也可以从右侧历史或收藏中点击克隆。" />
+                    <FieldLabel label="参考音频" help="用于提取音色。可以上传本地音频，也可以从右侧历史记录中点击克隆。" />
                   <div className="reference-row">
                     <Upload {...uploadProps}>
                       <Button icon={<UploadOutlined />}>选择音频</Button>
@@ -605,7 +757,7 @@ export default function VoiceDeploymentWorkspace() {
                 </div>
               </div>
 
-              {generationError && <Alert type="error" showIcon message={generationError} />}
+              {generationError && <Alert type="error" showIcon title={generationError} />}
 
               <div className="generate-actions">
                 <Button
@@ -671,11 +823,11 @@ export default function VoiceDeploymentWorkspace() {
               </>
             )}
 
-            <Alert
-              className="status-alert"
-              type={alertType}
-              message={hardware.title}
-              description={
+                <Alert
+                  className="status-alert"
+                  type={alertType}
+                  title={hardware.title}
+                  description={
                 <>
                   {hardware.detail}
                   {hardware.recommendedModel && (
@@ -744,12 +896,12 @@ export default function VoiceDeploymentWorkspace() {
               </Button>
             </div>
 
-            <Alert
-              type="info"
-              showIcon
-              message={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
-              description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
-            />
+                <Alert
+                  type="info"
+                  showIcon
+                  title={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
+                  description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
+                />
           </section>
 
           {libraryPanel}
@@ -766,7 +918,8 @@ interface VoiceRecordListProps {
   onClone: (record: VoiceGenerationRecord) => void
   onDelete: (id: string) => void
   onRename: (id: string, name: string) => void
-  onToggleFavorite: (id: string) => void
+  onCollect: (record: VoiceGenerationRecord) => void
+  onCollectWithLink: (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => void
 }
 
 function VoiceRecordList({
@@ -776,7 +929,8 @@ function VoiceRecordList({
   onClone,
   onDelete,
   onRename,
-  onToggleFavorite,
+  onCollect,
+  onCollectWithLink,
 }: VoiceRecordListProps) {
   if (records.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有生成音频" />
@@ -794,12 +948,6 @@ function VoiceRecordList({
                 aria-label="音频名称"
                 onChange={(e) => onRename(record.id, e.target.value)}
               />
-              <Button
-                type="text"
-                icon={record.favorite ? <StarFilled /> : <StarOutlined />}
-                onClick={() => onToggleFavorite(record.id)}
-                aria-label={record.favorite ? '取消收藏音频' : '收藏音频'}
-              />
             </div>
 
             <div className="record-meta">
@@ -814,11 +962,52 @@ function VoiceRecordList({
             <div className="record-actions">
               <Button size="small" onClick={() => onLoad(record)}>载入参数</Button>
               <Button size="small" disabled={!record.audioPath} onClick={() => onClone(record)}>克隆音频</Button>
+              <Dropdown.Button
+                size="small"
+                menu={{
+                  items: [
+                    { key: 'character', label: '收藏并关联角色' },
+                    { key: 'effect', label: '收藏并关联特效' },
+                    { key: 'storyboard', label: '收藏并关联剧情' },
+                  ],
+                  onClick: ({ key }) => onCollectWithLink(record, key as VoiceCollectLinkTarget),
+                }}
+                onClick={() => onCollect(record)}
+              >
+                收藏到个人空间
+              </Dropdown.Button>
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(record.id)}>删除</Button>
             </div>
           </article>
         )
       })}
+    </div>
+  )
+}
+
+function PersonalSpaceVoiceAssetList({ assets }: { assets: PersonalSpaceAsset[] }) {
+  if (assets.length === 0) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到个人空间的配音" />
+  }
+
+  return (
+    <div className="voice-record-list">
+      {assets.map((asset) => (
+        <article key={asset.id} className="voice-record">
+          <div className="record-heading">
+            <strong className="record-asset-title">{asset.name}</strong>
+          </div>
+          <div className="record-meta">
+            <Tag>配音素材</Tag>
+            <span>{new Date(asset.createdAt).toLocaleString()}</span>
+          </div>
+          <p className="record-text">{asset.resourcePaths.join('、') || '未绑定本地文件'}</p>
+          <div className="record-meta">
+            <span>角色 {asset.linkedCharacterIds.length}</span>
+            <span>剧情 {asset.linkedStoryboardIds.length}</span>
+          </div>
+        </article>
+      ))}
     </div>
   )
 }
