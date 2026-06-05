@@ -167,8 +167,8 @@ function Resolve-PythonCandidate {
     return $null
 }
 
-function Resolve-PythonExecutablePath($command, $args) {
-    $probeArgs = @($args) + @("-c", "import sys; print(sys.executable)")
+function Resolve-PythonExecutablePath($command, [string[]]$launcherArgs) {
+    $probeArgs = @($launcherArgs) + @("-c", "import sys; print(sys.executable)")
     $output = & $command @probeArgs 2>&1
     if ($LASTEXITCODE -ne 0) { return $null }
     $path = ($output | Select-Object -Last 1).ToString().Trim()

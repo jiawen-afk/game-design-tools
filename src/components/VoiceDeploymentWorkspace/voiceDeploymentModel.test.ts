@@ -348,6 +348,15 @@ test('Windows deployment script refuses to install VoxCPM with a non-3.12 interp
   assert.match(invokePython, /Assert-PythonRuntimeCompatible \$failureMessage/)
 })
 
+test('Windows Python executable resolver preserves launcher arguments', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+  const resolver = source.match(/function Resolve-PythonExecutablePath\([\s\S]*?\n\}/)?.[0] || ''
+
+  assert.match(resolver, /\$launcherArgs/)
+  assert.match(resolver, /\$probeArgs = @\(\$launcherArgs\) \+ @\("-c"/)
+  assert.doesNotMatch(resolver, /function Resolve-PythonExecutablePath\(\$command, \$args\)/)
+})
+
 test('Windows service runner tracks the actual long-lived Python process id', () => {
   const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
 
