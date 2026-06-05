@@ -5,7 +5,6 @@ import {
   ApiOutlined,
   CheckCircleOutlined,
   CopyOutlined,
-  DesktopOutlined,
   LoadingOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
@@ -33,16 +32,12 @@ import {
   defaultPort,
   defaultVoiceGenerationParams,
   deleteVoiceRecord,
-  downloadSources,
   evaluateHardware,
-  gpuCheckCommand,
-  latencyDisclaimer,
   parseNvidiaSmiReport,
   prepareCloneFromRecord,
   updateRecordName,
   validateModelPath,
   voiceModeMeta,
-  voxcpmModels,
 } from './voiceDeploymentModel'
 import {
   readPersonalSpaceState,
@@ -58,27 +53,7 @@ import {
   type VoiceCollectLinkTarget,
 } from './voicePersonalSpaceCollector'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
-
-const platformOptions: Array<{ label: string; value: Platform }> = [
-  { label: 'Windows', value: 'windows' },
-  { label: 'macOS / Linux', value: 'mac' },
-]
-
-const deviceOptions: Array<{ label: string; value: DeviceType }> = [
-  { label: 'NVIDIA GPU', value: 'nvidia' },
-  { label: 'Apple Silicon', value: 'apple' },
-  { label: 'CPU', value: 'cpu' },
-]
-
-const modelOptions = voxcpmModels.map((m) => ({
-  label: `${m.id} · 约 ${m.vramGb}GB`,
-  value: m.id,
-}))
-
-const sourceOptions = downloadSources.map((s) => ({
-  label: s.label,
-  value: s.id,
-}))
+import { VoiceSetupPanels } from './VoiceSetupPanels'
 
 const modeOptions = voiceModeMeta.map((m) => ({
   label: m.label,
@@ -567,124 +542,26 @@ export default function VoiceDeploymentWorkspace() {
         </div>
       ) : (
         <div className="voice-grid">
-          <section className="voice-panel" aria-labelledby="hw-title">
-            <div className="panel-title">
-              <DesktopOutlined />
-              <h3 id="hw-title">环境检测</h3>
-            </div>
-            <p className="panel-copy">
-              选择当前设备类型。VoxCPM 支持 NVIDIA GPU（CUDA ≥12.0，PyTorch ≥2.5.0）、Apple Silicon（MPS）和 CPU 三种模式。
-            </p>
-
-            <Segmented
-              value={deviceType}
-              options={deviceOptions}
-              onChange={(v) => setDeviceType(v as DeviceType)}
-            />
-
-            {deviceType === 'nvidia' && (
-              <>
-                <p className="panel-copy">
-                  在本机终端执行检测命令，将输出粘贴到下方：
-                </p>
-                <div className="command-row">
-                  <code>{gpuCheckCommand}</code>
-                  <Button
-                    icon={copiedKey === 'gpu' ? <CheckCircleOutlined /> : <CopyOutlined />}
-                    onClick={() => copy('gpu', gpuCheckCommand)}
-                  >
-                    复制
-                  </Button>
-                </div>
-                <Input.TextArea
-                  value={gpuInput}
-                  onChange={(e) => setGpuInput(e.target.value)}
-                  placeholder="NVIDIA GeForce RTX 3060, 12288"
-                  rows={3}
-                />
-              </>
-            )}
-
-                <Alert
-                  className="status-alert"
-                  type={alertType}
-                  title={hardware.title}
-                  description={
-                <>
-                  {hardware.detail}
-                  {hardware.recommendedModel && (
-                    <span className="recommended-model"> 推荐版本：<strong>{hardware.recommendedModel}</strong></span>
-                  )}
-                </>
-              }
-              showIcon
-            />
-          </section>
-
-          <section className="voice-panel" aria-labelledby="deploy-title">
-            <div className="panel-title">
-              <ThunderboltOutlined />
-              <h3 id="deploy-title">一键准备</h3>
-            </div>
-            <p className="panel-copy">
-              选择系统和模型版本，复制命令到终端执行。脚本会自动检测环境、使用国内镜像源安装依赖，并安装本机服务管理命令。
-            </p>
-
-            <Segmented
-              value={platform}
-              options={platformOptions}
-              onChange={(v) => setPlatform(v as Platform)}
-            />
-
-            <div className="model-select">
-              <span className="model-select-label">模型版本</span>
-              <Segmented
-                value={selectedModel}
-                options={modelOptions}
-                onChange={(v) => { setSelectedModel(v as ModelVersion); setModelTouched(true) }}
-              />
-              <p className="model-select-note">
-                {voxcpmModels.find((m) => m.id === selectedModel)?.note}
-              </p>
-            </div>
-
-            <div className="model-select">
-              <span className="model-select-label">下载源</span>
-              <Segmented
-                value={downloadSource}
-                options={sourceOptions}
-                onChange={(v) => setDownloadSource(v as DownloadSource)}
-              />
-              <p className="model-select-note">
-                {downloadSources.find((s) => s.id === downloadSource)?.note}
-              </p>
-            </div>
-
-            <Input
-              value={modelPath}
-              onChange={(e) => setModelPath(e.target.value)}
-              placeholder={platform === 'windows' ? 'D:\\models\\VoxCPM2（留空则自动下载）' : '/data/models/VoxCPM2（留空则自动下载）'}
-              status={modelPath && !modelValidation.valid ? 'warning' : undefined}
-            />
-
-            <div className="command-row">
-              <code className="one-click-cmd">{oneClickCommand}</code>
-              <Button
-                type="primary"
-                icon={copiedKey === 'deploy' ? <CheckCircleOutlined /> : <CopyOutlined />}
-                onClick={() => copy('deploy', oneClickCommand)}
-              >
-                复制
-              </Button>
-            </div>
-
-                <Alert
-                  type="info"
-                  showIcon
-                  title={platform === 'windows' ? '在 PowerShell 中以管理员身份运行' : '在 Terminal 中运行'}
-                  description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
-                />
-          </section>
+          <VoiceSetupPanels
+            deviceType={deviceType}
+            gpuInput={gpuInput}
+            hardware={hardware}
+            alertType={alertType}
+            copiedKey={copiedKey}
+            platform={platform}
+            selectedModel={selectedModel}
+            downloadSource={downloadSource}
+            modelPath={modelPath}
+            modelPathValid={modelValidation.valid}
+            oneClickCommand={oneClickCommand}
+            onDeviceTypeChange={setDeviceType}
+            onGpuInputChange={setGpuInput}
+            onPlatformChange={setPlatform}
+            onModelChange={(model) => { setSelectedModel(model); setModelTouched(true) }}
+            onDownloadSourceChange={setDownloadSource}
+            onModelPathChange={setModelPath}
+            onCopy={(key, text) => void copy(key, text)}
+          />
 
           <VoiceLibraryPanel
             records={records}

@@ -156,6 +156,26 @@ test('voice deployment workspace delegates record library view components', () =
   assert.match(listSource, /收藏并关联角色/)
 })
 
+test('voice deployment workspace delegates disconnected setup panels', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelsSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/VoiceSetupPanels'/)
+  assert.match(source, /<VoiceSetupPanels/)
+  assert.doesNotMatch(source, /id="hw-title"/)
+  assert.doesNotMatch(source, /id="deploy-title"/)
+  assert.doesNotMatch(source, /gpuCheckCommand/)
+  assert.doesNotMatch(source, /latencyDisclaimer/)
+  assert.match(panelsSource, /function VoiceSetupPanels/)
+  assert.match(panelsSource, /id="hw-title"/)
+  assert.match(panelsSource, /id="deploy-title"/)
+  assert.match(panelsSource, /gpuCheckCommand/)
+  assert.match(panelsSource, /latencyDisclaimer/)
+  assert.match(panelsSource, /modelOptions/)
+  assert.match(panelsSource, /sourceOptions/)
+  assert.match(panelsSource, /deviceOptions/)
+})
+
 test('personal space settings save gives visible feedback', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
 
