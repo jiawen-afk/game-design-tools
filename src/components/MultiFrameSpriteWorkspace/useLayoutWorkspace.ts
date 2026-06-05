@@ -9,6 +9,7 @@ import {
 } from './guideModel'
 import {
   applyCanvasRatioToFrameLayouts,
+  applyLayoutPresetToFrames,
   computeHandleResize,
   computeKeyboardOffset,
   computeWheelFrameResize,
@@ -307,62 +308,12 @@ export function useLayoutWorkspace({
   }, [onPointerMove])
 
   const applyAllCenter = () => {
-    setFrames((prev) =>
-      prev.map((item) => ({
-        ...item,
-        layout: { ...item.layout, offsetX: 0, offsetY: 0 },
-        composedRevision: -1,
-      }))
-    )
-  }
-
-  const applyAllSize = (width: number, height: number) => {
-    setFrames((prev) =>
-      prev.map((item) => ({
-        ...item,
-        layout: { ...item.layout, width, height },
-        composedRevision: -1,
-      }))
-    )
+    setFrames((prev) => applyLayoutPresetToFrames(prev, { mode: 'center' }))
   }
 
   const applyPresetSize = (mode: string) => {
-    if (frames.length === 0) return
-    if (mode === 'active' && activeFrame) {
-      applyAllSize(activeFrame.layout.width, activeFrame.layout.height)
-      return
-    }
-    if (mode === 'maxBoth') {
-      applyAllSize(Math.max(...frames.map((f) => f.layout.width)), Math.max(...frames.map((f) => f.layout.height)))
-      return
-    }
-    if (mode === 'maxWidth') {
-      const w = Math.max(...frames.map((f) => f.layout.width))
-      setFrames((prev) =>
-        prev.map((item) => {
-          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
-          return {
-            ...item,
-            layout: { ...item.layout, width: w, height: Math.max(1, Math.round(w / ratio)) },
-            composedRevision: -1,
-          }
-        })
-      )
-      return
-    }
-    if (mode === 'maxHeight') {
-      const h = Math.max(...frames.map((f) => f.layout.height))
-      setFrames((prev) =>
-        prev.map((item) => {
-          const ratio = item.matteWidth / Math.max(1, item.matteHeight)
-          return {
-            ...item,
-            layout: { ...item.layout, width: Math.max(1, Math.round(h * ratio)), height: h },
-            composedRevision: -1,
-          }
-        })
-      )
-    }
+    if (!['active', 'maxBoth', 'maxWidth', 'maxHeight'].includes(mode)) return
+    setFrames((prev) => applyLayoutPresetToFrames(prev, { mode: mode as 'active' | 'maxBoth' | 'maxWidth' | 'maxHeight', activeFrameId: activeFrame?.id }))
   }
 
   const applyCanvasRatio = (percent: number, basis: 'width' | 'height') => {

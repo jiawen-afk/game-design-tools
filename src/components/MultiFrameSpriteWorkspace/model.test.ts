@@ -7,6 +7,7 @@ import {
   applyComposedFrameUrl,
   applyFrameTagSelection,
   applyCanvasRatioToFrameLayouts,
+  applyLayoutPresetToFrames,
   advancePlaybackCursor,
   batchHideSelectedFrames,
   buildPlaybackFrameIds,
@@ -498,6 +499,49 @@ test('canvas ratio sizing can target all frames or only one frame', () => {
     [
       { width: 100, height: 50 },
       { width: 100, height: 200 },
+    ]
+  )
+})
+
+test('layout presets update frame layouts without UI state', () => {
+  const frames = [
+    { id: 'a', matteWidth: 100, matteHeight: 50, layout: { width: 20, height: 10, offsetX: 4, offsetY: -3 }, composedRevision: 2 },
+    { id: 'b', matteWidth: 60, matteHeight: 120, layout: { width: 30, height: 60, offsetX: -6, offsetY: 8 }, composedRevision: 3 },
+  ]
+
+  assert.deepEqual(
+    applyLayoutPresetToFrames(frames, { mode: 'center' }).map((frame) => ({ layout: frame.layout, composedRevision: frame.composedRevision })),
+    [
+      { layout: { width: 20, height: 10, offsetX: 0, offsetY: 0 }, composedRevision: -1 },
+      { layout: { width: 30, height: 60, offsetX: 0, offsetY: 0 }, composedRevision: -1 },
+    ]
+  )
+  assert.deepEqual(
+    applyLayoutPresetToFrames(frames, { mode: 'active', activeFrameId: 'a' }).map((frame) => frame.layout),
+    [
+      { width: 20, height: 10, offsetX: 4, offsetY: -3 },
+      { width: 20, height: 10, offsetX: -6, offsetY: 8 },
+    ]
+  )
+  assert.deepEqual(
+    applyLayoutPresetToFrames(frames, { mode: 'maxBoth' }).map((frame) => frame.layout),
+    [
+      { width: 30, height: 60, offsetX: 4, offsetY: -3 },
+      { width: 30, height: 60, offsetX: -6, offsetY: 8 },
+    ]
+  )
+  assert.deepEqual(
+    applyLayoutPresetToFrames(frames, { mode: 'maxWidth' }).map((frame) => frame.layout),
+    [
+      { width: 30, height: 15, offsetX: 4, offsetY: -3 },
+      { width: 30, height: 60, offsetX: -6, offsetY: 8 },
+    ]
+  )
+  assert.deepEqual(
+    applyLayoutPresetToFrames(frames, { mode: 'maxHeight' }).map((frame) => frame.layout),
+    [
+      { width: 120, height: 60, offsetX: 4, offsetY: -3 },
+      { width: 30, height: 60, offsetX: -6, offsetY: 8 },
     ]
   )
 })

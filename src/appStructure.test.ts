@@ -407,3 +407,14 @@ test('personal space model delegates asset update and delete operations', () => 
   assert.match(operationsSource, /export function deletePersonalSpaceAsset/)
   assert.match(operationsSource, /normalizeAssetLinks/)
 })
+
+test('layout workspace delegates batch frame layout presets to the model', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
+  const modelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/layoutModel.ts', 'utf8')
+
+  assert.match(source, /applyLayoutPresetToFrames/)
+  assert.match(modelSource, /export function applyLayoutPresetToFrames/)
+  assert.doesNotMatch(source, /const applyAllSize = /)
+  assert.doesNotMatch(source, /Math\.max\(\.\.\.frames\.map\(\(f\) => f\.layout\.width\)\)/)
+  assert.doesNotMatch(source, /item\.matteWidth \/ Math\.max\(1, item\.matteHeight\)/)
+})

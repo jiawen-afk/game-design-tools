@@ -15,6 +15,7 @@ export {
 } from './guideModel'
 export {
   applyCanvasRatioToFrameLayouts,
+  applyLayoutPresetToFrames,
   clampPreviewZoom,
   computeHandleResize,
   computeKeyboardOffset,
@@ -24,9 +25,12 @@ export {
   getPendingComposedFrameIds,
   getWheelScalingButtonLabel,
   type ApplyCanvasRatioOptions,
+  type ApplyLayoutPresetOptions,
   type ComposedProgressFrameState,
   type FrameOffset,
   type HandleResizeInput,
+  type LayoutPresetMode,
+  type PresetFrameLayoutState,
   type RatioFrameLayoutState,
   type ResizeHandle,
 } from './layoutModel'
