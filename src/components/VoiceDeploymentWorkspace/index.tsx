@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Button, Input, message, Modal, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
@@ -8,30 +8,14 @@ import {
 
 import './voiceDeploymentWorkspace.css'
 import {
-  type ConnectionStatus,
-  type DeviceType,
-  type DownloadSource,
-  type HardwareReport,
-  type ModelVersion,
-  type Platform,
   type VoiceGenerationRecord,
-  buildGradioApiCall,
-  buildOneClickCommand,
-  buildServiceUrl,
-  defaultPort,
   deleteVoiceRecord,
-  evaluateHardware,
-  parseNvidiaSmiReport,
   updateRecordName,
-  validateModelPath,
   voiceModeMeta,
 } from './voiceDeploymentModel'
 import {
   readPersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
-import {
-  checkConnection,
-} from './voiceDeploymentService'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
 import {
   collectVoiceRecordToPersonalSpace,
@@ -41,84 +25,51 @@ import { VoiceGenerationPanel } from './VoiceGenerationPanel'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 import { VoiceSetupPanels } from './VoiceSetupPanels'
 import { useVoiceCollectLinkDialog } from './useVoiceCollectLinkDialog'
+import { useVoiceDeploymentSetup } from './useVoiceDeploymentSetup'
 import { useVoiceGenerationWorkflow } from './useVoiceGenerationWorkflow'
 
 export default function VoiceDeploymentWorkspace() {
   const [messageApi, messageContextHolder] = message.useMessage()
-  const [port, setPort] = useState(defaultPort)
-  const [portInput, setPortInput] = useState(String(defaultPort))
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
-  const [deviceType, setDeviceType] = useState<DeviceType>('nvidia')
-  const [gpuInput, setGpuInput] = useState('')
-  const [modelPath, setModelPath] = useState('')
-  const [platform, setPlatform] = useState<Platform>('windows')
-  const [selectedModel, setSelectedModel] = useState<ModelVersion>('VoxCPM2')
-  const [downloadSource, setDownloadSource] = useState<DownloadSource>('auto')
-  const [modelTouched, setModelTouched] = useState(false)
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const {
+    port,
+    portInput,
+    setPortInput,
+    connectionStatus,
+    deviceType,
+    gpuInput,
+    hardware,
+    modelValidation,
+    platform,
+    selectedModel,
+    downloadSource,
+    modelPath,
+    oneClickCommand,
+    apiCallExample,
+    serviceUrl,
+    connected,
+    copiedKey,
+    alertType,
+    runCheck,
+    applyPort,
+    copy,
+    setDeviceType,
+    setGpuInput,
+    setPlatform,
+    selectModel,
+    setDownloadSource,
+    setModelPath,
+  } = useVoiceDeploymentSetup()
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
   const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
-  const checkRef = useRef(0)
 
   useEffect(() => { writeStoredRecords(records) }, [records])
-
-  const hardwareReport = useMemo<HardwareReport | null>(() => {
-    if (deviceType === 'apple') return { gpuName: 'Apple Silicon', vramGb: 0, device: 'apple' }
-    if (deviceType === 'cpu') return { gpuName: 'CPU', vramGb: 0, device: 'cpu' }
-    return parseNvidiaSmiReport(gpuInput)
-  }, [deviceType, gpuInput])
-
-  const hardware = useMemo(() => evaluateHardware(hardwareReport), [hardwareReport])
-  const modelValidation = useMemo(() => validateModelPath(modelPath), [modelPath])
-  const oneClickCommand = useMemo(() => buildOneClickCommand(platform, modelPath, selectedModel, downloadSource), [platform, modelPath, selectedModel, downloadSource])
-  const apiCallExample = useMemo(() => buildGradioApiCall({ port, text: '你好，这是一段测试语音。' }), [port])
-  const serviceUrl = buildServiceUrl(port)
-  const connected = connectionStatus === 'connected'
   const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
   const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
   const effectLinkOptions = personalSpaceSnapshot.assets
     .filter((asset) => asset.kind === 'effect')
     .map((asset) => ({ label: asset.name, value: asset.id }))
   const storyboardLinkOptions = personalSpaceSnapshot.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))
-
-  const runCheck = useCallback(async (targetPort: number) => {
-    const id = ++checkRef.current
-    setConnectionStatus('checking')
-    const ok = await checkConnection(targetPort)
-    if (checkRef.current !== id) return
-    setConnectionStatus(ok ? 'connected' : 'disconnected')
-  }, [])
-
-  useEffect(() => { runCheck(defaultPort) }, [runCheck])
-
-  useEffect(() => {
-    if (!modelTouched && hardware.recommendedModel) {
-      setSelectedModel(hardware.recommendedModel)
-    }
-  }, [hardware.recommendedModel, modelTouched])
-
-  const applyPort = () => {
-    const n = parseInt(portInput, 10)
-    if (n > 0 && n < 65536) { setPort(n); runCheck(n) }
-  }
-
-  const copy = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      const el = document.createElement('textarea')
-      el.value = text
-      el.style.position = 'fixed'
-      el.style.opacity = '0'
-      document.body.appendChild(el)
-      el.select()
-      document.execCommand('copy')
-      document.body.removeChild(el)
-    }
-    setCopiedKey(key)
-    window.setTimeout(() => setCopiedKey(null), 1600)
-  }
 
   const renameRecord = (id: string, name: string) => {
     setRecords((current) => updateRecordName(current, id, name))
@@ -192,11 +143,6 @@ export default function VoiceDeploymentWorkspace() {
     connected: <Tag icon={<CheckCircleOutlined />} color="success">已连接</Tag>,
     disconnected: <Tag color="error">未连接</Tag>,
   }[connectionStatus]
-
-  const alertType = hardware.status === 'blocked' ? 'error'
-    : hardware.status === 'ready' ? 'success'
-    : hardware.status === 'warning' ? 'warning'
-    : 'info'
 
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
@@ -304,7 +250,7 @@ export default function VoiceDeploymentWorkspace() {
             onDeviceTypeChange={setDeviceType}
             onGpuInputChange={setGpuInput}
             onPlatformChange={setPlatform}
-            onModelChange={(model) => { setSelectedModel(model); setModelTouched(true) }}
+            onModelChange={selectModel}
             onDownloadSourceChange={setDownloadSource}
             onModelPathChange={setModelPath}
             onCopy={(key, text) => void copy(key, text)}

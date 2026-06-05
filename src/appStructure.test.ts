@@ -115,13 +115,16 @@ test('Ant Design alerts use v6 title prop instead of deprecated message prop', (
 test('voice deployment workspace delegates service, record, and personal space side effects', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
   const serviceSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentService.ts', 'utf8')
+  const setupHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
   const generationHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
 
-  assert.match(source, /from '\.\/voiceDeploymentService'/)
+  assert.doesNotMatch(source, /from '\.\/voiceDeploymentService'/)
   assert.match(source, /from '\.\/voiceRecordStorage'/)
   assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
   assert.match(source, /useVoiceGenerationWorkflow/)
   assert.match(source, /collectVoiceRecordToPersonalSpace/)
+  assert.match(setupHookSource, /from '\.\/voiceDeploymentService'/)
+  assert.match(setupHookSource, /checkConnection/)
   assert.match(generationHookSource, /generateVoiceAudio/)
   assert.doesNotMatch(source, /function checkConnection/)
   assert.doesNotMatch(source, /function uploadReferenceAudio/)
@@ -239,6 +242,28 @@ test('voice deployment workspace delegates generation request workflow', () => {
   assert.match(hookSource, /generateVoice/)
   assert.match(hookSource, /uploadReferenceAudio/)
   assert.match(hookSource, /generateVoiceAudio/)
+})
+
+test('voice deployment workspace delegates deployment setup state to a focused hook', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
+
+  assert.match(source, /from '\.\/useVoiceDeploymentSetup'/)
+  assert.match(source, /useVoiceDeploymentSetup/)
+  assert.doesNotMatch(source, /checkRef/)
+  assert.doesNotMatch(source, /const runCheck = /)
+  assert.doesNotMatch(source, /const applyPort = /)
+  assert.doesNotMatch(source, /const hardwareReport = /)
+  assert.doesNotMatch(source, /const oneClickCommand = /)
+  assert.doesNotMatch(source, /const apiCallExample = /)
+  assert.doesNotMatch(source, /checkConnection/)
+  assert.match(hookSource, /checkRef/)
+  assert.match(hookSource, /runCheck/)
+  assert.match(hookSource, /applyPort/)
+  assert.match(hookSource, /hardwareReport/)
+  assert.match(hookSource, /oneClickCommand/)
+  assert.match(hookSource, /apiCallExample/)
+  assert.match(hookSource, /checkConnection/)
 })
 
 test('personal space settings save gives visible feedback', () => {
