@@ -373,3 +373,14 @@ test('home voice card describes Gradio instead of stale vLLM REST output', () =>
   assert.match(source, /Gradio/)
   assert.match(source, /gradio_client/)
 })
+
+test('voice history library renders outside the connected-only generator branch', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+
+  const libraryIndex = source.indexOf('voice-library')
+  const connectedBranchIndex = source.indexOf('{connected ? (')
+
+  assert.ok(libraryIndex > -1)
+  assert.ok(connectedBranchIndex > -1)
+  assert.ok(libraryIndex < connectedBranchIndex)
+})

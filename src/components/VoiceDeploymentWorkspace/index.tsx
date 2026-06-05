@@ -415,6 +415,49 @@ export default function VoiceDeploymentWorkspace() {
     : hardware.status === 'warning' ? 'warning'
     : 'info'
 
+  const libraryPanel = (
+    <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
+      <div className="panel-title">
+        <StarOutlined />
+        <h3 id="voice-library-title">音频记录</h3>
+      </div>
+      <Tabs
+        items={[
+          {
+            key: 'history',
+            label: `历史 ${records.length}`,
+            children: (
+              <VoiceRecordList
+                records={records}
+                lastGeneratedId={lastGeneratedId}
+                onLoad={loadParams}
+                onClone={cloneFromRecord}
+                onDelete={deleteRecord}
+                onRename={renameRecord}
+                onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
+              />
+            ),
+          },
+          {
+            key: 'favorites',
+            label: `收藏 ${favoriteRecords.length}`,
+            children: (
+              <VoiceRecordList
+                records={favoriteRecords}
+                lastGeneratedId={lastGeneratedId}
+                onLoad={loadParams}
+                onClone={cloneFromRecord}
+                onDelete={deleteRecord}
+                onRename={renameRecord}
+                onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
+              />
+            ),
+          },
+        ]}
+      />
+    </section>
+  )
+
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
       <div className="voice-hero">
@@ -586,46 +629,7 @@ export default function VoiceDeploymentWorkspace() {
             </div>
           </section>
 
-          <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
-            <div className="panel-title">
-              <StarOutlined />
-              <h3 id="voice-library-title">音频记录</h3>
-            </div>
-            <Tabs
-              items={[
-                {
-                  key: 'history',
-                  label: `历史 ${records.length}`,
-                  children: (
-                    <VoiceRecordList
-                      records={records}
-                      lastGeneratedId={lastGeneratedId}
-                      onLoad={loadParams}
-                      onClone={cloneFromRecord}
-                      onDelete={deleteRecord}
-                      onRename={renameRecord}
-                      onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
-                    />
-                  ),
-                },
-                {
-                  key: 'favorites',
-                  label: `收藏 ${favoriteRecords.length}`,
-                  children: (
-                    <VoiceRecordList
-                      records={favoriteRecords}
-                      lastGeneratedId={lastGeneratedId}
-                      onLoad={loadParams}
-                      onClone={cloneFromRecord}
-                      onDelete={deleteRecord}
-                      onRename={renameRecord}
-                      onToggleFavorite={(id) => setRecords((current) => toggleRecordFavorite(current, id))}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </section>
+          {libraryPanel}
         </div>
       ) : (
         <div className="voice-grid">
@@ -747,6 +751,8 @@ export default function VoiceDeploymentWorkspace() {
               description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
             />
           </section>
+
+          {libraryPanel}
         </div>
       )}
     </section>
