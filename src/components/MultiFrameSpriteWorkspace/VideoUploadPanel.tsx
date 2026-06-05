@@ -9,8 +9,7 @@ import {
 } from '@ant-design/icons'
 
 import { clampInt } from './numberUtils'
-import { VideoCropOverlay } from './VideoCropOverlay'
-import { VideoFrameList } from './VideoFrameList'
+import { VideoFramePreviewPanel } from './VideoFramePreviewPanel'
 import { formatVideoTime } from './videoFramePipeline'
 import type {
   ContainedImageRect,
@@ -263,54 +262,21 @@ export function VideoUploadPanel({
               </div>
             </div>
 
-            <div className="video-tab-right">
-              <section className="video-preview-panel">
-                <div className="video-preview-box" ref={framePreviewBoxRef}>
-                  {previewFrame ? (
-                    <>
-                      <img src={previewFrame.url} alt={previewFrame.name} />
-                      {cropMode && cropImageRect && cropBox && cropOutputSize && (
-                        <VideoCropOverlay
-                          imageRect={cropImageRect}
-                          cropBox={cropBox}
-                          outputSize={cropOutputSize}
-                          onStartDrag={onStartCropDrag}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <Text type="secondary">确定提取帧后显示循环预览</Text>
-                  )}
-                </div>
-              </section>
-
-              <section className="video-frame-list-panel">
-                <VideoFrameList
-                  frames={extractedFrames}
-                  previewIndex={framePreviewIndex}
-                  onSelect={onSelectPreviewFrame}
-                />
-              </section>
-
-              <div className="video-confirm-action">
-                <Button
-                  icon={<ScissorOutlined />}
-                  type={cropMode ? 'primary' : 'default'}
-                  disabled={extractedFrames.length === 0 || adding}
-                  onClick={() => onCropModeChange((active) => !active)}
-                >
-                  调整裁剪范围
-                </Button>
-                <Button
-                  type="primary"
-                  loading={adding}
-                  disabled={extractedFrames.length === 0}
-                  onClick={onConfirmFrames}
-                >
-                  确认添加到流程 2
-                </Button>
-              </div>
-            </div>
+            <VideoFramePreviewPanel
+              framePreviewBoxRef={framePreviewBoxRef}
+              previewFrame={previewFrame}
+              cropMode={cropMode}
+              cropImageRect={cropImageRect}
+              cropBox={cropBox}
+              cropOutputSize={cropOutputSize}
+              extractedFrames={extractedFrames}
+              framePreviewIndex={framePreviewIndex}
+              adding={adding}
+              onSelectPreviewFrame={onSelectPreviewFrame}
+              onCropModeChange={onCropModeChange}
+              onConfirmFrames={onConfirmFrames}
+              onStartCropDrag={onStartCropDrag}
+            />
           </div>
         ) : (
           <Text type="secondary">上传浏览器可播放的视频后，拖动时间范围并按 FPS 提取帧，再确认添加到流程 2。</Text>

@@ -579,3 +579,21 @@ test('video workspace delegates extracted frame preview and crop interactions to
   assert.match(previewSource, /getContainedImageRect/)
   assert.match(previewSource, /startVideoCropDrag/)
 })
+
+test('video upload panel delegates extracted frame preview controls to a focused component', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoUploadPanel.tsx', 'utf8')
+  const previewPanelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoFramePreviewPanel.tsx', 'utf8')
+
+  assert.match(source, /from '\.\/VideoFramePreviewPanel'/)
+  assert.match(source, /<VideoFramePreviewPanel/)
+  assert.doesNotMatch(source, /from '\.\/VideoCropOverlay'/)
+  assert.doesNotMatch(source, /from '\.\/VideoFrameList'/)
+  assert.doesNotMatch(source, /video-preview-box/)
+  assert.doesNotMatch(source, /video-frame-list-panel/)
+  assert.doesNotMatch(source, /video-confirm-action/)
+  assert.match(previewPanelSource, /VideoCropOverlay/)
+  assert.match(previewPanelSource, /VideoFrameList/)
+  assert.match(previewPanelSource, /video-preview-box/)
+  assert.match(previewPanelSource, /video-frame-list-panel/)
+  assert.match(previewPanelSource, /video-confirm-action/)
+})
