@@ -383,7 +383,12 @@ $ErrorActionPreference = "Stop"
 $configPath = Join-Path $PSScriptRoot "..\VoxCPM\voxcpm-config.json"
 $config = Get-Content -Raw $configPath | ConvertFrom-Json
 $env:HF_ENDPOINT = [string]$config.HfMirror
-$env:VOXCPM_ALLOWED_BROWSER_ORIGINS = (($config.AllowedOrigins | ForEach-Object { [string]$_ }) -join ",")
+$allowedOrigins = @($config.AllowedOrigins | ForEach-Object { [string]$_ } | Where-Object { $_ })
+if ($allowedOrigins.Count -eq 0) { $allowedOrigins = @("*") }
+$env:VOXCPM_ALLOWED_BROWSER_ORIGINS = ($allowedOrigins -join ",")
+$existingPythonPath = [System.Environment]::GetEnvironmentVariable("PYTHONPATH", "Process")
+$repoPythonPath = [string]$config.RepoDir
+$env:PYTHONPATH = if ($existingPythonPath) { "$repoPythonPath;$existingPythonPath" } else { $repoPythonPath }
 
 function Write-RunnerError($message) {
     try {

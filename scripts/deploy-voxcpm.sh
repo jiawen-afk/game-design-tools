@@ -247,4 +247,5 @@ echo
 cd "$REPO_DIR"
 install_gradio_cors_patch "$REPO_DIR"
 export VOXCPM_ALLOWED_BROWSER_ORIGINS="${VOXCPM_ALLOWED_BROWSER_ORIGINS:-*}"
+export PYTHONPATH="$REPO_DIR${PYTHONPATH:+:$PYTHONPATH}"
 exec python3 app.py --port "$PORT" --model-id "$LAUNCH_ID"

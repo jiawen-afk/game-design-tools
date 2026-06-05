@@ -312,6 +312,10 @@ test('deployment scripts allow browser pages to call local Gradio', () => {
     assert.match(source, /CustomCORSMiddleware/)
     assert.match(source, /Access-Control-Allow-Private-Network/)
   }
+
+  assert.match(windows, /if \(\$allowedOrigins\.Count -eq 0\) \{ \$allowedOrigins = @\("\*"\) \}/)
+  assert.match(windows, /PYTHONPATH/)
+  assert.match(unix, /PYTHONPATH/)
 })
 
 test('Windows service stores the real Python interpreter instead of the py launcher', () => {
