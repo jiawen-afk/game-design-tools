@@ -377,3 +377,19 @@ test('personal space model delegates state persistence and cloning', () => {
   assert.match(stateSource, /export function clonePersonalSpaceState/)
   assert.match(stateSource, /export function createPersonalSpaceId/)
 })
+
+test('personal space model delegates character operations', () => {
+  const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const characterSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceCharacters.ts', 'utf8')
+
+  assert.match(source, /from '\.\/personalSpaceCharacters'/)
+  assert.match(source, /export \{[\s\S]*addCharacterProfile[\s\S]*assignAssetToCharacterColumn[\s\S]*reorderCharacterVoice[\s\S]*\} from '\.\/personalSpaceCharacters'/)
+  assert.doesNotMatch(source, /export function addCharacterProfile/)
+  assert.doesNotMatch(source, /export function assignAssetToCharacterColumn/)
+  assert.doesNotMatch(source, /export function reorderCharacterVoice/)
+  assert.doesNotMatch(source, /function normalizeCharacterOrder/)
+  assert.match(characterSource, /export function addCharacterProfile/)
+  assert.match(characterSource, /export function assignAssetToCharacterColumn/)
+  assert.match(characterSource, /export function reorderCharacterVoice/)
+  assert.match(characterSource, /function normalizeCharacterOrder/)
+})
