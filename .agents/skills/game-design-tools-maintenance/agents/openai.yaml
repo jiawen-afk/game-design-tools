@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game Design Tools Maintenance"
+  short_description: "Maintain this project without architecture drift"
+  default_prompt: "Use $game-design-tools-maintenance to change this project while preserving its workspace architecture."
