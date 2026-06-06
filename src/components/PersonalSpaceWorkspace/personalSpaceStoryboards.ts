@@ -57,10 +57,12 @@ export function setStoryboardCharacters(state: PersonalSpaceState, groupId: stri
 
 export function assignVoiceToStoryboardGroup(state: PersonalSpaceState, groupId: string, assetId: string, text = ''): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
+  const voiceAsset = next.assets.find((asset) => asset.id === assetId && asset.kind === 'voice')
+  const dialogueText = text.trim() || voiceAsset?.dialogueText || ''
   next.storyboardGroups = next.storyboardGroups.map((group) => {
     if (group.id !== groupId) return group
     const existing = group.voiceEntries.filter((entry) => entry.assetId !== assetId)
-    const voiceEntries = [...existing, { assetId, text, order: existing.length }].map((entry, index) => ({ ...entry, order: index }))
+    const voiceEntries = [...existing, { assetId, text: dialogueText, order: existing.length }].map((entry, index) => ({ ...entry, order: index }))
     return { ...group, voiceEntries, voiceAssetIds: voiceEntries.map((entry) => entry.assetId) }
   })
   next.assets = next.assets.map((asset) => (
@@ -71,11 +73,55 @@ export function assignVoiceToStoryboardGroup(state: PersonalSpaceState, groupId:
   return next
 }
 
+export function unassignVoiceFromStoryboardGroup(state: PersonalSpaceState, groupId: string, assetId: string): PersonalSpaceState {
+  const next = clonePersonalSpaceState(state)
+  next.storyboardGroups = next.storyboardGroups.map((group) => {
+    if (group.id !== groupId) return group
+    const voiceEntries = group.voiceEntries
+      .filter((entry) => entry.assetId !== assetId)
+      .map((entry, order) => ({ ...entry, order }))
+    return { ...group, voiceEntries, voiceAssetIds: voiceEntries.map((entry) => entry.assetId) }
+  })
+  next.assets = next.assets.map((asset) => (
+    asset.id === assetId
+      ? { ...asset, linkedStoryboardIds: asset.linkedStoryboardIds.filter((linkedId) => linkedId !== groupId) }
+      : asset
+  ))
+  return next
+}
+
+export function getStoryboardLinkedCharacterIds(state: PersonalSpaceState, groupId: string): string[] {
+  const group = state.storyboardGroups.find((item) => item.id === groupId)
+  if (!group) return []
+  const ids = group.voiceEntries
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .flatMap((entry) => {
+      const voiceAsset = state.assets.find((asset) => asset.id === entry.assetId && asset.kind === 'voice')
+      return voiceAsset?.linkedCharacterIds ?? []
+    })
+  return Array.from(new Set(ids))
+}
+
 export function updateStoryboardVoiceText(state: PersonalSpaceState, groupId: string, assetId: string, text: string): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   next.storyboardGroups = next.storyboardGroups.map((group) => {
     if (group.id !== groupId) return group
     return { ...group, voiceEntries: group.voiceEntries.map((entry) => (entry.assetId === assetId ? { ...entry, text } : entry)) }
+  })
+  return next
+}
+
+export function updateStoryboardVoiceNote(state: PersonalSpaceState, groupId: string, assetId: string, noteName: string): PersonalSpaceState {
+  const next = clonePersonalSpaceState(state)
+  next.storyboardGroups = next.storyboardGroups.map((group) => {
+    if (group.id !== groupId) return group
+    return {
+      ...group,
+      voiceEntries: group.voiceEntries.map((entry) => (
+        entry.assetId === assetId ? { ...entry, noteName: noteName.trim() || undefined } : entry
+      )),
+    }
   })
   return next
 }
@@ -97,6 +143,25 @@ export function reorderStoryboardVoice(state: PersonalSpaceState, groupId: strin
   return next
 }
 
+export function moveStoryboardVoice(state: PersonalSpaceState, groupId: string, draggedAssetId: string, targetAssetId: string): PersonalSpaceState {
+  if (draggedAssetId === targetAssetId) return clonePersonalSpaceState(state)
+  const next = clonePersonalSpaceState(state)
+  next.storyboardGroups = next.storyboardGroups.map((group) => {
+    if (group.id !== groupId) return group
+    const entries = group.voiceEntries.slice().sort((a, b) => a.order - b.order)
+    const draggedIndex = entries.findIndex((entry) => entry.assetId === draggedAssetId)
+    const targetIndex = entries.findIndex((entry) => entry.assetId === targetAssetId)
+    if (draggedIndex < 0 || targetIndex < 0) return group
+    const [dragged] = entries.splice(draggedIndex, 1)
+    if (!dragged) return group
+    const insertIndex = entries.findIndex((entry) => entry.assetId === targetAssetId)
+    entries.splice(insertIndex + 1, 0, dragged)
+    const voiceEntries = entries.map((entry, order) => ({ ...entry, order }))
+    return { ...group, voiceEntries, voiceAssetIds: voiceEntries.map((entry) => entry.assetId) }
+  })
+  return next
+}
+
 export function exportStoryboardReference(state: PersonalSpaceState, id: string): StoryboardReferenceExport {
   const space = clonePersonalSpaceState(state)
   const group = space.storyboardGroups.find((item) => item.id === id) ?? {
@@ -109,14 +174,22 @@ export function exportStoryboardReference(state: PersonalSpaceState, id: string)
   const dialogue = group.voiceEntries
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((entry) => {
+    .flatMap<StoryboardReferenceExport['dialogue'][number]>((entry) => {
       const voiceAsset = space.assets.find((asset) => asset.id === entry.assetId && asset.kind === 'voice')
-      return voiceAsset ? { ...entry, voiceAsset } : null
+      if (!voiceAsset) return []
+      const speaker = voiceAsset.linkedCharacterIds
+        .map((characterId) => space.characters.find((character) => character.id === characterId))
+        .find((character): character is CharacterProfile => Boolean(character))
+      return [{
+        ...entry,
+        voiceAsset,
+        ...(speaker ? { speaker } : {}),
+        speakerText: speaker ? `【${speaker.name}：】${entry.text}` : entry.text,
+      }]
     })
-    .filter((entry): entry is StoryboardVoiceEntry & { voiceAsset: PersonalSpaceAsset } => Boolean(entry))
   return {
     group,
-    characters: group.characterIds
+    characters: getStoryboardLinkedCharacterIds(space, group.id)
       .map((characterId) => space.characters.find((character) => character.id === characterId))
       .filter((character): character is CharacterProfile => Boolean(character)),
     voiceAssets: group.voiceAssetIds

@@ -2,6 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  createSpriteAssetForUpload,
+} from './personalSpaceResourceActions'
+import {
   createMemoryDirectoryHandle,
   deleteStoredResourceFiles,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -12,44 +15,79 @@ import {
 import {
   createPortraitAssetFromUpload,
   createSpriteAssetFromExport,
+  defaultPersonalSpaceState,
 } from './personalSpaceModel'
 
-test('writes asset resources into category and asset folders', async () => {
+test('writes asset resources into category and import-date folders with hashed names', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
-  const asset = createSpriteAssetFromExport({
+  const asset = {
+    ...createSpriteAssetFromExport({
     name: '主角行走',
     spritePath: 'blob:sprite',
     indexPath: 'blob:index',
-  })
+    }),
+    createdAt: '2026-06-06T12:00:00.000Z',
+  }
 
   const stored = await writeAssetResourcesToDirectory(root, asset, [
     { name: 'sprite.png', data: new Blob(['png']) },
     { name: 'index.json', data: new Blob(['{}'], { type: 'application/json' }) },
   ])
 
-  assert.deepEqual(stored.storageResourcePaths, [
-    'PersonalSpace/角色精灵图/主角行走/sprite.png',
-    'PersonalSpace/角色精灵图/主角行走/index.json',
-  ])
-  assert.equal(await root.readText('角色精灵图/主角行走/sprite.png'), 'png')
-  assert.equal(await root.readText('角色精灵图/主角行走/index.json'), '{}')
+  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/2026-06-06\/[a-f0-9]{16}\.png$/)
+  assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/2026-06-06\/[a-f0-9]{16}\.json$/)
+  assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /主角行走|sprite|index/)
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'png')
+  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), '{}')
+})
+
+test('uploaded character sprite resources require png and index json, keep original asset name, and use hashed storage names', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+  }
+
+  const stored = await createSpriteAssetForUpload(state, [
+    new File(['png'], 'hero.png', { type: 'image/png' }),
+    new File(['{}'], 'index.json', { type: 'application/json' }),
+  ], root)
+
+  assert.equal(stored.kind, 'sprite')
+  assert.equal(stored.name, 'hero.png')
+  assert.equal(stored.groupName, '默认分组')
+  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.json$/)
+  assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /hero\.png|index\.json/)
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'png')
+  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), '{}')
+  await assert.rejects(
+    () => createSpriteAssetForUpload(state, [new File(['{}'], 'index.json')], null),
+    /请选择一个 PNG 精灵图和一个 index\.json/,
+  )
 })
 
 test('uploaded portrait resources are stored under the portrait category', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
-  const asset = createPortraitAssetFromUpload({
-    name: '主角头像',
+  const asset = {
+    ...createPortraitAssetFromUpload({
+    name: 'hero-face.png',
     portraitPath: 'blob:portrait',
-  })
+    }),
+    createdAt: '2026-06-06T12:00:00.000Z',
+  }
 
   const stored = await writeAssetResourcesToDirectory(root, asset, [
     { name: 'portrait.png', data: new Blob(['portrait']) },
   ])
 
-  assert.deepEqual(stored.storageResourcePaths, [
-    'PersonalSpace/角色肖像/主角头像/portrait.png',
-  ])
-  assert.equal(await root.readText('角色肖像/主角头像/portrait.png'), 'portrait')
+  assert.equal(stored.name, 'hero-face.png')
+  assert.equal(stored.storageResourcePaths.length, 1)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/角色肖像\/2026-06-06\/[a-f0-9]{16}\.png$/)
+  assert.doesNotMatch(stored.storageResourcePaths[0]!, /hero-face/)
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'portrait')
 })
 
 test('deletes stored resource files and leaves missing files as pending cleanup', async () => {

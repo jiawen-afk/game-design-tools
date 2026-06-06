@@ -180,6 +180,14 @@ test('playback preview stays bounded when many frame rows are present', () => {
   assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
 })
 
+test('playback preview uses one all-play button for play and pause states', () => {
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/PlaybackPanel.tsx', 'utf8')
+
+  assert.match(panel, /playing \? '暂停播放' : '全部播放'/)
+  assert.match(panel, /onClick=\{playing \? onPause : onStartAll\}/)
+  assert.doesNotMatch(panel, /\{playing && <Button onClick=\{onPause\}>暂停<\/Button>\}/)
+})
+
 test('public ratio apply button exposes processing state while composed frames update', () => {
   const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasPublicParamsPanel.tsx', 'utf8')
   const toolbar = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx', 'utf8')
@@ -619,6 +627,7 @@ test('sprite export can be collected into personal space with sprite and index r
   assert.match(exportHook, /writeAssetResourcesToDirectory/)
   assert.match(exportHook, /readPersonalSpaceState/)
   assert.match(exportHook, /writePersonalSpaceState/)
+  assert.match(exportHook, /个人空间-素材-精灵图/)
   assert.match(exportHook, /sprite\.png/)
   assert.match(exportHook, /index\.json/)
 })
@@ -907,7 +916,10 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   assert.match(uploadHook, /getNextMatteGroupName\(framesRef\.current,\s*'spriteSheet'\)/)
   assert.doesNotMatch(controller, /existingFrameCount:\s*frame\.frames\.length/)
   assert.match(mattePanel, /buildMatteFrameGroups/)
-  assert.match(mattePanel, /确定应用到该组所有帧/)
+  assert.match(mattePanel, /应用到组所有帧/)
+  assert.match(mattePanel, /导出组图片/)
+  assert.match(mattePanel, /收藏到个人空间/)
+  assert.doesNotMatch(mattePanel, /确定应用到该组所有帧/)
   assert.match(mattePanel, /<span>\{group\.name\} · 第 1 帧<\/span>/)
   assert.match(mattePanel, /<Text type="secondary">共 \{group\.frameCount\} 帧<\/Text>/)
   assert.doesNotMatch(videoHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)

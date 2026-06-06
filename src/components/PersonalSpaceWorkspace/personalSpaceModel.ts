@@ -1,5 +1,6 @@
 export type PersonalSpaceModule = 'characters' | 'storyboards' | 'assets' | 'settings'
-export type CommonAssetKind = 'map' | 'effect' | 'voice' | 'sprite'
+export type CommonAssetKind = 'map' | 'image' | 'effect' | 'voice' | 'sprite'
+export type AssetGroupKind = 'image' | 'sprite' | 'voice'
 
 export interface PersonalSpaceSettings {
   storageDirectory: string
@@ -12,6 +13,7 @@ export interface PersonalSpaceAsset {
   name: string
   groupName: string
   tags: string[]
+  dialogueText?: string
   resourcePaths: string[]
   createdAt: string
   linkedCharacterIds: string[]
@@ -24,12 +26,14 @@ export interface CharacterAssetLink {
   assetId: string
   tags: string[]
   order: number
+  noteName?: string
 }
 
 export interface StoryboardVoiceEntry {
   assetId: string
   text: string
   order: number
+  noteName?: string
 }
 
 export interface CharacterProfile {
@@ -56,11 +60,16 @@ export interface StoryboardReferenceExport {
   group: StoryboardGroup
   characters: CharacterProfile[]
   voiceAssets: PersonalSpaceAsset[]
-  dialogue: Array<StoryboardVoiceEntry & { voiceAsset: PersonalSpaceAsset }>
+  dialogue: Array<StoryboardVoiceEntry & {
+    voiceAsset: PersonalSpaceAsset
+    speaker?: CharacterProfile
+    speakerText: string
+  }>
 }
 
 export interface PersonalSpaceState {
   settings: PersonalSpaceSettings
+  assetGroups: Record<AssetGroupKind, string[]>
   characters: CharacterProfile[]
   assets: PersonalSpaceAsset[]
   storyboardGroups: StoryboardGroup[]
@@ -70,6 +79,10 @@ export interface PersonalSpaceState {
 export interface VoiceRecordAssetInput {
   name: string
   audioPath: string | null
+  dialogueText?: string
+  params?: {
+    text?: string
+  }
 }
 
 export interface SpriteExportAssetInput {
@@ -93,8 +106,21 @@ export interface ResourceUploadAssetInput {
 }
 
 export {
+  addAssetGroup,
+  assetGroupKindForAsset,
+  defaultAssetGroups,
+  deleteAssetGroup,
+  renameAssetGroup,
+  transferAssetGroup,
+} from './personalSpaceAssetGroups'
+
+export {
   createPersonalSpaceAsset,
   archiveAssetForStorageDirectory,
+  createImportedAssetName,
+  hashText,
+  hashedResourceFileName,
+  importDatePart,
   createPortraitAssetFromUpload,
   createResourceAssetFromUpload,
   createSpriteAssetFromExport,
@@ -115,11 +141,15 @@ export {
   assignVoiceToStoryboardGroup,
   deleteStoryboardGroup,
   exportStoryboardReference,
+  getStoryboardLinkedCharacterIds,
   linkEffectAssetToVoice,
+  moveStoryboardVoice,
   renameStoryboardGroup,
   reorderStoryboardVoice,
   setStoryboardCharacters,
   storyboardReferenceFileName,
+  unassignVoiceFromStoryboardGroup,
+  updateStoryboardVoiceNote,
   updateStoryboardVoiceText,
 } from './personalSpaceStoryboards'
 
@@ -127,9 +157,12 @@ export {
   addCharacterProfile,
   assignAssetToCharacterColumn,
   deleteCharacterProfile,
+  moveCharacterVoice,
   renameCharacterProfile,
   reorderCharacterProfile,
   reorderCharacterVoice,
+  unassignAssetFromCharacterColumn,
+  updateCharacterAssetNote,
 } from './personalSpaceCharacters'
 
 export {

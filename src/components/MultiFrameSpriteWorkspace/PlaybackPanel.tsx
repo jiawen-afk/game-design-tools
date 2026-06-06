@@ -59,13 +59,12 @@ export function PlaybackPanel({
     <Card title="4. 预览播放与排序">
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Space wrap>
-          <Button icon={<PlayCircleOutlined />} onClick={onStartAll}>
-            全部播放
+          <Button icon={<PlayCircleOutlined />} onClick={playing ? onPause : onStartAll}>
+            {playing ? '暂停播放' : '全部播放'}
           </Button>
           <Button icon={<PlayCircleOutlined />} disabled={selectedCount === 0} onClick={onStartSelected}>
             播放选择的图片
           </Button>
-          {playing && <Button onClick={onPause}>暂停</Button>}
           <Text>FPS</Text>
           <InputNumber min={1} max={60} value={fps} onChange={(value) => onFpsChange(clampInt(value ?? 12, 1, 60))} />
           <Segmented

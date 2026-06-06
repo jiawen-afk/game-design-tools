@@ -1,4 +1,4 @@
-import { type PersonalSpaceAsset, storageCategoryForAsset } from './personalSpaceModel'
+import { hashText, importDatePart, type PersonalSpaceAsset, storageCategoryForAsset } from './personalSpaceModel'
 
 export interface PersonalSpaceResourceFile {
   name: string
@@ -114,6 +114,29 @@ function sanitizePathPart(value: string): string {
   return (value.trim() || '未命名资源').replace(/[<>:"/\\|?*]+/g, '_')
 }
 
+function extensionForResource(asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index: number) {
+  const clean = resource.name.trim()
+  const ext = clean.match(/\.[^.\\/]+$/)?.[0]
+  if (ext) return ext.toLowerCase()
+  if (asset.kind === 'sprite') return index === 0 ? '.png' : '.json'
+  if (asset.kind === 'voice') return '.wav'
+  if (asset.groupName === '角色肖像' || asset.tags.includes('肖像')) return '.png'
+  return ''
+}
+
+async function hashResource(resource: PersonalSpaceResourceFile) {
+  const buffer = await resource.data.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let text = resource.name
+  for (const byte of bytes) text += String.fromCharCode(byte)
+  return hashText(text).slice(0, 16)
+}
+
+async function storedResourceFileName(asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index: number) {
+  const ext = extensionForResource(asset, resource, index)
+  return `${await hashResource(resource)}${ext}`
+}
+
 function splitStoredPath(path: string) {
   return path.split(/[\\/]+/).filter(Boolean)
 }
@@ -138,8 +161,13 @@ async function writeFile(directory: PersonalSpaceDirectoryHandle, name: string, 
   await writable.close()
 }
 
-export function buildStoredResourcePath(rootName: string, asset: PersonalSpaceAsset, fileName: string) {
-  return [rootName, storageCategoryForAsset(asset), sanitizePathPart(asset.name), sanitizePathPart(fileName)].join('/')
+export async function buildStoredResourcePath(rootName: string, asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index = 0) {
+  return [
+    rootName,
+    storageCategoryForAsset(asset),
+    importDatePart(asset.createdAt),
+    sanitizePathPart(await storedResourceFileName(asset, resource, index)),
+  ].join('/')
 }
 
 export async function writeAssetResourcesToDirectory(
@@ -147,13 +175,21 @@ export async function writeAssetResourcesToDirectory(
   asset: PersonalSpaceAsset,
   resources: PersonalSpaceResourceFile[],
 ): Promise<PersonalSpaceAsset> {
-  const folder = await ensureDirectory(root, [storageCategoryForAsset(asset), asset.name])
-  for (const resource of resources) {
-    await writeFile(folder, resource.name, resource.data)
+  const folder = await ensureDirectory(root, [storageCategoryForAsset(asset), importDatePart(asset.createdAt)])
+  const storedNames: string[] = []
+  for (const [index, resource] of resources.entries()) {
+    const fileName = await storedResourceFileName(asset, resource, index)
+    storedNames.push(fileName)
+    await writeFile(folder, fileName, resource.data)
   }
   return {
     ...asset,
-    storageResourcePaths: resources.map((resource) => buildStoredResourcePath(root.name, asset, resource.name)),
+    storageResourcePaths: storedNames.map((fileName) => [
+      root.name,
+      storageCategoryForAsset(asset),
+      importDatePart(asset.createdAt),
+      sanitizePathPart(fileName),
+    ].join('/')),
   }
 }
 
@@ -166,6 +202,17 @@ export async function writeJsonFileToDirectory(
   const folder = await ensureDirectory(root, directoryParts)
   const json = JSON.stringify(data, null, 2)
   await writeFile(folder, fileName, new Blob([json], { type: 'application/json' }))
+  return [root.name, ...directoryParts.map(sanitizePathPart), sanitizePathPart(fileName)].join('/')
+}
+
+export async function writeBlobFileToDirectory(
+  root: PersonalSpaceDirectoryHandle,
+  directoryParts: string[],
+  fileName: string,
+  data: Blob,
+) {
+  const folder = await ensureDirectory(root, directoryParts)
+  await writeFile(folder, fileName, data)
   return [root.name, ...directoryParts.map(sanitizePathPart), sanitizePathPart(fileName)].join('/')
 }
 

@@ -388,8 +388,12 @@
   gap: 8px;
 }
 
-.record-actions .ant-dropdown-button {
-  display: inline-flex;
+.record-collect-action {
+  max-width: 100%;
+}
+
+.record-collect-action .ant-btn:first-child {
+  min-width: 0;
 }
 
 .model-select {

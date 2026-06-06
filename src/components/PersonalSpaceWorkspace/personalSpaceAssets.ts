@@ -13,6 +13,7 @@ export function createPersonalSpaceAsset(input: {
   name: string
   groupName?: string
   tags?: string[]
+  dialogueText?: string
   resourcePaths?: string[]
   linkedCharacterIds?: string[]
   linkedStoryboardIds?: string[]
@@ -24,6 +25,7 @@ export function createPersonalSpaceAsset(input: {
     name: input.name.trim() || '未命名资源',
     groupName: input.groupName?.trim() || '默认分组',
     tags: input.tags ?? [],
+    dialogueText: input.dialogueText?.trim() || undefined,
     resourcePaths: input.resourcePaths ?? [],
     linkedCharacterIds: input.linkedCharacterIds ?? [],
     linkedStoryboardIds: input.linkedStoryboardIds ?? [],
@@ -31,6 +33,38 @@ export function createPersonalSpaceAsset(input: {
     storageResourcePaths: [],
     createdAt: new Date().toISOString(),
   }
+}
+
+function padTime(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function systemTimestamp(date = new Date()) {
+  return [
+    date.getFullYear(),
+    padTime(date.getMonth() + 1),
+    padTime(date.getDate()),
+  ].join('') + '-' + [
+    padTime(date.getHours()),
+    padTime(date.getMinutes()),
+    padTime(date.getSeconds()),
+  ].join('')
+}
+
+let lastImportedAssetNameKey = ''
+let lastImportedAssetNameSequence = 0
+
+export function createImportedAssetName(label: string) {
+  const key = `${label}-${systemTimestamp()}`
+  if (key === lastImportedAssetNameKey) {
+    lastImportedAssetNameSequence += 1
+  } else {
+    lastImportedAssetNameKey = key
+    lastImportedAssetNameSequence = 1
+  }
+  return lastImportedAssetNameSequence === 1
+    ? key
+    : `${key}-${String(lastImportedAssetNameSequence).padStart(2, '0')}`
 }
 
 function sanitizePathPart(value: string): string {
@@ -43,30 +77,60 @@ function joinStoragePath(root: string, ...parts: string[]): string {
 }
 
 export function storageCategoryForAsset(asset: PersonalSpaceAsset): string {
-  if (asset.kind === 'sprite') return '角色精灵图'
-  if (asset.kind === 'voice') return '配音素材'
-  if (asset.kind === 'effect') return '特效素材'
   if (asset.groupName === '角色肖像' || asset.tags.includes('肖像')) return '角色肖像'
-  return '地图素材'
+  if (asset.kind === 'sprite') return '精灵图'
+  if (asset.kind === 'voice') return '配音'
+  return '图片'
 }
 
-function resourceFileName(asset: PersonalSpaceAsset, path: string, index: number): string {
-  const clean = path.split(/[\\/]/).pop()?.trim()
-  if (clean && clean !== path) return clean
-  if (path.startsWith('blob:')) {
-    if (asset.kind === 'sprite') return index === 0 ? 'sprite.png' : index === 1 ? 'index.json' : `resource-${index + 1}`
-    if (asset.groupName === '角色肖像' || asset.tags.includes('肖像')) return 'portrait.png'
+export function importDatePart(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'unknown-date'
+  return [
+    date.getFullYear(),
+    padTime(date.getMonth() + 1),
+    padTime(date.getDate()),
+  ].join('-')
+}
+
+export function hashText(value: string) {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
   }
-  return clean || `resource-${index + 1}`
+  let second = 0x811c9dc5
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    second ^= value.charCodeAt(index)
+    second = Math.imul(second, 0x01000193)
+  }
+  return `${(hash >>> 0).toString(16).padStart(8, '0')}${(second >>> 0).toString(16).padStart(8, '0')}`
+}
+
+function resourceExtension(asset: PersonalSpaceAsset, path: string, index: number): string {
+  const clean = path.split(/[\\/]/).pop()?.trim()
+  const ext = clean?.match(/\.[^.\\/]+$/)?.[0]
+  if (ext) return ext.toLowerCase()
+  if (path.startsWith('blob:')) {
+    if (asset.kind === 'sprite') return index === 0 ? '.png' : '.json'
+    if (asset.kind === 'voice') return '.wav'
+    if (asset.groupName === '角色肖像' || asset.tags.includes('肖像')) return '.png'
+  }
+  return ''
+}
+
+export function hashedResourceFileName(asset: PersonalSpaceAsset, path: string, index: number): string {
+  return `${hashText(`${asset.id}:${asset.createdAt}:${index}:${path}`).slice(0, 16)}${resourceExtension(asset, path, index)}`
 }
 
 export function archiveAssetForStorageDirectory(state: PersonalSpaceState, asset: PersonalSpaceAsset): PersonalSpaceAsset {
   const directory = state.settings.storageDirectory.trim()
   if (!directory) return { ...asset, storageResourcePaths: [...asset.storageResourcePaths] }
   const category = storageCategoryForAsset(asset)
+  const datePart = importDatePart(asset.createdAt)
   return {
     ...asset,
-    storageResourcePaths: asset.resourcePaths.map((path, index) => joinStoragePath(directory, category, asset.name, resourceFileName(asset, path, index))),
+    storageResourcePaths: asset.resourcePaths.map((path, index) => joinStoragePath(directory, category, datePart, hashedResourceFileName(asset, path, index))),
   }
 }
 
@@ -74,8 +138,9 @@ export function createVoiceAssetFromRecord(record: VoiceRecordAssetInput): Perso
   return createPersonalSpaceAsset({
     kind: 'voice',
     name: record.name,
-    groupName: '配音素材',
+    groupName: '默认分组',
     tags: ['配音'],
+    dialogueText: record.dialogueText ?? record.params?.text,
     resourcePaths: record.audioPath ? [record.audioPath] : [],
   })
 }
@@ -84,15 +149,15 @@ export function createSpriteAssetFromExport(input: SpriteExportAssetInput): Pers
   return createPersonalSpaceAsset({
     kind: 'sprite',
     name: input.name,
-    groupName: '角色精灵图',
-    tags: input.tags ?? ['角色精灵图'],
+    groupName: '默认分组',
+    tags: input.tags ?? ['精灵图'],
     resourcePaths: [input.spritePath, input.indexPath],
   })
 }
 
 export function createPortraitAssetFromUpload(input: PortraitUploadAssetInput): PersonalSpaceAsset {
   return createPersonalSpaceAsset({
-    kind: 'map',
+    kind: 'image',
     name: input.name,
     groupName: '角色肖像',
     tags: ['肖像', ...(input.tags ?? [])],
@@ -101,25 +166,26 @@ export function createPortraitAssetFromUpload(input: PortraitUploadAssetInput): 
 }
 
 function groupNameForUploadedResource(kind: CommonAssetKind) {
-  if (kind === 'effect') return '特效素材'
-  if (kind === 'voice') return '配音素材'
-  if (kind === 'sprite') return '角色精灵图'
-  return '地图素材'
+  void kind
+  return '默认分组'
 }
 
 function defaultTagForUploadedResource(kind: CommonAssetKind) {
-  if (kind === 'effect') return '特效'
   if (kind === 'voice') return '配音'
-  if (kind === 'sprite') return '角色精灵图'
+  if (kind === 'sprite') return '精灵图'
+  if (kind === 'image') return '图片'
+  if (kind === 'effect') return '特效'
   return '地图'
 }
 
 export function createResourceAssetFromUpload(input: ResourceUploadAssetInput): PersonalSpaceAsset {
+  const normalizedKind: CommonAssetKind = input.kind === 'map' || input.kind === 'effect' ? 'image' : input.kind
+  const legacyTags = input.kind === 'map' ? ['地图'] : input.kind === 'effect' ? ['特效'] : []
   return createPersonalSpaceAsset({
-    kind: input.kind,
+    kind: normalizedKind,
     name: input.name,
-    groupName: groupNameForUploadedResource(input.kind),
-    tags: [defaultTagForUploadedResource(input.kind), ...(input.tags ?? [])],
+    groupName: groupNameForUploadedResource(normalizedKind),
+    tags: Array.from(new Set([defaultTagForUploadedResource(normalizedKind), ...legacyTags, ...(input.tags ?? [])])),
     resourcePaths: [input.resourcePath],
   })
 }

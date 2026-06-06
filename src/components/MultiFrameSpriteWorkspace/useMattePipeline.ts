@@ -14,11 +14,40 @@ import {
 import { applyComposedFrameUrl } from './model'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
 import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
+import {
+  archiveAssetForStorageDirectory,
+  createResourceAssetFromUpload,
+  readPersonalSpaceState,
+  writePersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  getPersonalSpaceDirectoryHandle,
+  writeAssetResourcesToDirectory,
+} from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
 )
 const BULK_MATTE_MESSAGE_KEY = 'bulk-matte-processing'
+
+function sanitizeDownloadName(value: string) {
+  return (value.trim() || 'matte').replace(/[<>:"/\\|?*]+/g, '_')
+}
+
+function downloadBlob(fileName: string, blob: Blob) {
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = fileName
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+}
+
+async function readMatteBlob(frame: FrameItem) {
+  if (!frame.matteUrl) throw new Error(`${frame.sourceName} 尚未完成抠图`)
+  const response = await fetch(frame.matteUrl)
+  if (!response.ok) throw new Error(`${frame.sourceName} 抠图读取失败`)
+  return response.blob()
+}
 
 export interface UseMattePipelineParams {
   frames: FrameItem[]
@@ -299,6 +328,76 @@ export function useMattePipeline({
     recomputeIds.forEach((frameId) => scheduleMatte(frameId))
   }
 
+  const getReadyMatteGroupFrames = (groupId: string) => {
+    const items = framesRef.current.filter((item) => item.matteGroupId === groupId)
+    if (items.length === 0) {
+      message.info('没有找到这个抠图任务组')
+      return null
+    }
+    const missing = items.find((item) => !item.matteUrl || item.processing)
+    if (missing) {
+      message.warning('该任务组还有图片未完成抠图，请先应用到该组所有帧并等待处理完成')
+      return null
+    }
+    return items
+  }
+
+  const exportMatteGroup = async (groupId: string) => {
+    const items = getReadyMatteGroupFrames(groupId)
+    if (!items) return
+    try {
+      if (items.length === 1) {
+        const blob = await readMatteBlob(items[0]!)
+        downloadBlob(`${sanitizeDownloadName(items[0]!.matteGroupName)}.png`, blob)
+        message.success('已导出组图片')
+        return
+      }
+      const { default: JSZip } = await import('jszip')
+      const zip = new JSZip()
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index]!
+        const blob = await readMatteBlob(item)
+        zip.file(`${String(index + 1).padStart(3, '0')}-${sanitizeDownloadName(item.sourceName)}.png`, blob)
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      downloadBlob(`${sanitizeDownloadName(items[0]!.matteGroupName)}-抠图.zip`, zipBlob)
+      message.success(`已导出 ${items.length} 张组图片`)
+    } catch (error) {
+      message.error(`导出组图片失败：${String(error)}`)
+    }
+  }
+
+  const importMatteGroupToPersonalSpace = async (groupId: string) => {
+    const items = getReadyMatteGroupFrames(groupId)
+    if (!items) return
+    try {
+      const space = readPersonalSpaceState()
+      const directoryHandle = getPersonalSpaceDirectoryHandle()
+      const assets = []
+      for (const item of items) {
+        const blob = await readMatteBlob(item)
+        const previewUrl = URL.createObjectURL(blob)
+        const baseAsset = createResourceAssetFromUpload({
+          kind: 'image',
+          name: item.sourceName,
+          resourcePath: previewUrl,
+          tags: ['抠图', item.matteGroupName],
+        })
+        const asset = directoryHandle
+          ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
+          : archiveAssetForStorageDirectory(space, baseAsset)
+        assets.push(asset)
+      }
+      writePersonalSpaceState({
+        ...space,
+        assets: [...assets, ...space.assets],
+      })
+      message.success(`已成功导入 ${assets.length} 张抠图到 个人空间-素材-公共图片`)
+    } catch (error) {
+      message.error(`收藏到个人空间失败：${String(error)}`)
+    }
+  }
+
   const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = Math.floor(((e.clientX - rect.left) / rect.width) * item.sourceWidth)
@@ -330,6 +429,8 @@ export function useMattePipeline({
     setCustomSpillPickerColor,
     applyMatteToFollowingFrames,
     applyMatteGroupToFrames,
+    exportMatteGroup,
+    importMatteGroupToPersonalSpace,
     sampleColor,
   }
 }

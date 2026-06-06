@@ -151,7 +151,7 @@ export function useSpriteExport({
         ...space,
         assets: [asset, ...space.assets],
       })
-      message.success('已收藏到个人空间')
+      message.success('已收藏到 个人空间-素材-精灵图')
     } catch (e) {
       message.error(`收藏到个人空间失败：${String(e)}`)
     } finally {

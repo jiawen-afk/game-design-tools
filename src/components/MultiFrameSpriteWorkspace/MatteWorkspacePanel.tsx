@@ -1,5 +1,5 @@
 import { Button, Card, Space, Typography } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownloadOutlined, StarOutlined } from '@ant-design/icons'
 
 import { MatteFrameCard, type MatteFrameCardProps } from './MatteFrameCard'
 import { buildMatteFrameGroups } from './model'
@@ -12,6 +12,8 @@ export interface MatteWorkspacePanelProps {
   activeFrameId: string | null
   onOpenDefaults: () => void
   onRemoveAll: () => void
+  onExportMatteGroup: (groupId: string) => void
+  onImportMatteGroupToPersonalSpace: (groupId: string) => void
   onActivate: MatteFrameCardProps['onActivate']
   onRemove: MatteFrameCardProps['onRemove']
   onSampleColor: MatteFrameCardProps['onSampleColor']
@@ -28,6 +30,8 @@ export function MatteWorkspacePanel({
   activeFrameId,
   onOpenDefaults,
   onRemoveAll,
+  onExportMatteGroup,
+  onImportMatteGroupToPersonalSpace,
   onActivate,
   onRemove,
   onSampleColor,
@@ -63,9 +67,17 @@ export function MatteWorkspacePanel({
                 key={group.firstFrame.id}
                 item={group.firstFrame}
                 title={(
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span>{group.name} · 第 1 帧</span>
-                    <Text type="secondary">共 {group.frameCount} 帧</Text>
+                    <Space size={6} wrap>
+                      <Text type="secondary">共 {group.frameCount} 帧</Text>
+                      <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
+                        导出组图片
+                      </Button>
+                      <Button size="small" icon={<StarOutlined />} onClick={() => onImportMatteGroupToPersonalSpace(group.id)}>
+                        收藏到个人空间
+                      </Button>
+                    </Space>
                   </div>
                 )}
                 index={0}
@@ -79,7 +91,7 @@ export function MatteWorkspacePanel({
                 onApplyToFollowing={onConfirmApplyToAll}
                 onCustomSpillPickerColor={onCustomSpillPickerColor}
                 onCustomSpillColor={onCustomSpillColor}
-                applyButtonLabel="确定应用到该组所有帧"
+                applyButtonLabel="应用到组所有帧"
                 applyButtonLoading={applyingGroupId === group.id}
                 applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0}
               />

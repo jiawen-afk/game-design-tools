@@ -12,6 +12,34 @@ export default function PersonalSpaceWorkspace() {
   const [messageApi, contextHolder] = message.useMessage()
   const workspace = usePersonalSpaceWorkspace(messageApi)
 
+  const materialSection = (section: (typeof workspace.resourceSections)[number]) => (
+    <PersonalResourceSection
+      key={`material-${section.kind}`}
+      section={section}
+      voiceAssets={workspace.voiceAssets}
+      characterOptions={workspace.characterOptions}
+      storyboardOptions={workspace.space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
+      uploadProps={section.kind === 'sprite'
+        ? workspace.imageSpriteUploadProps
+        : workspace.commonResourceUploadProps(section.kind)}
+      getAssetOptions={workspace.assetOptions}
+      getAssetKindLabel={workspace.assetKindLabel}
+      getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
+      onRenameAsset={workspace.renameAsset}
+      onChangeGroupName={workspace.changeAssetGroupName}
+      onChangeTags={workspace.changeAssetTags}
+      onChangeDialogueText={workspace.changeVoiceDialogueText}
+      onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
+      onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
+      onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
+      onAddGroup={workspace.addAssetGroup}
+      onRenameGroup={workspace.renameAssetGroup}
+      onTransferGroup={workspace.transferAssetGroup}
+      onDeleteGroup={workspace.deleteAssetGroup}
+      onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
+    />
+  )
+
   return (
     <section className="personal-space" aria-labelledby="personal-space-title">
       {contextHolder}
@@ -37,16 +65,12 @@ export default function PersonalSpaceWorkspace() {
           <strong>{workspace.space.storyboardGroups.length}</strong>
         </div>
         <div className="personal-stat">
+          <span>公共图片</span>
+          <strong>{workspace.assetCounts.image}</strong>
+        </div>
+        <div className="personal-stat">
           <span>精灵图</span>
           <strong>{workspace.assetCounts.sprite}</strong>
-        </div>
-        <div className="personal-stat">
-          <span>地图</span>
-          <strong>{workspace.assetCounts.map}</strong>
-        </div>
-        <div className="personal-stat">
-          <span>特效</span>
-          <strong>{workspace.assetCounts.effect}</strong>
         </div>
         <div className="personal-stat">
           <span>配音</span>
@@ -68,16 +92,18 @@ export default function PersonalSpaceWorkspace() {
                 spriteAssets={workspace.spriteAssets}
                 voiceAssets={workspace.voiceAssets}
                 allAssets={workspace.space.assets}
-                getAssetOptions={workspace.assetOptions}
                 getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
                 getPortraitUploadProps={workspace.portraitUploadProps}
+                getSpriteUploadProps={workspace.spriteUploadProps}
                 onNewCharacterNameChange={workspace.setNewCharacterName}
                 onCreateCharacter={workspace.createCharacter}
                 onRenameCharacter={workspace.renameCharacter}
                 onReorderCharacter={workspace.reorderCharacter}
                 onDeleteCharacter={workspace.deleteCharacter}
                 onAssignAsset={workspace.assignAsset}
-                onReorderCharacterVoice={workspace.reorderCharacterVoice}
+                onUnassignAsset={workspace.unassignAsset}
+                onUpdateAssetNote={workspace.updateCharacterAssetNote}
+                onMoveCharacterVoice={workspace.moveCharacterVoice}
               />
             ),
           },
@@ -88,46 +114,63 @@ export default function PersonalSpaceWorkspace() {
               <PersonalStoryboardPanel
                 storyboardGroups={workspace.space.storyboardGroups}
                 newStoryboardName={workspace.newStoryboardName}
-                characterOptions={workspace.characterOptions}
+                characters={workspace.space.characters}
                 voiceAssets={workspace.voiceAssets}
                 allAssets={workspace.space.assets}
-                getAssetOptions={workspace.assetOptions}
+                getStoryboardLinkedCharacterIds={workspace.getStoryboardLinkedCharacterIds}
                 onNewStoryboardNameChange={workspace.setNewStoryboardName}
                 onCreateStoryboard={workspace.createStoryboard}
                 onRenameStoryboard={workspace.renameStoryboard}
-                onCopyStoryboardReference={workspace.copyStoryboardReference}
                 onExportStoryboardAsset={(groupId) => void workspace.exportStoryboardAsset(groupId)}
                 onDeleteStoryboard={workspace.deleteStoryboard}
-                onSetStoryboardCharacters={workspace.setStoryboardCharacterIds}
                 onAssignVoiceToStoryboard={workspace.assignVoiceToStoryboard}
+                onUnassignStoryboardVoice={workspace.unassignStoryboardVoice}
+                onAssignStoryboardVoiceCharacter={workspace.assignStoryboardVoiceCharacter}
                 onUpdateStoryboardVoiceText={workspace.updateStoryboardVoice}
+                onUpdateStoryboardVoiceNote={workspace.updateStoryboardVoiceNote}
                 onReorderStoryboardVoice={workspace.reorderStoryboardVoice}
+                onMoveStoryboardVoice={workspace.moveStoryboardVoice}
               />
             ),
           },
-          ...workspace.resourceSections.map((section) => ({
-            key: `resource-${section.kind}`,
-            label: section.title,
+          {
+            key: 'materials',
+            label: '素材',
             children: (
-              <PersonalResourceSection
-                section={section}
-                voiceAssets={workspace.voiceAssets}
-                characterOptions={workspace.characterOptions}
-                storyboardOptions={workspace.space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
-                uploadProps={workspace.commonResourceUploadProps(section.kind)}
-                getAssetOptions={workspace.assetOptions}
-                getAssetKindLabel={workspace.assetKindLabel}
-                getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
-                onRenameAsset={workspace.renameAsset}
-                onChangeGroupName={workspace.changeAssetGroupName}
-                onChangeTags={workspace.changeAssetTags}
-                onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
-                onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
-                onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
-                onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
+              <Tabs
+                className="personal-inner-tabs"
+                items={[
+                  {
+                    key: 'images',
+                    label: '公共图片',
+                    children: (
+                      <div className="resource-module">
+                        {workspace.resourceSections.filter((section) => section.kind === 'image').map(materialSection)}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'sprites',
+                    label: '精灵图',
+                    children: (
+                      <div className="resource-module">
+                        {workspace.resourceSections.filter((section) => section.kind === 'sprite').map(materialSection)}
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'voices',
+                    label: '配音',
+                    children: (
+                      <div className="resource-module">
+                        {workspace.resourceSections.filter((section) => section.kind === 'voice').map(materialSection)}
+                      </div>
+                    ),
+                  },
+                ]}
               />
             ),
-          })),
+          },
           {
             key: 'settings',
             label: '设置',
@@ -147,7 +190,6 @@ export default function PersonalSpaceWorkspace() {
           },
         ]}
       />
-
     </section>
   )
 }

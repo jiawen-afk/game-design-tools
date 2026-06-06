@@ -28,6 +28,8 @@ export default function MultiFrameSpriteWorkspace() {
         activeFrameId={workspace.frame.activeFrame?.id ?? null}
         onOpenDefaults={workspace.matte.openMatteDefaults}
         onRemoveAll={workspace.resetAllFrames}
+        onExportMatteGroup={(groupId) => void workspace.matte.exportMatteGroup(groupId)}
+        onImportMatteGroupToPersonalSpace={(groupId) => void workspace.matte.importMatteGroupToPersonalSpace(groupId)}
         onActivate={workspace.frame.setActiveId}
         onRemove={workspace.frame.removeFrame}
         onSampleColor={(frame, event) => void workspace.matte.sampleColor(frame, event)}

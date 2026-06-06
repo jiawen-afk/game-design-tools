@@ -41,7 +41,7 @@ export async function collectVoiceRecordToPersonalSpace(
   link?: VoiceCollectLink,
 ): Promise<PersonalSpaceState> {
   const space = readPersonalSpaceState()
-  const baseAsset = createVoiceAssetFromRecord(record)
+  const baseAsset = createVoiceAssetFromRecord({ ...record, dialogueText: record.params.text })
   const directoryHandle = getPersonalSpaceDirectoryHandle()
   let asset = archiveAssetForStorageDirectory(space, baseAsset)
 

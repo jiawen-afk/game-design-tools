@@ -64,7 +64,7 @@ export function PersonalSettingsPanel({
           showIcon
           title={directoryHandle ? '已授权本地资源目录' : '未授权目录时使用路径记录模式'}
           description={directoryHandle
-            ? '收藏和上传的新资源会写入授权目录，并按角色肖像、角色精灵图、配音素材、特效素材、地图素材分类。'
+            ? '收藏和上传的新资源会写入授权目录，并按角色肖像、图片素材、角色精灵图、配音素材、特效素材分类。'
             : '可以手动填写目录路径生成存储目标；点击选择授权目录后，支持浏览器文件系统写入和删除。'}
         />
 

@@ -1,5 +1,5 @@
-import { Button, Dropdown, Empty, Input, Tag } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { Button, Dropdown, Empty, Input, Space, Tag } from 'antd'
+import { DeleteOutlined, DownOutlined } from '@ant-design/icons'
 
 import type { PersonalSpaceAsset } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
@@ -57,20 +57,22 @@ export function VoiceRecordList({
             <div className="record-actions">
               <Button size="small" onClick={() => onLoad(record)}>载入参数</Button>
               <Button size="small" disabled={!record.audioPath} onClick={() => onClone(record)}>克隆音频</Button>
-              <Dropdown.Button
-                size="small"
-                menu={{
-                  items: [
-                    { key: 'character', label: '收藏并关联角色' },
-                    { key: 'effect', label: '收藏并关联特效' },
-                    { key: 'storyboard', label: '收藏并关联剧情' },
-                  ],
-                  onClick: ({ key }) => onCollectWithLink(record, key as VoiceCollectLinkTarget),
-                }}
-                onClick={() => onCollect(record)}
-              >
-                收藏到个人空间
-              </Dropdown.Button>
+              <Space.Compact className="record-collect-action">
+                <Button size="small" onClick={() => onCollect(record)}>收藏到个人空间</Button>
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: 'character', label: '收藏并关联角色' },
+                      { key: 'effect', label: '收藏并关联特效' },
+                      { key: 'storyboard', label: '收藏并关联剧情' },
+                    ],
+                    onClick: ({ key }) => onCollectWithLink(record, key as VoiceCollectLinkTarget),
+                  }}
+                  trigger={['click']}
+                >
+                  <Button size="small" aria-label="展开收藏关联方式" icon={<DownOutlined />} />
+                </Dropdown>
+              </Space.Compact>
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(record.id)}>删除</Button>
             </div>
           </article>

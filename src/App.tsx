@@ -16,6 +16,8 @@ const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWork
 type ToolId = 'multi-frame-sprite' | 'voice-deployment'
 type ActiveSurface = ToolId | 'personal-space'
 
+const personalSpaceShortcut = '3'
+
 const tools: Array<{
   id: ToolId
   name: string
@@ -77,6 +79,11 @@ export default function App() {
         return
       }
       if (activeSurface !== null || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key === personalSpaceShortcut) {
+        event.preventDefault()
+        setActiveSurface('personal-space')
+        return
+      }
       const matchingTool = tools.find((tool) => event.key === tool.shortcut)
       if (!matchingTool) return
       event.preventDefault()
@@ -137,6 +144,8 @@ export default function App() {
             <span>精灵</span>
             <kbd>2</kbd>
             <span>配音</span>
+            <kbd>{personalSpaceShortcut}</kbd>
+            <span>个人空间</span>
           </div>
           <Button icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
             打开个人空间

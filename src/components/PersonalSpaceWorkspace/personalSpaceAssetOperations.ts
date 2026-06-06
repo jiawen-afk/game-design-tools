@@ -2,7 +2,7 @@ import { normalizeAssetLinks } from './personalSpaceCharacters'
 import { clonePersonalSpaceState } from './personalSpaceState'
 import type { PersonalSpaceAsset, PersonalSpaceState } from './personalSpaceModel'
 
-export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'tags' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
+export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'tags' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   next.assets = next.assets.map((asset) => {
     if (asset.id !== id) return asset
@@ -11,6 +11,7 @@ export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
       name: patch.name?.trim() || asset.name,
       groupName: patch.groupName?.trim() || asset.groupName,
       tags: patch.tags ? [...patch.tags] : asset.tags,
+      dialogueText: patch.dialogueText !== undefined ? (patch.dialogueText.trim() || undefined) : asset.dialogueText,
       linkedCharacterIds: patch.linkedCharacterIds ? [...patch.linkedCharacterIds] : asset.linkedCharacterIds,
       linkedStoryboardIds: patch.linkedStoryboardIds ? [...patch.linkedStoryboardIds] : asset.linkedStoryboardIds,
       linkedVoiceAssetIds: patch.linkedVoiceAssetIds ? [...patch.linkedVoiceAssetIds] : asset.linkedVoiceAssetIds,
@@ -23,6 +24,12 @@ export function deletePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
   const next = clonePersonalSpaceState(state)
   const deletedAsset = next.assets.find((asset) => asset.id === id)
   next.assets = next.assets.filter((asset) => asset.id !== id)
+  next.assets = next.assets.map((asset) => ({
+    ...asset,
+    linkedVoiceAssetIds: asset.linkedVoiceAssetIds.filter((assetId) => assetId !== id),
+    linkedCharacterIds: asset.linkedCharacterIds.filter((assetId) => assetId !== id),
+    linkedStoryboardIds: asset.linkedStoryboardIds.filter((assetId) => assetId !== id),
+  }))
   next.characters = next.characters.map((character) => ({
     ...character,
     portraitAssets: normalizeAssetLinks(character.portraitAssets.filter((link) => link.assetId !== id)),
