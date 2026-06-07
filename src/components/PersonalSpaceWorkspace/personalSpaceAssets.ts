@@ -135,13 +135,14 @@ export function archiveAssetForStorageDirectory(state: PersonalSpaceState, asset
 }
 
 export function createVoiceAssetFromRecord(record: VoiceRecordAssetInput): PersonalSpaceAsset {
+  const playablePath = record.audioUrl?.trim() || record.audioPath || ''
   return createPersonalSpaceAsset({
     kind: 'voice',
     name: record.name,
     groupName: '默认分组',
     tags: ['配音'],
     dialogueText: record.dialogueText ?? record.params?.text,
-    resourcePaths: record.audioPath ? [record.audioPath] : [],
+    resourcePaths: playablePath ? [playablePath] : [],
   })
 }
 
@@ -149,7 +150,7 @@ export function createSpriteAssetFromExport(input: SpriteExportAssetInput): Pers
   return createPersonalSpaceAsset({
     kind: 'sprite',
     name: input.name,
-    groupName: '默认分组',
+    groupName: input.groupName,
     tags: input.tags ?? ['精灵图'],
     resourcePaths: [input.spritePath, input.indexPath],
   })
@@ -165,9 +166,9 @@ export function createPortraitAssetFromUpload(input: PortraitUploadAssetInput): 
   })
 }
 
-function groupNameForUploadedResource(kind: CommonAssetKind) {
+function groupNameForUploadedResource(kind: CommonAssetKind, groupName?: string) {
   void kind
-  return '默认分组'
+  return groupName?.trim() || '默认分组'
 }
 
 function defaultTagForUploadedResource(kind: CommonAssetKind) {
@@ -184,7 +185,7 @@ export function createResourceAssetFromUpload(input: ResourceUploadAssetInput): 
   return createPersonalSpaceAsset({
     kind: normalizedKind,
     name: input.name,
-    groupName: groupNameForUploadedResource(normalizedKind),
+    groupName: groupNameForUploadedResource(normalizedKind, input.groupName),
     tags: Array.from(new Set([defaultTagForUploadedResource(normalizedKind), ...legacyTags, ...(input.tags ?? [])])),
     resourcePaths: [input.resourcePath],
   })

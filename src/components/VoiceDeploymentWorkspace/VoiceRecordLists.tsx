@@ -1,7 +1,7 @@
 import { Button, Dropdown, Empty, Input, Space, Tag } from 'antd'
 import { DeleteOutlined, DownOutlined } from '@ant-design/icons'
 
-import type { PersonalSpaceAsset } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 import { voiceModeMeta } from './voiceDeploymentModel'
 import type { VoiceCollectLinkTarget } from './voicePersonalSpaceCollector'
@@ -82,29 +82,53 @@ export function VoiceRecordList({
   )
 }
 
-export function PersonalSpaceVoiceAssetList({ assets }: { assets: PersonalSpaceAsset[] }) {
+interface PersonalSpaceVoiceAssetListProps {
+  assets: PersonalSpaceAsset[]
+  characters: CharacterProfile[]
+  storyboardGroups: StoryboardGroup[]
+}
+
+function linkedNames(ids: string[], items: Array<{ id: string; name: string }>) {
+  const namesById = new Map(items.map((item) => [item.id, item.name]))
+  return ids.map((id) => namesById.get(id) ?? id)
+}
+
+export function PersonalSpaceVoiceAssetList({
+  assets,
+  characters,
+  storyboardGroups,
+}: PersonalSpaceVoiceAssetListProps) {
   if (assets.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到个人空间的配音" />
   }
 
   return (
     <div className="voice-record-list">
-      {assets.map((asset) => (
-        <article key={asset.id} className="voice-record">
-          <div className="record-heading">
-            <strong className="record-asset-title">{asset.name}</strong>
-          </div>
-          <div className="record-meta">
-            <Tag>配音素材</Tag>
-            <span>{new Date(asset.createdAt).toLocaleString()}</span>
-          </div>
-          <p className="record-text">{asset.resourcePaths.join('、') || '未绑定本地文件'}</p>
-          <div className="record-meta">
-            <span>角色 {asset.linkedCharacterIds.length}</span>
-            <span>剧情 {asset.linkedStoryboardIds.length}</span>
-          </div>
-        </article>
-      ))}
+      {assets.map((asset) => {
+        const audioSource = asset.resourcePaths[0] ?? ''
+        const characterNames = linkedNames(asset.linkedCharacterIds, characters)
+        const storyboardNames = linkedNames(asset.linkedStoryboardIds, storyboardGroups)
+
+        return (
+          <article key={asset.id} className="voice-record">
+            <div className="record-heading">
+              <strong className="record-asset-title">{asset.name}</strong>
+            </div>
+            <div className="record-meta">
+              <Tag>配音素材</Tag>
+              <span>{new Date(asset.createdAt).toLocaleString()}</span>
+            </div>
+            {audioSource ? <audio controls src={audioSource} /> : <p className="record-text">没有可播放音频</p>}
+            {asset.dialogueText && <p className="record-text">{asset.dialogueText}</p>}
+            {(characterNames.length > 0 || storyboardNames.length > 0) && (
+              <div className="record-meta record-link-names">
+                {characterNames.length > 0 && <span>角色：{characterNames.join('、')}</span>}
+                {storyboardNames.length > 0 && <span>剧情：{storyboardNames.join('、')}</span>}
+              </div>
+            )}
+          </article>
+        )
+      })}
     </div>
   )
 }

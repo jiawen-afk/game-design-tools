@@ -13,6 +13,7 @@ export function addCharacterProfile(state: PersonalSpaceState, name: string): Pe
       id: createPersonalSpaceId('character'),
       name: name.trim() || '未命名角色',
       order: next.characters.length,
+      starred: false,
       portraitAssets: [],
       spriteAssets: [],
       voiceAssets: [],
@@ -21,6 +22,14 @@ export function addCharacterProfile(state: PersonalSpaceState, name: string): Pe
       voiceAssetIds: [],
     },
   ])
+  return next
+}
+
+export function toggleCharacterStar(state: PersonalSpaceState, id: string): PersonalSpaceState {
+  const next = clonePersonalSpaceState(state)
+  next.characters = next.characters.map((character) => (
+    character.id === id ? { ...character, starred: !character.starred } : character
+  ))
   return next
 }
 

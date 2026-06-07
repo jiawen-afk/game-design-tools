@@ -15,6 +15,7 @@ export interface PersonalSpaceDirectoryHandle {
 }
 
 export interface PersonalSpaceFileHandle {
+  getFile?: () => Promise<Blob>
   createWritable(): Promise<PersonalSpaceWritableFileStream>
 }
 
@@ -161,6 +162,19 @@ async function writeFile(directory: PersonalSpaceDirectoryHandle, name: string, 
   await writable.close()
 }
 
+export async function readStoredResourceBlob(root: PersonalSpaceDirectoryHandle, storedPath: string) {
+  const parts = relativePartsForRoot(root.name, storedPath)
+  const fileName = parts.at(-1)
+  if (!fileName) throw new Error(`资源路径无效：${storedPath}`)
+  let directory = root
+  for (const part of parts.slice(0, -1)) {
+    directory = await directory.getDirectoryHandle(part)
+  }
+  const file = await directory.getFileHandle(fileName)
+  if (!file.getFile) throw new Error('当前目录句柄不支持读取资源文件')
+  return file.getFile()
+}
+
 export async function buildStoredResourcePath(rootName: string, asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index = 0) {
   return [
     rootName,
@@ -257,7 +271,14 @@ class MemoryWritableFileStream implements PersonalSpaceWritableFileStream {
 }
 
 class MemoryFileHandle implements PersonalSpaceFileHandle {
-  constructor(private readonly commit: (data: Blob) => void) {}
+  constructor(
+    private readonly read: () => Blob,
+    private readonly commit: (data: Blob) => void,
+  ) {}
+
+  async getFile() {
+    return this.read()
+  }
 
   async createWritable() {
     return new MemoryWritableFileStream(this.commit)
@@ -283,7 +304,10 @@ export class MemoryDirectoryHandle implements PersonalSpaceDirectoryHandle {
   async getFileHandle(name: string, options?: FileSystemGetFileOptions) {
     const clean = sanitizePathPart(name)
     if (!options?.create && !this.files.has(clean)) throw new Error(`文件不存在：${clean}`)
-    return new MemoryFileHandle((data) => this.files.set(clean, data))
+    return new MemoryFileHandle(
+      () => this.files.get(clean) ?? (() => { throw new Error(`文件不存在：${clean}`) })(),
+      (data) => this.files.set(clean, data),
+    )
   }
 
   async removeEntry(name: string) {

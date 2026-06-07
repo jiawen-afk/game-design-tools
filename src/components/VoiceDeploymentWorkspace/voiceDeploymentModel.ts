@@ -291,11 +291,12 @@ export function buildServiceUrl(port: number): string {
   return `http://127.0.0.1:${port}`
 }
 
-export function createVoiceRecordName(params: VoiceGenerationParams, index: number): string {
+export function createVoiceRecordName(params: VoiceGenerationParams, index: number, characterName = ''): string {
   const mode = voiceModeMeta.find((item) => item.id === params.mode)?.label ?? '语音'
   const text = params.text.trim().replace(/\s+/g, ' ')
   const suffix = text ? ` · ${text.slice(0, 12)}` : ''
-  return `${mode} ${index}${suffix}`
+  const prefix = characterName.trim() ? `${characterName.trim()} · ` : ''
+  return `${prefix}${mode} ${index}${suffix}`
 }
 
 export function cloneVoiceParams(params: VoiceGenerationParams): VoiceGenerationParams {
@@ -342,9 +343,17 @@ export function deleteVoiceRecord(records: VoiceGenerationRecord[], id: string):
   return records.filter((record) => record.id !== id)
 }
 
-export function prepareCloneFromRecord(record: VoiceGenerationRecord): VoiceGenerationParams {
+export function clearVoiceRecords(records: VoiceGenerationRecord[]): VoiceGenerationRecord[] {
+  void records
+  return []
+}
+
+export function prepareCloneFromRecord(
+  currentParams: VoiceGenerationParams,
+  record: VoiceGenerationRecord,
+): VoiceGenerationParams {
   return {
-    ...cloneVoiceParams(record.params),
+    ...cloneVoiceParams(currentParams),
     mode: 'reference-clone',
     referenceAudioName: record.name,
     referenceAudioPath: record.audioPath,

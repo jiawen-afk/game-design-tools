@@ -39,12 +39,19 @@ function groupsForKind(state: PersonalSpaceState, kind: AssetGroupKind) {
 }
 
 function withGroupList(state: PersonalSpaceState, kind: AssetGroupKind, groups: string[]): PersonalSpaceState {
+  const nextGroups = uniqueGroups(groups)
   return {
     ...state,
     assetGroups: {
       ...defaultAssetGroups,
       ...(state.assetGroups ?? {}),
-      [kind]: uniqueGroups(groups),
+      [kind]: nextGroups,
+    },
+    starredAssetGroups: {
+      image: [...(state.starredAssetGroups?.image ?? [])],
+      sprite: [...(state.starredAssetGroups?.sprite ?? [])],
+      voice: [...(state.starredAssetGroups?.voice ?? [])],
+      [kind]: (state.starredAssetGroups?.[kind] ?? []).filter((groupName) => nextGroups.includes(groupName)),
     },
   }
 }
@@ -63,7 +70,24 @@ export function renameAssetGroup(state: PersonalSpaceState, kind: AssetGroupKind
       ? { ...asset, groupName: to }
       : asset
   ))
+  next.starredAssetGroups = {
+    ...next.starredAssetGroups,
+    [kind]: Array.from(new Set((next.starredAssetGroups[kind] ?? []).map((group) => (group === from ? to : group)))),
+  }
   return withGroupList(next, kind, groupsForKind(next, kind).map((group) => (group === from ? to : group)))
+}
+
+export function toggleAssetGroupStar(state: PersonalSpaceState, kind: AssetGroupKind, name: string): PersonalSpaceState {
+  const groupName = cleanGroupName(name)
+  const next = clonePersonalSpaceState(state)
+  const current = next.starredAssetGroups[kind] ?? []
+  next.starredAssetGroups = {
+    ...next.starredAssetGroups,
+    [kind]: current.includes(groupName)
+      ? current.filter((item) => item !== groupName)
+      : [...current, groupName],
+  }
+  return next
 }
 
 export function transferAssetGroup(state: PersonalSpaceState, kind: AssetGroupKind, fromName: string, toName: string): PersonalSpaceState {
@@ -75,7 +99,7 @@ export function transferAssetGroup(state: PersonalSpaceState, kind: AssetGroupKi
       ? { ...asset, groupName: to }
       : asset
   ))
-  return withGroupList(next, kind, groupsForKind(next, kind).filter((group) => group !== from).concat(to))
+  return withGroupList(next, kind, groupsForKind(state, kind).concat(to))
 }
 
 export function deleteAssetGroup(

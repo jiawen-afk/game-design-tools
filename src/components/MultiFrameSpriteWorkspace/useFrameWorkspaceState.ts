@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { clearFrameCollection } from './playbackModel'
+import { removeMatteFrameGroup } from './matteModel'
 import { revokeFrameUrls } from './imagePipeline'
 import type { FrameItem } from './types'
 
@@ -48,6 +49,20 @@ export function useFrameWorkspaceState() {
       if (item) revokeFrameUrls(item)
       const next = prev.filter((x) => x.id !== id)
       setActiveId((current) => (current === id ? next[0]?.id ?? null : current))
+      return next
+    })
+  }, [])
+
+  const removeFrameGroup = useCallback((groupId: string) => {
+    setFrames((prev) => {
+      const removed = prev.filter((item) => item.matteGroupId === groupId)
+      if (removed.length === 0) return prev
+      removed.forEach(revokeFrameUrls)
+      const next = removeMatteFrameGroup(prev, groupId)
+      const removedIds = new Set(removed.map((item) => item.id))
+      setActiveId((current) => (current && removedIds.has(current) ? next[0]?.id ?? null : current))
+      setSelectedFrameIds((current) => current.filter((id) => !removedIds.has(id)))
+      setSelectionAnchorId((current) => (current && removedIds.has(current) ? null : current))
       return next
     })
   }, [])
@@ -104,6 +119,7 @@ export function useFrameWorkspaceState() {
     updateFrame,
     appendFrames,
     removeFrame,
+    removeFrameGroup,
     clearFrames,
     reorder,
     toggleFrameHidden,

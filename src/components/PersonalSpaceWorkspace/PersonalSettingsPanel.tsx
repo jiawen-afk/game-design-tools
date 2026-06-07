@@ -8,9 +8,9 @@ interface PersonalSettingsPanelProps {
   deleteResourcesWithContent: boolean
   savedSettings: boolean
   directoryHandle: PersonalSpaceDirectoryHandle | null
-  pendingDeletedResourcePaths: string[]
   onStorageDirectoryChange: (storageDirectory: string) => void
   onChooseStorageDirectory: () => void
+  onOpenStorageDirectory: () => void
   onDeleteResourcesWithContentChange: (deleteResourcesWithContent: boolean) => void
   onSaveSettings: () => void
 }
@@ -20,9 +20,9 @@ export function PersonalSettingsPanel({
   deleteResourcesWithContent,
   savedSettings,
   directoryHandle,
-  pendingDeletedResourcePaths,
   onStorageDirectoryChange,
   onChooseStorageDirectory,
+  onOpenStorageDirectory,
   onDeleteResourcesWithContentChange,
   onSaveSettings,
 }: PersonalSettingsPanelProps) {
@@ -60,22 +60,25 @@ export function PersonalSettingsPanel({
         </Button>
 
         <Alert
-          type="info"
+          type={directoryHandle ? 'info' : 'warning'}
           showIcon
-          title={directoryHandle ? '已授权本地资源目录' : '未授权目录时使用路径记录模式'}
+          title={directoryHandle ? '已授权本地资源目录' : '需要授权资源目录'}
           description={directoryHandle
-            ? '收藏和上传的新资源会写入授权目录，并按角色肖像、图片素材、角色精灵图、配音素材、特效素材分类。'
-            : '可以手动填写目录路径生成存储目标；点击选择授权目录后，支持浏览器文件系统写入和删除。'}
+            ? (
+              <div className="settings-directory-actions">
+                <span>收藏和上传的新资源会写入授权目录作为存储目标，并按公共图片、精灵图、配音分类管理。</span>
+                <Button
+                  size="small"
+                  icon={<FolderOpenOutlined />}
+                  disabled={!directoryHandle}
+                  onClick={onOpenStorageDirectory}
+                >
+                  在文件资源管理器中打开
+                </Button>
+              </div>
+            )
+            : '请先选择授权目录，授权完成后即可使用角色、剧情编排和素材模块。'}
         />
-
-        {pendingDeletedResourcePaths.length > 0 && (
-          <Alert
-            type="warning"
-            showIcon
-            title="待删除资源路径"
-            description={pendingDeletedResourcePaths.join('、')}
-          />
-        )}
       </div>
     </section>
   )

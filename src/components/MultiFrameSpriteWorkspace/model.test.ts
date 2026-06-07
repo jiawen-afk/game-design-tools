@@ -54,6 +54,7 @@ import {
   applyMatteParamsToFollowingFrames,
   getNextMatteGroupName,
   queueUniqueFrameId,
+  removeMatteFrameGroup,
   resolvePipelineConcurrency,
   resolveSpillColor,
 } from './model'
@@ -875,6 +876,17 @@ test('matte workspace shows the first frame of each import group', () => {
   assert.deepEqual(groups.map((group) => group.frameCount), [2, 2])
 })
 
+test('matte group removal deletes every frame in the import group', () => {
+  const frames = [
+    { id: 'a', matteGroupId: 'g1', matteGroupName: '1-批量图片' },
+    { id: 'b', matteGroupId: 'g1', matteGroupName: '1-批量图片' },
+    { id: 'c', matteGroupId: 'g2', matteGroupName: '2-精灵图处理' },
+  ]
+
+  assert.deepEqual(removeMatteFrameGroup(frames, 'g1'), [frames[2]])
+  assert.equal(removeMatteFrameGroup(frames, 'missing'), frames)
+})
+
 test('matte params apply only to frames in the same import group', () => {
   const sourceMatte = {
     keyColor: [1, 2, 3] as [number, number, number],
@@ -907,6 +919,8 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const uploadHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
+  const frameHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8')
+  const workspaceEntry = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
 
   assert.match(videoHook, /getInitialMatteFrameIds/)
@@ -922,6 +936,11 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   assert.doesNotMatch(mattePanel, /确定应用到该组所有帧/)
   assert.match(mattePanel, /<span>\{group\.name\} · 第 1 帧<\/span>/)
   assert.match(mattePanel, /<Text type="secondary">共 \{group\.frameCount\} 帧<\/Text>/)
+  assert.match(frameHook, /removeFrameGroup/)
+  assert.match(frameHook, /removeMatteFrameGroup/)
+  assert.match(workspaceEntry, /onRemoveGroup=\{workspace\.frame\.removeFrameGroup\}/)
+  assert.doesNotMatch(workspaceEntry, /onRemove=\{workspace\.frame\.removeFrame\}/)
+  assert.match(mattePanel, /onRemoveGroup\(group\.id\)/)
   assert.doesNotMatch(videoHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
   assert.doesNotMatch(uploadHook, /created\.forEach\(\(item\)\s*=>\s*scheduleMatte\(item\.id\)\)/)
 })

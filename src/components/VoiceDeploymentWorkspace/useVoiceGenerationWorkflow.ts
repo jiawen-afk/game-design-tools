@@ -22,6 +22,7 @@ export interface UseVoiceGenerationWorkflowParams {
   port: number
   serviceUrl: string
   recordCount: number
+  selectedCharacterName: string
   onRecordCreated: (record: VoiceGenerationRecord) => void
 }
 
@@ -30,6 +31,7 @@ export function useVoiceGenerationWorkflow({
   port,
   serviceUrl,
   recordCount,
+  selectedCharacterName,
   onRecordCreated,
 }: UseVoiceGenerationWorkflowParams) {
   const [voiceParams, setVoiceParams] = useState<VoiceGenerationParams>(() => cloneVoiceParams(defaultVoiceGenerationParams))
@@ -69,7 +71,7 @@ export function useVoiceGenerationWorkflow({
 
   const cloneFromRecord = (record: VoiceGenerationRecord) => {
     if (!record.audioPath) return
-    setVoiceParams(prepareCloneFromRecord(record))
+    setVoiceParams((current) => prepareCloneFromRecord(current, record))
     setPendingReferenceFile(null)
   }
 
@@ -99,7 +101,7 @@ export function useVoiceGenerationWorkflow({
       const audio = await generateVoiceAudio(serviceUrl, paramsForRequest)
       onRecordCreated({
         id: randomId(),
-        name: createVoiceRecordName(paramsForRequest, recordCount + 1),
+        name: createVoiceRecordName(paramsForRequest, recordCount + 1, selectedCharacterName),
         createdAt: new Date().toISOString(),
         audioUrl: audio.audioUrl,
         audioPath: audio.audioPath,

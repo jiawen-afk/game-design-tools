@@ -24,6 +24,9 @@ import {
   transferAssetGroup,
   type AssetGroupKind,
   type CommonAssetKind,
+  toggleAssetGroupStar,
+  toggleCharacterStar,
+  toggleStoryboardStar,
   updateCharacterAssetNote,
   unassignAssetFromCharacterColumn,
   unassignVoiceFromStoryboardGroup,
@@ -37,8 +40,13 @@ import {
   createCommonResourceAssetForUpload,
   createPortraitAssetForUpload,
   createSpriteAssetForUpload,
+  createVoiceAssetForUpload,
   deleteAssetWithOptionalResources,
+  exportAllStoryboardCharacterAssetsToTarget,
+  exportAllStoryboardVoiceAssetsToTarget,
   exportStoryboardAssetToTarget,
+  exportStoryboardCharacterAssetsToTarget,
+  exportStoryboardVoiceAssetsToTarget,
 } from './personalSpaceResourceActions'
 import { usePersonalSpaceSettingsWorkspace } from './usePersonalSpaceSettingsWorkspace'
 
@@ -47,6 +55,8 @@ interface PersonalSpaceMessageApi {
   warning: (content: string) => void
   error: (content: string) => void
 }
+
+type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
 
 function assetKindLabel(kind: string) {
   if (kind === 'sprite') return '精灵图'
@@ -58,6 +68,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())
   const [newCharacterName, setNewCharacterName] = useState('')
   const [newStoryboardName, setNewStoryboardName] = useState('')
+  const [activeModule, setActiveModule] = useState<PersonalSpaceActiveModule>('characters')
+  const [storyboardExportingKey, setStoryboardExportingKey] = useState('')
   const spriteUploadBatchKeyByCharacter = useRef<Record<string, string>>({})
   const imageSpriteUploadBatchKey = useRef<string | null>(null)
   const settingsWorkspace = usePersonalSpaceSettingsWorkspace({
@@ -70,6 +82,22 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     writePersonalSpaceState(space)
   }, [space])
 
+  useEffect(() => {
+    if (settingsWorkspace.directoryHandleChecked && !settingsWorkspace.directoryHandle) {
+      setActiveModule('settings')
+    }
+  }, [settingsWorkspace.directoryHandleChecked, settingsWorkspace.directoryHandle])
+
+  const changeActiveModule = (key: string) => {
+    const nextModule = key as PersonalSpaceActiveModule
+    if (!settingsWorkspace.directoryHandle && nextModule !== 'settings') {
+      setActiveModule('settings')
+      void messageApi.warning('请先选择授权目录')
+      return
+    }
+    setActiveModule(nextModule)
+  }
+
   const createCharacter = () => {
     setSpace((current) => addCharacterProfile(current, newCharacterName))
     setNewCharacterName('')
@@ -80,15 +108,74 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setNewStoryboardName('')
   }
 
-  const exportStoryboardAsset = async (id: string) => {
+  const exportStoryboardWithStatus = async (
+    key: string,
+    action: () => Promise<{ kind: 'directory' | 'download'; path?: string }>,
+    directoryMessage: string,
+    downloadMessage: string,
+    errorMessage: string,
+  ) => {
+    setStoryboardExportingKey(key)
     try {
-      const result = await exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle)
+      const result = await action()
       void messageApi.success(result.kind === 'directory'
-        ? `已导出剧情编排 ZIP：${result.path}`
-        : '已下载剧情编排 ZIP')
+        ? `${directoryMessage}：${result.path}`
+        : downloadMessage)
     } catch (error) {
-      void messageApi.error(`导出剧情编排资产失败：${String(error)}`)
+      void messageApi.error(`${errorMessage}：${String(error)}`)
+    } finally {
+      setStoryboardExportingKey('')
     }
+  }
+
+  const exportStoryboardAsset = async (id: string) => {
+    await exportStoryboardWithStatus(
+      `group-legacy-${id}`,
+      () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle),
+      '已导出剧情编排 ZIP',
+      '已下载剧情编排 ZIP',
+      '导出剧情编排资产失败',
+    )
+  }
+
+  const exportStoryboardVoiceAssets = async (id: string) => {
+    await exportStoryboardWithStatus(
+      `group-voices-${id}`,
+      () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
+      '已导出分组配音资产 ZIP',
+      '已下载分组配音资产 ZIP',
+      '导出分组配音资产失败',
+    )
+  }
+
+  const exportStoryboardCharacterAssets = async (id: string) => {
+    await exportStoryboardWithStatus(
+      `group-characters-${id}`,
+      () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
+      '已导出分组关联角色资产 ZIP',
+      '已下载分组关联角色资产 ZIP',
+      '导出分组关联角色资产失败',
+    )
+  }
+
+  const exportAllStoryboardVoiceAssets = async () => {
+    await exportStoryboardWithStatus(
+      'all-voices',
+      () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle),
+      '已导出所有分组配音资产 ZIP',
+      '已下载所有分组配音资产 ZIP',
+      '导出所有分组配音资产失败',
+    )
+  }
+
+  const exportAllStoryboardCharacterAssets = async () => {
+    await exportStoryboardWithStatus(
+      'all-characters',
+      () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle),
+      '已导出所有分组关联角色资产 ZIP',
+      '已下载所有分组关联角色资产 ZIP',
+      '导出所有分组关联角色资产失败',
+    )
   }
 
   const uploadCharacterPortrait = async (characterId: string, file: File) => {
@@ -117,9 +204,35 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
   }
 
-  const uploadCommonResource = async (kind: CommonAssetKind, file: File) => {
+  const uploadCharacterVoice = async (characterId: string, file: File) => {
     try {
-      const storedAsset = await createCommonResourceAssetForUpload(space, kind, file, settingsWorkspace.directoryHandle)
+      const storedAsset = await createVoiceAssetForUpload(space, file, settingsWorkspace.directoryHandle)
+      setSpace((current) => {
+        const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
+        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'voice', ['角色配音'])
+      })
+      void messageApi.success('已上传角色配音')
+    } catch (error) {
+      void messageApi.error(`上传配音失败：${String(error)}`)
+    }
+  }
+
+  const uploadStoryboardVoice = async (groupId: string, file: File) => {
+    try {
+      const storedAsset = await createVoiceAssetForUpload(space, file, settingsWorkspace.directoryHandle)
+      setSpace((current) => {
+        const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
+        return assignVoiceToStoryboardGroup(withAsset, groupId, storedAsset.id)
+      })
+      void messageApi.success('已导入并关联配音')
+    } catch (error) {
+      void messageApi.error(`导入配音失败：${String(error)}`)
+    }
+  }
+
+  const uploadCommonResource = async (kind: CommonAssetKind, file: File, groupName?: string) => {
+    try {
+      const storedAsset = await createCommonResourceAssetForUpload(space, kind, file, settingsWorkspace.directoryHandle, groupName)
       setSpace((current) => ({ ...current, assets: [storedAsset, ...current.assets] }))
       void messageApi.success(`已导入${assetKindLabel(kind)}素材`)
     } catch (error) {
@@ -132,7 +245,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace((current) => applyAssetDeleteResult(current, assetId, result))
     if (result.attemptedResourceDeletion) {
       if (result.pendingDeletedPaths.length > 0) {
-        void messageApi.warning('部分资源未能删除，已记录到待删除资源路径。')
+        void messageApi.warning('部分资源未能删除，可能已经不存在。')
       } else {
         void messageApi.success('已删除资源和存储目录文件。')
       }
@@ -174,17 +287,37 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     },
   })
 
-  const commonResourceUploadProps = (kind: CommonAssetKind): UploadProps => ({
-    accept: kind === 'map' || kind === 'image' ? 'image/*' : kind === 'voice' ? 'audio/*' : '*',
+  const voiceUploadProps = (characterId: string): UploadProps => ({
+    accept: 'audio/*',
     maxCount: 1,
     showUploadList: false,
     beforeUpload: (file) => {
-      void uploadCommonResource(kind, file as File)
+      void uploadCharacterVoice(characterId, file as File)
       return false
     },
   })
 
-  const imageSpriteUploadProps: UploadProps = {
+  const storyboardVoiceUploadProps = (groupId: string): UploadProps => ({
+    accept: 'audio/*',
+    maxCount: 1,
+    showUploadList: false,
+    beforeUpload: (file) => {
+      void uploadStoryboardVoice(groupId, file as File)
+      return false
+    },
+  })
+
+  const commonResourceUploadProps = (kind: CommonAssetKind, groupName?: string): UploadProps => ({
+    accept: kind === 'map' || kind === 'image' ? 'image/*' : kind === 'voice' ? 'audio/*' : '*',
+    maxCount: 1,
+    showUploadList: false,
+    beforeUpload: (file) => {
+      void uploadCommonResource(kind, file as File, groupName)
+      return false
+    },
+  })
+
+  const imageSpriteUploadProps = (groupName?: string): UploadProps => ({
     accept: '.png,.json',
     multiple: true,
     maxCount: 2,
@@ -204,7 +337,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         }, 1000)
         void (async () => {
           try {
-            const storedAsset = await createSpriteAssetForUpload(space, files, settingsWorkspace.directoryHandle)
+            const storedAsset = await createSpriteAssetForUpload(space, files, settingsWorkspace.directoryHandle, groupName)
             setSpace((current) => ({ ...current, assets: [storedAsset, ...current.assets] }))
             void messageApi.success('已导入精灵图')
           } catch (error) {
@@ -213,7 +346,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         })()
       }
     },
-  }
+  })
 
   const imageAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.groupName !== '角色肖像' && !asset.tags.includes('肖像'))
   const portraitAssets = imageAssets
@@ -229,6 +362,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       importLabel: '导入公共图片',
       emptyDescription: '还没有公共图片。导入图片或从工作台批量导入后会显示在这里。',
       groupNames: space.assetGroups.image,
+      starredGroupNames: space.starredAssetGroups.image,
       assets: imageAssets,
     },
     {
@@ -238,6 +372,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       importLabel: '导入精灵图',
       emptyDescription: '还没有精灵图。导入精灵图或从精灵图工作台收藏后会显示在这里。',
       groupNames: space.assetGroups.sprite,
+      starredGroupNames: space.starredAssetGroups.sprite,
       assets: spriteAssets,
     },
     {
@@ -247,6 +382,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       importLabel: '导入配音',
       emptyDescription: '还没有配音素材。生成或导入配音后可关联角色和剧情组。',
       groupNames: space.assetGroups.voice,
+      starredGroupNames: space.starredAssetGroups.voice,
       assets: voiceAssets,
     },
   ]
@@ -264,8 +400,10 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   return {
     space,
     ...settingsWorkspace,
+    activeModule,
     newCharacterName,
     newStoryboardName,
+    storyboardExportingKey,
     portraitAssets,
     spriteAssets,
     voiceAssets,
@@ -274,17 +412,25 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     assetCounts,
     setNewCharacterName,
     setNewStoryboardName,
+    changeActiveModule,
     createCharacter,
     createStoryboard,
     exportStoryboardAsset,
+    exportStoryboardVoiceAssets,
+    exportStoryboardCharacterAssets,
+    exportAllStoryboardVoiceAssets,
+    exportAllStoryboardCharacterAssets,
     portraitUploadProps,
     spriteUploadProps,
+    voiceUploadProps,
+    storyboardVoiceUploadProps,
     commonResourceUploadProps,
     imageSpriteUploadProps,
     assetOptions,
     assetKindLabel,
     storyboardVoiceRefs,
     renameCharacter: (characterId: string, name: string) => setSpace((current) => renameCharacterProfile(current, characterId, name)),
+    toggleCharacterStar: (characterId: string) => setSpace((current) => toggleCharacterStar(current, characterId)),
     reorderCharacter: (characterId: string, direction: 'up' | 'down') => setSpace((current) => reorderCharacterProfile(current, characterId, direction)),
     deleteCharacter: (characterId: string) => setSpace((current) => deleteCharacterProfile(current, characterId)),
     assignAsset: (characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice', tags: string[]) => {
@@ -303,6 +449,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       setSpace((current) => moveCharacterVoice(current, characterId, draggedAssetId, targetAssetId))
     },
     renameStoryboard: (groupId: string, name: string) => setSpace((current) => renameStoryboardGroup(current, groupId, name)),
+    toggleStoryboardStar: (groupId: string) => setSpace((current) => toggleStoryboardStar(current, groupId)),
     deleteStoryboard: (groupId: string) => setSpace((current) => deleteStoryboardGroup(current, groupId)),
     getStoryboardLinkedCharacterIds: (groupId: string) => getStoryboardLinkedCharacterIds(space, groupId),
     assignVoiceToStoryboard: (groupId: string, assetId: string) => {
@@ -331,8 +478,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     reorderStoryboardVoice: (groupId: string, assetId: string, direction: 'up' | 'down') => {
       setSpace((current) => reorderStoryboardVoice(current, groupId, assetId, direction))
     },
-    moveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string) => {
-      setSpace((current) => moveStoryboardVoice(current, groupId, draggedAssetId, targetAssetId))
+    moveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string, placement: 'before' | 'after' = 'after') => {
+      setSpace((current) => moveStoryboardVoice(current, groupId, draggedAssetId, targetAssetId, placement))
     },
     renameAsset: (assetId: string, name: string) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { name })),
     changeAssetGroupName: (assetId: string, groupName: string) => {
@@ -359,6 +506,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     },
     renameAssetGroup: (kind: AssetGroupKind, fromName: string, toName: string) => {
       setSpace((current) => renameAssetGroup(current, kind, fromName, toName))
+    },
+    toggleAssetGroupStar: (kind: AssetGroupKind, name: string) => {
+      setSpace((current) => toggleAssetGroupStar(current, kind, name))
     },
     transferAssetGroup: (kind: AssetGroupKind, fromName: string, toName: string) => {
       setSpace((current) => transferAssetGroup(current, kind, fromName, toName))

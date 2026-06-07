@@ -14,11 +14,20 @@ export function addStoryboardGroup(state: PersonalSpaceState, name: string): Per
     {
       id: createPersonalSpaceId('storyboard'),
       name: name.trim() || '未命名剧情组',
+      starred: false,
       voiceEntries: [],
       characterIds: [],
       voiceAssetIds: [],
     },
   ]
+  return next
+}
+
+export function toggleStoryboardStar(state: PersonalSpaceState, id: string): PersonalSpaceState {
+  const next = clonePersonalSpaceState(state)
+  next.storyboardGroups = next.storyboardGroups.map((group) => (
+    group.id === id ? { ...group, starred: !group.starred } : group
+  ))
   return next
 }
 
@@ -143,7 +152,13 @@ export function reorderStoryboardVoice(state: PersonalSpaceState, groupId: strin
   return next
 }
 
-export function moveStoryboardVoice(state: PersonalSpaceState, groupId: string, draggedAssetId: string, targetAssetId: string): PersonalSpaceState {
+export function moveStoryboardVoice(
+  state: PersonalSpaceState,
+  groupId: string,
+  draggedAssetId: string,
+  targetAssetId: string,
+  placement: 'before' | 'after' = 'after',
+): PersonalSpaceState {
   if (draggedAssetId === targetAssetId) return clonePersonalSpaceState(state)
   const next = clonePersonalSpaceState(state)
   next.storyboardGroups = next.storyboardGroups.map((group) => {
@@ -155,7 +170,7 @@ export function moveStoryboardVoice(state: PersonalSpaceState, groupId: string, 
     const [dragged] = entries.splice(draggedIndex, 1)
     if (!dragged) return group
     const insertIndex = entries.findIndex((entry) => entry.assetId === targetAssetId)
-    entries.splice(insertIndex + 1, 0, dragged)
+    entries.splice(placement === 'before' ? insertIndex : insertIndex + 1, 0, dragged)
     const voiceEntries = entries.map((entry, order) => ({ ...entry, order }))
     return { ...group, voiceEntries, voiceAssetIds: voiceEntries.map((entry) => entry.assetId) }
   })

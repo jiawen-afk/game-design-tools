@@ -278,6 +278,11 @@ h1 {
   font-size: 0.95rem;
 }
 
+.app-shell > .site-footer {
+  width: min(1440px, calc(100% - 28px));
+  margin: 0 auto;
+}
+
 .site-footer span {
   display: inline-flex;
   align-items: center;

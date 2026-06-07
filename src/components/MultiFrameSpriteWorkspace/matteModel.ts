@@ -107,6 +107,11 @@ export function buildMatteFrameGroups<T extends MatteGroupFrameState>(frames: T[
   return groups
 }
 
+export function removeMatteFrameGroup<T extends MatteGroupFrameState>(frames: T[], groupId: string): T[] {
+  const next = frames.filter((frame) => frame.matteGroupId !== groupId)
+  return next.length === frames.length ? frames : next
+}
+
 function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
   return {
     ...matte,

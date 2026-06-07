@@ -13,6 +13,11 @@ export const defaultPersonalSpaceState: PersonalSpaceState = {
     deleteResourcesWithContent: false,
   },
   assetGroups: fallbackAssetGroups,
+  starredAssetGroups: {
+    image: [],
+    sprite: [],
+    voice: [],
+  },
   characters: [],
   assets: [],
   storyboardGroups: [],
@@ -52,14 +57,25 @@ function normalizeAssetGroups(state: PersonalSpaceState): Record<AssetGroupKind,
   return groups
 }
 
+function normalizeStarredAssetGroups(state: PersonalSpaceState, groups: Record<AssetGroupKind, string[]>): Record<AssetGroupKind, string[]> {
+  const source = state.starredAssetGroups ?? { image: [], sprite: [], voice: [] }
+  return {
+    image: (source.image ?? []).filter((groupName) => groups.image.includes(groupName)),
+    sprite: (source.sprite ?? []).filter((groupName) => groups.sprite.includes(groupName)),
+    voice: (source.voice ?? []).filter((groupName) => groups.voice.includes(groupName)),
+  }
+}
+
 function optionalNote(value: unknown) {
   return typeof value === 'string' ? value : undefined
 }
 
 export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpaceState {
+  const assetGroups = normalizeAssetGroups(state)
   return {
     settings: { ...state.settings },
-    assetGroups: normalizeAssetGroups(state),
+    assetGroups,
+    starredAssetGroups: normalizeStarredAssetGroups(state, assetGroups),
     characters: state.characters.map((item) => {
       const legacyPortraitIds = item.portraitAssetIds ?? []
       const legacySpriteIds = item.spriteAssetIds ?? []
@@ -72,6 +88,7 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
       const voiceAssets = voiceLinks.map((link) => ({ ...link, tags: [...link.tags], noteName: 'noteName' in link ? optionalNote(link.noteName) : undefined }))
       return {
         ...item,
+        starred: Boolean(item.starred),
         portraitAssets,
         spriteAssets,
         voiceAssets,
@@ -99,6 +116,7 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
       const voiceEntries = sourceVoiceEntries.map((entry) => ({ ...entry, noteName: 'noteName' in entry ? optionalNote(entry.noteName) : undefined }))
       return {
         ...item,
+        starred: Boolean(item.starred),
         voiceEntries,
         characterIds: [...(item.characterIds ?? [])],
         voiceAssetIds: voiceEntries.map((entry) => entry.assetId),
@@ -118,6 +136,7 @@ export function readPersonalSpaceState(storage: Storage = localStorage): Persona
       ...parsed,
       settings: { ...defaultPersonalSpaceState.settings, ...(parsed.settings ?? {}) },
       assetGroups: { ...defaultPersonalSpaceState.assetGroups, ...(parsed.assetGroups ?? {}) },
+      starredAssetGroups: { ...defaultPersonalSpaceState.starredAssetGroups, ...(parsed.starredAssetGroups ?? {}) },
       characters: Array.isArray(parsed.characters) ? parsed.characters : [],
       assets: Array.isArray(parsed.assets) ? parsed.assets : [],
       storyboardGroups: Array.isArray(parsed.storyboardGroups) ? parsed.storyboardGroups : [],

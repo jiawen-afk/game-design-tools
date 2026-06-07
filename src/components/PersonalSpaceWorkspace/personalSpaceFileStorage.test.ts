@@ -2,17 +2,24 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  exportAllStoryboardVoiceAssetsToTarget,
+  exportStoryboardVoiceAssetsToTarget,
   createSpriteAssetForUpload,
+  createVoiceAssetForUpload,
 } from './personalSpaceResourceActions'
 import {
   createMemoryDirectoryHandle,
   deleteStoredResourceFiles,
   loadPersistedPersonalSpaceDirectoryHandle,
   persistPersonalSpaceDirectoryHandle,
+  readStoredResourceBlob,
   writeJsonFileToDirectory,
   writeAssetResourcesToDirectory,
 } from './personalSpaceFileStorage'
 import {
+  addStoryboardGroup,
+  assignVoiceToStoryboardGroup,
+  createPersonalSpaceAsset,
   createPortraitAssetFromUpload,
   createSpriteAssetFromExport,
   defaultPersonalSpaceState,
@@ -90,6 +97,25 @@ test('uploaded portrait resources are stored under the portrait category', async
   assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'portrait')
 })
 
+test('uploaded character voice resources keep original file names and use voice storage folders', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+  }
+
+  const stored = await createVoiceAssetForUpload(state, new File(['voice'], 'merchant-hello.wav', { type: 'audio/wav' }), root)
+
+  assert.equal(stored.kind, 'voice')
+  assert.equal(stored.name, 'merchant-hello.wav')
+  assert.equal(stored.groupName, '默认分组')
+  assert.deepEqual(stored.tags, ['配音'])
+  assert.equal(stored.storageResourcePaths.length, 1)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/配音\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.wav$/)
+  assert.doesNotMatch(stored.storageResourcePaths[0]!, /merchant-hello/)
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'voice')
+})
+
 test('deletes stored resource files and leaves missing files as pending cleanup', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
   await root.writeText('配音素材/问候/audio.wav', 'voice')
@@ -104,6 +130,15 @@ test('deletes stored resource files and leaves missing files as pending cleanup'
   await assert.rejects(() => root.readText('配音素材/问候/audio.wav'))
 })
 
+test('reads stored resource blobs back from authorized directory paths', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  await root.writeText('配音/2026-06-06/audio.wav', 'voice')
+
+  const blob = await readStoredResourceBlob(root, 'PersonalSpace/配音/2026-06-06/audio.wav')
+
+  assert.equal(await blob.text(), 'voice')
+})
+
 test('writes storyboard reference json into the storyboard export folder', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
 
@@ -113,6 +148,40 @@ test('writes storyboard reference json into the storyboard export folder', async
 
   assert.equal(storedPath, 'PersonalSpace/剧情编排资产/storyboard-开场.json')
   assert.equal(await root.readText('剧情编排资产/storyboard-开场.json'), JSON.stringify({ group: { name: '开场' } }, null, 2))
+})
+
+test('exports storyboard voice asset zips from stored authorized resources', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  await root.writeText('配音/2026-06-06/line.wav', 'stored voice')
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      name: 'line.wav',
+      resourcePaths: ['blob:expired-voice'],
+    }),
+    storageResourcePaths: ['PersonalSpace/配音/2026-06-06/line.wav'],
+    createdAt: '2026-06-06T12:00:00.000Z',
+  }
+  let state = addStoryboardGroup({ ...defaultPersonalSpaceState, assets: [voice] }, '开场')
+  const groupId = state.storyboardGroups[0]!.id
+  state = assignVoiceToStoryboardGroup(state, groupId, voice.id, '你好')
+
+  const groupResult = await exportStoryboardVoiceAssetsToTarget(state, groupId, root)
+  const allResult = await exportAllStoryboardVoiceAssetsToTarget(state, root)
+  const { default: JSZip } = await import('jszip')
+  const groupZipBlob = await readStoredResourceBlob(root, groupResult.path!)
+  const allZipBlob = await readStoredResourceBlob(root, allResult.path!)
+  const groupZip = await JSZip.loadAsync(await groupZipBlob.arrayBuffer())
+  const allZip = await JSZip.loadAsync(await allZipBlob.arrayBuffer())
+  const groupVoiceEntry = Object.keys(groupZip.files).find((path) => path.startsWith('voices/voice/') && path.endsWith('.wav'))
+  const allVoiceEntry = Object.keys(allZip.files).find((path) => (
+    path.startsWith('voices/voice/') || path.includes('/voices/voice/')
+  ) && path.endsWith('.wav'))
+
+  assert.ok(groupVoiceEntry)
+  assert.ok(allVoiceEntry)
+  assert.equal(await groupZip.file(groupVoiceEntry)!.async('string'), 'stored voice')
+  assert.equal(await allZip.file(allVoiceEntry)!.async('string'), 'stored voice')
 })
 
 test('persists and restores the authorized personal space directory handle', async () => {

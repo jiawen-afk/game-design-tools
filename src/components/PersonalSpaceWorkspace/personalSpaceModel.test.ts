@@ -30,12 +30,16 @@ import {
   renameAssetGroup,
   renameCharacterProfile,
   transferAssetGroup,
+  toggleAssetGroupStar,
+  toggleCharacterStar,
+  toggleStoryboardStar,
   updatePersonalSpaceAsset,
   updateCharacterAssetNote,
   unassignAssetFromCharacterColumn,
   unassignVoiceFromStoryboardGroup,
   updateStoryboardVoiceNote,
 } from './personalSpaceModel'
+import { spriteFrameModalStyle } from './personalSpacePreviewModel'
 
 function createMemoryStorage(seed: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(seed))
@@ -67,7 +71,7 @@ test('creates personal space voice asset from a generated voice record', () => {
   assert.equal(asset.kind, 'voice')
   assert.equal(asset.name, '商人问候')
   assert.equal(asset.dialogueText, '欢迎来到我的商店。')
-  assert.deepEqual(asset.resourcePaths, ['C:\\temp\\audio.wav'])
+  assert.deepEqual(asset.resourcePaths, ['http://127.0.0.1/audio.wav'])
   assert.deepEqual(asset.tags, ['配音'])
 })
 
@@ -83,6 +87,20 @@ test('creates personal space sprite asset from exported sprite files', () => {
   assert.equal(asset.name, '主角行走')
   assert.deepEqual(asset.resourcePaths, ['D:\\assets\\sprite.png', 'D:\\assets\\index.json'])
   assert.deepEqual(asset.tags, ['角色精灵图', '行走'])
+})
+
+test('sprite modal preview uses the original frame ratio instead of thumbnail scaling', () => {
+  const style = spriteFrameModalStyle(
+    { x: 32, y: 48, w: 96, h: 128 },
+    { w: 384, h: 512 },
+  )
+
+  assert.deepEqual(style, {
+    width: '96px',
+    height: '128px',
+    backgroundPosition: '-32px -48px',
+    backgroundSize: '384px 512px',
+  })
 })
 
 test('creates portrait assets from uploaded character portraits', () => {
@@ -152,6 +170,11 @@ test('asset groups can be created, renamed, transferred, and protected from dele
 
   state = transferAssetGroup(state, 'image', '城镇', '场景')
   assert.deepEqual(state.assets.map((asset) => asset.groupName), ['场景', '场景'])
+  assert.ok(state.assetGroups.image.includes('城镇'))
+
+  state = deleteAssetGroup(state, 'image', '城镇', { transferToGroup: '默认分组' })
+  assert.deepEqual(state.assets.map((asset) => asset.groupName), ['场景', '场景'])
+  assert.ok(!state.assetGroups.image.includes('城镇'))
 
   state = deleteAssetGroup(state, 'image', '场景', { deleteAssets: true })
   assert.deepEqual(state.assets, [])
@@ -161,6 +184,28 @@ test('asset groups can be created, renamed, transferred, and protected from dele
     () => deleteAssetGroup(state, 'image', '默认分组', { deleteAssets: true }),
     /至少保留一个分组/,
   )
+})
+
+test('characters, storyboard groups, and asset groups can be starred for filtering', () => {
+  let state = addCharacterProfile(defaultPersonalSpaceState, '商人')
+  state = addStoryboardGroup(state, '开场对白')
+  state = addAssetGroup(state, 'image', '场景')
+  const characterId = state.characters[0]!.id
+  const storyboardId = state.storyboardGroups[0]!.id
+
+  state = toggleCharacterStar(state, characterId)
+  state = toggleStoryboardStar(state, storyboardId)
+  state = toggleAssetGroupStar(state, 'image', '场景')
+
+  assert.equal(state.characters[0]!.starred, true)
+  assert.equal(state.storyboardGroups[0]!.starred, true)
+  assert.deepEqual(state.starredAssetGroups.image, ['场景'])
+
+  state = renameAssetGroup(state, 'image', '场景', '地图')
+  assert.deepEqual(state.starredAssetGroups.image, ['地图'])
+
+  state = toggleAssetGroupStar(state, 'image', '地图')
+  assert.deepEqual(state.starredAssetGroups.image, [])
 })
 
 test('character profiles can be created, renamed, sorted, and deleted without mutating state', () => {
@@ -369,6 +414,23 @@ test('storyboard voice entries can be moved to an exact drop position', () => {
 
   const exported = exportStoryboardReference(state, groupId)
   assert.deepEqual(exported.dialogue.map((entry) => entry.voiceAsset.name), ['第二句', '第三句', '第一句'])
+  assert.deepEqual(exported.dialogue.map((entry) => entry.order), [0, 1, 2])
+})
+
+test('storyboard voice entries can be moved before the first entry', () => {
+  const first = createPersonalSpaceAsset({ kind: 'voice', name: '第一句' })
+  const second = createPersonalSpaceAsset({ kind: 'voice', name: '第二句' })
+  const third = createPersonalSpaceAsset({ kind: 'voice', name: '第三句' })
+  let state = addStoryboardGroup({ ...defaultPersonalSpaceState, assets: [first, second, third] }, '开场')
+  const groupId = state.storyboardGroups[0]!.id
+
+  state = assignVoiceToStoryboardGroup(state, groupId, first.id, '一')
+  state = assignVoiceToStoryboardGroup(state, groupId, second.id, '二')
+  state = assignVoiceToStoryboardGroup(state, groupId, third.id, '三')
+  state = moveStoryboardVoice(state, groupId, third.id, first.id, 'before')
+
+  const exported = exportStoryboardReference(state, groupId)
+  assert.deepEqual(exported.dialogue.map((entry) => entry.voiceAsset.name), ['第三句', '第一句', '第二句'])
   assert.deepEqual(exported.dialogue.map((entry) => entry.order), [0, 1, 2])
 })
 

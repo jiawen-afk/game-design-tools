@@ -1,7 +1,7 @@
 import type { UploadProps } from 'antd'
-import { useState } from 'react'
-import { Button, Empty, Input, Popconfirm, Space, Upload } from 'antd'
-import { DeleteOutlined, DisconnectOutlined, DownOutlined, PlusOutlined, SearchOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
+import { useEffect, useState } from 'react'
+import { Button, Checkbox, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Upload } from 'antd'
+import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, SearchOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalResourceSections'
@@ -16,9 +16,11 @@ interface PersonalCharacterPanelProps {
   getStoryboardVoiceRefs: (assetId: string) => string[]
   getPortraitUploadProps: (characterId: string) => UploadProps
   getSpriteUploadProps: (characterId: string) => UploadProps
+  getVoiceUploadProps: (characterId: string) => UploadProps
   onNewCharacterNameChange: (name: string) => void
   onCreateCharacter: () => void
   onRenameCharacter: (characterId: string, name: string) => void
+  onToggleCharacterStar: (characterId: string) => void
   onReorderCharacter: (characterId: string, direction: 'up' | 'down') => void
   onDeleteCharacter: (characterId: string) => void
   onAssignAsset: (
@@ -82,14 +84,29 @@ function CharacterAssetPicker({
     setSelectedAssetId(null)
   }
 
+  const closePicker = () => {
+    setExpanded(false)
+    setSearch('')
+    setSelectedAssetId(null)
+  }
+
   return (
     <div className="character-asset-picker">
-      <Button icon={<PlusOutlined />} onClick={() => setExpanded((value) => !value)}>{actionLabel}</Button>
-      {expanded && (
-        <div className="character-portrait-picker-panel">
+      <Button icon={<PlusOutlined />} onClick={() => setExpanded(true)}>{actionLabel}</Button>
+      <Modal
+        open={expanded}
+        title={actionLabel}
+        onCancel={closePicker}
+        footer={[
+          <Button key="cancel" onClick={closePicker}>取消</Button>,
+          <Button key="confirm" type="primary" disabled={!selectedAssetId} onClick={confirmAsset}>
+            {confirmLabel}
+          </Button>,
+        ]}
+      >
+        <div className="character-portrait-picker-panel character-asset-picker-modal-body">
           <div className="portrait-picker-input-wrap">
             <Input
-              size="small"
               allowClear
               prefix={<SearchOutlined />}
               value={search}
@@ -122,12 +139,9 @@ function CharacterAssetPicker({
           </div>
           <div className="portrait-picker-actions">
             <span className="field-note">{selectedAsset ? `已选：${selectedAsset.name}` : '选择素材后确认关联。'}</span>
-            <Button size="small" type="primary" disabled={!selectedAssetId} onClick={confirmAsset}>
-              {confirmLabel}
-            </Button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
@@ -142,9 +156,11 @@ export function PersonalCharacterPanel({
   getStoryboardVoiceRefs,
   getPortraitUploadProps,
   getSpriteUploadProps,
+  getVoiceUploadProps,
   onNewCharacterNameChange,
   onCreateCharacter,
   onRenameCharacter,
+  onToggleCharacterStar,
   onReorderCharacter,
   onDeleteCharacter,
   onAssignAsset,
@@ -152,39 +168,174 @@ export function PersonalCharacterPanel({
   onUpdateAssetNote,
   onMoveCharacterVoice,
 }: PersonalCharacterPanelProps) {
+  const [creatingCharacter, setCreatingCharacter] = useState(false)
+  const [selectedCharacterFilter, setSelectedCharacterFilter] = useState('全部角色')
+  const [onlyStarredCharacters, setOnlyStarredCharacters] = useState(false)
+  const [renamingCharacterId, setRenamingCharacterId] = useState('')
+  const [characterNameDrafts, setCharacterNameDrafts] = useState<Record<string, string>>({})
+  const orderedCharacters = [...characters].sort((a, b) => a.order - b.order)
+  const starFilteredCharacters = onlyStarredCharacters ? orderedCharacters.filter((character) => character.starred) : orderedCharacters
+  const recentCharacterOptions = starFilteredCharacters.slice(-20).reverse()
+  const characterFilterOptions = [
+    { label: '最近创建的20个角色', value: '全部角色' },
+    ...orderedCharacters.map((character) => ({ label: character.name, value: character.id })),
+  ]
+  const visibleCharacters = selectedCharacterFilter === '全部角色'
+    ? recentCharacterOptions
+    : starFilteredCharacters.filter((character) => character.id === selectedCharacterFilter)
+
+  const confirmCreateCharacter = () => {
+    if (!newCharacterName.trim()) return
+    onCreateCharacter()
+    setCreatingCharacter(false)
+  }
+
+  const cancelCreateCharacter = () => {
+    onNewCharacterNameChange('')
+    setCreatingCharacter(false)
+  }
+
+  useEffect(() => {
+    if (selectedCharacterFilter !== '全部角色' && !characters.some((character) => character.id === selectedCharacterFilter)) {
+      setSelectedCharacterFilter('全部角色')
+    }
+  }, [characters, selectedCharacterFilter])
+
   return (
     <section className="space-panel">
-      <Space.Compact style={{ width: '100%' }}>
-        <Input
-          value={newCharacterName}
-          onChange={(event) => onNewCharacterNameChange(event.target.value)}
-          onPressEnter={onCreateCharacter}
-          placeholder="新角色名称"
-        />
-        <Button type="primary" icon={<PlusOutlined />} onClick={onCreateCharacter}>创建角色</Button>
-      </Space.Compact>
-      <strong>角色列表</strong>
+      <div className="character-panel-toolbar">
+        <div className="character-toolbar-left">
+          <Popover
+            trigger="click"
+            open={creatingCharacter}
+            onOpenChange={(open) => {
+              if (open) setCreatingCharacter(true)
+              else cancelCreateCharacter()
+            }}
+            content={(
+              <div className="voice-group-rename-popover character-create-popover">
+                <Input
+                  size="small"
+                  value={newCharacterName}
+                  onChange={(event) => onNewCharacterNameChange(event.target.value)}
+                  onPressEnter={confirmCreateCharacter}
+                  placeholder="新角色名称"
+                  aria-label="新角色名称"
+                />
+                <Space.Compact>
+                  <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!newCharacterName.trim()} onClick={confirmCreateCharacter}>
+                    确认
+                  </Button>
+                  <Button size="small" onClick={cancelCreateCharacter}>
+                    取消
+                  </Button>
+                </Space.Compact>
+              </div>
+            )}
+          >
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingCharacter(true)}>创建角色</Button>
+          </Popover>
+          <div className="character-filter-control">
+            <span className="field-label">筛选</span>
+            <Select
+              showSearch
+              value={selectedCharacterFilter}
+              options={characterFilterOptions}
+              filterOption={(input, option) => {
+                if (!input) return true
+                if (option?.value === '全部角色') return false
+                return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }}
+              onChange={setSelectedCharacterFilter}
+            />
+            <Checkbox
+              checked={onlyStarredCharacters}
+              onChange={(event) => setOnlyStarredCharacters(event.target.checked)}
+            >
+              仅星标
+            </Checkbox>
+          </div>
+        </div>
+      </div>
       {characters.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有角色。创建后可继续关联肖像、精灵图和配音。" />
       ) : (
         <div className="form-stack">
-          {[...characters].sort((a, b) => a.order - b.order).map((item) => (
+          {visibleCharacters.map((item) => (
             <article className="space-record" key={item.id}>
-              <div className="command-row">
-                <Input
-                  value={item.name}
-                  aria-label="角色名称"
-                  onChange={(event) => onRenameCharacter(item.id, event.target.value)}
-                />
-                <Space>
-                  <Button size="small" icon={<UpOutlined />} onClick={() => onReorderCharacter(item.id, 'up')} />
-                  <Button size="small" icon={<DownOutlined />} onClick={() => onReorderCharacter(item.id, 'down')} />
-                  <Popconfirm title="删除角色" description="会移除该角色与素材、剧情组的关联。" onConfirm={() => onDeleteCharacter(item.id)}>
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </Space>
+              <div className="character-record-header">
+                <div className="record-name-view character-name-view">
+                  <span className="field-label">角色名称</span>
+                  <Button
+                    size="small"
+                    type="text"
+                    className="star-toggle-button"
+                    icon={item.starred ? <StarFilled /> : <StarOutlined />}
+                    aria-label={item.starred ? '取消星标角色' : '星标角色'}
+                    onClick={() => onToggleCharacterStar(item.id)}
+                  />
+                  <strong>{item.name}</strong>
+                  <Popover
+                    trigger="click"
+                    open={renamingCharacterId === item.id}
+                    onOpenChange={(open) => {
+                      setRenamingCharacterId(open ? item.id : '')
+                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: open ? (drafts[item.id] ?? item.name) : '' }))
+                    }}
+                    content={(
+                      <div className="voice-group-rename-popover character-name-rename-popover">
+                        <Input
+                          size="small"
+                          value={characterNameDrafts[item.id] ?? item.name}
+                          aria-label={`${item.name}角色名称`}
+                          placeholder="角色名称"
+                          onChange={(event) => setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: event.target.value }))}
+                          onPressEnter={() => {
+                            onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
+                            setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                            setRenamingCharacterId('')
+                          }}
+                        />
+                        <Space.Compact>
+                          <Button
+                            size="small"
+                            type="primary"
+                            disabled={!(characterNameDrafts[item.id] ?? '').trim()}
+                            onClick={() => {
+                              onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
+                              setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                              setRenamingCharacterId('')
+                            }}
+                          >
+                            确认
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                              setRenamingCharacterId('')
+                            }}
+                          >
+                            取消
+                          </Button>
+                        </Space.Compact>
+                      </div>
+                    )}
+                  >
+                    <Button size="small" icon={<EditOutlined />} aria-label="重命名角色" />
+                  </Popover>
+                </div>
+                <div className="character-record-tools">
+                  <span className="field-note character-asset-counts">肖像 {item.portraitAssetIds.length} · 精灵图 {item.spriteAssetIds.length} · 配音 {item.voiceAssetIds.length}</span>
+                  <Space className="character-record-actions">
+                    <Button size="small" icon={<UpOutlined />} onClick={() => onReorderCharacter(item.id, 'up')} />
+                    <Button size="small" icon={<DownOutlined />} onClick={() => onReorderCharacter(item.id, 'down')} />
+                    <Popconfirm title="删除角色" description="会移除该角色与素材、剧情组的关联。" onConfirm={() => onDeleteCharacter(item.id)}>
+                      <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  </Space>
+                </div>
               </div>
-              <span className="field-note">肖像 {item.portraitAssetIds.length} · 精灵图 {item.spriteAssetIds.length} · 配音 {item.voiceAssetIds.length}</span>
               <div className="space-columns">
                 <div className="space-column">
                   <strong>角色肖像</strong>
@@ -211,19 +362,21 @@ export function PersonalCharacterPanel({
                         {asset && <PersonalAssetPreview asset={asset} />}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '肖像'}</strong>
-                          <Input
-                            addonBefore="关联备注"
-                            value={link.noteName ?? ''}
-                            aria-label="角色肖像关联备注"
-                            onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'portrait', event.target.value)}
-                          />
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DisconnectOutlined />}
-                            aria-label="取消关联角色肖像"
-                            onClick={() => onUnassignAsset(item.id, link.assetId, 'portrait')}
-                          />
+                          <div className="linked-asset-note-row">
+                            <Input
+                              addonBefore="关联备注"
+                              value={link.noteName ?? ''}
+                              aria-label="角色肖像关联备注"
+                              onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'portrait', event.target.value)}
+                            />
+                            <Button
+                              size="small"
+                              danger
+                              icon={<DisconnectOutlined />}
+                              aria-label="取消关联角色肖像"
+                              onClick={() => onUnassignAsset(item.id, link.assetId, 'portrait')}
+                            />
+                          </div>
                         </div>
                       </div>
                     )
@@ -255,19 +408,21 @@ export function PersonalCharacterPanel({
                         {asset && <PersonalAssetPreview asset={asset} />}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '精灵图'}</strong>
-                          <Input
-                            addonBefore="关联备注"
-                            value={link.noteName ?? ''}
-                            aria-label="角色精灵图关联备注"
-                            onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'sprite', event.target.value)}
-                          />
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DisconnectOutlined />}
-                            aria-label="取消关联角色精灵图"
-                            onClick={() => onUnassignAsset(item.id, link.assetId, 'sprite')}
-                          />
+                          <div className="linked-asset-note-row">
+                            <Input
+                              addonBefore="关联备注"
+                              value={link.noteName ?? ''}
+                              aria-label="角色精灵图关联备注"
+                              onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'sprite', event.target.value)}
+                            />
+                            <Button
+                              size="small"
+                              danger
+                              icon={<DisconnectOutlined />}
+                              aria-label="取消关联角色精灵图"
+                              onClick={() => onUnassignAsset(item.id, link.assetId, 'sprite')}
+                            />
+                          </div>
                         </div>
                       </div>
                     )
@@ -276,6 +431,9 @@ export function PersonalCharacterPanel({
                 <div className="space-column">
                   <strong>角色配音</strong>
                   <div className="character-link-actions">
+                    <Upload {...getVoiceUploadProps(item.id)}>
+                      <Button icon={<UploadOutlined />}>上传配音</Button>
+                    </Upload>
                     <CharacterAssetPicker
                       assets={voiceAssets}
                       actionLabel="关联配音"

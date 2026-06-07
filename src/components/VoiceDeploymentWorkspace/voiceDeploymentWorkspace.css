@@ -97,6 +97,68 @@
   gap: 16px;
 }
 
+.voice-generator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.36fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.voice-character-selector {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 42%, white);
+}
+
+.voice-character-list {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.voice-character-list button {
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.voice-character-list button:hover,
+.voice-character-list button:focus-visible,
+.voice-character-list button.is-selected {
+  border-color: var(--color-brand);
+  color: var(--color-brand-dark);
+}
+
+.voice-character-list button.is-selected {
+  background: color-mix(in oklch, var(--color-brand) 9%, var(--color-panel));
+  font-weight: 700;
+}
+
+.voice-character-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.voice-character-selected {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .field-label {
   display: inline-flex;
   align-items: center;
@@ -326,6 +388,16 @@
   padding-right: 4px;
 }
 
+.voice-record-tab {
+  display: grid;
+  gap: 10px;
+}
+
+.voice-record-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .voice-record {
   display: grid;
   gap: 10px;
@@ -364,6 +436,14 @@
   gap: 8px;
   color: var(--color-muted);
   font-size: 0.82rem;
+}
+
+.record-link-names {
+  align-items: flex-start;
+}
+
+.record-link-names span {
+  overflow-wrap: anywhere;
 }
 
 .voice-record audio {
@@ -416,6 +496,7 @@
 @media (max-width: 900px) {
   .voice-grid,
   .voice-studio,
+  .voice-generator-layout,
   .advanced-grid {
     grid-template-columns: 1fr;
   }
@@ -438,6 +519,10 @@
     max-height: none;
   }
 
+  .voice-character-selector {
+    position: static;
+  }
+
   .voice-record-list {
     max-height: none;
   }
@@ -451,5 +536,9 @@
   .voice-generator .ant-segmented-item-label {
     padding-inline: 6px;
     font-size: 0.82rem;
+  }
+
+  .voice-character-create {
+    grid-template-columns: 1fr;
   }
 }

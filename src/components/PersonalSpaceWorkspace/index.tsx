@@ -19,9 +19,8 @@ export default function PersonalSpaceWorkspace() {
       voiceAssets={workspace.voiceAssets}
       characterOptions={workspace.characterOptions}
       storyboardOptions={workspace.space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
-      uploadProps={section.kind === 'sprite'
-        ? workspace.imageSpriteUploadProps
-        : workspace.commonResourceUploadProps(section.kind)}
+      commonResourceUploadProps={workspace.commonResourceUploadProps}
+      spriteResourceUploadProps={workspace.imageSpriteUploadProps}
       getAssetOptions={workspace.assetOptions}
       getAssetKindLabel={workspace.assetKindLabel}
       getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
@@ -34,6 +33,7 @@ export default function PersonalSpaceWorkspace() {
       onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
       onAddGroup={workspace.addAssetGroup}
       onRenameGroup={workspace.renameAssetGroup}
+      onToggleGroupStar={workspace.toggleAssetGroupStar}
       onTransferGroup={workspace.transferAssetGroup}
       onDeleteGroup={workspace.deleteAssetGroup}
       onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
@@ -50,7 +50,9 @@ export default function PersonalSpaceWorkspace() {
           <p>承接精灵图工作台和配音工作台产出的资源，把角色、素材、剧情组和本地目录串成同一个资产关系表。</p>
         </div>
         <div className="storage-status">
-          <Tag color={workspace.directoryHandle ? 'success' : undefined}>{workspace.directoryHandle ? '已授权目录' : '路径记录模式'}</Tag>
+          <Tag color={workspace.directoryHandle ? 'success' : undefined}>
+            {workspace.directoryHandle ? '已授权目录' : workspace.directoryHandleChecked ? '需要授权目录' : '检查授权目录'}
+          </Tag>
           <span>{workspace.draftStorageDirectory || '未设置资源存储目录'}</span>
         </div>
       </div>
@@ -80,10 +82,13 @@ export default function PersonalSpaceWorkspace() {
 
       <Tabs
         className="personal-tabs"
+        activeKey={workspace.activeModule}
+        onChange={workspace.changeActiveModule}
         items={[
           {
             key: 'characters',
             label: '角色',
+            disabled: !workspace.directoryHandle,
             children: (
               <PersonalCharacterPanel
                 characters={workspace.space.characters}
@@ -95,9 +100,11 @@ export default function PersonalSpaceWorkspace() {
                 getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
                 getPortraitUploadProps={workspace.portraitUploadProps}
                 getSpriteUploadProps={workspace.spriteUploadProps}
+                getVoiceUploadProps={workspace.voiceUploadProps}
                 onNewCharacterNameChange={workspace.setNewCharacterName}
                 onCreateCharacter={workspace.createCharacter}
                 onRenameCharacter={workspace.renameCharacter}
+                onToggleCharacterStar={workspace.toggleCharacterStar}
                 onReorderCharacter={workspace.reorderCharacter}
                 onDeleteCharacter={workspace.deleteCharacter}
                 onAssignAsset={workspace.assignAsset}
@@ -110,6 +117,7 @@ export default function PersonalSpaceWorkspace() {
           {
             key: 'storyboards',
             label: '剧情编排',
+            disabled: !workspace.directoryHandle,
             children: (
               <PersonalStoryboardPanel
                 storyboardGroups={workspace.space.storyboardGroups}
@@ -118,17 +126,21 @@ export default function PersonalSpaceWorkspace() {
                 voiceAssets={workspace.voiceAssets}
                 allAssets={workspace.space.assets}
                 getStoryboardLinkedCharacterIds={workspace.getStoryboardLinkedCharacterIds}
+                getStoryboardVoiceUploadProps={workspace.storyboardVoiceUploadProps}
                 onNewStoryboardNameChange={workspace.setNewStoryboardName}
                 onCreateStoryboard={workspace.createStoryboard}
                 onRenameStoryboard={workspace.renameStoryboard}
-                onExportStoryboardAsset={(groupId) => void workspace.exportStoryboardAsset(groupId)}
+                onToggleStoryboardStar={workspace.toggleStoryboardStar}
+                storyboardExportingKey={workspace.storyboardExportingKey}
+                onExportStoryboardVoiceAssets={(groupId) => void workspace.exportStoryboardVoiceAssets(groupId)}
+                onExportStoryboardCharacterAssets={(groupId) => void workspace.exportStoryboardCharacterAssets(groupId)}
+                onExportAllStoryboardVoiceAssets={() => void workspace.exportAllStoryboardVoiceAssets()}
+                onExportAllStoryboardCharacterAssets={() => void workspace.exportAllStoryboardCharacterAssets()}
                 onDeleteStoryboard={workspace.deleteStoryboard}
                 onAssignVoiceToStoryboard={workspace.assignVoiceToStoryboard}
                 onUnassignStoryboardVoice={workspace.unassignStoryboardVoice}
                 onAssignStoryboardVoiceCharacter={workspace.assignStoryboardVoiceCharacter}
                 onUpdateStoryboardVoiceText={workspace.updateStoryboardVoice}
-                onUpdateStoryboardVoiceNote={workspace.updateStoryboardVoiceNote}
-                onReorderStoryboardVoice={workspace.reorderStoryboardVoice}
                 onMoveStoryboardVoice={workspace.moveStoryboardVoice}
               />
             ),
@@ -136,6 +148,7 @@ export default function PersonalSpaceWorkspace() {
           {
             key: 'materials',
             label: '素材',
+            disabled: !workspace.directoryHandle,
             children: (
               <Tabs
                 className="personal-inner-tabs"
@@ -143,29 +156,17 @@ export default function PersonalSpaceWorkspace() {
                   {
                     key: 'images',
                     label: '公共图片',
-                    children: (
-                      <div className="resource-module">
-                        {workspace.resourceSections.filter((section) => section.kind === 'image').map(materialSection)}
-                      </div>
-                    ),
+                    children: workspace.resourceSections.filter((section) => section.kind === 'image').map(materialSection),
                   },
                   {
                     key: 'sprites',
                     label: '精灵图',
-                    children: (
-                      <div className="resource-module">
-                        {workspace.resourceSections.filter((section) => section.kind === 'sprite').map(materialSection)}
-                      </div>
-                    ),
+                    children: workspace.resourceSections.filter((section) => section.kind === 'sprite').map(materialSection),
                   },
                   {
                     key: 'voices',
                     label: '配音',
-                    children: (
-                      <div className="resource-module">
-                        {workspace.resourceSections.filter((section) => section.kind === 'voice').map(materialSection)}
-                      </div>
-                    ),
+                    children: workspace.resourceSections.filter((section) => section.kind === 'voice').map(materialSection),
                   },
                 ]}
               />
@@ -180,9 +181,9 @@ export default function PersonalSpaceWorkspace() {
                 deleteResourcesWithContent={workspace.space.settings.deleteResourcesWithContent}
                 savedSettings={workspace.savedSettings}
                 directoryHandle={workspace.directoryHandle}
-                pendingDeletedResourcePaths={workspace.space.pendingDeletedResourcePaths}
                 onStorageDirectoryChange={workspace.setDraftStorageDirectory}
                 onChooseStorageDirectory={() => void workspace.chooseStorageDirectory()}
+                onOpenStorageDirectory={workspace.openStorageDirectory}
                 onDeleteResourcesWithContentChange={workspace.setDeleteResourcesWithContent}
                 onSaveSettings={workspace.saveSettings}
               />

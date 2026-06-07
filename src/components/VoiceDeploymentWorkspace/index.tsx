@@ -9,12 +9,15 @@ import {
 import './voiceDeploymentWorkspace.css'
 import {
   type VoiceGenerationRecord,
+  clearVoiceRecords,
   deleteVoiceRecord,
   updateRecordName,
   voiceModeMeta,
 } from './voiceDeploymentModel'
 import {
+  addCharacterProfile,
   readPersonalSpaceState,
+  writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
 import {
@@ -44,7 +47,6 @@ export default function VoiceDeploymentWorkspace() {
     downloadSource,
     modelPath,
     oneClickCommand,
-    apiCallExample,
     serviceUrl,
     connected,
     copiedKey,
@@ -62,9 +64,11 @@ export default function VoiceDeploymentWorkspace() {
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
   const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
+  const [selectedVoiceCharacterId, setSelectedVoiceCharacterId] = useState<string | null>(null)
 
   useEffect(() => { writeStoredRecords(records) }, [records])
   const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
+  const selectedVoiceCharacterName = personalSpaceSnapshot.characters.find((character) => character.id === selectedVoiceCharacterId)?.name ?? ''
   const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
   const effectLinkOptions = personalSpaceSnapshot.assets
     .filter((asset) => asset.kind === 'effect')
@@ -78,6 +82,20 @@ export default function VoiceDeploymentWorkspace() {
   const deleteRecord = (id: string) => {
     setRecords((current) => deleteVoiceRecord(current, id))
   }
+
+  const clearRecords = () => {
+    setRecords((current) => clearVoiceRecords(current))
+    setLastGeneratedId(null)
+  }
+
+  const createVoiceCharacter = useCallback((name: string) => {
+    const nextSpace = addCharacterProfile(personalSpaceSnapshot, name)
+    const createdCharacter = nextSpace.characters[nextSpace.characters.length - 1]
+    writePersonalSpaceState(nextSpace)
+    setPersonalSpaceSnapshot(nextSpace)
+    setSelectedVoiceCharacterId(createdCharacter?.id ?? null)
+    void messageApi.success(`已创建角色：${createdCharacter?.name ?? name.trim()}`)
+  }, [messageApi, personalSpaceSnapshot])
 
   const collectRecordToPersonalSpace = useCallback(async (
     record: VoiceGenerationRecord,
@@ -114,6 +132,7 @@ export default function VoiceDeploymentWorkspace() {
     port,
     serviceUrl,
     recordCount: records.length,
+    selectedCharacterName: selectedVoiceCharacterName,
     onRecordCreated: (record) => {
       setRecords((current) => [record, ...current].slice(0, 80))
       setLastGeneratedId(record.id)
@@ -211,23 +230,28 @@ export default function VoiceDeploymentWorkspace() {
             generationError={generationError}
             generating={generating}
             canGenerate={canGenerate}
-            copiedKey={copiedKey}
+            characters={personalSpaceSnapshot.characters}
+            selectedCharacterId={selectedVoiceCharacterId}
             onModeChange={setMode}
             onParamsChange={updateParams}
             onAdvancedChange={updateAdvanced}
+            onCharacterSelect={setSelectedVoiceCharacterId}
+            onCharacterCreate={createVoiceCharacter}
             onReferenceFileSelected={selectReferenceFile}
             onGenerate={() => void generateVoice()}
             onResetParams={resetParams}
-            onCopyApiExample={() => void copy('api', apiCallExample)}
           />
 
           <VoiceLibraryPanel
             records={records}
             lastGeneratedId={lastGeneratedId}
             personalSpaceVoiceAssets={personalSpaceVoiceAssets}
+            personalSpaceCharacters={personalSpaceSnapshot.characters}
+            personalSpaceStoryboardGroups={personalSpaceSnapshot.storyboardGroups}
             onLoad={loadParams}
             onClone={cloneFromRecord}
             onDelete={deleteRecord}
+            onClearHistory={clearRecords}
             onRename={renameRecord}
             onCollect={(record) => void collectRecordToPersonalSpace(record)}
             onCollectWithLink={openCollectLinkDialog}
@@ -260,9 +284,12 @@ export default function VoiceDeploymentWorkspace() {
             records={records}
             lastGeneratedId={lastGeneratedId}
             personalSpaceVoiceAssets={personalSpaceVoiceAssets}
+            personalSpaceCharacters={personalSpaceSnapshot.characters}
+            personalSpaceStoryboardGroups={personalSpaceSnapshot.storyboardGroups}
             onLoad={loadParams}
             onClone={cloneFromRecord}
             onDelete={deleteRecord}
+            onClearHistory={clearRecords}
             onRename={renameRecord}
             onCollect={(record) => void collectRecordToPersonalSpace(record)}
             onCollectWithLink={openCollectLinkDialog}

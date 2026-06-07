@@ -31,7 +31,7 @@ export default function MultiFrameSpriteWorkspace() {
         onExportMatteGroup={(groupId) => void workspace.matte.exportMatteGroup(groupId)}
         onImportMatteGroupToPersonalSpace={(groupId) => void workspace.matte.importMatteGroupToPersonalSpace(groupId)}
         onActivate={workspace.frame.setActiveId}
-        onRemove={workspace.frame.removeFrame}
+        onRemoveGroup={workspace.frame.removeFrameGroup}
         onSampleColor={(frame, event) => void workspace.matte.sampleColor(frame, event)}
         onPreview={workspace.frame.openDetailPreview}
         onMatteParamChange={workspace.matte.setMatteParam}

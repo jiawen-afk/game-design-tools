@@ -40,6 +40,7 @@ export interface CharacterProfile {
   id: string
   name: string
   order: number
+  starred?: boolean
   portraitAssets: CharacterAssetLink[]
   spriteAssets: CharacterAssetLink[]
   voiceAssets: CharacterAssetLink[]
@@ -51,6 +52,7 @@ export interface CharacterProfile {
 export interface StoryboardGroup {
   id: string
   name: string
+  starred?: boolean
   voiceEntries: StoryboardVoiceEntry[]
   characterIds: string[]
   voiceAssetIds: string[]
@@ -70,6 +72,7 @@ export interface StoryboardReferenceExport {
 export interface PersonalSpaceState {
   settings: PersonalSpaceSettings
   assetGroups: Record<AssetGroupKind, string[]>
+  starredAssetGroups: Record<AssetGroupKind, string[]>
   characters: CharacterProfile[]
   assets: PersonalSpaceAsset[]
   storyboardGroups: StoryboardGroup[]
@@ -78,6 +81,7 @@ export interface PersonalSpaceState {
 
 export interface VoiceRecordAssetInput {
   name: string
+  audioUrl?: string
   audioPath: string | null
   dialogueText?: string
   params?: {
@@ -89,6 +93,7 @@ export interface SpriteExportAssetInput {
   name: string
   spritePath: string
   indexPath: string
+  groupName?: string
   tags?: string[]
 }
 
@@ -102,6 +107,7 @@ export interface ResourceUploadAssetInput {
   kind: CommonAssetKind
   name: string
   resourcePath: string
+  groupName?: string
   tags?: string[]
 }
 
@@ -111,6 +117,7 @@ export {
   defaultAssetGroups,
   deleteAssetGroup,
   renameAssetGroup,
+  toggleAssetGroupStar,
   transferAssetGroup,
 } from './personalSpaceAssetGroups'
 
@@ -148,6 +155,7 @@ export {
   reorderStoryboardVoice,
   setStoryboardCharacters,
   storyboardReferenceFileName,
+  toggleStoryboardStar,
   unassignVoiceFromStoryboardGroup,
   updateStoryboardVoiceNote,
   updateStoryboardVoiceText,
@@ -161,6 +169,7 @@ export {
   renameCharacterProfile,
   reorderCharacterProfile,
   reorderCharacterVoice,
+  toggleCharacterStar,
   unassignAssetFromCharacterColumn,
   updateCharacterAssetNote,
 } from './personalSpaceCharacters'

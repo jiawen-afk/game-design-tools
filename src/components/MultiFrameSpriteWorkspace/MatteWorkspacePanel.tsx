@@ -15,7 +15,7 @@ export interface MatteWorkspacePanelProps {
   onExportMatteGroup: (groupId: string) => void
   onImportMatteGroupToPersonalSpace: (groupId: string) => void
   onActivate: MatteFrameCardProps['onActivate']
-  onRemove: MatteFrameCardProps['onRemove']
+  onRemoveGroup: (groupId: string) => void
   onSampleColor: MatteFrameCardProps['onSampleColor']
   onPreview: MatteFrameCardProps['onPreview']
   onMatteParamChange: MatteFrameCardProps['onMatteParamChange']
@@ -33,7 +33,7 @@ export function MatteWorkspacePanel({
   onExportMatteGroup,
   onImportMatteGroupToPersonalSpace,
   onActivate,
-  onRemove,
+  onRemoveGroup,
   onSampleColor,
   onPreview,
   onMatteParamChange,
@@ -84,7 +84,7 @@ export function MatteWorkspacePanel({
                 frameCount={group.frameCount}
                 active={activeFrameId === group.firstFrame.id}
                 onActivate={onActivate}
-                onRemove={onRemove}
+                onRemove={() => onRemoveGroup(group.id)}
                 onSampleColor={onSampleColor}
                 onPreview={onPreview}
                 onMatteParamChange={onMatteParamChange}

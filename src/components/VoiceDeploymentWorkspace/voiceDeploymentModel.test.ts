@@ -9,6 +9,7 @@ import {
   createVoiceRecordName,
   defaultVoiceGenerationParams,
   defaultPort,
+  clearVoiceRecords,
   deleteVoiceRecord,
   downloadSources,
   evaluateHardware,
@@ -234,10 +235,49 @@ test('voice records can be renamed, deleted, and loaded for cloning without star
 
   assert.deepEqual(deleteVoiceRecord(renamed, 'r1'), [])
 
-  const cloneParams = prepareCloneFromRecord(renamed[0])
+  const currentParams = {
+    ...defaultVoiceGenerationParams,
+    mode: 'voice-design' as const,
+    text: '当前正在编辑的台词',
+    controlInstruction: '当前声音描述',
+    promptText: '当前参考音频文本',
+    referenceAudioName: 'old.wav',
+    referenceAudioPath: '/tmp/old.wav',
+    advanced: {
+      ...defaultVoiceGenerationParams.advanced,
+      cfgValue: 2.6,
+    },
+  }
+
+  const cloneParams = prepareCloneFromRecord(currentParams, renamed[0])
   assert.equal(cloneParams.mode, 'reference-clone')
   assert.equal(cloneParams.referenceAudioPath, '/tmp/out.wav')
   assert.equal(cloneParams.referenceAudioName, '角色 A')
+  assert.equal(cloneParams.text, '当前正在编辑的台词')
+  assert.equal(cloneParams.controlInstruction, '当前声音描述')
+  assert.equal(cloneParams.promptText, '当前参考音频文本')
+  assert.equal(cloneParams.advanced.cfgValue, 2.6)
+})
+
+test('voice record names can include a selected character prefix', () => {
+  const named = createVoiceRecordName(defaultVoiceGenerationParams, 2, '莉娜')
+  assert.match(named, /^莉娜 · 声音盲盒 2/)
+
+  const unnamed = createVoiceRecordName(defaultVoiceGenerationParams, 2, '   ')
+  assert.match(unnamed, /^声音盲盒 2/)
+})
+
+test('voice record history can be cleared at once', () => {
+  const record: VoiceGenerationRecord = {
+    id: 'r1',
+    name: '历史配音',
+    createdAt: '2026-06-05T00:00:00.000Z',
+    audioUrl: 'blob:voice',
+    audioPath: '/tmp/out.wav',
+    params: defaultVoiceGenerationParams,
+  }
+
+  assert.deepEqual(clearVoiceRecords([record]), [])
 })
 
 test('Windows deployment script installs ffmpeg for browser-recorded m4a reference audio', () => {
@@ -409,4 +449,43 @@ test('voice records can be collected into personal space assets', () => {
   assert.doesNotMatch(source, /toggleRecordFavorite/)
   assert.doesNotMatch(source, /onToggleFavorite/)
   assert.doesNotMatch(source, /type="primary" ghost onClick=\{\(\) => onCollect\(record\)\}/)
+})
+
+test('voice library can clear history and preview personal space voices with linked names', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
+  const listSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx', 'utf8')
+
+  assert.match(source, /clearVoiceRecords/)
+  assert.match(source, /clearRecords/)
+  assert.match(panelSource, /清空历史/)
+  assert.match(panelSource, /onClearHistory/)
+  assert.match(listSource, /<audio controls src=\{audioSource\}/)
+  assert.match(listSource, /角色：/)
+  assert.match(listSource, /剧情：/)
+  assert.match(listSource, /linkedCharacterIds/)
+  assert.match(listSource, /linkedStoryboardIds/)
+  assert.doesNotMatch(listSource, /asset\.resourcePaths\.join/)
+  assert.doesNotMatch(listSource, /未绑定本地文件/)
+})
+
+test('voice generation panel exposes a searchable character picker for record prefixes', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceGenerationPanel.tsx', 'utf8')
+  const workflowSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
+
+  assert.match(source, /selectedVoiceCharacterId/)
+  assert.match(source, /selectedVoiceCharacterName/)
+  assert.match(source, /addCharacterProfile/)
+  assert.match(source, /writePersonalSpaceState/)
+  assert.match(panelSource, /voice-character-selector/)
+  assert.match(panelSource, /搜索角色/)
+  assert.match(panelSource, /快捷创建角色/)
+  assert.match(panelSource, /selectedCharacterId/)
+  assert.match(panelSource, /onCharacterSelect/)
+  assert.match(panelSource, /onCharacterCreate/)
+  assert.doesNotMatch(panelSource, /前缀：/)
+  assert.doesNotMatch(panelSource, /未选择角色前缀/)
+  assert.match(workflowSource, /selectedCharacterName/)
+  assert.match(workflowSource, /createVoiceRecordName\(paramsForRequest, recordCount \+ 1, selectedCharacterName\)/)
 })
