@@ -15,7 +15,6 @@ import { applyComposedFrameUrl } from './model'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
 import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
 import {
-  archiveAssetForStorageDirectory,
   createResourceAssetFromUpload,
   readPersonalSpaceState,
   writePersonalSpaceState,
@@ -24,6 +23,7 @@ import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
+import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
@@ -370,9 +370,13 @@ export function useMattePipeline({
   const importMatteGroupToPersonalSpace = async (groupId: string) => {
     const items = getReadyMatteGroupFrames(groupId)
     if (!items) return
+    const directoryHandle = getPersonalSpaceDirectoryHandle()
+    if (!directoryHandle) {
+      message.warning(personalSpaceDirectoryRequiredMessage)
+      return
+    }
     try {
       const space = readPersonalSpaceState()
-      const directoryHandle = getPersonalSpaceDirectoryHandle()
       const assets = []
       for (const item of items) {
         const blob = await readMatteBlob(item)
@@ -383,9 +387,7 @@ export function useMattePipeline({
           resourcePath: previewUrl,
           tags: ['抠图', item.matteGroupName],
         })
-        const asset = directoryHandle
-          ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
-          : archiveAssetForStorageDirectory(space, baseAsset)
+        const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
         assets.push(asset)
       }
       writePersonalSpaceState({

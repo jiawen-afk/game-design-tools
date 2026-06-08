@@ -436,6 +436,9 @@ test('voice records can be collected into personal space assets', () => {
   const collectorSource = readFileSync('src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.ts', 'utf8')
 
   assert.match(listSource, /收藏到个人空间/)
+  assert.match(listSource, /personalSpaceCollectEnabled/)
+  assert.match(listSource, /personalSpaceCollectDisabledReason/)
+  assert.match(listSource, /disabled=\{!personalSpaceCollectEnabled\}/)
   assert.match(listSource, /收藏并关联角色/)
   assert.match(listSource, /收藏并关联特效/)
   assert.match(listSource, /收藏并关联剧情/)
@@ -449,6 +452,8 @@ test('voice records can be collected into personal space assets', () => {
   assert.match(collectorSource, /createVoiceAssetFromRecord/)
   assert.match(collectorSource, /writeAssetResourcesToDirectory/)
   assert.match(collectorSource, /getPersonalSpaceDirectoryHandle/)
+  assert.match(collectorSource, /personalSpaceDirectoryRequiredMessage/)
+  assert.doesNotMatch(collectorSource, /archiveAssetForStorageDirectory/)
   assert.match(collectorSource, /assignAssetToCharacterColumn/)
   assert.match(collectorSource, /linkEffectAssetToVoice/)
   assert.match(collectorSource, /assignVoiceToStoryboardGroup/)

@@ -9,6 +9,8 @@ export interface ExportPanelProps {
   columns: number
   visibleFrameCount: number
   exporting: boolean
+  personalSpaceCollectEnabled: boolean
+  personalSpaceCollectDisabledReason?: string
   onColumnsChange: (columns: number) => void
   onExport: () => void
   onCollectToPersonalSpace: () => void
@@ -18,6 +20,8 @@ export function ExportPanel({
   columns,
   visibleFrameCount,
   exporting,
+  personalSpaceCollectEnabled,
+  personalSpaceCollectDisabledReason,
   onColumnsChange,
   onExport,
   onCollectToPersonalSpace,
@@ -35,7 +39,13 @@ export function ExportPanel({
           <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={onExport}>
             导出 ZIP
           </Button>
-          <Button icon={<StarOutlined />} loading={exporting} onClick={onCollectToPersonalSpace}>
+          <Button
+            icon={<StarOutlined />}
+            loading={exporting}
+            disabled={!personalSpaceCollectEnabled}
+            title={personalSpaceCollectDisabledReason}
+            onClick={onCollectToPersonalSpace}
+          >
             收藏到个人空间
           </Button>
         </Space>

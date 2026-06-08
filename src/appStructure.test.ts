@@ -141,6 +141,9 @@ test('matte task groups can export group images and collect them to public image
 
   assert.match(panelSource, /导出组图片/)
   assert.match(panelSource, /收藏到个人空间/)
+  assert.match(panelSource, /personalSpaceCollectEnabled/)
+  assert.match(panelSource, /personalSpaceCollectDisabledReason/)
+  assert.match(panelSource, /disabled=\{!personalSpaceCollectEnabled\}/)
   assert.match(panelSource, /应用到组所有帧/)
   assert.doesNotMatch(panelSource, /确定应用到该组所有帧/)
   assert.doesNotMatch(panelSource, /导出抠图/)
@@ -155,6 +158,9 @@ test('matte task groups can export group images and collect them to public image
   assert.match(hookSource, /createResourceAssetFromUpload/)
   assert.match(source, /workspace\.matte\.exportMatteGroup/)
   assert.match(source, /workspace\.matte\.importMatteGroupToPersonalSpace/)
+  assert.match(source, /workspace\.personalSpaceCollectEnabled/)
+  assert.match(hookSource, /personalSpaceDirectoryRequiredMessage/)
+  assert.doesNotMatch(hookSource, /importMatteGroupToPersonalSpace[\s\S]*archiveAssetForStorageDirectory/)
 })
 
 test('desktop shortcuts open tools and ignore editable targets', () => {
@@ -240,6 +246,10 @@ test('voice deployment workspace delegates record library view components', () =
   assert.doesNotMatch(listSource, /Dropdown\.Button/)
   assert.match(listSource, /menu=\{\{[\s\S]*收藏并关联角色/)
   assert.match(listSource, /收藏到个人空间/)
+  assert.match(listSource, /personalSpaceCollectEnabled/)
+  assert.match(listSource, /personalSpaceCollectDisabledReason/)
+  assert.match(listSource, /disabled=\{!personalSpaceCollectEnabled\}/)
+  assert.match(panelSource, /personalSpaceCollectEnabled/)
   assert.match(listSource, /收藏并关联角色/)
 })
 
@@ -458,6 +468,10 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(resourceSectionBody, /const \[selectedAssetIdsByGroup, setSelectedAssetIdsByGroup\] = useState/)
   assert.match(resourceSectionBody, /全选/)
   assert.match(resourceSectionBody, /取消全选/)
+  assert.match(resourceSectionBody, /删除选中资产/)
+  assert.match(resourceSectionBody, /selectedAssetIds\.forEach\(\(assetId\) => onDeleteAsset\(assetId\)\)/)
+  assert.match(resourceSectionBody, /disabled=\{selectedAssetIds\.length === 0\}/)
+  assert.match(resourceSectionBody, /updateSelectedAssetIdsForGroup\(groupName, \[\]\)/)
   assert.match(resourceSectionBody, /asset-selection-checkbox/)
   assert.match(resourceSectionBody, /selectedAssetIds/)
   assert.match(resourceSectionBody, /const isVoiceSection = section\.kind === 'voice'/)

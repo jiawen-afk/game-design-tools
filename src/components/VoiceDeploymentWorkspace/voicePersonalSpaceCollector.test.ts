@@ -22,6 +22,47 @@ function createMemoryStorage(seed: Record<string, string> = {}): Storage {
   }
 }
 
+function createVoiceRecord(): VoiceGenerationRecord {
+  return {
+    id: 'voice-1',
+    name: '商人问候',
+    createdAt: '2026-06-05T00:00:00.000Z',
+    audioUrl: 'http://127.0.0.1/audio.wav',
+    audioPath: null,
+    params: {
+      ...defaultVoiceGenerationParams,
+      text: '欢迎来到我的商店。',
+    },
+  }
+}
+
+test('collecting generated voice requires an authorized personal space directory', async () => {
+  const storage = createMemoryStorage({
+    [personalSpaceStorageKey]: JSON.stringify({
+      ...defaultPersonalSpaceState,
+      settings: { storageDirectory: '', deleteResourcesWithContent: false },
+    }),
+  })
+  const originalLocalStorage = globalThis.localStorage
+  const originalFetch = globalThis.fetch
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
+  setPersonalSpaceDirectoryHandle(null)
+  globalThis.fetch = (async () => new Response(new Blob(['voice'], { type: 'audio/wav' }), { status: 200 })) as typeof fetch
+
+  try {
+    await assert.rejects(
+      () => collectVoiceRecordToPersonalSpace(createVoiceRecord(), undefined, { directoryHandleStore: null }),
+      /请先在个人空间-设置中授权目录/
+    )
+    const state = JSON.parse(storage.getItem(personalSpaceStorageKey) ?? '{}')
+    assert.equal(state.assets.length, 0)
+  } finally {
+    setPersonalSpaceDirectoryHandle(null)
+    globalThis.fetch = originalFetch
+    Object.defineProperty(globalThis, 'localStorage', { value: originalLocalStorage, configurable: true })
+  }
+})
+
 test('collecting generated voice loads the persisted authorized directory and stores audio resources there', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
   const store: PersonalSpaceDirectoryHandleStore = {
@@ -40,17 +81,7 @@ test('collecting generated voice loads the persisted authorized directory and st
   setPersonalSpaceDirectoryHandle(null)
   globalThis.fetch = (async () => new Response(new Blob(['voice'], { type: 'audio/wav' }), { status: 200 })) as typeof fetch
 
-  const record: VoiceGenerationRecord = {
-    id: 'voice-1',
-    name: '商人问候',
-    createdAt: '2026-06-05T00:00:00.000Z',
-    audioUrl: 'http://127.0.0.1/audio.wav',
-    audioPath: null,
-    params: {
-      ...defaultVoiceGenerationParams,
-      text: '欢迎来到我的商店。',
-    },
-  }
+  const record = createVoiceRecord()
 
   try {
     const state = await collectVoiceRecordToPersonalSpace(record, undefined, { directoryHandleStore: store })

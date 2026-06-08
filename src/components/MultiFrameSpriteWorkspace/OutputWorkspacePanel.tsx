@@ -14,6 +14,8 @@ export interface OutputWorkspacePanelProps {
   spriteExport: SpriteExportViewModel
   canvasWidth: number
   canvasHeight: number
+  personalSpaceCollectEnabled: boolean
+  personalSpaceCollectDisabledReason?: string
 }
 
 export function OutputWorkspacePanel({
@@ -22,6 +24,8 @@ export function OutputWorkspacePanel({
   spriteExport,
   canvasWidth,
   canvasHeight,
+  personalSpaceCollectEnabled,
+  personalSpaceCollectDisabledReason,
 }: OutputWorkspacePanelProps) {
   return (
     <>
@@ -53,6 +57,8 @@ export function OutputWorkspacePanel({
         columns={spriteExport.columns}
         visibleFrameCount={playback.visibleFrames.length}
         exporting={spriteExport.exporting}
+        personalSpaceCollectEnabled={personalSpaceCollectEnabled}
+        personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
         onColumnsChange={spriteExport.setColumns}
         onExport={() => void spriteExport.exportAll()}
         onCollectToPersonalSpace={() => void spriteExport.collectToPersonalSpace()}

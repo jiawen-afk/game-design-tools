@@ -11,9 +11,11 @@ import { useSpriteExport } from './useSpriteExport'
 import { useUploadWorkspace } from './useUploadWorkspace'
 import { useVideoWorkspace } from './useVideoWorkspace'
 import { useWorkspaceReset } from './useWorkspaceReset'
+import { usePersonalSpaceDirectoryAuthorization } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 
 export function useSpriteWorkspaceController() {
   const initialLayoutDefaults = useMemo(() => readStoredLayoutDefaults(), [])
+  const personalSpaceDirectory = usePersonalSpaceDirectoryAuthorization()
   const frame = useFrameWorkspaceState()
   const layout = useLayoutWorkspace({
     initialLayoutDefaults,
@@ -85,5 +87,6 @@ export function useSpriteWorkspaceController() {
     upload,
     video,
     resetAllFrames,
+    ...personalSpaceDirectory,
   }
 }

@@ -7,7 +7,6 @@ import { clampInt } from './numberUtils'
 import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
 import {
-  archiveAssetForStorageDirectory,
   createSpriteAssetFromExport,
   readPersonalSpaceState,
   writePersonalSpaceState,
@@ -16,6 +15,7 @@ import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
+import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 
 export interface UseSpriteExportParams {
   frames: FrameItem[]
@@ -122,6 +122,11 @@ export function useSpriteExport({
 
   const collectToPersonalSpace = async () => {
     if (!validateExportableFrames()) return
+    const directoryHandle = getPersonalSpaceDirectoryHandle()
+    if (!directoryHandle) {
+      message.warning(personalSpaceDirectoryRequiredMessage)
+      return
+    }
     setExporting(true)
     try {
       const { spriteBlob, indexJson } = await buildSpriteExportPackage({
@@ -140,13 +145,10 @@ export function useSpriteExport({
         spritePath,
         indexPath,
       })
-      const directoryHandle = getPersonalSpaceDirectoryHandle()
-      const asset = directoryHandle
-        ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
-          { name: 'sprite.png', data: spriteBlob },
-          { name: 'index.json', data: new Blob([indexJson], { type: 'application/json' }) },
-        ])
-        : archiveAssetForStorageDirectory(space, baseAsset)
+      const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
+        { name: 'sprite.png', data: spriteBlob },
+        { name: 'index.json', data: new Blob([indexJson], { type: 'application/json' }) },
+      ])
       writePersonalSpaceState({
         ...space,
         assets: [asset, ...space.assets],

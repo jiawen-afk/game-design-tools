@@ -19,6 +19,10 @@ import {
   readPersonalSpaceState,
   writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  personalSpaceDirectoryRequiredMessage,
+  usePersonalSpaceDirectoryAuthorization,
+} from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
 import {
   collectVoiceRecordToPersonalSpace,
@@ -59,6 +63,10 @@ export default function VoiceDeploymentWorkspace() {
   const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
   const [selectedVoiceCharacterId, setSelectedVoiceCharacterId] = useState<string | null>(null)
+  const {
+    personalSpaceCollectEnabled,
+    personalSpaceCollectDisabledReason,
+  } = usePersonalSpaceDirectoryAuthorization()
 
   useEffect(() => { writeStoredRecords(records) }, [records])
   const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
@@ -103,8 +111,11 @@ export default function VoiceDeploymentWorkspace() {
         : link?.target === 'storyboard' ? '并关联剧情'
         : ''
       void messageApi.success(`已收藏到个人空间${linkLabel}`)
-    } catch {
-      void messageApi.error('收藏到个人空间失败，请检查浏览器存储权限。')
+    } catch (error) {
+      const reason = error instanceof Error && error.message === personalSpaceDirectoryRequiredMessage
+        ? error.message
+        : '收藏到个人空间失败，请检查浏览器存储权限。'
+      void messageApi.error(reason)
     }
   }, [messageApi])
 
@@ -249,6 +260,8 @@ export default function VoiceDeploymentWorkspace() {
             onRename={renameRecord}
             onCollect={(record) => void collectRecordToPersonalSpace(record)}
             onCollectWithLink={openCollectLinkDialog}
+            personalSpaceCollectEnabled={personalSpaceCollectEnabled}
+            personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
           />
         </div>
       ) : (
@@ -281,6 +294,8 @@ export default function VoiceDeploymentWorkspace() {
             onRename={renameRecord}
             onCollect={(record) => void collectRecordToPersonalSpace(record)}
             onCollectWithLink={openCollectLinkDialog}
+            personalSpaceCollectEnabled={personalSpaceCollectEnabled}
+            personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
           />
         </div>
       )}

@@ -15,6 +15,8 @@ interface VoiceRecordListProps {
   onRename: (id: string, name: string) => void
   onCollect: (record: VoiceGenerationRecord) => void
   onCollectWithLink: (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => void
+  personalSpaceCollectEnabled: boolean
+  personalSpaceCollectDisabledReason?: string
 }
 
 export function VoiceRecordList({
@@ -26,6 +28,8 @@ export function VoiceRecordList({
   onRename,
   onCollect,
   onCollectWithLink,
+  personalSpaceCollectEnabled,
+  personalSpaceCollectDisabledReason,
 }: VoiceRecordListProps) {
   if (records.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有生成音频" />
@@ -58,19 +62,32 @@ export function VoiceRecordList({
               <Button size="small" onClick={() => onLoad(record)}>载入参数</Button>
               <Button size="small" disabled={!record.audioPath} onClick={() => onClone(record)}>克隆音频</Button>
               <Space.Compact className="record-collect-action">
-                <Button size="small" onClick={() => onCollect(record)}>收藏到个人空间</Button>
+                <Button
+                  size="small"
+                  disabled={!personalSpaceCollectEnabled}
+                  title={personalSpaceCollectDisabledReason}
+                  onClick={() => onCollect(record)}
+                >
+                  收藏到个人空间
+                </Button>
                 <Dropdown
                   menu={{
                     items: [
-                      { key: 'character', label: '收藏并关联角色' },
-                      { key: 'effect', label: '收藏并关联特效' },
-                      { key: 'storyboard', label: '收藏并关联剧情' },
+                      { key: 'character', label: '收藏并关联角色', disabled: !personalSpaceCollectEnabled },
+                      { key: 'effect', label: '收藏并关联特效', disabled: !personalSpaceCollectEnabled },
+                      { key: 'storyboard', label: '收藏并关联剧情', disabled: !personalSpaceCollectEnabled },
                     ],
                     onClick: ({ key }) => onCollectWithLink(record, key as VoiceCollectLinkTarget),
                   }}
                   trigger={['click']}
                 >
-                  <Button size="small" aria-label="展开收藏关联方式" icon={<DownOutlined />} />
+                  <Button
+                    size="small"
+                    disabled={!personalSpaceCollectEnabled}
+                    title={personalSpaceCollectDisabledReason}
+                    aria-label="展开收藏关联方式"
+                    icon={<DownOutlined />}
+                  />
                 </Dropdown>
               </Space.Compact>
               <Button size="small" danger icon={<DeleteOutlined />} onClick={() => onDelete(record.id)}>删除</Button>

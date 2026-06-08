@@ -19,6 +19,8 @@ interface VoiceLibraryPanelProps {
   onRename: (id: string, name: string) => void
   onCollect: (record: VoiceGenerationRecord) => void
   onCollectWithLink: (record: VoiceGenerationRecord, target: VoiceCollectLinkTarget) => void
+  personalSpaceCollectEnabled: boolean
+  personalSpaceCollectDisabledReason?: string
 }
 
 export function VoiceLibraryPanel({
@@ -34,6 +36,8 @@ export function VoiceLibraryPanel({
   onRename,
   onCollect,
   onCollectWithLink,
+  personalSpaceCollectEnabled,
+  personalSpaceCollectDisabledReason,
 }: VoiceLibraryPanelProps) {
   return (
     <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
@@ -68,6 +72,8 @@ export function VoiceLibraryPanel({
                   onRename={onRename}
                   onCollect={onCollect}
                   onCollectWithLink={onCollectWithLink}
+                  personalSpaceCollectEnabled={personalSpaceCollectEnabled}
+                  personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
                 />
               </div>
             ),

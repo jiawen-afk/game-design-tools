@@ -1,6 +1,5 @@
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 import {
-  archiveAssetForStorageDirectory,
   assignAssetToCharacterColumn,
   assignVoiceToStoryboardGroup,
   createVoiceAssetFromRecord,
@@ -16,6 +15,7 @@ import {
   type PersonalSpaceDirectoryHandleStore,
   writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
+import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 
 export type VoiceCollectLinkTarget = 'character' | 'effect' | 'storyboard'
 
@@ -64,23 +64,22 @@ export async function collectVoiceRecordToPersonalSpace(
   let space = readPersonalSpaceState()
   const baseAsset = createVoiceAssetFromRecord({ ...record, dialogueText: record.params.text })
   const directoryHandle = await getAuthorizedDirectoryHandle(options)
+  if (!directoryHandle) {
+    throw new Error(personalSpaceDirectoryRequiredMessage)
+  }
   if (directoryHandle && !space.settings.storageDirectory) {
     space = {
       ...space,
       settings: { ...space.settings, storageDirectory: directoryHandle.name },
     }
   }
-  let asset = archiveAssetForStorageDirectory(space, baseAsset)
-
-  if (directoryHandle) {
-    const blob = await readVoiceRecordBlob(record)
-    asset = await writeAssetResourcesToDirectory(directoryHandle, {
-      ...baseAsset,
-      resourcePaths: [playableBlobUrl(blob, baseAsset.resourcePaths[0] ?? '')],
-    }, [
-      { name: voiceResourceFileName(record), data: blob },
-    ])
-  }
+  const blob = await readVoiceRecordBlob(record)
+  const asset = await writeAssetResourcesToDirectory(directoryHandle, {
+    ...baseAsset,
+    resourcePaths: [playableBlobUrl(blob, baseAsset.resourcePaths[0] ?? '')],
+  }, [
+    { name: voiceResourceFileName(record), data: blob },
+  ])
 
   let nextSpace: PersonalSpaceState = {
     ...space,

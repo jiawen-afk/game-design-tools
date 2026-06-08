@@ -14,6 +14,8 @@ export interface MatteWorkspacePanelProps {
   onRemoveAll: () => void
   onExportMatteGroup: (groupId: string) => void
   onImportMatteGroupToPersonalSpace: (groupId: string) => void
+  personalSpaceCollectEnabled: boolean
+  personalSpaceCollectDisabledReason?: string
   onActivate: MatteFrameCardProps['onActivate']
   onRemoveGroup: (groupId: string) => void
   onSampleColor: MatteFrameCardProps['onSampleColor']
@@ -32,6 +34,8 @@ export function MatteWorkspacePanel({
   onRemoveAll,
   onExportMatteGroup,
   onImportMatteGroupToPersonalSpace,
+  personalSpaceCollectEnabled,
+  personalSpaceCollectDisabledReason,
   onActivate,
   onRemoveGroup,
   onSampleColor,
@@ -74,7 +78,13 @@ export function MatteWorkspacePanel({
                       <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
                         导出组图片
                       </Button>
-                      <Button size="small" icon={<StarOutlined />} onClick={() => onImportMatteGroupToPersonalSpace(group.id)}>
+                      <Button
+                        size="small"
+                        icon={<StarOutlined />}
+                        disabled={!personalSpaceCollectEnabled}
+                        title={personalSpaceCollectDisabledReason}
+                        onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
+                      >
                         收藏到个人空间
                       </Button>
                     </Space>

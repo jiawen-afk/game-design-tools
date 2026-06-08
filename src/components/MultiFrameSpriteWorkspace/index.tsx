@@ -30,6 +30,8 @@ export default function MultiFrameSpriteWorkspace() {
         onRemoveAll={workspace.resetAllFrames}
         onExportMatteGroup={(groupId) => void workspace.matte.exportMatteGroup(groupId)}
         onImportMatteGroupToPersonalSpace={(groupId) => void workspace.matte.importMatteGroupToPersonalSpace(groupId)}
+        personalSpaceCollectEnabled={workspace.personalSpaceCollectEnabled}
+        personalSpaceCollectDisabledReason={workspace.personalSpaceCollectDisabledReason}
         onActivate={workspace.frame.setActiveId}
         onRemoveGroup={workspace.frame.removeFrameGroup}
         onSampleColor={(frame, event) => void workspace.matte.sampleColor(frame, event)}
@@ -54,6 +56,8 @@ export default function MultiFrameSpriteWorkspace() {
         spriteExport={workspace.spriteExport}
         canvasWidth={workspace.layout.canvasWidth}
         canvasHeight={workspace.layout.canvasHeight}
+        personalSpaceCollectEnabled={workspace.personalSpaceCollectEnabled}
+        personalSpaceCollectDisabledReason={workspace.personalSpaceCollectDisabledReason}
       />
 
       <WorkspaceDialogs

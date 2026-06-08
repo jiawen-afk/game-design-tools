@@ -699,6 +699,18 @@ export function PersonalResourceSection({
                           onDeleteGroup={onDeleteGroup}
                         />
                         <Popconfirm
+                          title="删除选中资产"
+                          description={`将删除已选中的 ${selectedAssetIds.length} 个资产，并移除角色和剧情中的关联。`}
+                          okText="删除选中资产"
+                          cancelText="取消"
+                          onConfirm={() => {
+                            selectedAssetIds.forEach((assetId) => onDeleteAsset(assetId))
+                            updateSelectedAssetIdsForGroup(groupName, [])
+                          }}
+                        >
+                          <Button size="small" danger disabled={selectedAssetIds.length === 0}>删除选中资产</Button>
+                        </Popconfirm>
+                        <Popconfirm
                           title="删除分组"
                           description={canDeleteGroup ? '删除分组会同时删除分组下的资产。' : '至少保留一个分组。'}
                           okText="删除分组"
