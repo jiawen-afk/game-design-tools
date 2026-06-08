@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 const appSource = () => readFileSync('src/App.tsx', 'utf8')
 const viteConfigSource = () => readFileSync('vite.config.ts', 'utf8')
+const indexHtmlSource = () => readFileSync('index.html', 'utf8')
 
 test('home page shows tool details directly instead of hiding them in a popover', () => {
   const source = appSource()
@@ -39,6 +40,17 @@ test('personal space is global navigation instead of a tool list item', () => {
   assert.match(source, /personalSpaceShortcut/)
   assert.match(source, /event\.key === personalSpaceShortcut/)
   assert.match(source, /<kbd>\{personalSpaceShortcut\}<\/kbd>/)
+})
+
+test('site footer shows the Busuanzi visitor count beside the filing link', () => {
+  const source = appSource()
+  const html = indexHtmlSource()
+
+  assert.match(html, /cdn\.busuanzi\.cc\/busuanzi\/3\.6\.9\/busuanzi\.min\.js/)
+  assert.match(html, /defer/)
+  assert.match(source, /浙ICP备2026016967号-1/)
+  assert.match(source, /使用人数/)
+  assert.match(source, /id="busuanzi_site_uv"/)
 })
 
 test('personal space page covers required management modules', () => {
@@ -242,13 +254,21 @@ test('voice deployment workspace delegates disconnected setup panels', () => {
   assert.doesNotMatch(source, /gpuCheckCommand/)
   assert.doesNotMatch(source, /latencyDisclaimer/)
   assert.match(panelsSource, /function VoiceSetupPanels/)
-  assert.match(panelsSource, /id="hw-title"/)
+  assert.doesNotMatch(panelsSource, /id="hw-title"/)
+  assert.doesNotMatch(panelsSource, /环境检测/)
+  assert.doesNotMatch(panelsSource, /deviceOptions/)
+  assert.doesNotMatch(panelsSource, /gpuCheckCommand/)
+  assert.doesNotMatch(panelsSource, /onDeviceTypeChange/)
+  assert.doesNotMatch(panelsSource, /onGpuInputChange/)
   assert.match(panelsSource, /id="deploy-title"/)
-  assert.match(panelsSource, /gpuCheckCommand/)
   assert.match(panelsSource, /latencyDisclaimer/)
   assert.match(panelsSource, /modelOptions/)
+  assert.match(panelsSource, /disabledPlatformValues/)
+  assert.match(panelsSource, /disabledModelIds/)
+  assert.match(panelsSource, /macOS \/ Linux/)
+  assert.match(panelsSource, /VoxCPM1\.5 · 约/)
+  assert.match(panelsSource, /VoxCPM-0\.5B · 约/)
   assert.match(panelsSource, /sourceOptions/)
-  assert.match(panelsSource, /deviceOptions/)
 })
 
 test('voice deployment workspace delegates connected generation panel', () => {
@@ -324,7 +344,11 @@ test('voice deployment workspace delegates deployment setup state to a focused h
   assert.match(hookSource, /checkRef/)
   assert.match(hookSource, /runCheck/)
   assert.match(hookSource, /applyPort/)
-  assert.match(hookSource, /hardwareReport/)
+  assert.doesNotMatch(hookSource, /hardwareReport/)
+  assert.doesNotMatch(hookSource, /deviceType/)
+  assert.doesNotMatch(hookSource, /gpuInput/)
+  assert.doesNotMatch(hookSource, /parseNvidiaSmiReport/)
+  assert.doesNotMatch(hookSource, /evaluateHardware/)
   assert.match(hookSource, /oneClickCommand/)
   assert.match(hookSource, /apiCallExample/)
   assert.match(hookSource, /checkConnection/)

@@ -38,9 +38,6 @@ export default function VoiceDeploymentWorkspace() {
     portInput,
     setPortInput,
     connectionStatus,
-    deviceType,
-    gpuInput,
-    hardware,
     modelValidation,
     platform,
     selectedModel,
@@ -50,12 +47,9 @@ export default function VoiceDeploymentWorkspace() {
     serviceUrl,
     connected,
     copiedKey,
-    alertType,
     runCheck,
     applyPort,
     copy,
-    setDeviceType,
-    setGpuInput,
     setPlatform,
     selectModel,
     setDownloadSource,
@@ -260,10 +254,6 @@ export default function VoiceDeploymentWorkspace() {
       ) : (
         <div className="voice-grid">
           <VoiceSetupPanels
-            deviceType={deviceType}
-            gpuInput={gpuInput}
-            hardware={hardware}
-            alertType={alertType}
             copiedKey={copiedKey}
             platform={platform}
             selectedModel={selectedModel}
@@ -271,8 +261,6 @@ export default function VoiceDeploymentWorkspace() {
             modelPath={modelPath}
             modelPathValid={modelValidation.valid}
             oneClickCommand={oneClickCommand}
-            onDeviceTypeChange={setDeviceType}
-            onGpuInputChange={setGpuInput}
             onPlatformChange={setPlatform}
             onModelChange={selectModel}
             onDownloadSourceChange={setDownloadSource}

@@ -1,33 +1,28 @@
 import { Alert, Button, Input, Segmented } from 'antd'
-import { CheckCircleOutlined, CopyOutlined, DesktopOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckCircleOutlined, CopyOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import {
-  type DeviceType,
   type DownloadSource,
-  type HardwareEvaluation,
   type ModelVersion,
   type Platform,
   downloadSources,
-  gpuCheckCommand,
   latencyDisclaimer,
   voxcpmModels,
 } from './voiceDeploymentModel'
 
-const deviceOptions: Array<{ label: string; value: DeviceType }> = [
-  { label: 'NVIDIA GPU', value: 'nvidia' },
-  { label: 'Apple Silicon', value: 'apple' },
-  { label: 'CPU', value: 'cpu' },
-]
+const disabledPlatformValues = new Set<Platform>(['mac'])
+const disabledModelIds = new Set<ModelVersion>(['VoxCPM1.5', 'VoxCPM-0.5B'])
 
-const platformOptions: Array<{ label: string; value: Platform }> = [
+const platformOptions: Array<{ label: string; value: Platform; disabled?: boolean }> = [
   { label: 'Windows', value: 'windows' },
-  { label: 'macOS / Linux', value: 'mac' },
+  { label: 'macOS / Linux', value: 'mac', disabled: disabledPlatformValues.has('mac') },
 ]
 
-const modelOptions = voxcpmModels.map((m) => ({
-  label: `${m.id} · 约 ${m.vramGb}GB`,
-  value: m.id,
-}))
+const modelOptions: Array<{ label: string; value: ModelVersion; disabled?: boolean }> = [
+  { label: 'VoxCPM2 · 约 8GB', value: 'VoxCPM2', disabled: disabledModelIds.has('VoxCPM2') },
+  { label: 'VoxCPM1.5 · 约 6GB', value: 'VoxCPM1.5', disabled: disabledModelIds.has('VoxCPM1.5') },
+  { label: 'VoxCPM-0.5B · 约 5GB', value: 'VoxCPM-0.5B', disabled: disabledModelIds.has('VoxCPM-0.5B') },
+]
 
 const sourceOptions = downloadSources.map((s) => ({
   label: s.label,
@@ -35,10 +30,6 @@ const sourceOptions = downloadSources.map((s) => ({
 }))
 
 interface VoiceSetupPanelsProps {
-  deviceType: DeviceType
-  gpuInput: string
-  hardware: HardwareEvaluation
-  alertType: 'error' | 'success' | 'warning' | 'info'
   copiedKey: string | null
   platform: Platform
   selectedModel: ModelVersion
@@ -46,8 +37,6 @@ interface VoiceSetupPanelsProps {
   modelPath: string
   modelPathValid: boolean
   oneClickCommand: string
-  onDeviceTypeChange: (deviceType: DeviceType) => void
-  onGpuInputChange: (gpuInput: string) => void
   onPlatformChange: (platform: Platform) => void
   onModelChange: (model: ModelVersion) => void
   onDownloadSourceChange: (source: DownloadSource) => void
@@ -56,10 +45,6 @@ interface VoiceSetupPanelsProps {
 }
 
 export function VoiceSetupPanels({
-  deviceType,
-  gpuInput,
-  hardware,
-  alertType,
   copiedKey,
   platform,
   selectedModel,
@@ -67,8 +52,6 @@ export function VoiceSetupPanels({
   modelPath,
   modelPathValid,
   oneClickCommand,
-  onDeviceTypeChange,
-  onGpuInputChange,
   onPlatformChange,
   onModelChange,
   onDownloadSourceChange,
@@ -76,61 +59,6 @@ export function VoiceSetupPanels({
   onCopy,
 }: VoiceSetupPanelsProps) {
   return (
-    <>
-      <section className="voice-panel" aria-labelledby="hw-title">
-        <div className="panel-title">
-          <DesktopOutlined />
-          <h3 id="hw-title">环境检测</h3>
-        </div>
-        <p className="panel-copy">
-          选择当前设备类型。VoxCPM 支持 NVIDIA GPU（CUDA ≥12.0，PyTorch ≥2.5.0）、Apple Silicon（MPS）和 CPU 三种模式。
-        </p>
-
-        <Segmented
-          value={deviceType}
-          options={deviceOptions}
-          onChange={(v) => onDeviceTypeChange(v as DeviceType)}
-        />
-
-        {deviceType === 'nvidia' && (
-          <>
-            <p className="panel-copy">
-              在本机终端执行检测命令，将输出粘贴到下方：
-            </p>
-            <div className="command-row">
-              <code>{gpuCheckCommand}</code>
-              <Button
-                icon={copiedKey === 'gpu' ? <CheckCircleOutlined /> : <CopyOutlined />}
-                onClick={() => onCopy('gpu', gpuCheckCommand)}
-              >
-                复制
-              </Button>
-            </div>
-            <Input.TextArea
-              value={gpuInput}
-              onChange={(e) => onGpuInputChange(e.target.value)}
-              placeholder="NVIDIA GeForce RTX 3060, 12288"
-              rows={3}
-            />
-          </>
-        )}
-
-        <Alert
-          className="status-alert"
-          type={alertType}
-          title={hardware.title}
-          description={
-            <>
-              {hardware.detail}
-              {hardware.recommendedModel && (
-                <span className="recommended-model"> 推荐版本：<strong>{hardware.recommendedModel}</strong></span>
-              )}
-            </>
-          }
-          showIcon
-        />
-      </section>
-
       <section className="voice-panel" aria-labelledby="deploy-title">
         <div className="panel-title">
           <ThunderboltOutlined />
@@ -143,7 +71,10 @@ export function VoiceSetupPanels({
         <Segmented
           value={platform}
           options={platformOptions}
-          onChange={(v) => onPlatformChange(v as Platform)}
+          onChange={(v) => {
+            const nextPlatform = v as Platform
+            if (!disabledPlatformValues.has(nextPlatform)) onPlatformChange(nextPlatform)
+          }}
         />
 
         <div className="model-select">
@@ -151,7 +82,10 @@ export function VoiceSetupPanels({
           <Segmented
             value={selectedModel}
             options={modelOptions}
-            onChange={(v) => onModelChange(v as ModelVersion)}
+            onChange={(v) => {
+              const nextModel = v as ModelVersion
+              if (!disabledModelIds.has(nextModel)) onModelChange(nextModel)
+            }}
           />
           <p className="model-select-note">
             {voxcpmModels.find((m) => m.id === selectedModel)?.note}
@@ -195,6 +129,5 @@ export function VoiceSetupPanels({
           description={`脚本使用清华/阿里云镜像源安装 Python 依赖和模型；Windows 准备完成后不会自动启动服务，可用 voxcpm-start、voxcpm-stop、voxcpm-restart 和 voxcpm-status 管理本地 Gradio 服务。${latencyDisclaimer}`}
         />
       </section>
-    </>
   )
 }

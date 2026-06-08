@@ -38,6 +38,16 @@ test('recommends VoxCPM2 when VRAM >= 8GB', () => {
   assert.equal(result.recommendedModel, 'VoxCPM2')
 })
 
+test('lower VoxCPM models remain metadata only and are disabled in setup UI', () => {
+  const panelsSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(panelsSource, /disabledModelIds/)
+  assert.match(panelsSource, /VoxCPM1\.5/)
+  assert.match(panelsSource, /VoxCPM-0\.5B/)
+  assert.match(panelsSource, /disabled:\s*disabledModelIds\.has\('VoxCPM1\.5'\)/)
+  assert.match(panelsSource, /disabled:\s*disabledModelIds\.has\('VoxCPM-0\.5B'\)/)
+})
+
 test('recommends VoxCPM1.5 when VRAM is 6-7GB', () => {
   const result = evaluateHardware({ gpuName: 'RTX 3060', vramGb: 6, device: 'nvidia' })
   assert.equal(result.status, 'warning')
@@ -81,19 +91,19 @@ test('requires a local model path before deployment', () => {
 })
 
 test('Windows one-click command downloads script to temp file then executes', () => {
-  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM-0.5B')
+  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2')
   assert.match(cmd, /irm .+ -OutFile/)
   assert.match(cmd, /deploy-voxcpm\.ps1/)
   assert.match(cmd, /D:\\models\\VoxCPM2/)
-  assert.match(cmd, /'VoxCPM-0\.5B'/)
+  assert.match(cmd, /'VoxCPM2'/)
 })
 
-test('mac/linux one-click command uses curl | bash', () => {
-  const cmd = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM1.5')
+test('mac/linux one-click command remains available for generated commands', () => {
+  const cmd = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM2')
   assert.match(cmd, /curl -fsSL .+ \| bash/)
   assert.match(cmd, /deploy-voxcpm\.sh/)
   assert.match(cmd, /\/data\/models\/VoxCPM2/)
-  assert.match(cmd, /'VoxCPM1\.5'/)
+  assert.match(cmd, /'VoxCPM2'/)
 })
 
 test('one-click command defaults to VoxCPM2 when model omitted', () => {
