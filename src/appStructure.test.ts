@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs'
 const appSource = () => readFileSync('src/App.tsx', 'utf8')
 const viteConfigSource = () => readFileSync('vite.config.ts', 'utf8')
 const indexHtmlSource = () => readFileSync('index.html', 'utf8')
+const siteFooterSource = () => readFileSync('src/components/SiteFooter.tsx', 'utf8')
+const openSourceSoftwareSource = () => readFileSync('src/openSourceSoftware.ts', 'utf8')
 
 test('home page shows tool details directly instead of hiding them in a popover', () => {
   const source = appSource()
@@ -43,7 +45,7 @@ test('personal space is global navigation instead of a tool list item', () => {
 })
 
 test('site footer shows the Busuanzi visitor count beside the filing link', () => {
-  const source = appSource()
+  const source = siteFooterSource()
   const html = indexHtmlSource()
 
   assert.match(html, /cdn\.busuanzi\.cc\/busuanzi\/3\.6\.9\/busuanzi\.min\.js/)
@@ -51,6 +53,24 @@ test('site footer shows the Busuanzi visitor count beside the filing link', () =
   assert.match(source, /浙ICP备2026016967号-1/)
   assert.match(source, /使用人数/)
   assert.match(source, /id="busuanzi_site_uv"/)
+})
+
+test('site footer exposes an about dialog with the project open source software list', () => {
+  const source = appSource()
+  const footerSource = siteFooterSource()
+  const softwareSource = openSourceSoftwareSource()
+
+  assert.match(source, /from '\.\/components\/SiteFooter'/)
+  assert.doesNotMatch(source, /function SiteFooter/)
+  assert.match(footerSource, /关于/)
+  assert.match(footerSource, /<Modal/)
+  assert.match(footerSource, /openSourceSoftware/)
+  assert.match(footerSource, /open-source-list/)
+  assert.match(softwareSource, /export const openSourceSoftware/)
+  for (const name of ['React', 'React DOM', 'Vite', 'TypeScript', 'Ant Design', 'Ant Design Icons', 'JSZip', 'tsx', 'VoxCPM', 'Gradio', 'Busuanzi']) {
+    assert.match(softwareSource, new RegExp(name))
+  }
+  assert.match(softwareSource, /https:\/\/github\.com\/OpenBMB\/VoxCPM/)
 })
 
 test('personal space page covers required management modules', () => {
@@ -572,12 +592,16 @@ test('personal space resource kinds are first-level tabs instead of a common res
 
 test('personal space workspace delegates character management panel', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
-  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
+  const panelSource = [
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8'),
+  ].join('\n')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
 
   assert.match(source, /from '\.\/PersonalCharacterPanel'/)
   assert.match(source, /<PersonalCharacterPanel/)
+  assert.match(panelSource, /from '\.\/CharacterAssetPicker'/)
   assert.doesNotMatch(source, /角色列表/)
   assert.doesNotMatch(source, /<strong>角色肖像<\/strong>/)
   assert.doesNotMatch(source, /<strong>角色精灵图<\/strong>/)
@@ -644,11 +668,22 @@ test('personal space workspace delegates character management panel', () => {
 
 test('personal space workspace delegates storyboard management panel', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
-  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
+  const panelSource = [
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/StoryboardVoicePicker.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/StoryboardVoiceRow.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/StoryboardCharacterAvatar.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/storyboardPlaybackSources.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8'),
+  ].join('\n')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
 
   assert.match(source, /from '\.\/PersonalStoryboardPanel'/)
   assert.match(source, /<PersonalStoryboardPanel/)
+  assert.match(panelSource, /from '\.\/StoryboardVoicePicker'/)
+  assert.match(panelSource, /from '\.\/StoryboardVoiceRow'/)
+  assert.match(panelSource, /from '\.\/storyboardPlaybackSources'/)
+  assert.match(panelSource, /from '\.\/storyboardVoiceDrag'/)
   assert.doesNotMatch(source, /剧情分组/)
   assert.doesNotMatch(source, /复制参考资产/)
   assert.doesNotMatch(source, /导出参考资产/)
