@@ -1,38 +1,35 @@
 import type { UploadProps } from 'antd'
-import type { DragEvent, MouseEvent } from 'react'
+import type { DragEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Avatar, Button, Empty, Input, Modal, Popconfirm, Select, Space, Upload } from 'antd'
+import { Button, Empty, Popconfirm, Upload } from 'antd'
 import {
   DeleteOutlined,
-  DisconnectOutlined,
   EditOutlined,
   ExportOutlined,
-  PlayCircleOutlined,
   PlusOutlined,
-  SearchOutlined,
   StarFilled,
   StarOutlined,
-  StopOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
 
-import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup, StoryboardVoiceEntry } from './personalSpaceModel'
-import { PersonalAssetPreview } from './PersonalAssetPreview'
+import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './personalSpaceModel'
+import { StoryboardCharacterAvatar } from './StoryboardCharacterAvatar'
+import { StoryboardVoicePicker } from './StoryboardVoicePicker'
+import { StoryboardVoiceRow } from './StoryboardVoiceRow'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import {
-  getPersonalSpaceDirectoryHandle,
-  loadPersistedPersonalSpaceDirectoryHandle,
-  readStoredResourceBlob,
-  setPersonalSpaceDirectoryHandle,
-} from './personalSpaceFileStorage'
+  getStoryboardVoiceListDropTarget,
+  moveAssetIdAroundTarget,
+  type DraggedStoryboardVoice,
+  type StoryboardVoiceDropPlacement,
+} from './storyboardVoiceDrag'
+import {
+  resolveStoryboardVoicePlaybackSource,
+  revokeObjectUrls,
+} from './storyboardPlaybackSources'
 
-type SelectOption = { label: string; value: string }
 type StoryboardPlaybackStep = { groupId: string; assetId: string; source: string }
-type StoryboardPlaybackSource = { source: string; objectUrl?: string } | null
-type StoryboardVoiceDropPlacement = 'before' | 'after'
-type DraggedStoryboardVoice = { groupId: string; assetId: string; placement?: StoryboardVoiceDropPlacement } | null
-type StoryboardVoiceDropTarget = { assetId: string; placement: StoryboardVoiceDropPlacement } | null
 
 interface PersonalStoryboardPanelProps {
   storyboardGroups: StoryboardGroup[]
@@ -57,288 +54,6 @@ interface PersonalStoryboardPanelProps {
   onAssignStoryboardVoiceCharacter: (groupId: string, assetId: string, characterId: string) => void
   onUpdateStoryboardVoiceText: (groupId: string, assetId: string, text: string) => void
   onMoveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string, placement?: StoryboardVoiceDropPlacement) => void
-}
-
-function includesKeyword(values: Array<string | undefined>, keyword: string) {
-  const cleanKeyword = keyword.trim().toLowerCase()
-  if (!cleanKeyword) return true
-  return values.some((value) => value?.toLowerCase().includes(cleanKeyword))
-}
-
-function characterInitial(name: string) {
-  return name.trim().slice(0, 1) || '?'
-}
-
-function findPortraitAsset(character: CharacterProfile, allAssets: PersonalSpaceAsset[]) {
-  const portraitLink = character.portraitAssets.slice().sort((a, b) => a.order - b.order)[0]
-  return portraitLink ? allAssets.find((asset) => asset.id === portraitLink.assetId) : undefined
-}
-
-function CharacterAvatar({ character, allAssets }: { character: CharacterProfile; allAssets: PersonalSpaceAsset[] }) {
-  const portrait = findPortraitAsset(character, allAssets)
-  const portraitPath = portrait?.resourcePaths[0]
-  return (
-    <Avatar
-      size={34}
-      src={portraitPath}
-      className="storyboard-avatar"
-    >
-      {characterInitial(character.name)}
-    </Avatar>
-  )
-}
-
-function moveAssetIdAroundTarget(
-  assetIds: string[],
-  draggedAssetId: string,
-  targetAssetId: string,
-  placement: StoryboardVoiceDropPlacement,
-) {
-  if (draggedAssetId === targetAssetId) return assetIds
-  const next = assetIds.filter((assetId) => assetId !== draggedAssetId)
-  const targetIndex = next.indexOf(targetAssetId)
-  if (targetIndex < 0) return assetIds
-  next.splice(placement === 'before' ? targetIndex : targetIndex + 1, 0, draggedAssetId)
-  return next
-}
-
-function getStoryboardVoiceListDropTarget(event: DragEvent<HTMLElement>, draggedAssetId: string): StoryboardVoiceDropTarget {
-  const rows = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-storyboard-voice-id]'))
-    .map((row) => ({ row, assetId: row.dataset.storyboardVoiceId ?? '' }))
-    .filter((row) => row.assetId && row.assetId !== draggedAssetId)
-  if (rows.length === 0) return null
-  const beforeRow = rows.find(({ row }) => {
-    const rect = row.getBoundingClientRect()
-    return event.clientY < rect.top + rect.height / 2
-  })
-  if (beforeRow) return { assetId: beforeRow.assetId, placement: 'before' }
-  return { assetId: rows[rows.length - 1].assetId, placement: 'after' }
-}
-
-function canCreateObjectUrl() {
-  return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
-}
-
-async function createStoredResourceObjectUrl(storedPath: string) {
-  if (!storedPath || !canCreateObjectUrl()) return ''
-  const directoryHandle = getPersonalSpaceDirectoryHandle() ?? await loadPersistedPersonalSpaceDirectoryHandle()
-  if (!directoryHandle) return ''
-  setPersonalSpaceDirectoryHandle(directoryHandle)
-  const blob = await readStoredResourceBlob(directoryHandle, storedPath)
-  return URL.createObjectURL(blob)
-}
-
-function revokeObjectUrls(objectUrls: string[]) {
-  if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return
-  objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
-}
-
-function StoryboardVoiceRow({
-  entry,
-  groupId,
-  voiceAsset,
-  speaker,
-  characterOptions,
-  allAssets,
-  onUnassignStoryboardVoice,
-  onAssignStoryboardVoiceCharacter,
-  onUpdateStoryboardVoiceText,
-  onDragStartStoryboardVoice,
-  onDragEndStoryboardVoice,
-  isDragging,
-  isDropTarget,
-  dropPlacement,
-  isTimelinePlaying,
-  isCurrentPlayback,
-  onPlayFrom,
-  onStopPlayback,
-}: {
-  entry: StoryboardVoiceEntry
-  groupId: string
-  voiceAsset: PersonalSpaceAsset
-  speaker?: CharacterProfile
-  characterOptions: SelectOption[]
-  allAssets: PersonalSpaceAsset[]
-  onUnassignStoryboardVoice: (groupId: string, assetId: string) => void
-  onAssignStoryboardVoiceCharacter: (groupId: string, assetId: string, characterId: string) => void
-  onUpdateStoryboardVoiceText: (groupId: string, assetId: string, text: string) => void
-  onDragStartStoryboardVoice: (groupId: string, assetId: string) => void
-  onDragEndStoryboardVoice: () => void
-  isDragging: boolean
-  isDropTarget: boolean
-  dropPlacement?: StoryboardVoiceDropPlacement
-  isTimelinePlaying: boolean
-  isCurrentPlayback: boolean
-  onPlayFrom: (groupId: string, assetId: string) => void
-  onStopPlayback: () => void
-}) {
-  return (
-    <article
-      className={`storyboard-voice-row${isDragging ? ' storyboard-voice-row is-dragging' : ''}${isDropTarget ? ` storyboard-voice-row is-drop-target is-drop-${dropPlacement ?? 'after'}` : ''}`}
-      data-storyboard-voice-id={voiceAsset.id}
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move'
-        event.dataTransfer.setData('text/plain', voiceAsset.id)
-        onDragStartStoryboardVoice(groupId, voiceAsset.id)
-      }}
-      onDragEnd={onDragEndStoryboardVoice}
-    >
-      <div className="storyboard-voice-speaker">
-        {speaker ? <CharacterAvatar character={speaker} allAssets={allAssets} /> : <Avatar size={34} className="storyboard-avatar">?</Avatar>}
-        <Select
-          size="small"
-          className="storyboard-speaker-select"
-          placeholder="关联角色"
-          value={speaker?.id}
-          options={characterOptions}
-          showSearch
-          optionFilterProp="label"
-          onChange={(characterId) => onAssignStoryboardVoiceCharacter(groupId, voiceAsset.id, characterId)}
-        />
-      </div>
-      <div className="storyboard-voice-main">
-        <div className="storyboard-voice-meta">
-          <PersonalAssetPreview asset={voiceAsset} />
-          <strong>{voiceAsset.name}</strong>
-          {speaker && <span>{speaker.name}</span>}
-        </div>
-        <Input
-          size="small"
-          value={entry.text}
-          aria-label="对白文本"
-          placeholder="对白文本"
-          onChange={(event) => onUpdateStoryboardVoiceText(groupId, voiceAsset.id, event.target.value)}
-        />
-      </div>
-      <div className={`storyboard-timeline${isTimelinePlaying ? ' is-playing' : ''}${isCurrentPlayback ? ' is-current' : ''}`}>
-        <span className="storyboard-timeline-line" aria-hidden="true" />
-        <Button
-          size="small"
-          type={isCurrentPlayback ? 'primary' : 'default'}
-          icon={<PlayCircleOutlined />}
-          onClick={() => onPlayFrom(groupId, voiceAsset.id)}
-        >
-          从这里开始播放
-        </Button>
-        {isTimelinePlaying && (
-          <Button size="small" danger icon={<StopOutlined />} onClick={onStopPlayback}>
-            停止播放
-          </Button>
-        )}
-      </div>
-      <Space.Compact>
-        <Button
-          size="small"
-          danger
-          icon={<DisconnectOutlined />}
-          aria-label="取消关联配音"
-          onClick={() => onUnassignStoryboardVoice(groupId, voiceAsset.id)}
-        />
-      </Space.Compact>
-    </article>
-  )
-}
-
-function StoryboardVoicePicker({
-  groupId,
-  voiceAssets,
-  onAssignVoiceToStoryboard,
-}: {
-  groupId: string
-  voiceAssets: PersonalSpaceAsset[]
-  onAssignVoiceToStoryboard: (groupId: string, assetId: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [selectedVoiceAssetIds, setSelectedVoiceAssetIds] = useState<string[]>([])
-  const [lastSelectedVoiceAssetId, setLastSelectedVoiceAssetId] = useState<string | null>(null)
-  const filteredVoiceAssets = voiceAssets.filter((asset) => includesKeyword([asset.name, asset.dialogueText, asset.tags.join('、')], search))
-  const selectedVoiceAssetIdSet = useMemo(() => new Set(selectedVoiceAssetIds), [selectedVoiceAssetIds])
-  const selectedVoiceAssets = selectedVoiceAssetIds
-    .map((assetId) => voiceAssets.find((asset) => asset.id === assetId))
-    .filter((asset): asset is PersonalSpaceAsset => Boolean(asset))
-
-  const closePicker = () => {
-    setOpen(false)
-    setSearch('')
-    setSelectedVoiceAssetIds([])
-    setLastSelectedVoiceAssetId(null)
-  }
-
-  const confirmVoice = () => {
-    if (selectedVoiceAssetIds.length === 0) return
-    selectedVoiceAssetIds.forEach((assetId) => onAssignVoiceToStoryboard(groupId, assetId))
-    closePicker()
-  }
-
-  const selectVoiceAsset = (assetId: string, event: MouseEvent<HTMLButtonElement>) => {
-    const filteredAssetIds = filteredVoiceAssets.map((asset) => asset.id)
-    setSelectedVoiceAssetIds((current) => {
-      if (event.shiftKey && lastSelectedVoiceAssetId) {
-        const anchorIndex = filteredAssetIds.indexOf(lastSelectedVoiceAssetId)
-        const targetIndex = filteredAssetIds.indexOf(assetId)
-        if (anchorIndex >= 0 && targetIndex >= 0) {
-          const [start, end] = anchorIndex < targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex]
-          const rangeAssetIds = filteredAssetIds.slice(start, end + 1)
-          if (event.altKey || event.ctrlKey || event.metaKey) return Array.from(new Set([...current, ...rangeAssetIds]))
-          return rangeAssetIds
-        }
-      }
-      if (event.altKey || event.ctrlKey || event.metaKey) {
-        return current.includes(assetId) ? current.filter((item) => item !== assetId) : [...current, assetId]
-      }
-      return [assetId]
-    })
-    setLastSelectedVoiceAssetId(assetId)
-  }
-
-  return (
-    <div className="storyboard-voice-picker">
-      <Button size="small" icon={<PlusOutlined />} onClick={() => setOpen(true)}>关联配音</Button>
-      <Modal
-        open={open}
-        title="关联配音"
-        onCancel={closePicker}
-        footer={[
-          <Button key="cancel" onClick={closePicker}>取消</Button>,
-          <Button key="confirm" type="primary" disabled={selectedVoiceAssetIds.length === 0} onClick={confirmVoice}>
-            确认关联{selectedVoiceAssetIds.length > 1 ? ` ${selectedVoiceAssetIds.length} 个` : ''}配音
-          </Button>,
-        ]}
-      >
-        <div className="storyboard-voice-picker-modal">
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="搜索配音"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        <div className="voice-picker-popover">
-          {filteredVoiceAssets.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有匹配的配音" />
-          ) : filteredVoiceAssets.map((asset) => (
-            <button
-              type="button"
-              className={`voice-picker-option${selectedVoiceAssetIdSet.has(asset.id) ? ' is-selected' : ''}`}
-              key={asset.id}
-              onClick={(event) => selectVoiceAsset(asset.id, event)}
-            >
-              <strong>{asset.name}</strong>
-              <span>{asset.dialogueText || asset.tags.join('、') || '未填写台词'}</span>
-            </button>
-          ))}
-        </div>
-          <span className="field-note">
-            {selectedVoiceAssets.length > 0
-              ? `已选 ${selectedVoiceAssets.length} 个：${selectedVoiceAssets.map((asset) => asset.name).join('、')}`
-              : '选择配音后确认关联。Alt 可增减选择，Shift 可连续选择。'}
-          </span>
-        </div>
-      </Modal>
-    </div>
-  )
 }
 
 export function PersonalStoryboardPanel({
@@ -420,20 +135,6 @@ export function PersonalStoryboardPanel({
     playbackQueueRef.current = []
     playbackIndexRef.current = 0
     setCurrentPlayback(null)
-  }
-
-  const resolveStoryboardVoicePlaybackSource = async (asset: PersonalSpaceAsset): Promise<StoryboardPlaybackSource> => {
-    const storedPath = asset.storageResourcePaths[0]
-    if (storedPath) {
-      try {
-        const objectUrl = await createStoredResourceObjectUrl(storedPath)
-        if (objectUrl) return { source: objectUrl, objectUrl }
-      } catch {
-        // Fall back to the in-memory object URL when the authorized directory is unavailable.
-      }
-    }
-    const source = asset.resourcePaths[0]
-    return source ? { source } : null
   }
 
   const playStoryboardStep = (step: StoryboardPlaybackStep | null) => {
@@ -703,7 +404,7 @@ export function PersonalStoryboardPanel({
                       .filter((character): character is CharacterProfile => Boolean(character))
                       .map((character) => (
                         <div className="storyboard-character-item" key={character.id}>
-                          <CharacterAvatar character={character} allAssets={allAssets} />
+                          <StoryboardCharacterAvatar character={character} allAssets={allAssets} />
                           <span>{character.name}</span>
                         </div>
                       ))}

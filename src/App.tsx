@@ -4,10 +4,10 @@ import {
   AppstoreOutlined,
   ArrowLeftOutlined,
   AudioOutlined,
-  MailOutlined,
   UserOutlined,
-  SafetyCertificateOutlined,
 } from '@ant-design/icons'
+
+import { SiteFooter } from './components/SiteFooter'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
@@ -51,22 +51,6 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
-}
-
-function SiteFooter() {
-  return (
-    <footer className="site-footer">
-      <a className="footer-link" href="mailto:catmumu@outlook.com">
-        <MailOutlined /> Catmumu
-      </a>
-      <a className="beian-link" href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">
-        <SafetyCertificateOutlined /> 浙ICP备2026016967号-1
-      </a>
-      <span>
-        使用人数：<span id="busuanzi_site_uv">加载中</span> 人
-      </span>
-    </footer>
-  )
 }
 
 export default function App() {
