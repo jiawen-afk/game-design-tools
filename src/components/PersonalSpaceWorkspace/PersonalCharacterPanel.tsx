@@ -4,7 +4,7 @@ import { Button, Checkbox, Empty, Input, Modal, Popconfirm, Popover, Select, Spa
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, SearchOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
-import { PersonalAssetPreview } from './PersonalResourceSections'
+import { PersonalAssetPreview } from './PersonalAssetPreview'
 
 interface PersonalCharacterPanelProps {
   characters: CharacterProfile[]

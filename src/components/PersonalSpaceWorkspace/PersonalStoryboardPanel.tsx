@@ -17,7 +17,7 @@ import {
 } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup, StoryboardVoiceEntry } from './personalSpaceModel'
-import { PersonalAssetPreview } from './PersonalResourceSections'
+import { PersonalAssetPreview } from './PersonalAssetPreview'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
