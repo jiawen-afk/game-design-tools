@@ -1,10 +1,11 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Checkbox, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Upload } from 'antd'
+import { Button, Empty, Input, Modal, Popconfirm, Popover, Space, Upload } from 'antd'
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, SearchOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 
 interface PersonalCharacterPanelProps {
   characters: CharacterProfile[]
@@ -235,26 +236,15 @@ export function PersonalCharacterPanel({
           >
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingCharacter(true)}>创建角色</Button>
           </Popover>
-          <div className="character-filter-control">
-            <span className="field-label">筛选</span>
-            <Select
-              showSearch
-              value={selectedCharacterFilter}
-              options={characterFilterOptions}
-              filterOption={(input, option) => {
-                if (!input) return true
-                if (option?.value === '全部角色') return false
-                return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }}
-              onChange={setSelectedCharacterFilter}
-            />
-            <Checkbox
-              checked={onlyStarredCharacters}
-              onChange={(event) => setOnlyStarredCharacters(event.target.checked)}
-            >
-              仅星标
-            </Checkbox>
-          </div>
+          <PersonalSpaceFilterControl
+            className="character-filter-control"
+            value={selectedCharacterFilter}
+            defaultValue="全部角色"
+            options={characterFilterOptions}
+            onlyStarred={onlyStarredCharacters}
+            onChange={setSelectedCharacterFilter}
+            onOnlyStarredChange={setOnlyStarredCharacters}
+          />
         </div>
       </div>
       {characters.length === 0 ? (

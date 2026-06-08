@@ -5,6 +5,7 @@ import { DeleteOutlined, DownOutlined, StarFilled, StarOutlined, UploadOutlined 
 
 import type { AssetGroupKind, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 
 export interface PersonalResourceSectionConfig {
   kind: AssetGroupKind
@@ -346,29 +347,18 @@ export function PersonalResourceSection({
         </div>
         {isGroupedResourceSection ? (
           <div className="voice-group-toolbar">
-            <div className="voice-group-filter">
-              <span className="field-label">筛选</span>
-              <Select
-                showSearch
-                value={selectedGroup}
-                options={[
-                  { label: '最近创建的20个分组', value: '全部分组' },
-                  ...groupOptions,
-                ]}
-                filterOption={(input, option) => {
-                  if (!input) return true
-                  if (option?.value === '全部分组') return false
-                  return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }}
-                onChange={setSelectedGroup}
-              />
-              <Checkbox
-                checked={onlyStarredGroups}
-                onChange={(event) => setOnlyStarredGroups(event.target.checked)}
-              >
-                仅星标
-              </Checkbox>
-            </div>
+            <PersonalSpaceFilterControl
+              className="voice-group-filter"
+              value={selectedGroup}
+              defaultValue="全部分组"
+              options={[
+                { label: '最近创建的20个分组', value: '全部分组' },
+                ...groupOptions,
+              ]}
+              onlyStarred={onlyStarredGroups}
+              onChange={setSelectedGroup}
+              onOnlyStarredChange={setOnlyStarredGroups}
+            />
             <PersonalAssetGroupControls
               kind={section.kind}
               onAddGroup={onAddGroup}

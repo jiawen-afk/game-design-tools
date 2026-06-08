@@ -1,7 +1,7 @@
 import type { UploadProps } from 'antd'
 import type { DragEvent, MouseEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Avatar, Button, Checkbox, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Upload } from 'antd'
+import { Avatar, Button, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Upload } from 'antd'
 import {
   DeleteOutlined,
   DisconnectOutlined,
@@ -18,6 +18,7 @@ import {
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup, StoryboardVoiceEntry } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -592,26 +593,15 @@ export function PersonalStoryboardPanel({
           >
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingStoryboard(true)}>创建剧情组</Button>
           </Popover>
-          <div className="storyboard-filter-control">
-            <span className="field-label">筛选</span>
-            <Select
-              showSearch
-              value={selectedStoryboardFilter}
-              options={storyboardFilterOptions}
-              filterOption={(input, option) => {
-                if (!input) return true
-                if (option?.value === '全部剧情组') return false
-                return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }}
-              onChange={setSelectedStoryboardFilter}
-            />
-            <Checkbox
-              checked={onlyStarredStoryboards}
-              onChange={(event) => setOnlyStarredStoryboards(event.target.checked)}
-            >
-              仅星标
-            </Checkbox>
-          </div>
+          <PersonalSpaceFilterControl
+            className="storyboard-filter-control"
+            value={selectedStoryboardFilter}
+            defaultValue="全部剧情组"
+            options={storyboardFilterOptions}
+            onlyStarred={onlyStarredStoryboards}
+            onChange={setSelectedStoryboardFilter}
+            onOnlyStarredChange={setOnlyStarredStoryboards}
+          />
         </div>
         <div className="storyboard-global-actions">
           <Button

@@ -58,6 +58,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceFilterControl.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8'),
@@ -433,6 +434,7 @@ test('personal space resource kinds are first-level tabs instead of a common res
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
   const sectionsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8')
   const previewSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetPreview.tsx', 'utf8')
+  const filterSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceFilterControl.tsx', 'utf8')
 
   assert.match(hookSource, /const resourceSections/)
   assert.match(hookSource, /title: '公共图片'/)
@@ -464,6 +466,13 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.doesNotMatch(source, /section\.assets\.map/)
   assert.match(sectionsSource, /function PersonalResourceSection/)
   assert.match(sectionsSource, /from '\.\/PersonalAssetPreview'/)
+  assert.match(sectionsSource, /from '\.\/PersonalSpaceFilterControl'/)
+  assert.match(sectionsSource, /<PersonalSpaceFilterControl/)
+  assert.match(filterSource, /export function PersonalSpaceFilterControl/)
+  assert.match(filterSource, /showSearch/)
+  assert.match(filterSource, /filterOption/)
+  assert.match(filterSource, /筛选/)
+  assert.match(filterSource, /仅星标/)
   assert.doesNotMatch(sectionsSource, /export function PersonalAssetPreview/)
   assert.doesNotMatch(sectionsSource, /readStoredResourceBlob/)
   assert.doesNotMatch(sectionsSource, /loadPersistedPersonalSpaceDirectoryHandle/)
@@ -487,8 +496,7 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(resourceSectionBody, /const visibleVoiceGroupNames/)
   assert.match(resourceSectionBody, /slice\(-20\)\.reverse\(\)/)
   assert.match(resourceSectionBody, /voice-group-filter/)
-  assert.match(resourceSectionBody, /showSearch/)
-  assert.match(resourceSectionBody, /filterOption/)
+  assert.doesNotMatch(resourceSectionBody, /filterOption/)
   assert.match(resourceSectionBody, /最近创建的20个分组/)
   assert.match(resourceSectionBody, /voice-group-toolbar/)
   assert.match(resourceSectionBody, /voice-group-block/)
@@ -501,7 +509,6 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(resourceSectionBody, /voice-group-rename-popover/)
   assert.match(resourceSectionBody, /renamingGroupName/)
   assert.match(resourceSectionBody, /resource-section--voice/)
-  assert.match(resourceSectionBody, /筛选/)
   assert.match(resourceSectionBody, /上传到分组/)
   assert.match(sectionsSource, /Dropdown/)
   assert.match(sectionsSource, /DownOutlined/)
@@ -567,6 +574,8 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(source, /<strong>角色精灵图<\/strong>/)
   assert.doesNotMatch(source, /<strong>角色配音<\/strong>/)
   assert.match(panelSource, /function PersonalCharacterPanel/)
+  assert.match(panelSource, /from '\.\/PersonalSpaceFilterControl'/)
+  assert.match(panelSource, /<PersonalSpaceFilterControl/)
   assert.match(panelSource, /creatingCharacter/)
   assert.match(panelSource, /<Popover/)
   assert.match(panelSource, /character-create-popover/)
@@ -574,9 +583,8 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(panelSource, /recentCharacterOptions/)
   assert.match(panelSource, /character-panel-toolbar/)
   assert.match(panelSource, /character-filter-control/)
-  assert.match(panelSource, /筛选/)
   assert.match(panelSource, /最近创建的20个角色/)
-  assert.match(panelSource, /filterOption/)
+  assert.doesNotMatch(panelSource, /filterOption/)
   assert.match(panelSource, /renamingCharacterId/)
   assert.match(panelSource, /characterNameDrafts/)
   assert.match(panelSource, /EditOutlined/)
@@ -636,6 +644,8 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.doesNotMatch(source, /导出参考资产/)
   assert.doesNotMatch(source, /对白文本/)
   assert.match(panelSource, /function PersonalStoryboardPanel/)
+  assert.match(panelSource, /from '\.\/PersonalSpaceFilterControl'/)
+  assert.match(panelSource, /<PersonalSpaceFilterControl/)
   assert.doesNotMatch(panelSource, /<strong>剧情分组<\/strong>/)
   assert.doesNotMatch(panelSource, /<span className="section-caption">剧情分组<\/span>/)
   assert.doesNotMatch(panelSource, /复制参考资产/)
@@ -649,10 +659,9 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.match(panelSource, /selectedStoryboardFilter/)
   assert.match(panelSource, /recentStoryboardOptions/)
   assert.match(panelSource, /storyboard-filter-control/)
-  assert.match(panelSource, /筛选/)
   assert.match(panelSource, /最近创建的20个剧情组/)
   assert.match(panelSource, /visibleStoryboardGroups/)
-  assert.match(panelSource, /filterOption/)
+  assert.doesNotMatch(panelSource, /filterOption/)
   assert.match(panelSource, /renamingStoryboardId/)
   assert.match(panelSource, /storyboardNameDrafts/)
   assert.match(panelSource, /EditOutlined/)
