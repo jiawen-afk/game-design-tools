@@ -1,11 +1,12 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Checkbox, Dropdown, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Tag, Upload } from 'antd'
+import { Button, Checkbox, Dropdown, Empty, Input, Modal, Popconfirm, Select, Space, Tag, Upload } from 'antd'
 import { DeleteOutlined, DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { AssetGroupKind, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
+import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 
 export interface PersonalResourceSectionConfig {
   kind: AssetGroupKind
@@ -71,36 +72,23 @@ function PersonalAssetGroupControls({
 
   return (
     <div className="asset-group-controls">
-      <Popover
-        trigger="click"
+      <PersonalSpaceTextPopover
         open={creatingGroup}
         onOpenChange={(open) => {
           if (open) setCreatingGroup(true)
           else cancelCreateGroup()
         }}
-        content={(
-          <div className="voice-group-rename-popover group-create-popover">
-            <Input
-              size="small"
-              value={newGroupName}
-              aria-label="新分组名称"
-              placeholder="新分组名称"
-              onChange={(event) => setNewGroupName(event.target.value)}
-              onPressEnter={confirmCreateGroup}
-            />
-            <Space.Compact>
-              <Button size="small" type="primary" disabled={!newGroupName.trim()} onClick={confirmCreateGroup}>
-                确认
-              </Button>
-              <Button size="small" onClick={cancelCreateGroup}>
-                取消
-              </Button>
-            </Space.Compact>
-          </div>
-        )}
+        className="group-create-popover"
+        value={newGroupName}
+        ariaLabel="新分组名称"
+        placeholder="新分组名称"
+        confirmDisabled={!newGroupName.trim()}
+        onValueChange={setNewGroupName}
+        onConfirm={confirmCreateGroup}
+        onCancel={cancelCreateGroup}
       >
         <Button onClick={() => setCreatingGroup(true)}>创建分组</Button>
-      </Popover>
+      </PersonalSpaceTextPopover>
     </div>
   )
 }
@@ -400,52 +388,27 @@ export function PersonalResourceSection({
                         </Button>
                         <strong>{groupName}</strong>
                         <div className="voice-group-admin-actions">
-                          <Popover
-                            trigger="click"
+                          <PersonalSpaceTextPopover
                             open={renamingGroupName === groupName}
                             onOpenChange={(open) => {
                               setRenamingGroupName(open ? groupName : '')
                               setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: open ? (drafts[groupName] ?? groupName) : '' }))
                             }}
-                            content={(
-                              <div className="voice-group-rename-popover">
-                                <Input
-                                  size="small"
-                                  value={renameTo}
-                                  aria-label={`${groupName}重命名分组`}
-                                  placeholder="新分组名"
-                                  onChange={(event) => setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: event.target.value }))}
-                                  onPressEnter={() => {
-                                    onRenameGroup(section.kind, groupName, renameTo)
-                                    setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: '' }))
-                                    setRenamingGroupName('')
-                                  }}
-                                />
-                                <Space.Compact>
-                                  <Button
-                                    size="small"
-                                    type="primary"
-                                    disabled={!renameTo.trim()}
-                                    onClick={() => {
-                                      onRenameGroup(section.kind, groupName, renameTo)
-                                      setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: '' }))
-                                      setRenamingGroupName('')
-                                    }}
-                                  >
-                                    确认
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    onClick={() => {
-                                      setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: '' }))
-                                      setRenamingGroupName('')
-                                    }}
-                                  >
-                                    取消
-                                  </Button>
-                                </Space.Compact>
-                              </div>
-                            )}
+                            className="group-name-rename-popover"
+                            value={renameTo}
+                            ariaLabel={`${groupName}重命名分组`}
+                            placeholder="新分组名"
+                            confirmDisabled={!renameTo.trim()}
+                            onValueChange={(value) => setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: value }))}
+                            onConfirm={() => {
+                              onRenameGroup(section.kind, groupName, renameTo)
+                              setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: '' }))
+                              setRenamingGroupName('')
+                            }}
+                            onCancel={() => {
+                              setRenameGroupDrafts((drafts) => ({ ...drafts, [groupName]: '' }))
+                              setRenamingGroupName('')
+                            }}
                           >
                             <Button
                               size="small"
@@ -456,7 +419,7 @@ export function PersonalResourceSection({
                             >
                               重命名分组
                             </Button>
-                          </Popover>
+                          </PersonalSpaceTextPopover>
                         </div>
                         <Tag>{assets.length} 个</Tag>
                       </div>

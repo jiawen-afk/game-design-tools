@@ -1,7 +1,7 @@
 import type { UploadProps } from 'antd'
 import type { DragEvent, MouseEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Avatar, Button, Empty, Input, Modal, Popconfirm, Popover, Select, Space, Upload } from 'antd'
+import { Avatar, Button, Empty, Input, Modal, Popconfirm, Select, Space, Upload } from 'antd'
 import {
   DeleteOutlined,
   DisconnectOutlined,
@@ -19,6 +19,7 @@ import {
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup, StoryboardVoiceEntry } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
+import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -563,36 +564,24 @@ export function PersonalStoryboardPanel({
       <audio ref={audioRef} onEnded={playNextStoryboardVoice} />
       <div className="storyboard-panel-toolbar">
         <div className="storyboard-toolbar-left">
-          <Popover
-            trigger="click"
+          <PersonalSpaceTextPopover
             open={creatingStoryboard}
             onOpenChange={(open) => {
               if (open) setCreatingStoryboard(true)
               else cancelCreateStoryboard()
             }}
-            content={(
-              <div className="voice-group-rename-popover storyboard-create-popover">
-                <Input
-                  size="small"
-                  value={newStoryboardName}
-                  onChange={(event) => onNewStoryboardNameChange(event.target.value)}
-                  onPressEnter={confirmCreateStoryboard}
-                  placeholder="新剧情分组名称"
-                  aria-label="新剧情分组名称"
-                />
-                <Space.Compact>
-                  <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!newStoryboardName.trim()} onClick={confirmCreateStoryboard}>
-                    确认
-                  </Button>
-                  <Button size="small" onClick={cancelCreateStoryboard}>
-                    取消
-                  </Button>
-                </Space.Compact>
-              </div>
-            )}
+            className="storyboard-create-popover"
+            value={newStoryboardName}
+            ariaLabel="新剧情分组名称"
+            placeholder="新剧情分组名称"
+            confirmIcon={<PlusOutlined />}
+            confirmDisabled={!newStoryboardName.trim()}
+            onValueChange={onNewStoryboardNameChange}
+            onConfirm={confirmCreateStoryboard}
+            onCancel={cancelCreateStoryboard}
           >
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingStoryboard(true)}>创建剧情组</Button>
-          </Popover>
+          </PersonalSpaceTextPopover>
           <PersonalSpaceFilterControl
             className="storyboard-filter-control"
             value={selectedStoryboardFilter}
@@ -647,55 +636,30 @@ export function PersonalStoryboardPanel({
                     onClick={() => onToggleStoryboardStar(item.id)}
                   />
                   <strong>{item.name}</strong>
-                  <Popover
-                    trigger="click"
+                  <PersonalSpaceTextPopover
                     open={renamingStoryboardId === item.id}
                     onOpenChange={(open) => {
                       setRenamingStoryboardId(open ? item.id : '')
                       setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: open ? (drafts[item.id] ?? item.name) : '' }))
                     }}
-                    content={(
-                      <div className="voice-group-rename-popover storyboard-name-rename-popover">
-                        <Input
-                          size="small"
-                          value={storyboardNameDrafts[item.id] ?? item.name}
-                          aria-label={`${item.name}分组名称`}
-                          placeholder="分组名称"
-                          onChange={(event) => setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: event.target.value }))}
-                          onPressEnter={() => {
-                            onRenameStoryboard(item.id, storyboardNameDrafts[item.id] ?? item.name)
-                            setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                            setRenamingStoryboardId('')
-                          }}
-                        />
-                        <Space.Compact>
-                          <Button
-                            size="small"
-                            type="primary"
-                            disabled={!(storyboardNameDrafts[item.id] ?? '').trim()}
-                            onClick={() => {
-                              onRenameStoryboard(item.id, storyboardNameDrafts[item.id] ?? item.name)
-                              setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                              setRenamingStoryboardId('')
-                            }}
-                          >
-                            确认
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={() => {
-                              setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                              setRenamingStoryboardId('')
-                            }}
-                          >
-                            取消
-                          </Button>
-                        </Space.Compact>
-                      </div>
-                    )}
+                    className="storyboard-name-rename-popover"
+                    value={storyboardNameDrafts[item.id] ?? item.name}
+                    ariaLabel={`${item.name}分组名称`}
+                    placeholder="分组名称"
+                    confirmDisabled={!(storyboardNameDrafts[item.id] ?? '').trim()}
+                    onValueChange={(value) => setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: value }))}
+                    onConfirm={() => {
+                      onRenameStoryboard(item.id, storyboardNameDrafts[item.id] ?? item.name)
+                      setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                      setRenamingStoryboardId('')
+                    }}
+                    onCancel={() => {
+                      setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                      setRenamingStoryboardId('')
+                    }}
                   >
                     <Button size="small" icon={<EditOutlined />} aria-label="重命名剧情分组" />
-                  </Popover>
+                  </PersonalSpaceTextPopover>
                 </div>
                 <div className="storyboard-header-actions">
                   <Upload {...getStoryboardVoiceUploadProps(item.id)}>

@@ -1,11 +1,12 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Empty, Input, Modal, Popconfirm, Popover, Space, Upload } from 'antd'
+import { Button, Empty, Input, Modal, Popconfirm, Space, Upload } from 'antd'
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, SearchOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
+import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 
 interface PersonalCharacterPanelProps {
   characters: CharacterProfile[]
@@ -206,36 +207,24 @@ export function PersonalCharacterPanel({
     <section className="space-panel">
       <div className="character-panel-toolbar">
         <div className="character-toolbar-left">
-          <Popover
-            trigger="click"
+          <PersonalSpaceTextPopover
             open={creatingCharacter}
             onOpenChange={(open) => {
               if (open) setCreatingCharacter(true)
               else cancelCreateCharacter()
             }}
-            content={(
-              <div className="voice-group-rename-popover character-create-popover">
-                <Input
-                  size="small"
-                  value={newCharacterName}
-                  onChange={(event) => onNewCharacterNameChange(event.target.value)}
-                  onPressEnter={confirmCreateCharacter}
-                  placeholder="新角色名称"
-                  aria-label="新角色名称"
-                />
-                <Space.Compact>
-                  <Button size="small" type="primary" icon={<PlusOutlined />} disabled={!newCharacterName.trim()} onClick={confirmCreateCharacter}>
-                    确认
-                  </Button>
-                  <Button size="small" onClick={cancelCreateCharacter}>
-                    取消
-                  </Button>
-                </Space.Compact>
-              </div>
-            )}
+            className="character-create-popover"
+            value={newCharacterName}
+            ariaLabel="新角色名称"
+            placeholder="新角色名称"
+            confirmIcon={<PlusOutlined />}
+            confirmDisabled={!newCharacterName.trim()}
+            onValueChange={onNewCharacterNameChange}
+            onConfirm={confirmCreateCharacter}
+            onCancel={cancelCreateCharacter}
           >
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingCharacter(true)}>创建角色</Button>
-          </Popover>
+          </PersonalSpaceTextPopover>
           <PersonalSpaceFilterControl
             className="character-filter-control"
             value={selectedCharacterFilter}
@@ -265,55 +254,30 @@ export function PersonalCharacterPanel({
                     onClick={() => onToggleCharacterStar(item.id)}
                   />
                   <strong>{item.name}</strong>
-                  <Popover
-                    trigger="click"
+                  <PersonalSpaceTextPopover
                     open={renamingCharacterId === item.id}
                     onOpenChange={(open) => {
                       setRenamingCharacterId(open ? item.id : '')
                       setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: open ? (drafts[item.id] ?? item.name) : '' }))
                     }}
-                    content={(
-                      <div className="voice-group-rename-popover character-name-rename-popover">
-                        <Input
-                          size="small"
-                          value={characterNameDrafts[item.id] ?? item.name}
-                          aria-label={`${item.name}角色名称`}
-                          placeholder="角色名称"
-                          onChange={(event) => setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: event.target.value }))}
-                          onPressEnter={() => {
-                            onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
-                            setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                            setRenamingCharacterId('')
-                          }}
-                        />
-                        <Space.Compact>
-                          <Button
-                            size="small"
-                            type="primary"
-                            disabled={!(characterNameDrafts[item.id] ?? '').trim()}
-                            onClick={() => {
-                              onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
-                              setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                              setRenamingCharacterId('')
-                            }}
-                          >
-                            确认
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={() => {
-                              setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                              setRenamingCharacterId('')
-                            }}
-                          >
-                            取消
-                          </Button>
-                        </Space.Compact>
-                      </div>
-                    )}
+                    className="character-name-rename-popover"
+                    value={characterNameDrafts[item.id] ?? item.name}
+                    ariaLabel={`${item.name}角色名称`}
+                    placeholder="角色名称"
+                    confirmDisabled={!(characterNameDrafts[item.id] ?? '').trim()}
+                    onValueChange={(value) => setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: value }))}
+                    onConfirm={() => {
+                      onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
+                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                      setRenamingCharacterId('')
+                    }}
+                    onCancel={() => {
+                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
+                      setRenamingCharacterId('')
+                    }}
                   >
                     <Button size="small" icon={<EditOutlined />} aria-label="重命名角色" />
-                  </Popover>
+                  </PersonalSpaceTextPopover>
                 </div>
                 <div className="character-record-tools">
                   <span className="field-note character-asset-counts">肖像 {item.portraitAssetIds.length} · 精灵图 {item.spriteAssetIds.length} · 配音 {item.voiceAssetIds.length}</span>
