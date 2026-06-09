@@ -7,6 +7,7 @@ import type { VoiceCollectLinkTarget } from './voicePersonalSpaceCollector'
 import { PersonalSpaceVoiceAssetList, VoiceRecordList } from './VoiceRecordLists'
 
 interface VoiceLibraryPanelProps {
+  libraryVariant: 'sticky' | 'embedded'
   records: VoiceGenerationRecord[]
   lastGeneratedId: string | null
   personalSpaceVoiceAssets: PersonalSpaceAsset[]
@@ -24,6 +25,7 @@ interface VoiceLibraryPanelProps {
 }
 
 export function VoiceLibraryPanel({
+  libraryVariant,
   records,
   lastGeneratedId,
   personalSpaceVoiceAssets,
@@ -40,7 +42,7 @@ export function VoiceLibraryPanel({
   personalSpaceCollectDisabledReason,
 }: VoiceLibraryPanelProps) {
   return (
-    <section className="voice-panel voice-library" aria-labelledby="voice-library-title">
+    <section className={`voice-panel voice-library voice-library-${libraryVariant}`} aria-labelledby="voice-library-title">
       <div className="panel-title">
         <UserOutlined />
         <h3 id="voice-library-title">音频记录</h3>

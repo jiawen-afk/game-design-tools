@@ -20,6 +20,7 @@ export interface PersonalSpaceAsset {
   linkedStoryboardIds: string[]
   linkedVoiceAssetIds: string[]
   storageResourcePaths: string[]
+  sourceKey?: string
 }
 
 export interface CharacterAssetLink {
@@ -84,6 +85,7 @@ export interface VoiceRecordAssetInput {
   audioUrl?: string
   audioPath: string | null
   dialogueText?: string
+  sourceKey?: string
   params?: {
     text?: string
   }
@@ -95,6 +97,7 @@ export interface SpriteExportAssetInput {
   indexPath: string
   groupName?: string
   tags?: string[]
+  sourceKey?: string
 }
 
 export interface PortraitUploadAssetInput {
@@ -175,6 +178,7 @@ export {
 } from './personalSpaceCharacters'
 
 export {
+  collectPersonalSpaceAsset,
   deletePersonalSpaceAsset,
   updatePersonalSpaceAsset,
 } from './personalSpaceAssetOperations'

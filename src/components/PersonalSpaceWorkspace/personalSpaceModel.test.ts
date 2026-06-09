@@ -18,6 +18,7 @@ import {
   deletePersonalSpaceAsset,
   deleteAssetGroup,
   exportStoryboardReference,
+  collectPersonalSpaceAsset,
   getStoryboardLinkedCharacterIds,
   storyboardReferenceFileName,
   moveCharacterVoice,
@@ -154,6 +155,34 @@ test('personal space assets default to a named group', () => {
 
   assert.equal(asset.groupName, '默认分组')
   assert.deepEqual(asset.linkedVoiceAssetIds, [])
+})
+
+test('collecting the same source asset keeps only the latest asset and clears old links', () => {
+  let state = addCharacterProfile(defaultPersonalSpaceState, '主角')
+  const characterId = state.characters[0]!.id
+  const first = createPersonalSpaceAsset({
+    kind: 'sprite',
+    name: '主角行走',
+    resourcePaths: ['old-sprite.png', 'old-index.json'],
+    sourceKey: 'sprite-export:hero-walk',
+  })
+  const second = createPersonalSpaceAsset({
+    kind: 'sprite',
+    name: '主角行走',
+    resourcePaths: ['new-sprite.png', 'new-index.json'],
+    sourceKey: 'sprite-export:hero-walk',
+  })
+
+  state = collectPersonalSpaceAsset(state, first)
+  state = assignAssetToCharacterColumn(state, characterId, first.id, 'sprite', ['角色精灵图'])
+  state = collectPersonalSpaceAsset(state, second)
+  state = assignAssetToCharacterColumn(state, characterId, second.id, 'sprite', ['角色精灵图'])
+
+  assert.deepEqual(state.assets.map((asset) => asset.id), [second.id])
+  assert.deepEqual(state.assets[0]!.resourcePaths, ['new-sprite.png', 'new-index.json'])
+  assert.deepEqual(state.assets[0]!.linkedCharacterIds, [characterId])
+  assert.deepEqual(state.characters[0]!.spriteAssetIds, [second.id])
+  assert.deepEqual(state.characters[0]!.spriteAssets.map((link) => link.assetId), [second.id])
 })
 
 test('asset groups can be created, renamed, transferred, and protected from deleting the last group', () => {

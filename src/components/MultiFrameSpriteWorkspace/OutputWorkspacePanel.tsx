@@ -1,4 +1,4 @@
-import { Divider, Typography } from 'antd'
+import { Divider, Modal, Select, Typography } from 'antd'
 
 import { ExportPanel } from './ExportPanel'
 import { PlaybackPanel } from './PlaybackPanel'
@@ -62,7 +62,32 @@ export function OutputWorkspacePanel({
         onColumnsChange={spriteExport.setColumns}
         onExport={() => void spriteExport.exportAll()}
         onCollectToPersonalSpace={() => void spriteExport.collectToPersonalSpace()}
+        onCollectToPersonalSpaceWithCharacter={spriteExport.openCollectCharacterDialog}
       />
+
+      <Modal
+        title="收藏并关联角色"
+        open={spriteExport.collectCharacterDialogOpen}
+        okText="收藏并关联"
+        cancelText="取消"
+        okButtonProps={{ disabled: !spriteExport.collectCharacterId }}
+        onOk={() => void spriteExport.collectToPersonalSpaceWithCharacter()}
+        onCancel={spriteExport.closeCollectCharacterDialog}
+      >
+        <div className="modal-grid">
+          <label className="form-field">
+            <span className="field-label">选择角色</span>
+            <Select
+              value={spriteExport.collectCharacterId}
+              options={spriteExport.collectCharacterOptions}
+              placeholder="选择角色"
+              notFoundContent="个人空间还没有角色。请先在个人空间创建角色。"
+              onChange={spriteExport.setCollectCharacterId}
+            />
+          </label>
+          <p className="field-note">会先把当前精灵图收藏到个人空间，再关联到这个角色的精灵图栏。</p>
+        </div>
+      </Modal>
 
       <Divider />
       <Text type="secondary">

@@ -376,6 +376,107 @@ h1 {
   background: var(--color-brand);
 }
 
+.app-toast-viewport {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.app-toast {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow: 0 6px 8px oklch(0.21 0.025 255 / 0.08);
+  animation: app-toast-in 190ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: auto;
+}
+
+.app-toast-success {
+  border-color: color-mix(in oklch, var(--color-accent) 45%, var(--color-line));
+  background: color-mix(in oklch, var(--color-accent) 7%, var(--color-panel));
+}
+
+.app-toast-warning {
+  border-color: oklch(0.72 0.12 78);
+  background: color-mix(in oklch, oklch(0.84 0.11 82) 11%, var(--color-panel));
+}
+
+.app-toast-error {
+  border-color: oklch(0.68 0.16 28);
+  background: color-mix(in oklch, oklch(0.78 0.14 30) 10%, var(--color-panel));
+}
+
+.app-toast-info {
+  border-color: color-mix(in oklch, var(--color-brand) 38%, var(--color-line));
+  background: color-mix(in oklch, var(--color-brand) 7%, var(--color-panel));
+}
+
+.app-toast-content {
+  min-width: 0;
+}
+
+.app-toast-content strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.94rem;
+  line-height: 1.35;
+}
+
+.app-toast-content p {
+  max-height: 11rem;
+  margin: 0;
+  overflow: auto;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-toast-close {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.app-toast-close:hover,
+.app-toast-close:focus-visible {
+  border-color: var(--color-line);
+  background: var(--color-panel-strong);
+  color: var(--color-ink);
+  outline: none;
+}
+
+@keyframes app-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 860px) {
   .home-header {
     align-items: start;
@@ -422,5 +523,11 @@ h1 {
   .tool-row:hover {
     border-color: var(--color-brand);
     transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    animation: none;
   }
 }

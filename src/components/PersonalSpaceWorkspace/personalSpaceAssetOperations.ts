@@ -2,6 +2,23 @@ import { normalizeAssetLinks } from './personalSpaceCharacters'
 import { clonePersonalSpaceState } from './personalSpaceState'
 import type { PersonalSpaceAsset, PersonalSpaceState } from './personalSpaceModel'
 
+export function collectPersonalSpaceAsset(state: PersonalSpaceState, asset: PersonalSpaceAsset): PersonalSpaceState {
+  const duplicateIds = asset.sourceKey
+    ? state.assets
+      .filter((current) => current.sourceKey === asset.sourceKey && current.id !== asset.id)
+      .map((current) => current.id)
+    : []
+  const withoutDuplicates = duplicateIds.reduce(
+    (current, assetId) => deletePersonalSpaceAsset(current, assetId),
+    state,
+  )
+  const next = clonePersonalSpaceState(withoutDuplicates)
+  return clonePersonalSpaceState({
+    ...next,
+    assets: [asset, ...next.assets.filter((current) => current.id !== asset.id)],
+  })
+}
+
 export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'tags' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   next.assets = next.assets.map((asset) => {

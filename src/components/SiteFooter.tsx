@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, Modal } from 'antd'
-import { MailOutlined } from '@ant-design/icons'
+import { GithubOutlined, MailOutlined } from '@ant-design/icons'
 
 import { openSourceSoftware } from '../openSourceSoftware'
 
@@ -15,6 +15,14 @@ export function SiteFooter() {
       <Button type="link" className="footer-about-button" onClick={() => setAboutOpen(true)}>
         关于
       </Button>
+      <a
+        className="footer-link"
+        href="https://github.com/jiawen-afk/game-design-tools"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <GithubOutlined /> GitHub
+      </a>
       <Modal
         open={aboutOpen}
         title="关于"

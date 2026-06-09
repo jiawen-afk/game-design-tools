@@ -6,7 +6,11 @@ import {
   setPersonalSpaceDirectoryHandle,
   type PersonalSpaceDirectoryHandleStore,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
-import { defaultPersonalSpaceState, personalSpaceStorageKey } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  addCharacterProfile,
+  defaultPersonalSpaceState,
+  personalSpaceStorageKey,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { defaultVoiceGenerationParams, type VoiceGenerationRecord } from './voiceDeploymentModel'
 import { collectVoiceRecordToPersonalSpace } from './voicePersonalSpaceCollector'
 
@@ -90,6 +94,49 @@ test('collecting generated voice loads the persisted authorized directory and st
     assert.equal(state.assets.length, 1)
     assert.match(state.assets[0]!.storageResourcePaths[0]!, /^PersonalSpace\/配音\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.wav$/)
     assert.equal(await root.readText(state.assets[0]!.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'voice')
+  } finally {
+    setPersonalSpaceDirectoryHandle(null)
+    globalThis.fetch = originalFetch
+    Object.defineProperty(globalThis, 'localStorage', { value: originalLocalStorage, configurable: true })
+  }
+})
+
+test('collecting the same generated voice again keeps only the latest asset and link', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const store: PersonalSpaceDirectoryHandleStore = {
+    get: async () => root,
+    set: async () => {},
+  }
+  const seededState = addCharacterProfile({
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: '', deleteResourcesWithContent: false },
+  }, '商人')
+  const characterId = seededState.characters[0]!.id
+  const storage = createMemoryStorage({
+    [personalSpaceStorageKey]: JSON.stringify(seededState),
+  })
+  const originalLocalStorage = globalThis.localStorage
+  const originalFetch = globalThis.fetch
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
+  setPersonalSpaceDirectoryHandle(null)
+  globalThis.fetch = (async () => new Response(new Blob(['voice'], { type: 'audio/wav' }), { status: 200 })) as typeof fetch
+
+  const record = createVoiceRecord()
+
+  try {
+    const firstState = await collectVoiceRecordToPersonalSpace(record, undefined, { directoryHandleStore: store })
+    const secondState = await collectVoiceRecordToPersonalSpace(
+      record,
+      { target: 'character', targetId: characterId },
+      { directoryHandleStore: store },
+    )
+
+    assert.equal(firstState.assets.length, 1)
+    assert.equal(secondState.assets.length, 1)
+    assert.notEqual(secondState.assets[0]!.id, firstState.assets[0]!.id)
+    assert.equal(secondState.assets[0]!.sourceKey, 'voice-record:voice-1')
+    assert.deepEqual(secondState.assets[0]!.linkedCharacterIds, [characterId])
+    assert.deepEqual(secondState.characters[0]!.voiceAssetIds, [secondState.assets[0]!.id])
   } finally {
     setPersonalSpaceDirectoryHandle(null)
     globalThis.fetch = originalFetch

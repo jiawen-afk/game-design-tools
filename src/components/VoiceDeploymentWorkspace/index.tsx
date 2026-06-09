@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Input, message, Modal, Select, Tag } from 'antd'
+import { Button, Input, message, Modal, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
   LoadingOutlined,
@@ -21,6 +21,7 @@ import {
   readPersonalSpaceState,
   writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { useAppToast } from '../AppToastProvider'
 import {
   personalSpaceDirectoryRequiredMessage,
   usePersonalSpaceDirectoryAuthorization,
@@ -39,6 +40,7 @@ import { useVoiceGenerationWorkflow } from './useVoiceGenerationWorkflow'
 
 export default function VoiceDeploymentWorkspace() {
   const [messageApi, messageContextHolder] = message.useMessage()
+  const { showToast } = useAppToast()
   const {
     port,
     portInput,
@@ -66,6 +68,7 @@ export default function VoiceDeploymentWorkspace() {
     detectDesktopHardware,
     runDesktopSetup,
     queryDesktopDependencyStatus,
+    startDesktopService,
     controlDesktopService,
     selectModel,
     setDownloadSource,
@@ -173,6 +176,19 @@ export default function VoiceDeploymentWorkspace() {
     onConfirm: (record, link) => void collectRecordToPersonalSpace(record, link),
   })
 
+  useEffect(() => {
+    if (!desktopServiceResult) {
+      return
+    }
+
+    showToast({
+      type: desktopServiceResult.ok ? 'success' : 'warning',
+      title: desktopServiceResult.ok ? '服务命令已执行' : '服务命令未完成',
+      description: desktopServiceResult.output || '没有返回详细信息。',
+      durationMs: desktopServiceResult.ok ? 5200 : 9000,
+    })
+  }, [desktopServiceResult, showToast])
+
   const connectionTag = {
     idle: <Tag>未检测</Tag>,
     checking: <Tag icon={<LoadingOutlined />} color="blue">检测中</Tag>,
@@ -238,7 +254,7 @@ export default function VoiceDeploymentWorkspace() {
                 icon={<PlayCircleOutlined />}
                 loading={desktopServiceBusy}
                 disabled={!desktopRuntime || desktopServiceBusy}
-                onClick={() => void controlDesktopService('start').then(() => runCheck(port))}
+                onClick={() => void startDesktopService()}
               >
                 启动服务
               </Button>
@@ -269,16 +285,6 @@ export default function VoiceDeploymentWorkspace() {
         />
       </div>
 
-      {desktopServiceResult ? (
-        <Alert
-          className="status-alert"
-          type={desktopServiceResult.ok ? 'success' : 'warning'}
-          showIcon
-          title={desktopServiceResult.ok ? '服务命令已执行' : '服务命令未完成'}
-          description={desktopServiceResult.output || '没有返回详细信息。'}
-        />
-      ) : null}
-
       {connected ? (
         <div className="voice-studio">
           <VoiceGenerationPanel
@@ -300,6 +306,7 @@ export default function VoiceDeploymentWorkspace() {
           />
 
           <VoiceLibraryPanel
+            libraryVariant="sticky"
             records={records}
             lastGeneratedId={lastGeneratedId}
             personalSpaceVoiceAssets={personalSpaceVoiceAssets}
@@ -341,6 +348,7 @@ export default function VoiceDeploymentWorkspace() {
           />
 
           <VoiceLibraryPanel
+            libraryVariant="embedded"
             records={records}
             lastGeneratedId={lastGeneratedId}
             personalSpaceVoiceAssets={personalSpaceVoiceAssets}

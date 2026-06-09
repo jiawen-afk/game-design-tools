@@ -411,11 +411,19 @@ test('home voice card describes Gradio instead of stale vLLM REST output', () =>
 
 test('voice history library renders outside the connected-only generator branch', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
+  const styleSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css', 'utf8')
 
   const libraryMatches = source.match(/<VoiceLibraryPanel/g) ?? []
 
   assert.equal(libraryMatches.length, 2)
   assert.match(source, /\{connected \? \([\s\S]*<VoiceLibraryPanel[\s\S]*\) : \([\s\S]*<VoiceLibraryPanel/)
+  assert.match(source, /libraryVariant="sticky"/)
+  assert.match(source, /libraryVariant="embedded"/)
+  assert.match(panelSource, /libraryVariant/)
+  assert.match(panelSource, /voice-library-\$\{libraryVariant\}/)
+  assert.match(styleSource, /\.voice-library-sticky/)
+  assert.match(styleSource, /\.voice-library-embedded/)
 })
 
 test('voice records can be collected into personal space assets', () => {

@@ -18,6 +18,7 @@ export function createPersonalSpaceAsset(input: {
   linkedCharacterIds?: string[]
   linkedStoryboardIds?: string[]
   linkedVoiceAssetIds?: string[]
+  sourceKey?: string
 }): PersonalSpaceAsset {
   return {
     id: `asset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -32,6 +33,7 @@ export function createPersonalSpaceAsset(input: {
     linkedVoiceAssetIds: input.linkedVoiceAssetIds ?? [],
     storageResourcePaths: [],
     createdAt: new Date().toISOString(),
+    sourceKey: input.sourceKey?.trim() || undefined,
   }
 }
 
@@ -143,6 +145,7 @@ export function createVoiceAssetFromRecord(record: VoiceRecordAssetInput): Perso
     tags: ['配音'],
     dialogueText: record.dialogueText ?? record.params?.text,
     resourcePaths: playablePath ? [playablePath] : [],
+    sourceKey: record.sourceKey,
   })
 }
 
@@ -153,6 +156,7 @@ export function createSpriteAssetFromExport(input: SpriteExportAssetInput): Pers
     groupName: input.groupName,
     tags: input.tags ?? ['精灵图'],
     resourcePaths: [input.spritePath, input.indexPath],
+    sourceKey: input.sourceKey,
   })
 }
 

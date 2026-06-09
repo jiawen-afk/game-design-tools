@@ -108,6 +108,7 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
         linkedStoryboardIds: [...asset.linkedStoryboardIds],
         linkedVoiceAssetIds: [...asset.linkedVoiceAssetIds],
         storageResourcePaths: [...(asset.storageResourcePaths ?? [])],
+        sourceKey: asset.sourceKey,
       }
     }),
     storyboardGroups: state.storyboardGroups.map((item) => {

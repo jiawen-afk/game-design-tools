@@ -1,5 +1,5 @@
-import { Button, Card, InputNumber, Radio, Space, Typography } from 'antd'
-import { DownloadOutlined, StarOutlined } from '@ant-design/icons'
+import { Button, Card, Dropdown, InputNumber, Radio, Space, Typography } from 'antd'
+import { DownOutlined, DownloadOutlined, StarOutlined } from '@ant-design/icons'
 
 import { computeAutoSpriteColumns } from './model'
 
@@ -14,6 +14,7 @@ export interface ExportPanelProps {
   onColumnsChange: (columns: number) => void
   onExport: () => void
   onCollectToPersonalSpace: () => void
+  onCollectToPersonalSpaceWithCharacter: () => void
 }
 
 export function ExportPanel({
@@ -25,6 +26,7 @@ export function ExportPanel({
   onColumnsChange,
   onExport,
   onCollectToPersonalSpace,
+  onCollectToPersonalSpaceWithCharacter,
 }: ExportPanelProps) {
   return (
     <Card title="5. 合并导出">
@@ -39,15 +41,34 @@ export function ExportPanel({
           <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={onExport}>
             导出 ZIP
           </Button>
-          <Button
-            icon={<StarOutlined />}
-            loading={exporting}
-            disabled={!personalSpaceCollectEnabled}
-            title={personalSpaceCollectDisabledReason}
-            onClick={onCollectToPersonalSpace}
-          >
-            收藏到个人空间
-          </Button>
+          <Space.Compact>
+            <Button
+              icon={<StarOutlined />}
+              loading={exporting}
+              disabled={!personalSpaceCollectEnabled}
+              title={personalSpaceCollectDisabledReason}
+              onClick={onCollectToPersonalSpace}
+            >
+              收藏到个人空间
+            </Button>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'character', label: '收藏并关联角色', disabled: !personalSpaceCollectEnabled },
+                ],
+                onClick: () => onCollectToPersonalSpaceWithCharacter(),
+              }}
+              trigger={['click']}
+            >
+              <Button
+                icon={<DownOutlined />}
+                loading={exporting}
+                disabled={!personalSpaceCollectEnabled}
+                title={personalSpaceCollectDisabledReason}
+                aria-label="展开收藏关联方式"
+              />
+            </Dropdown>
+          </Space.Compact>
         </Space>
         <Text type="secondary">
           ZIP 包含 sprite.png 和 index.json。导出与预览均使用平滑绘制。

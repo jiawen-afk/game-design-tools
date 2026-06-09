@@ -7,7 +7,10 @@ import { clampInt } from './numberUtils'
 import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
 import {
+  assignAssetToCharacterColumn,
+  collectPersonalSpaceAsset,
   createSpriteAssetFromExport,
+  hashText,
   readPersonalSpaceState,
   writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
@@ -81,6 +84,9 @@ export function useSpriteExport({
 }: UseSpriteExportParams) {
   const [columns, setColumns] = useState(4)
   const [exporting, setExporting] = useState(false)
+  const [collectCharacterDialogOpen, setCollectCharacterDialogOpen] = useState(false)
+  const [collectCharacterId, setCollectCharacterId] = useState<string | null>(null)
+  const [collectCharacterOptions, setCollectCharacterOptions] = useState<Array<{ label: string; value: string }>>([])
 
   const validateExportableFrames = () => {
     if (frames.length === 0) {
@@ -125,7 +131,21 @@ export function useSpriteExport({
     }
   }
 
-  const collectToPersonalSpace = async () => {
+  const spriteExportSourceKey = () => `sprite-export:${hashText(JSON.stringify({
+    canvasWidth,
+    canvasHeight,
+    columns: clampInt(columns, 1, Math.max(1, visibleFrames.length)),
+    fps,
+    playbackMode,
+    frames: visibleFrames.map((item) => ({
+      id: item.id,
+      sourceName: item.sourceName,
+      width: item.sourceWidth,
+      height: item.sourceHeight,
+    })),
+  }))}`
+
+  const collectToPersonalSpace = async (characterId?: string) => {
     if (!validateExportableFrames()) return
     const directoryHandle = getPersonalSpaceDirectoryHandle()
     if (!directoryHandle) {
@@ -149,16 +169,18 @@ export function useSpriteExport({
         name: 'sprite.png',
         spritePath,
         indexPath,
+        sourceKey: spriteExportSourceKey(),
       })
       const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
         { name: 'sprite.png', data: spriteBlob },
         { name: 'index.json', data: new Blob([indexJson], { type: 'application/json' }) },
       ])
-      writePersonalSpaceState({
-        ...space,
-        assets: [asset, ...space.assets],
-      })
-      message.success('已收藏到 个人空间-素材-精灵图')
+      let nextSpace = collectPersonalSpaceAsset(space, asset)
+      if (characterId) {
+        nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite', ['角色精灵图'])
+      }
+      writePersonalSpaceState(nextSpace)
+      message.success(characterId ? '已收藏到 个人空间-素材-精灵图，并关联角色' : '已收藏到 个人空间-素材-精灵图')
     } catch (e) {
       message.error(`收藏到个人空间失败：${String(e)}`)
     } finally {
@@ -166,5 +188,36 @@ export function useSpriteExport({
     }
   }
 
-  return { columns, setColumns, exporting, exportAll, collectToPersonalSpace }
+  const openCollectCharacterDialog = () => {
+    const space = readPersonalSpaceState()
+    const options = space.characters.map((character) => ({ label: character.name, value: character.id }))
+    setCollectCharacterOptions(options)
+    setCollectCharacterId(options[0]?.value ?? null)
+    setCollectCharacterDialogOpen(true)
+  }
+
+  const closeCollectCharacterDialog = () => {
+    setCollectCharacterDialogOpen(false)
+  }
+
+  const collectToPersonalSpaceWithCharacter = async () => {
+    if (!collectCharacterId) return
+    setCollectCharacterDialogOpen(false)
+    await collectToPersonalSpace(collectCharacterId)
+  }
+
+  return {
+    columns,
+    setColumns,
+    exporting,
+    exportAll,
+    collectToPersonalSpace,
+    collectToPersonalSpaceWithCharacter,
+    openCollectCharacterDialog,
+    closeCollectCharacterDialog,
+    collectCharacterDialogOpen,
+    collectCharacterId,
+    setCollectCharacterId,
+    collectCharacterOptions,
+  }
 }

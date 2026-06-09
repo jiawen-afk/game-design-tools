@@ -2,6 +2,7 @@ import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 import {
   assignAssetToCharacterColumn,
   assignVoiceToStoryboardGroup,
+  collectPersonalSpaceAsset,
   createVoiceAssetFromRecord,
   linkEffectAssetToVoice,
   readPersonalSpaceState,
@@ -62,7 +63,11 @@ export async function collectVoiceRecordToPersonalSpace(
   options?: CollectVoiceRecordOptions,
 ): Promise<PersonalSpaceState> {
   let space = readPersonalSpaceState()
-  const baseAsset = createVoiceAssetFromRecord({ ...record, dialogueText: record.params.text })
+  const baseAsset = createVoiceAssetFromRecord({
+    ...record,
+    dialogueText: record.params.text,
+    sourceKey: `voice-record:${record.id}`,
+  })
   const directoryHandle = await getAuthorizedDirectoryHandle(options)
   if (!directoryHandle) {
     throw new Error(personalSpaceDirectoryRequiredMessage)
@@ -81,10 +86,7 @@ export async function collectVoiceRecordToPersonalSpace(
     { name: voiceResourceFileName(record), data: blob },
   ])
 
-  let nextSpace: PersonalSpaceState = {
-    ...space,
-    assets: [asset, ...space.assets],
-  }
+  let nextSpace: PersonalSpaceState = collectPersonalSpaceAsset(space, asset)
   if (link?.target === 'character') {
     nextSpace = assignAssetToCharacterColumn(nextSpace, link.targetId, asset.id, 'voice', ['角色配音'])
   }
