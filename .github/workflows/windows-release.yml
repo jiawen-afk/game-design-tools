@@ -3,7 +3,7 @@ name: Windows Release
 on:
   push:
     tags:
-      - "v*-windows-x64"
+      - "v*-windows-x64*"
   workflow_dispatch:
     inputs:
       tag:
@@ -17,7 +17,10 @@ permissions:
 jobs:
   build-and-release:
     name: Build and upload Windows x64 package
-    runs-on: windows-latest
+    runs-on: windows-2022
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Check out source
@@ -35,8 +38,11 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Build renderer
+        run: npm run build
+
       - name: Build Windows package
-        run: npm run desktop:build:win
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Upload package to GitHub Release
         shell: pwsh
