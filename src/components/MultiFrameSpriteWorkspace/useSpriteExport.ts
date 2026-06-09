@@ -16,6 +16,7 @@ import {
   writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
+import { getDesktopApi } from '../../desktopApi'
 
 export interface UseSpriteExportParams {
   frames: FrameItem[]
@@ -60,6 +61,14 @@ async function buildSpriteExportPackage(input: {
   const spriteBlob = await canvasToBlob(sheet)
   const indexJson = JSON.stringify(index, null, 2)
   return { spriteBlob, indexJson }
+}
+
+async function saveExportFile(fileName: string, blob: Blob) {
+  const api = getDesktopApi()
+  if (!api) throw new Error('当前环境缺少桌面文件保存能力')
+  const saved = await api.saveFile(fileName, await blob.arrayBuffer())
+  if (!saved) throw new Error('未选择保存位置')
+  return saved
 }
 
 export function useSpriteExport({
@@ -107,11 +116,7 @@ export function useSpriteExport({
       zip.file('sprite.png', spriteBlob)
       zip.file('index.json', indexJson)
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(zipBlob)
-      a.download = 'sprite_export.zip'
-      a.click()
-      window.setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+      await saveExportFile('sprite_export.zip', zipBlob)
       message.success('已导出 ZIP')
     } catch (e) {
       message.error(`导出失败：${String(e)}`)

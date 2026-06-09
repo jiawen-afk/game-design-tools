@@ -1,6 +1,5 @@
 export type HardwareStatus = 'unknown' | 'ready' | 'warning' | 'blocked'
 export type ConnectionStatus = 'idle' | 'checking' | 'connected' | 'disconnected'
-export type Platform = 'windows' | 'mac' | 'linux'
 export type DeviceType = 'nvidia' | 'apple' | 'cpu'
 export type ModelVersion = 'VoxCPM2' | 'VoxCPM1.5' | 'VoxCPM-0.5B'
 export type DownloadSource = 'auto' | 'hf' | 'ms'
@@ -118,8 +117,6 @@ export const voxcpmModels: Array<{
   { id: 'VoxCPM1.5', hfId: 'openbmb/VoxCPM1.5', vramGb: modelVramRequirements['VoxCPM1.5'], note: '平衡质量与显存，适合 6GB 显卡' },
   { id: 'VoxCPM-0.5B', hfId: 'openbmb/VoxCPM-0.5B', vramGb: modelVramRequirements['VoxCPM-0.5B'], note: '最轻量，适合 5GB 显卡 / Apple Silicon / CPU' },
 ]
-
-const scriptBaseUrl = 'https://tools.linjiawen.com/scripts'
 
 // 模型下载源元数据。host 仅用于 UI 文案展示，真正的测速主机写死在部署脚本里。
 export interface DownloadSourceMeta {
@@ -249,24 +246,6 @@ export function validateModelPath(modelPath: string) {
   const value = modelPath.trim()
   if (!value) return { valid: true, message: '留空时脚本会使用默认模型目录。' }
   return { valid: true, message: '模型路径已填写。' }
-}
-
-export function buildOneClickCommand(
-  platform: Platform,
-  modelPath: string,
-  model: ModelVersion = 'VoxCPM2',
-  source: DownloadSource = 'auto',
-): string {
-  const scriptName = platform === 'windows' ? 'deploy-voxcpm.ps1' : 'deploy-voxcpm.sh'
-  const url = `${scriptBaseUrl}/${scriptName}`
-  const trimmed = modelPath.trim()
-
-  if (platform === 'windows') {
-    const pathArg = trimmed || 'D:\\models\\VoxCPM2'
-    return `$f=[IO.Path]::GetTempFileName()+'deploy.ps1'; irm ${url} -OutFile $f; & $f '${pathArg}' '${model}' '${source}'; Remove-Item $f`
-  }
-  const pathArg = trimmed || '/data/models/VoxCPM2'
-  return `curl -fsSL ${url} | bash -s -- '${pathArg}' '${model}' '${source}'`
 }
 
 /**

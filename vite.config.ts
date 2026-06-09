@@ -9,7 +9,7 @@ function copyDeploymentScripts() {
     closeBundle() {
       const outputDir = join(process.cwd(), 'dist/scripts')
       mkdirSync(outputDir, { recursive: true })
-      for (const fileName of ['deploy-voxcpm.ps1', 'deploy-voxcpm.sh']) {
+      for (const fileName of ['deploy-voxcpm.ps1']) {
         copyFileSync(join(process.cwd(), 'scripts', fileName), join(outputDir, fileName))
       }
     },
@@ -17,6 +17,7 @@ function copyDeploymentScripts() {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [react(), copyDeploymentScripts()],
   build: {
     rollupOptions: {

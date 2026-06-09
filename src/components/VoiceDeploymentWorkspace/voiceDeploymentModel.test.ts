@@ -5,7 +5,6 @@ import { test } from 'node:test'
 import {
   buildGradioGeneratePayload,
   buildGradioApiCall,
-  buildOneClickCommand,
   createVoiceRecordName,
   defaultVoiceGenerationParams,
   defaultPort,
@@ -90,39 +89,19 @@ test('requires a local model path before deployment', () => {
   assert.equal(validateModelPath('D:\\models\\VoxCPM2').valid, true)
 })
 
-test('Windows one-click command downloads script to temp file then executes', () => {
-  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2')
-  assert.match(cmd, /irm .+ -OutFile/)
-  assert.match(cmd, /deploy-voxcpm\.ps1/)
-  assert.match(cmd, /D:\\models\\VoxCPM2/)
-  assert.match(cmd, /'VoxCPM2'/)
-})
+test('VoxCPM setup uses the desktop bridge instead of remote shell bootstrap commands', () => {
+  const modelSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentModel.ts', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
 
-test('mac/linux one-click command remains available for generated commands', () => {
-  const cmd = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM2')
-  assert.match(cmd, /curl -fsSL .+ \| bash/)
-  assert.match(cmd, /deploy-voxcpm\.sh/)
-  assert.match(cmd, /\/data\/models\/VoxCPM2/)
-  assert.match(cmd, /'VoxCPM2'/)
-})
-
-test('one-click command defaults to VoxCPM2 when model omitted', () => {
-  const cmd = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2')
-  assert.match(cmd, /'VoxCPM2'/)
-})
-
-test('one-click command defaults download source to auto when omitted', () => {
-  const win = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2')
-  assert.match(win, /'VoxCPM2'\s+'auto'/)
-  const mac = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM2')
-  assert.match(mac, /'VoxCPM2'\s+'auto'/)
-})
-
-test('one-click command appends download source as third positional arg', () => {
-  const ms = buildOneClickCommand('windows', 'D:\\models\\VoxCPM2', 'VoxCPM2', 'ms')
-  assert.match(ms, /'VoxCPM2'\s+'ms'/)
-  const hf = buildOneClickCommand('mac', '/data/models/VoxCPM2', 'VoxCPM1.5', 'hf')
-  assert.match(hf, /'VoxCPM1\.5'\s+'hf'/)
+  assert.doesNotMatch(modelSource, /buildOneClickCommand/)
+  assert.doesNotMatch(modelSource, /tools\.linjiawen\.com/)
+  assert.doesNotMatch(modelSource, /deploy-voxcpm\.sh/)
+  assert.doesNotMatch(hookSource, /oneClickCommand/)
+  assert.doesNotMatch(panelSource, /复制命令/)
+  assert.doesNotMatch(panelSource, /macOS \/ Linux/)
+  assert.match(hookSource, /runVoxcpmSetup/)
+  assert.match(panelSource, /安装依赖/)
 })
 
 test('downloadSources metadata covers auto/hf/ms with correct hosts', () => {
@@ -328,6 +307,18 @@ test('Windows deployment script keeps command arguments and generated files safe
   assert.doesNotMatch(source, /Set-Content -Path \$pyFile -Value \$pyCode -Encoding ascii/)
 })
 
+test('Windows deployment script runs multiline Python probes from temporary files', () => {
+  const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
+  const ensureTorch = source.match(/function Ensure-Torch\([\s\S]*?\n\}/)?.[0] || ''
+
+  assert.match(source, /Invoke-PythonScriptOutput/)
+  assert.match(source, /\[System\.IO\.Path\]::GetTempFileName\(\)/)
+  assert.doesNotMatch(source, /New-TemporaryFile/)
+  assert.match(source, /Remove-Item \$pyFile -ErrorAction SilentlyContinue/)
+  assert.match(ensureTorch, /Invoke-PythonScriptOutput \$probeCode/)
+  assert.doesNotMatch(ensureTorch, /Invoke-PythonOutput @\("-c", \$probeCode\)/)
+})
+
 test('Windows service command scripts preserve Chinese console output', () => {
   const source = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
 
@@ -348,11 +339,10 @@ test('Windows service runner keeps native stderr warnings in the log', () => {
   assert.doesNotMatch(source, /BeginErrorReadLine/)
 })
 
-test('deployment scripts allow browser pages to call local Gradio', () => {
+test('Windows deployment script allows the Electron renderer to call local Gradio', () => {
   const windows = readFileSync('scripts/deploy-voxcpm.ps1', 'utf8')
-  const unix = readFileSync('scripts/deploy-voxcpm.sh', 'utf8')
 
-  for (const source of [windows, unix]) {
+  for (const source of [windows]) {
     assert.match(source, /VOXCPM_ALLOWED_BROWSER_ORIGINS", "\*"/)
     assert.match(source, /"\*" in allowed/)
     assert.match(source, /VOXCPM_ALLOWED_BROWSER_ORIGINS/)
@@ -362,7 +352,6 @@ test('deployment scripts allow browser pages to call local Gradio', () => {
 
   assert.match(windows, /if \(\$allowedOrigins\.Count -eq 0\) \{ \$allowedOrigins = @\("\*"\) \}/)
   assert.match(windows, /PYTHONPATH/)
-  assert.match(unix, /PYTHONPATH/)
 })
 
 test('Windows service stores the real Python interpreter instead of the py launcher', () => {

@@ -192,6 +192,29 @@
   white-space: nowrap;
 }
 
+.desktop-boost {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-brand) 5%, var(--color-panel));
+}
+
+.desktop-boost-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.desktop-boost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .status-alert {
   align-items: flex-start;
 }

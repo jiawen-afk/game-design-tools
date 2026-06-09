@@ -1,4 +1,5 @@
 import { hashText, importDatePart, type PersonalSpaceAsset, storageCategoryForAsset } from './personalSpaceModel'
+import { getDesktopApi, type DesktopDirectoryInfo, type DesktopFileInfo } from '../../desktopApi'
 
 export interface PersonalSpaceResourceFile {
   name: string
@@ -7,6 +8,8 @@ export interface PersonalSpaceResourceFile {
 
 export interface PersonalSpaceDirectoryHandle {
   name: string
+  path?: string
+  kind?: string
   getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions): Promise<PersonalSpaceDirectoryHandle>
   getFileHandle(name: string, options?: FileSystemGetFileOptions): Promise<PersonalSpaceFileHandle>
   removeEntry(name: string, options?: FileSystemRemoveOptions): Promise<void>
@@ -36,6 +39,7 @@ export interface PersonalSpaceDirectoryHandleStore {
 
 let currentPersonalSpaceDirectoryHandle: PersonalSpaceDirectoryHandle | null = null
 const directoryHandleKey = 'personal-space-directory'
+const nativeDirectoryKind = 'desktop-native-directory'
 
 export function setPersonalSpaceDirectoryHandle(handle: PersonalSpaceDirectoryHandle | null) {
   currentPersonalSpaceDirectoryHandle = handle
@@ -45,58 +49,40 @@ export function getPersonalSpaceDirectoryHandle() {
   return currentPersonalSpaceDirectoryHandle
 }
 
-function openDirectoryHandleDatabase() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('game-design-tools.personal-space.handles', 1)
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore('handles')
-    }
-    request.onerror = () => reject(request.error)
-    request.onsuccess = () => resolve(request.result)
-  })
-}
-
-export function createIndexedDbDirectoryHandleStore(): PersonalSpaceDirectoryHandleStore | null {
-  if (typeof indexedDB === 'undefined') return null
+export function createLocalDirectoryPathStore(): PersonalSpaceDirectoryHandleStore | null {
+  if (typeof localStorage === 'undefined') return null
   return {
     async get(key) {
-      const db = await openDirectoryHandleDatabase()
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction('handles', 'readonly')
-        const request = transaction.objectStore('handles').get(key)
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => resolve(request.result ?? null)
-        transaction.oncomplete = () => db.close()
-      })
+      const value = localStorage.getItem(key)
+      return value ? JSON.parse(value) : null
     },
     async set(key, value) {
-      const db = await openDirectoryHandleDatabase()
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction('handles', 'readwrite')
-        const request = transaction.objectStore('handles').put(value, key)
-        request.onerror = () => reject(request.error)
-        transaction.onerror = () => reject(transaction.error)
-        transaction.oncomplete = () => {
-          db.close()
-          resolve()
-        }
-      })
+      localStorage.setItem(key, JSON.stringify(value))
     },
   }
 }
 
 export async function persistPersonalSpaceDirectoryHandle(
   handle: PersonalSpaceDirectoryHandle,
-  store: PersonalSpaceDirectoryHandleStore | null = createIndexedDbDirectoryHandleStore(),
+  store: PersonalSpaceDirectoryHandleStore | null = createLocalDirectoryPathStore(),
 ) {
-  await store?.set(directoryHandleKey, handle)
+  const storedHandle = handle.kind === nativeDirectoryKind && handle.path
+    ? { kind: nativeDirectoryKind, name: handle.name, path: handle.path }
+    : handle
+  await store?.set(directoryHandleKey, storedHandle)
 }
 
 export async function loadPersistedPersonalSpaceDirectoryHandle(
-  store: PersonalSpaceDirectoryHandleStore | null = createIndexedDbDirectoryHandleStore(),
+  store: PersonalSpaceDirectoryHandleStore | null = createLocalDirectoryPathStore(),
 ) {
   const handle = await store?.get(directoryHandleKey)
   if (!handle) return null
+  if (isStoredNativeDirectoryHandle(handle)) {
+    const api = getDesktopApi()
+    if (!api) return null
+    const info = await api.registerPersonalSpaceDirectory(handle.path)
+    return createNativePersonalSpaceDirectoryHandle(info)
+  }
   const directoryHandle = handle as PersonalSpaceDirectoryHandle
   if (directoryHandle.queryPermission) {
     const current = await directoryHandle.queryPermission({ mode: 'readwrite' })
@@ -109,6 +95,16 @@ export async function loadPersistedPersonalSpaceDirectoryHandle(
     if (next === 'granted') return directoryHandle
   }
   return null
+}
+
+function isStoredNativeDirectoryHandle(handle: unknown): handle is DesktopDirectoryInfo & { kind: string } {
+  return Boolean(
+    handle &&
+    typeof handle === 'object' &&
+    (handle as { kind?: string }).kind === nativeDirectoryKind &&
+    typeof (handle as { path?: string }).path === 'string' &&
+    typeof (handle as { name?: string }).name === 'string',
+  )
 }
 
 function sanitizePathPart(value: string): string {
@@ -270,6 +266,82 @@ class MemoryWritableFileStream implements PersonalSpaceWritableFileStream {
   }
 }
 
+class NativeWritableFileStream implements PersonalSpaceWritableFileStream {
+  private data = new Blob()
+
+  constructor(private readonly filePath: string) {}
+
+  async write(data: Blob) {
+    this.data = data
+  }
+
+  async close() {
+    const api = getDesktopApi()
+    if (!api) throw new Error('当前环境不支持桌面文件写入')
+    await api.writePersonalSpaceFile(this.filePath, await this.data.arrayBuffer())
+  }
+}
+
+class NativeFileHandle implements PersonalSpaceFileHandle {
+  constructor(private readonly file: DesktopFileInfo) {}
+
+  async getFile() {
+    const api = getDesktopApi()
+    if (!api) throw new Error('当前环境不支持桌面文件读取')
+    const result = await api.readPersonalSpaceFile(this.file.path)
+    const source = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
+    const data = new Uint8Array(source.byteLength)
+    data.set(source)
+    return new Blob([data.buffer])
+  }
+
+  async createWritable() {
+    return new NativeWritableFileStream(this.file.path)
+  }
+}
+
+class NativeDirectoryHandle implements PersonalSpaceDirectoryHandle {
+  readonly kind = nativeDirectoryKind
+
+  constructor(private readonly directory: DesktopDirectoryInfo) {}
+
+  get name() {
+    return this.directory.name
+  }
+
+  get path() {
+    return this.directory.path
+  }
+
+  async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions) {
+    const api = getDesktopApi()
+    if (!api) throw new Error('当前环境不支持桌面目录管理')
+    const directory = await api.ensurePersonalSpaceDirectory(this.directory.path, name, { create: options?.create })
+    return new NativeDirectoryHandle(directory)
+  }
+
+  async getFileHandle(name: string, options?: FileSystemGetFileOptions) {
+    const api = getDesktopApi()
+    if (!api) throw new Error('当前环境不支持桌面文件管理')
+    const file = await api.getPersonalSpaceFile(this.directory.path, name, { create: options?.create })
+    return new NativeFileHandle(file)
+  }
+
+  async removeEntry(name: string) {
+    const api = getDesktopApi()
+    if (!api) throw new Error('当前环境不支持桌面资源删除')
+    await api.removePersonalSpaceEntry(this.directory.path, name)
+  }
+
+  async queryPermission() {
+    return 'granted' as PermissionState
+  }
+
+  async requestPermission() {
+    return 'granted' as PermissionState
+  }
+}
+
 class MemoryFileHandle implements PersonalSpaceFileHandle {
   constructor(
     private readonly read: () => Blob,
@@ -335,4 +407,8 @@ export class MemoryDirectoryHandle implements PersonalSpaceDirectoryHandle {
 
 export function createMemoryDirectoryHandle(name: string) {
   return new MemoryDirectoryHandle(name)
+}
+
+export function createNativePersonalSpaceDirectoryHandle(directory: DesktopDirectoryInfo): PersonalSpaceDirectoryHandle {
+  return new NativeDirectoryHandle(directory)
 }

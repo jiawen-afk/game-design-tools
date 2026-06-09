@@ -235,6 +235,19 @@ function Invoke-PythonOutput($arguments) {
     return @{ Output = @($output); ExitCode = $LASTEXITCODE }
 }
 
+function Invoke-PythonScriptOutput($code) {
+    Assert-PythonRuntimeCompatible "Python 脚本输出"
+    $pyFile = [System.IO.Path]::GetTempFileName()
+    try {
+        Set-Content -Path $pyFile -Value $code -Encoding utf8
+        $allArgs = @($script:PythonArgs) + @($pyFile)
+        $output = & $script:PythonCommand @allArgs 2>&1
+        return @{ Output = @($output); ExitCode = $LASTEXITCODE }
+    } finally {
+        Remove-Item $pyFile -ErrorAction SilentlyContinue
+    }
+}
+
 function Resolve-ModelDriveName($path) {
     $fullPath = [System.IO.Path]::GetFullPath($path)
     $root = [System.IO.Path]::GetPathRoot($fullPath)
@@ -329,7 +342,7 @@ except Exception as exc:
     print(f"ERROR:{exc}")
     raise
 '@
-    $probe = Invoke-PythonOutput @("-c", $probeCode)
+    $probe = Invoke-PythonScriptOutput $probeCode
     $needsInstall = $true
     if ($probe.ExitCode -eq 0) {
         $cudaVersion = "$($probe.Output[0])"
@@ -382,7 +395,7 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
     $stderrPath = Join-Path $stateDir "voxcpm.err.log"
     $pidPath = Join-Path $stateDir "voxcpm.pid"
 
-    @{
+    $configJson = @{
         PythonCommand = $script:PythonCommand
         PythonArgs = @($script:PythonArgs)
         RepoDir = $repoDir
@@ -396,7 +409,8 @@ function Install-ServiceCommands($repoDir, $launchId, $modelPath, $modelVariant,
         LogPath = $logPath
         StderrPath = $stderrPath
         PidPath = $pidPath
-    } | ConvertTo-Json -Depth 4 | Set-Content -Path $configPath -Encoding utf8
+    } | ConvertTo-Json -Depth 4
+    [System.IO.File]::WriteAllText($configPath, $configJson, [System.Text.UTF8Encoding]::new($false))
 
     $runner = @'
 $ErrorActionPreference = "Stop"

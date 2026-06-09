@@ -110,9 +110,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const exportStoryboardWithStatus = async (
     key: string,
-    action: () => Promise<{ kind: 'directory' | 'download'; path?: string }>,
+    action: () => Promise<{ kind: 'directory' | 'file'; path?: string }>,
     directoryMessage: string,
-    downloadMessage: string,
+    fileMessage: string,
     errorMessage: string,
   ) => {
     setStoryboardExportingKey(key)
@@ -120,7 +120,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       const result = await action()
       void messageApi.success(result.kind === 'directory'
         ? `${directoryMessage}：${result.path}`
-        : downloadMessage)
+        : `${fileMessage}：${result.path}`)
     } catch (error) {
       void messageApi.error(`${errorMessage}：${String(error)}`)
     } finally {
@@ -133,7 +133,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       `group-legacy-${id}`,
       () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle),
       '已导出剧情编排 ZIP',
-      '已下载剧情编排 ZIP',
+      '已保存剧情编排 ZIP',
       '导出剧情编排资产失败',
     )
   }
@@ -143,7 +143,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       `group-voices-${id}`,
       () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
       '已导出分组配音资产 ZIP',
-      '已下载分组配音资产 ZIP',
+      '已保存分组配音资产 ZIP',
       '导出分组配音资产失败',
     )
   }
@@ -153,7 +153,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       `group-characters-${id}`,
       () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
       '已导出分组关联角色资产 ZIP',
-      '已下载分组关联角色资产 ZIP',
+      '已保存分组关联角色资产 ZIP',
       '导出分组关联角色资产失败',
     )
   }
@@ -163,7 +163,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       'all-voices',
       () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle),
       '已导出所有分组配音资产 ZIP',
-      '已下载所有分组配音资产 ZIP',
+      '已保存所有分组配音资产 ZIP',
       '导出所有分组配音资产失败',
     )
   }
@@ -173,7 +173,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       'all-characters',
       () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle),
       '已导出所有分组关联角色资产 ZIP',
-      '已下载所有分组关联角色资产 ZIP',
+      '已保存所有分组关联角色资产 ZIP',
       '导出所有分组关联角色资产失败',
     )
   }

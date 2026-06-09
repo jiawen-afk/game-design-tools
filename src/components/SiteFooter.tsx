@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, Modal } from 'antd'
-import { MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { MailOutlined } from '@ant-design/icons'
 
 import { openSourceSoftware } from '../openSourceSoftware'
 
@@ -12,12 +12,6 @@ export function SiteFooter() {
       <a className="footer-link" href="mailto:catmumu@outlook.com">
         <MailOutlined /> Catmumu
       </a>
-      <a className="beian-link" href="https://beian.miit.gov.cn" target="_blank" rel="noreferrer">
-        <SafetyCertificateOutlined /> 浙ICP备2026016967号-1
-      </a>
-      <span>
-        使用人数：<span id="busuanzi_site_uv">加载中</span> 人
-      </span>
       <Button type="link" className="footer-about-button" onClick={() => setAboutOpen(true)}>
         关于
       </Button>

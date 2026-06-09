@@ -14,15 +14,17 @@ import {
   type StoryboardReferenceExport,
 } from './personalSpaceModel'
 import {
+  createNativePersonalSpaceDirectoryHandle,
   deleteStoredResourceFiles,
   readStoredResourceBlob,
   type PersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
   writeBlobFileToDirectory,
 } from './personalSpaceFileStorage'
+import { getDesktopApi } from '../../desktopApi'
 
 export interface StoryboardExportResult {
-  kind: 'directory' | 'download'
+  kind: 'directory' | 'file'
   path?: string
 }
 
@@ -32,20 +34,16 @@ export interface AssetDeleteResult {
   resourcesDeleted: boolean
 }
 
-function supportsDirectoryPicker() {
-  return typeof window !== 'undefined' && 'showDirectoryPicker' in window
-}
-
 function sanitizeZipPart(value: string) {
   return (value.trim() || '未命名资源').replace(/[<>:"/\\|?*]+/g, '_')
 }
 
-function downloadBlobFile(fileName: string, blob: Blob) {
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.click()
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+async function saveBlobFile(fileName: string, blob: Blob) {
+  const api = getDesktopApi()
+  if (!api) throw new Error('当前环境缺少桌面文件保存能力')
+  const saved = await api.saveFile(fileName, await blob.arrayBuffer())
+  if (!saved) throw new Error('未选择保存位置')
+  return saved
 }
 
 function resourceExtension(path: string, fallback: string) {
@@ -255,16 +253,15 @@ async function exportZipToTarget(
     const path = await writeBlobFileToDirectory(directoryHandle, ['剧情编排资产'], zipFile.fileName, zipFile.zipBlob)
     return { kind: 'directory', path }
   }
-  downloadBlobFile(zipFile.fileName, zipFile.zipBlob)
-  return { kind: 'download' }
+  const saved = await saveBlobFile(zipFile.fileName, zipFile.zipBlob)
+  return { kind: 'file', path: saved.path }
 }
 
 export async function pickPersonalSpaceDirectory() {
-  if (!supportsDirectoryPicker()) return null
-  const picker = window as unknown as Window & {
-    showDirectoryPicker: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>
-  }
-  return (await picker.showDirectoryPicker({ mode: 'readwrite' })) as PersonalSpaceDirectoryHandle
+  const desktopApi = getDesktopApi()
+  if (!desktopApi) return null
+  const directory = await desktopApi.selectPersonalSpaceDirectory()
+  return directory ? createNativePersonalSpaceDirectoryHandle(directory) : null
 }
 
 export async function exportStoryboardAssetToTarget(

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Button, Input, message, Modal, Select, Tag } from 'antd'
+import { Alert, Button, Input, message, Modal, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
   LoadingOutlined,
+  PoweroffOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
 } from '@ant-design/icons'
 
@@ -43,18 +45,28 @@ export default function VoiceDeploymentWorkspace() {
     setPortInput,
     connectionStatus,
     modelValidation,
-    platform,
     selectedModel,
     downloadSource,
     modelPath,
-    oneClickCommand,
     serviceUrl,
     connected,
-    copiedKey,
+    desktopRuntime,
+    desktopHardware,
+    desktopHardwareEvaluation,
+    desktopHardwareBusy,
+    desktopSetupBusy,
+    desktopSetupResult,
+    desktopSetupError,
+    desktopDependencyStatusBusy,
+    desktopDependencyStatusResult,
+    desktopServiceBusy,
+    desktopServiceResult,
     runCheck,
     applyPort,
-    copy,
-    setPlatform,
+    detectDesktopHardware,
+    runDesktopSetup,
+    queryDesktopDependencyStatus,
+    controlDesktopService,
     selectModel,
     setDownloadSource,
     setModelPath,
@@ -204,13 +216,43 @@ export default function VoiceDeploymentWorkspace() {
         </div>
         <div className="hero-status">
           {connectionTag}
-          <Button
-            icon={connectionStatus === 'checking' ? <LoadingOutlined /> : <ReloadOutlined />}
-            disabled={connectionStatus === 'checking'}
-            onClick={() => runCheck(port)}
-          >
-            重新检测
-          </Button>
+          <Button.Group className="voice-service-actions">
+            <Button
+              icon={connectionStatus === 'checking' ? <LoadingOutlined /> : <ReloadOutlined />}
+              disabled={connectionStatus === 'checking'}
+              onClick={() => runCheck(port)}
+            >
+              重新检测
+            </Button>
+            {connected ? (
+              <Button
+                icon={<ReloadOutlined />}
+                loading={desktopServiceBusy}
+                disabled={!desktopRuntime || desktopServiceBusy}
+                onClick={() => void controlDesktopService('restart').then(() => runCheck(port))}
+              >
+                重启服务
+              </Button>
+            ) : (
+              <Button
+                icon={<PlayCircleOutlined />}
+                loading={desktopServiceBusy}
+                disabled={!desktopRuntime || desktopServiceBusy}
+                onClick={() => void controlDesktopService('start').then(() => runCheck(port))}
+              >
+                启动服务
+              </Button>
+            )}
+            <Button
+              danger
+              icon={<PoweroffOutlined />}
+              loading={desktopServiceBusy}
+              disabled={!desktopRuntime || desktopServiceBusy}
+              onClick={() => void controlDesktopService('stop').then(() => runCheck(port))}
+            >
+              停止服务
+            </Button>
+          </Button.Group>
         </div>
       </div>
 
@@ -226,6 +268,16 @@ export default function VoiceDeploymentWorkspace() {
           style={{ width: 160 }}
         />
       </div>
+
+      {desktopServiceResult ? (
+        <Alert
+          className="status-alert"
+          type={desktopServiceResult.ok ? 'success' : 'warning'}
+          showIcon
+          title={desktopServiceResult.ok ? '服务命令已执行' : '服务命令未完成'}
+          description={desktopServiceResult.output || '没有返回详细信息。'}
+        />
+      ) : null}
 
       {connected ? (
         <div className="voice-studio">
@@ -267,18 +319,25 @@ export default function VoiceDeploymentWorkspace() {
       ) : (
         <div className="voice-grid">
           <VoiceSetupPanels
-            copiedKey={copiedKey}
-            platform={platform}
             selectedModel={selectedModel}
             downloadSource={downloadSource}
             modelPath={modelPath}
             modelPathValid={modelValidation.valid}
-            oneClickCommand={oneClickCommand}
-            onPlatformChange={setPlatform}
+            desktopRuntime={desktopRuntime}
+            desktopHardware={desktopHardware}
+            desktopHardwareEvaluation={desktopHardwareEvaluation}
+            desktopHardwareBusy={desktopHardwareBusy}
+            desktopSetupBusy={desktopSetupBusy}
+            desktopSetupResult={desktopSetupResult}
+            desktopSetupError={desktopSetupError}
+            desktopDependencyStatusBusy={desktopDependencyStatusBusy}
+            desktopDependencyStatusResult={desktopDependencyStatusResult}
             onModelChange={selectModel}
             onDownloadSourceChange={setDownloadSource}
             onModelPathChange={setModelPath}
-            onCopy={(key, text) => void copy(key, text)}
+            onDetectDesktopHardware={() => void detectDesktopHardware()}
+            onRunDesktopSetup={() => void runDesktopSetup()}
+            onQueryDesktopDependencyStatus={() => void queryDesktopDependencyStatus()}
           />
 
           <VoiceLibraryPanel

@@ -1,12 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const appSource = () => readFileSync('src/App.tsx', 'utf8')
 const viteConfigSource = () => readFileSync('vite.config.ts', 'utf8')
 const indexHtmlSource = () => readFileSync('index.html', 'utf8')
 const siteFooterSource = () => readFileSync('src/components/SiteFooter.tsx', 'utf8')
 const openSourceSoftwareSource = () => readFileSync('src/openSourceSoftware.ts', 'utf8')
+const packageJsonSource = () => readFileSync('package.json', 'utf8')
 
 test('home page shows tool details directly instead of hiding them in a popover', () => {
   const source = appSource()
@@ -44,15 +45,14 @@ test('personal space is global navigation instead of a tool list item', () => {
   assert.match(source, /<kbd>\{personalSpaceShortcut\}<\/kbd>/)
 })
 
-test('site footer shows the Busuanzi visitor count beside the filing link', () => {
+test('site footer is app-only and does not load web telemetry or filing content', () => {
   const source = siteFooterSource()
   const html = indexHtmlSource()
 
-  assert.match(html, /cdn\.busuanzi\.cc\/busuanzi\/3\.6\.9\/busuanzi\.min\.js/)
-  assert.match(html, /defer/)
-  assert.match(source, /浙ICP备2026016967号-1/)
-  assert.match(source, /使用人数/)
-  assert.match(source, /id="busuanzi_site_uv"/)
+  assert.doesNotMatch(html, /busuanzi/i)
+  assert.doesNotMatch(source, /busuanzi/i)
+  assert.doesNotMatch(source, /使用人数/)
+  assert.doesNotMatch(source, /浙ICP备/)
 })
 
 test('site footer exposes an about dialog with the project open source software list', () => {
@@ -67,9 +67,10 @@ test('site footer exposes an about dialog with the project open source software 
   assert.match(footerSource, /openSourceSoftware/)
   assert.match(footerSource, /open-source-list/)
   assert.match(softwareSource, /export const openSourceSoftware/)
-  for (const name of ['React', 'React DOM', 'Vite', 'TypeScript', 'Ant Design', 'Ant Design Icons', 'JSZip', 'tsx', 'VoxCPM', 'Gradio', 'Busuanzi']) {
+  for (const name of ['React', 'React DOM', 'Vite', 'TypeScript', 'Ant Design', 'Ant Design Icons', 'JSZip', 'tsx', 'Electron', 'Electron Builder', 'VoxCPM', 'Gradio']) {
     assert.match(softwareSource, new RegExp(name))
   }
+  assert.doesNotMatch(softwareSource, /Busuanzi/)
   assert.match(softwareSource, /https:\/\/github\.com\/OpenBMB\/VoxCPM/)
 })
 
@@ -196,13 +197,151 @@ test('desktop shortcuts open tools and ignore editable targets', () => {
   assert.match(source, /isContentEditable/)
 })
 
-test('production build publishes deployment scripts under /scripts', () => {
+test('production build publishes only Windows desktop deployment scripts under /scripts', () => {
   const source = viteConfigSource()
 
   assert.match(source, /copyDeploymentScripts/)
   assert.match(source, /dist\/scripts/)
   assert.match(source, /deploy-voxcpm\.ps1/)
-  assert.match(source, /deploy-voxcpm\.sh/)
+  assert.doesNotMatch(source, /deploy-voxcpm\.sh/)
+})
+
+test('production build uses relative asset paths for Electron file loading', () => {
+  const source = viteConfigSource()
+
+  assert.match(source, /base:\s*'\.\/'/)
+})
+
+test('Windows desktop package uses Electron with x64 installer and portable targets', () => {
+  const pkg = JSON.parse(packageJsonSource())
+
+  assert.equal(pkg.main, 'electron/main.cjs')
+  assert.equal(pkg.scripts.dev, undefined)
+  assert.equal(pkg.scripts.preview, undefined)
+  assert.match(pkg.scripts['desktop:build:win'], /npm run build/)
+  assert.match(pkg.scripts['desktop:build:win'], /electron-builder --win --x64/)
+  assert.ok(pkg.devDependencies.electron)
+  assert.ok(pkg.devDependencies['electron-builder'])
+  assert.equal(pkg.build.appId, 'com.linjiawen.game-design-tools')
+  assert.deepEqual(pkg.build.win.target.map((target: { target: string }) => target.target), ['nsis', 'portable', 'zip'])
+  assert.match(pkg.build.artifactName, /\$\{arch\}/)
+})
+
+test('Electron shell exposes a hardened desktop bridge for local system features', () => {
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+
+  assert.match(mainSource, /contextIsolation:\s*true/)
+  assert.match(mainSource, /nodeIntegration:\s*false/)
+  assert.match(mainSource, /preload:/)
+  assert.match(mainSource, /dialog\.showOpenDialog/)
+  assert.match(mainSource, /nvidia-smi/)
+  assert.match(mainSource, /deploy-voxcpm\.ps1/)
+  assert.match(mainSource, /voxcpm-service\.ps1/)
+  assert.match(mainSource, /shell\.openPath/)
+  assert.doesNotMatch(preloadSource, /ipcRenderer\s*,/)
+  for (const apiName of [
+    'selectPersonalSpaceDirectory',
+    'readPersonalSpaceFile',
+    'writePersonalSpaceFile',
+    'removePersonalSpaceEntry',
+    'saveFile',
+    'openPath',
+    'detectHardware',
+    'runVoxcpmSetup',
+    'queryVoxcpmSetupStatus',
+    'controlVoxcpmService',
+  ]) {
+    assert.match(preloadSource, new RegExp(apiName))
+  }
+})
+
+test('desktop bridge is integrated into personal space and VoxCPM setup workflows', () => {
+  const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const storageSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.ts', 'utf8')
+  const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
+  const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+  const setupHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
+  const panelsSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(desktopApiSource, /gameDesignToolsDesktop/)
+  assert.match(storageSource, /createNativePersonalSpaceDirectoryHandle/)
+  assert.match(storageSource, /desktop-native-directory/)
+  assert.match(actionsSource, /selectPersonalSpaceDirectory/)
+  assert.match(actionsSource, /saveFile/)
+  assert.match(settingsHookSource, /openPath/)
+  assert.match(setupHookSource, /detectHardware/)
+  assert.match(setupHookSource, /runVoxcpmSetup/)
+  assert.match(setupHookSource, /queryVoxcpmSetupStatus/)
+  assert.match(setupHookSource, /controlVoxcpmService/)
+  assert.match(panelsSource, /桌面增强/)
+  assert.match(panelsSource, /检测本机配置/)
+  assert.match(panelsSource, /安装依赖/)
+  assert.match(panelsSource, /依赖安装查询/)
+})
+
+test('VoxCPM setup dependency query checks local installation artifacts', () => {
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(mainSource, /voxcpm:setup-status/)
+  assert.match(mainSource, /voxcpm-config\.json/)
+  assert.match(mainSource, /replace\(\s*\/\^\\uFEFF\//)
+  assert.match(mainSource, /PythonCommand/)
+  assert.match(mainSource, /RepoDir/)
+  assert.match(mainSource, /import voxcpm/)
+  assert.match(mainSource, /import torch/)
+  assert.match(mainSource, /config\.PythonArgs/)
+  assert.match(mainSource, /VoxCPM 依赖已安装/)
+  assert.match(mainSource, /尚未完成 VoxCPM 依赖安装/)
+  assert.match(desktopApiSource, /queryVoxcpmSetupStatus/)
+  assert.match(hookSource, /desktopDependencyStatusBusy/)
+  assert.match(hookSource, /desktopDependencyStatusResult/)
+  assert.match(hookSource, /queryDesktopDependencyStatus/)
+  assert.match(panelSource, /desktopDependencyStatusResult/)
+  assert.match(panelSource, /onQueryDesktopDependencyStatus/)
+})
+
+test('app-only branch removes web deployment surfaces and browser-only fallbacks', () => {
+  const pkg = JSON.parse(packageJsonSource())
+  const voiceModelSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentModel.ts', 'utf8')
+  const personalStorageSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.ts', 'utf8')
+  const personalActionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
+  const spriteExportSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteExport.ts', 'utf8')
+  const mattePipelineSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+  const appOnlySources = [
+    indexHtmlSource(),
+    siteFooterSource(),
+    openSourceSoftwareSource(),
+    viteConfigSource(),
+    voiceModelSource,
+    personalStorageSource,
+    personalActionsSource,
+    spriteExportSource,
+    mattePipelineSource,
+    settingsHookSource,
+  ].join('\n')
+
+  assert.equal(pkg.scripts.preview, undefined)
+  assert.equal(pkg.scripts.dev, undefined)
+  for (const removedPath of ['Dockerfile', 'docker-compose.yml', 'DOCKER.md', 'docs/voxcpm-docker-deploy.md', 'scripts/deploy-voxcpm.sh']) {
+    assert.equal(existsSync(removedPath), false)
+  }
+  for (const pattern of [
+    /showDirectoryPicker/,
+    /indexedDB/,
+    /document\.createElement\('a'\)/,
+    /window\.open/,
+    /tools\.linjiawen\.com/,
+    /curl -fsSL/,
+    /\birm\b/,
+    /Busuanzi/i,
+  ]) {
+    assert.doesNotMatch(appOnlySources, pattern)
+  }
 })
 
 test('Ant Design alerts use v6 title prop instead of deprecated message prop', () => {
@@ -295,9 +434,11 @@ test('voice deployment workspace delegates disconnected setup panels', () => {
   assert.match(panelsSource, /id="deploy-title"/)
   assert.match(panelsSource, /latencyDisclaimer/)
   assert.match(panelsSource, /modelOptions/)
-  assert.match(panelsSource, /disabledPlatformValues/)
+  assert.doesNotMatch(panelsSource, /disabledPlatformValues/)
   assert.match(panelsSource, /disabledModelIds/)
-  assert.match(panelsSource, /macOS \/ Linux/)
+  assert.doesNotMatch(panelsSource, /macOS \/ Linux/)
+  assert.doesNotMatch(panelsSource, /oneClickCommand/)
+  assert.doesNotMatch(panelsSource, /复制命令/)
   assert.match(panelsSource, /VoxCPM1\.5 · 约/)
   assert.match(panelsSource, /VoxCPM-0\.5B · 约/)
   assert.match(panelsSource, /sourceOptions/)
@@ -323,6 +464,46 @@ test('voice deployment workspace delegates connected generation panel', () => {
   assert.match(panelSource, /onResetParams/)
   assert.doesNotMatch(panelSource, /onCopyApiExample/)
   assert.doesNotMatch(panelSource, /复制 Python 示例/)
+})
+
+test('voice deployment view keeps service controls in the top check action group', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(source, /connected \? \(/)
+  assert.match(source, /<Button\.Group className="voice-service-actions">/)
+  assert.match(source, /重新检测[\s\S]*重启服务[\s\S]*启动服务[\s\S]*停止服务/)
+  assert.match(source, /重启服务/)
+  assert.match(source, /启动服务/)
+  assert.match(source, /停止服务/)
+  assert.match(source, /controlDesktopService\('restart'\)/)
+  assert.match(source, /controlDesktopService\('start'\)/)
+  assert.match(source, /controlDesktopService\('stop'\)/)
+  assert.match(source, /desktopServiceBusy/)
+  assert.match(source, /desktopRuntime/)
+  assert.doesNotMatch(panelSource, />\s*启动服务\s*</)
+  assert.doesNotMatch(panelSource, />\s*停止服务\s*</)
+  assert.doesNotMatch(panelSource, /查询状态/)
+  assert.doesNotMatch(panelSource, /onControlDesktopService/)
+})
+
+test('VoxCPM dependency setup reports visible results and validates its install script', () => {
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceSetupPanels.tsx', 'utf8')
+
+  assert.match(mainSource, /fs\.existsSync\(scriptPath\)/)
+  assert.match(mainSource, /VoxCPM 安装脚本不存在/)
+  assert.match(mainSource, /cmd\.exe/)
+  assert.match(mainSource, /start/)
+  assert.match(hookSource, /desktopSetupResult/)
+  assert.match(hookSource, /desktopSetupError/)
+  assert.match(hookSource, /setDesktopSetupResult\(result\)/)
+  assert.match(hookSource, /setDesktopSetupError/)
+  assert.match(panelSource, /desktopSetupResult/)
+  assert.match(panelSource, /desktopSetupError/)
+  assert.match(panelSource, /安装终端已打开/)
+  assert.match(panelSource, /安装依赖启动失败/)
 })
 
 test('voice deployment workspace delegates collect-link dialog state', () => {
@@ -376,12 +557,14 @@ test('voice deployment workspace delegates deployment setup state to a focused h
   assert.match(hookSource, /checkRef/)
   assert.match(hookSource, /runCheck/)
   assert.match(hookSource, /applyPort/)
-  assert.doesNotMatch(hookSource, /hardwareReport/)
   assert.doesNotMatch(hookSource, /deviceType/)
   assert.doesNotMatch(hookSource, /gpuInput/)
-  assert.doesNotMatch(hookSource, /parseNvidiaSmiReport/)
-  assert.doesNotMatch(hookSource, /evaluateHardware/)
-  assert.match(hookSource, /oneClickCommand/)
+  assert.match(hookSource, /parseNvidiaSmiReport/)
+  assert.match(hookSource, /evaluateHardware/)
+  assert.match(hookSource, /detectDesktopHardware/)
+  assert.match(hookSource, /runDesktopSetup/)
+  assert.match(hookSource, /controlDesktopService/)
+  assert.doesNotMatch(hookSource, /oneClickCommand/)
   assert.match(hookSource, /apiCallExample/)
   assert.match(hookSource, /checkConnection/)
 })
@@ -443,8 +626,9 @@ test('personal space workspace delegates settings and directory authorization to
   assert.match(settingsHookSource, /setPersonalSpaceDirectoryHandle/)
   assert.match(settingsHookSource, /pickPersonalSpaceDirectory/)
   assert.match(settingsHookSource, /openStorageDirectory/)
-  assert.match(settingsHookSource, /window\.open/)
-  assert.match(settingsHookSource, /file:\/\//)
+  assert.match(settingsHookSource, /openPath/)
+  assert.doesNotMatch(settingsHookSource, /window\.open/)
+  assert.doesNotMatch(settingsHookSource, /file:\/\//)
   assert.match(settingsHookSource, /saveSettings/)
   assert.match(settingsHookSource, /chooseStorageDirectory/)
 })
@@ -808,7 +992,8 @@ test('personal space workspace delegates resource IO and filesystem side effects
   assert.doesNotMatch(source, /writeAssetResourcesToDirectory/)
   assert.doesNotMatch(source, /writeJsonFileToDirectory/)
   assert.doesNotMatch(source, /deleteStoredResourceFiles/)
-  assert.match(actionsSource, /showDirectoryPicker/)
+  assert.doesNotMatch(actionsSource, /showDirectoryPicker/)
+  assert.match(actionsSource, /saveFile/)
   assert.match(actionsSource, /URL\.createObjectURL/)
   assert.match(actionsSource, /JSZip/)
   assert.match(actionsSource, /storyboard\.json/)

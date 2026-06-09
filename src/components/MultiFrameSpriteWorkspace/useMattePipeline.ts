@@ -24,6 +24,7 @@ import {
   writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
+import { getDesktopApi } from '../../desktopApi'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
@@ -34,12 +35,12 @@ function sanitizeDownloadName(value: string) {
   return (value.trim() || 'matte').replace(/[<>:"/\\|?*]+/g, '_')
 }
 
-function downloadBlob(fileName: string, blob: Blob) {
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = fileName
-  link.click()
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+async function saveExportFile(fileName: string, blob: Blob) {
+  const api = getDesktopApi()
+  if (!api) throw new Error('当前环境缺少桌面文件保存能力')
+  const saved = await api.saveFile(fileName, await blob.arrayBuffer())
+  if (!saved) throw new Error('未选择保存位置')
+  return saved
 }
 
 async function readMatteBlob(frame: FrameItem) {
@@ -348,7 +349,7 @@ export function useMattePipeline({
     try {
       if (items.length === 1) {
         const blob = await readMatteBlob(items[0]!)
-        downloadBlob(`${sanitizeDownloadName(items[0]!.matteGroupName)}.png`, blob)
+        await saveExportFile(`${sanitizeDownloadName(items[0]!.matteGroupName)}.png`, blob)
         message.success('已导出组图片')
         return
       }
@@ -360,7 +361,7 @@ export function useMattePipeline({
         zip.file(`${String(index + 1).padStart(3, '0')}-${sanitizeDownloadName(item.sourceName)}.png`, blob)
       }
       const zipBlob = await zip.generateAsync({ type: 'blob' })
-      downloadBlob(`${sanitizeDownloadName(items[0]!.matteGroupName)}-抠图.zip`, zipBlob)
+      await saveExportFile(`${sanitizeDownloadName(items[0]!.matteGroupName)}-抠图.zip`, zipBlob)
       message.success(`已导出 ${items.length} 张组图片`)
     } catch (error) {
       message.error(`导出组图片失败：${String(error)}`)
