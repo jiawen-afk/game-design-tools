@@ -56,11 +56,11 @@ Artifacts are written to:
 - `electron`: desktop shell and hardened preload bridge
 - `scripts`: Windows VoxCPM deployment and service scripts
 
-## 迭代计划
+## Iteration Plan
 
-1. 接入 AI 生图能力，优先接入 `gpt-image-2`。
-2. 接入 `see-through`，将生图满意的图片拆分为可编辑图层。
-3. 生成动画：先推进当前已知可行的网格变形方案，同时探索各类生成动画方案；绑骨动画暂不作为近期主线。
+1. Add AI image generation, prioritizing `gpt-image-2`.
+2. Integrate `see-through` to split approved generated images into editable layers.
+3. Generate animations by first advancing the currently feasible mesh deformation path while continuing to explore other animation generation approaches. Skeletal animation is not a near-term focus.
 
 ## Verification
 
