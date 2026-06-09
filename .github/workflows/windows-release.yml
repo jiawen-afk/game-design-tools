@@ -1,0 +1,76 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*-windows-x64"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update"
+        required: true
+        default: "v0.1.0-windows-x64"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and upload Windows x64 package
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Windows package
+        run: npm run desktop:build:win
+
+      - name: Upload package to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $outputDir = Resolve-Path '..\game-design-tools-windows-x64'
+          $files = @(
+            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-setup.exe'
+            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-portable.exe'
+            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-win.zip'
+            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-setup.exe.blockmap'
+            Join-Path $outputDir 'latest.yml'
+          )
+
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) {
+              throw "Missing release artifact: $file"
+            }
+          }
+
+          $notes = @"
+          Windows 10/11 x64 desktop package.
+
+          Artifacts:
+          - setup exe: installer with Start Menu and desktop shortcut options
+          - portable exe: portable app
+          - win zip: unpacked desktop app archive
+          "@
+
+          if (gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null) {
+            gh release upload $env:RELEASE_TAG @files --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $env:RELEASE_TAG @files --repo $env:GITHUB_REPOSITORY --title "Game Design Tools $env:RELEASE_TAG" --notes $notes
+          }
