@@ -289,6 +289,11 @@ h1 {
   gap: 6px;
 }
 
+.site-footer .footer-web-notice {
+  flex-basis: 100%;
+  max-width: 760px;
+}
+
 .footer-link,
 .beian-link {
   display: inline-flex;

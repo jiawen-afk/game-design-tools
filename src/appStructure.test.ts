@@ -73,6 +73,15 @@ test('site footer exposes an about dialog with the project open source software 
   assert.match(softwareSource, /https:\/\/github\.com\/OpenBMB\/VoxCPM/)
 })
 
+test('site footer links to GitHub and warns that the web version is no longer updated', () => {
+  const footerSource = siteFooterSource()
+
+  assert.match(footerSource, /GithubOutlined/)
+  assert.match(footerSource, /https:\/\/github\.com\/jiawen-afk\/game-design-tools/)
+  assert.match(footerSource, /Web 端因功能受限已暂停更新/)
+  assert.match(footerSource, /建议前往 GitHub 下载客户端/)
+})
+
 test('personal space page covers required management modules', () => {
   const source = [
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
