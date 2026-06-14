@@ -1,4 +1,4 @@
-import { Card, ColorPicker, Empty, Slider, Space, Typography } from 'antd'
+import { Card, ColorPicker, Slider, Space, Typography } from 'antd'
 
 import { hexToRgb, rgbToHex } from '../MultiFrameSpriteWorkspace/imagePipeline'
 import { normalizePickerColor } from '../MultiFrameSpriteWorkspace/matteModel'
@@ -12,7 +12,7 @@ export interface ImageMattePanelProps {
 
 export function ImageMattePanel({ workspace }: ImageMattePanelProps) {
   return (
-    <Card title="2. 色键抠图">
+    <Card title="色键抠图" className="image-control-card">
       <Space orientation="vertical" size={14} style={{ width: '100%' }}>
         <label className="image-field">
           <span>关键色</span>
@@ -22,29 +22,7 @@ export function ImageMattePanel({ workspace }: ImageMattePanelProps) {
             onChange={(color, hex) => workspace.updateMatte('keyColor', hexToRgb(normalizePickerColor(color, hex, '#00ff00')))}
           />
         </label>
-        <div
-          className="image-color-picker-preview"
-          aria-label="点击原图取色"
-        >
-          {workspace.draft ? (
-            <Space orientation="vertical" size={8} style={{ width: '100%', alignItems: 'center' }}>
-              <img
-                src={workspace.draft.sourceUrl}
-                alt="点击原图取色"
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  void workspace.pickKeyColorFromSource(
-                    { x: event.clientX, y: event.clientY },
-                    { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-                  )
-                }}
-              />
-              <Text type="secondary">点击原图背景取关键色。</Text>
-            </Space>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后可点击原图取关键色。" />
-          )}
-        </div>
+        <Text type="secondary">在右侧预览里默认点选背景取色，开启裁剪范围后进入裁剪模式。</Text>
         <label className="image-field">
           <span>容差：{workspace.matte.tolerance}</span>
           <Slider

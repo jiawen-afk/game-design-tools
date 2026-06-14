@@ -27,6 +27,8 @@ export interface PreviewRect extends RectSize {
   y: number
 }
 
+export type ImageCropHandle = 'top' | 'bottom' | 'left' | 'right' | 'tl' | 'tr' | 'bl' | 'br' | 'move'
+
 export interface RgbaImageData extends RectSize {
   data: Uint8ClampedArray
 }
@@ -129,4 +131,132 @@ export function sampleImagePixel(imageData: RgbaImageData, point: Point): [numbe
     imageData.data[index + 1] ?? 0,
     imageData.data[index + 2] ?? 0,
   ]
+}
+
+export function fitContainedImageRect(imageSize: RectSize, containerSize: RectSize): PreviewRect {
+  const imageWidth = Math.max(1, imageSize.width)
+  const imageHeight = Math.max(1, imageSize.height)
+  const containerWidth = Math.max(1, containerSize.width)
+  const containerHeight = Math.max(1, containerSize.height)
+  const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight)
+  const width = imageWidth * scale
+  const height = imageHeight * scale
+  return {
+    x: (containerWidth - width) / 2,
+    y: (containerHeight - height) / 2,
+    width,
+    height,
+  }
+}
+
+export function clampPreviewRect(rect: PreviewRect, bounds: RectSize, minSize = MIN_IMAGE_CROP_SIZE): PreviewRect {
+  const boundsWidth = Math.max(1, bounds.width)
+  const boundsHeight = Math.max(1, bounds.height)
+  const minimum = Math.max(1, Math.min(minSize, boundsWidth, boundsHeight))
+  const x = Math.max(0, Math.min(boundsWidth - minimum, rect.x))
+  const y = Math.max(0, Math.min(boundsHeight - minimum, rect.y))
+  return {
+    x,
+    y,
+    width: Math.max(minimum, Math.min(boundsWidth - x, rect.width)),
+    height: Math.max(minimum, Math.min(boundsHeight - y, rect.height)),
+  }
+}
+
+export function getPreviewRectFromCropBox(
+  crop: CropBox,
+  imageRect: PreviewRect,
+  imageSize: RectSize
+): PreviewRect {
+  const scaleX = imageRect.width / Math.max(1, imageSize.width)
+  const scaleY = imageRect.height / Math.max(1, imageSize.height)
+  return {
+    x: imageRect.x + crop.x * scaleX,
+    y: imageRect.y + crop.y * scaleY,
+    width: crop.width * scaleX,
+    height: crop.height * scaleY,
+  }
+}
+
+export function getCropBoxFromPreviewRect(
+  previewCrop: PreviewRect,
+  imageRect: PreviewRect,
+  imageSize: RectSize
+): CropBox {
+  const scaleX = imageSize.width / Math.max(1, imageRect.width)
+  const scaleY = imageSize.height / Math.max(1, imageRect.height)
+  return clampCropBox(
+    {
+      x: (previewCrop.x - imageRect.x) * scaleX,
+      y: (previewCrop.y - imageRect.y) * scaleY,
+      width: previewCrop.width * scaleX,
+      height: previewCrop.height * scaleY,
+    },
+    imageSize.width,
+    imageSize.height
+  )
+}
+
+export function getDraggedPreviewRect(
+  startRect: PreviewRect,
+  handle: ImageCropHandle,
+  dx: number,
+  dy: number,
+  minSize = MIN_IMAGE_CROP_SIZE
+): PreviewRect {
+  let { x, y, width, height } = startRect
+  const minWidth = Math.max(1, minSize)
+  const minHeight = Math.max(1, minSize)
+
+  switch (handle) {
+    case 'move':
+      x += dx
+      y += dy
+      break
+    case 'top':
+      y += dy
+      height -= dy
+      break
+    case 'bottom':
+      height += dy
+      break
+    case 'left':
+      x += dx
+      width -= dx
+      break
+    case 'right':
+      width += dx
+      break
+    case 'tl':
+      x += dx
+      y += dy
+      width -= dx
+      height -= dy
+      break
+    case 'tr':
+      y += dy
+      width += dx
+      height -= dy
+      break
+    case 'bl':
+      x += dx
+      width -= dx
+      height += dy
+      break
+    case 'br':
+      width += dx
+      height += dy
+      break
+  }
+
+  if (width < minWidth) {
+    if (handle.includes('l')) x += width - minWidth
+    width = minWidth
+  }
+  if (height < minHeight) {
+    if (handle.includes('t')) y += height - minHeight
+    height = minHeight
+  }
+
+  return { x, y, width, height }
 }

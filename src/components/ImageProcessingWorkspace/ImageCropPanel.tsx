@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { Card, Empty, InputNumber, Slider, Space, Typography } from 'antd'
 
 import { normalizeCropBox, type CropBox } from './imageProcessingModel'
@@ -20,38 +19,14 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
   const preview = workspace.cropPreview
   const processed = workspace.processed
   const crop = workspace.crop
-  const { handleWheelZoom } = workspace
-  const previewRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const element = previewRef.current
-    if (!element) return
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      handleWheelZoom(event.deltaY)
-    }
-    element.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      element.removeEventListener('wheel', handleWheel)
-    }
-  }, [handleWheelZoom])
 
   return (
-    <Card title="3. 裁剪与预览">
+    <Card title="裁剪与结果" className="image-control-card">
       {processed && crop ? (
-        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <div
-            ref={previewRef}
-            className="image-preview-well"
-            aria-label="裁剪预览"
-          >
+        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+          <div className="image-result-preview" aria-label="裁剪结果预览">
             {preview ? (
-              <img
-                src={preview.url}
-                alt="裁剪预览"
-                style={{ transform: `scale(${workspace.previewZoom})` }}
-              />
+              <img src={preview.url} alt="裁剪结果预览" />
             ) : null}
           </div>
 
@@ -105,12 +80,10 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
             </label>
           </div>
 
-          <Text type="secondary">
-            当前裁剪：{crop.x}, {crop.y}, {crop.width} × {crop.height}
-          </Text>
+          <Text type="secondary">当前裁剪：{crop.x}, {crop.y}, {crop.width} × {crop.height}</Text>
         </Space>
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传并完成抠图后，这里会显示裁剪预览。" />
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后显示裁剪结果。" />
       )}
     </Card>
   )
