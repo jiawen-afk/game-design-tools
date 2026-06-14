@@ -3,7 +3,7 @@ import { Empty, Slider, Space, Switch, Typography } from 'antd'
 import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
-import { getPreviewAnchorFromStagePoint } from './imageProcessingModel'
+import { getPreviewAnchorFromStagePoint, MIN_PREVIEW_ZOOM } from './imageProcessingModel'
 
 const { Text } = Typography
 
@@ -111,7 +111,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
         <Space size={10} className="image-preview-zoom">
           <Text>缩放 {workspace.previewZoom.toFixed(2)}x</Text>
           <Slider
-            min={0.5}
+            min={MIN_PREVIEW_ZOOM}
             max={3}
             step={0.1}
             value={workspace.previewZoom}

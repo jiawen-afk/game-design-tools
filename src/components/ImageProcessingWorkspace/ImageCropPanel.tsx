@@ -1,6 +1,12 @@
-import { Card, Empty, InputNumber, Slider, Space, Typography } from 'antd'
+import { Card, Empty, Slider, Space, Typography } from 'antd'
 
-import { MAX_IMAGE_EXPORT_SIZE, normalizeCropBox, type CropBox } from './imageProcessingModel'
+import { CommittedNumberInput } from './CommittedNumberInput'
+import {
+  MAX_IMAGE_EXPORT_SIZE,
+  MIN_PREVIEW_ZOOM,
+  normalizeCropBox,
+  type CropBox,
+} from './imageProcessingModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -26,7 +32,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
           <label className="image-field">
             <span>预览缩放：{workspace.previewZoom.toFixed(2)}x</span>
             <Slider
-              min={0.5}
+              min={MIN_PREVIEW_ZOOM}
               max={3}
               step={0.1}
               value={workspace.previewZoom}
@@ -37,49 +43,49 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
           <div className="image-crop-controls">
             <label className="image-field">
               <span>X</span>
-              <InputNumber
+              <CommittedNumberInput
                 min={0}
                 max={processed.width}
                 value={crop.x}
-                onChange={(value) => updateCrop(workspace, { x: value ?? crop.x })}
+                onCommit={(value) => updateCrop(workspace, { x: value })}
               />
             </label>
             <label className="image-field">
               <span>Y</span>
-              <InputNumber
+              <CommittedNumberInput
                 min={0}
                 max={processed.height}
                 value={crop.y}
-                onChange={(value) => updateCrop(workspace, { y: value ?? crop.y })}
+                onCommit={(value) => updateCrop(workspace, { y: value })}
               />
             </label>
             <label className="image-field">
               <span>宽度</span>
-              <InputNumber
+              <CommittedNumberInput
                 min={workspace.minCropSize}
                 max={processed.width}
                 value={crop.width}
-                onChange={(value) => updateCrop(workspace, { width: value ?? crop.width })}
+                onCommit={(value) => updateCrop(workspace, { width: value })}
               />
             </label>
             <label className="image-field">
               <span>高度</span>
-              <InputNumber
+              <CommittedNumberInput
                 min={workspace.minCropSize}
                 max={processed.height}
                 value={crop.height}
-                onChange={(value) => updateCrop(workspace, { height: value ?? crop.height })}
+                onCommit={(value) => updateCrop(workspace, { height: value })}
               />
             </label>
             <label className="image-field image-crop-ratio-field">
               <span>宽高比</span>
-              <InputNumber
+              <CommittedNumberInput
                 min={0.0001}
                 max={MAX_IMAGE_EXPORT_SIZE}
                 step={0.0001}
                 precision={4}
                 value={workspace.cropAspectRatio}
-                onChange={workspace.updateCropAspectRatio}
+                onCommit={workspace.updateCropAspectRatio}
               />
             </label>
           </div>

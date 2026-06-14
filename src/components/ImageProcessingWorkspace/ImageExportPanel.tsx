@@ -1,6 +1,7 @@
-import { Button, Card, InputNumber, Select, Slider, Space, Typography } from 'antd'
+import { Button, Card, Select, Slider, Space, Typography } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 
+import { CommittedNumberInput } from './CommittedNumberInput'
 import {
   getExportFormatInfo,
   MAX_IMAGE_EXPORT_SIZE,
@@ -49,13 +50,13 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
               value={workspace.exportScale}
               onChange={workspace.setExportScale}
             />
-            <InputNumber
+            <CommittedNumberInput
               min={MIN_IMAGE_EXPORT_SCALE}
               max={MAX_IMAGE_EXPORT_SCALE}
-              step={0.05}
-              precision={2}
+              step={0.001}
+              precision={3}
               value={workspace.exportScale}
-              onChange={(value) => workspace.setExportScale(value ?? workspace.exportScale)}
+              onCommit={workspace.setExportScale}
               addonAfter="x"
             />
           </div>
@@ -64,20 +65,20 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
         <div className="image-export-size-grid image-export-size-preview">
           <label className="image-field">
             <span>宽度</span>
-            <InputNumber
+            <CommittedNumberInput
               min={MIN_IMAGE_EXPORT_SIZE}
               max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.width}
-              onChange={(value) => workspace.updateExportDimension('width', value)}
+              onCommit={(value) => workspace.updateExportDimension('width', value)}
             />
           </label>
           <label className="image-field">
             <span>高度</span>
-            <InputNumber
+            <CommittedNumberInput
               min={MIN_IMAGE_EXPORT_SIZE}
               max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.height}
-              onChange={(value) => workspace.updateExportDimension('height', value)}
+              onCommit={(value) => workspace.updateExportDimension('height', value)}
             />
           </label>
         </div>

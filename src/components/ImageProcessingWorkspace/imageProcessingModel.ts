@@ -47,7 +47,7 @@ export const MIN_IMAGE_EXPORT_SIZE = 1
 export const MAX_IMAGE_EXPORT_SIZE = 8192
 export const MIN_IMAGE_EXPORT_SCALE = 0.1
 export const MAX_IMAGE_EXPORT_SCALE = 4
-export const MIN_PREVIEW_ZOOM = 0.5
+export const MIN_PREVIEW_ZOOM = 0.1
 export const MAX_PREVIEW_ZOOM = 3
 export const PREVIEW_ZOOM_STEP = 0.1
 
@@ -152,7 +152,7 @@ export function getCropBoxAfterAspectRatioChange(
 
 export function normalizeExportScale(scale: number): number {
   const next = finiteOr(scale, 1)
-  return Math.min(MAX_IMAGE_EXPORT_SCALE, Math.max(MIN_IMAGE_EXPORT_SCALE, Number(next.toFixed(2))))
+  return Math.min(MAX_IMAGE_EXPORT_SCALE, Math.max(MIN_IMAGE_EXPORT_SCALE, Number(next.toFixed(3))))
 }
 
 export function getExportScaleAfterDimensionChange(baseSize: RectSize, dimension: ExportDimension, value: number): number {

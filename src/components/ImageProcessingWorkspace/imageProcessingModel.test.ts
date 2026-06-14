@@ -14,6 +14,7 @@ import {
   isSupportedImageFile,
   mapPreviewPointToImagePixel,
   normalizeCropBox,
+  normalizeExportScale,
   normalizeExportSize,
   clampPreviewRect,
   fitContainedImageRect,
@@ -94,6 +95,11 @@ test('image processing workspace scales export size proportionally from the crop
   assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 0), { width: 32, height: 18 })
 })
 
+test('image processing workspace keeps export scale at three-decimal precision', () => {
+  assert.equal(normalizeExportScale(0.1234), 0.123)
+  assert.equal(normalizeExportScale(0.0001), 0.1)
+})
+
 test('image processing workspace derives export scale from a target width', () => {
   const scale = getExportScaleAfterDimensionChange({ width: 320, height: 180 }, 'width', 640)
 
@@ -118,7 +124,7 @@ test('image processing workspace clamps derived export scale to the export limit
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {
   assert.equal(applyWheelZoom(1, -120), 1.1)
   assert.equal(applyWheelZoom(1, 120), 0.9)
-  assert.equal(applyWheelZoom(0.5, 120), 0.5)
+  assert.equal(applyWheelZoom(0.1, 120), 0.1)
   assert.equal(applyWheelZoom(3, -120), 3)
 })
 
@@ -165,7 +171,7 @@ test('image processing workspace keeps zoom changes bounded for repeated wheel i
   for (let i = 0; i < 40; i += 1) {
     zoom = applyWheelZoom(zoom, 120)
   }
-  assert.equal(zoom, 0.5)
+  assert.equal(zoom, 0.1)
 })
 
 test('image processing workspace maps preview clicks back to source pixels', () => {
