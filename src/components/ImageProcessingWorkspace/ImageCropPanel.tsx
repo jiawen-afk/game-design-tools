@@ -1,6 +1,6 @@
 import { Card, Empty, InputNumber, Slider, Space, Typography } from 'antd'
 
-import { clampCropBox, normalizeCropBox, type CropBox } from './imageProcessingModel'
+import { normalizeCropBox, type CropBox } from './imageProcessingModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -24,7 +24,14 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
     <Card title="3. 裁剪与预览">
       {processed && crop ? (
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
-          <div className="image-preview-well" aria-label="裁剪预览">
+          <div
+            className="image-preview-well"
+            aria-label="裁剪预览"
+            onWheel={(event) => {
+              event.preventDefault()
+              workspace.handleWheelZoom(event.deltaY)
+            }}
+          >
             {preview ? (
               <img
                 src={preview.url}

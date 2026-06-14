@@ -2,11 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  applyWheelZoom,
   clampCropBox,
   deriveExportFileName,
   getExportFormatInfo,
   isSupportedImageFile,
+  mapPreviewPointToImagePixel,
   normalizeCropBox,
+  sampleImagePixel,
 } from './imageProcessingModel'
 
 test('image processing workspace accepts common raster image formats', () => {
@@ -51,4 +54,41 @@ test('image processing workspace derives export filenames from source image name
   assert.equal(deriveExportFileName('hero.walk.png', 'webp'), 'hero.walk-processed.webp')
   assert.equal(deriveExportFileName('bad/name?.jpg', 'png'), 'bad_name_-processed.png')
   assert.equal(deriveExportFileName('', 'jpeg'), 'image-processed.jpeg')
+})
+
+test('image processing workspace zooms with mouse wheel and clamps the result', () => {
+  assert.equal(applyWheelZoom(1, -120), 1.1)
+  assert.equal(applyWheelZoom(1, 120), 0.9)
+  assert.equal(applyWheelZoom(0.5, 120), 0.5)
+  assert.equal(applyWheelZoom(3, -120), 3)
+})
+
+test('image processing workspace maps preview clicks back to source pixels', () => {
+  assert.deepEqual(
+    mapPreviewPointToImagePixel(
+      { x: 60, y: 40 },
+      { x: 10, y: 20, width: 200, height: 100 },
+      { width: 400, height: 200 }
+    ),
+    { x: 100, y: 40 }
+  )
+  assert.deepEqual(
+    mapPreviewPointToImagePixel(
+      { x: 260, y: 140 },
+      { x: 10, y: 20, width: 200, height: 100 },
+      { width: 400, height: 200 }
+    ),
+    { x: 399, y: 199 }
+  )
+})
+
+test('image processing workspace samples rgb values from image data', () => {
+  const data = new Uint8ClampedArray([
+    12, 34, 56, 255,
+    80, 90, 100, 255,
+    130, 140, 150, 255,
+    200, 210, 220, 255,
+  ])
+  assert.deepEqual(sampleImagePixel({ data, width: 2, height: 2 }, { x: 1, y: 0 }), [80, 90, 100])
+  assert.deepEqual(sampleImagePixel({ data, width: 2, height: 2 }, { x: 9, y: 9 }), [200, 210, 220])
 })

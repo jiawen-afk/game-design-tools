@@ -3,8 +3,10 @@ import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 import {
   clampCropBox,
   getExportFormatInfo,
+  sampleImagePixel,
   type CropBox,
   type ImageExportFormat,
+  type Point,
 } from './imageProcessingModel'
 
 export interface LoadedImageDraft {
@@ -53,6 +55,17 @@ export async function renderCroppedImageUrl(sourceUrl: string, crop: CropBox): P
   ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, safeCrop.width, safeCrop.height)
   const blob = await canvasToFormatBlob(canvas, 'png')
   return { url: URL.createObjectURL(blob), width: safeCrop.width, height: safeCrop.height }
+}
+
+export async function sampleSourceImagePixel(sourceUrl: string, point: Point): Promise<[number, number, number]> {
+  const img = await loadImage(sourceUrl)
+  const canvas = document.createElement('canvas')
+  canvas.width = img.naturalWidth
+  canvas.height = img.naturalHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('无法创建取色画布')
+  ctx.drawImage(img, 0, 0)
+  return sampleImagePixel(ctx.getImageData(0, 0, canvas.width, canvas.height), point)
 }
 
 export async function exportProcessedImage(

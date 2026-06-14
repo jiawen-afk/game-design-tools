@@ -12,6 +12,25 @@ export interface CropBox {
   height: number
 }
 
+export interface Point {
+  x: number
+  y: number
+}
+
+export interface RectSize {
+  width: number
+  height: number
+}
+
+export interface PreviewRect extends RectSize {
+  x: number
+  y: number
+}
+
+export interface RgbaImageData extends RectSize {
+  data: Uint8ClampedArray
+}
+
 export interface ExportFormatInfo {
   extension: ImageExportFormat
   mimeType: 'image/png' | 'image/webp' | 'image/jpeg'
@@ -20,6 +39,9 @@ export interface ExportFormatInfo {
 
 export const IMAGE_PROCESSING_ACCEPT = ['.webp', '.jpg', '.jpeg', '.png']
 export const MIN_IMAGE_CROP_SIZE = 16
+export const MIN_PREVIEW_ZOOM = 0.5
+export const MAX_PREVIEW_ZOOM = 3
+export const PREVIEW_ZOOM_STEP = 0.1
 
 const supportedExtensions = new Set(['webp', 'jpg', 'jpeg', 'png'])
 const supportedMimeTypes = new Set(['image/webp', 'image/jpeg', 'image/png'])
@@ -74,4 +96,37 @@ export function sanitizeExportBaseName(name: string): string {
 
 export function deriveExportFileName(sourceName: string, format: ImageExportFormat): string {
   return `${sanitizeExportBaseName(sourceName)}-processed.${getExportFormatInfo(format).extension}`
+}
+
+export function applyWheelZoom(currentZoom: number, deltaY: number): number {
+  if (deltaY === 0) return currentZoom
+  const direction = deltaY > 0 ? -1 : 1
+  const next = finiteOr(currentZoom, 1) + direction * PREVIEW_ZOOM_STEP
+  return Math.min(MAX_PREVIEW_ZOOM, Math.max(MIN_PREVIEW_ZOOM, Number(next.toFixed(2))))
+}
+
+export function mapPreviewPointToImagePixel(point: Point, previewRect: PreviewRect, imageSize: RectSize): Point {
+  const width = Math.max(1, Math.round(imageSize.width))
+  const height = Math.max(1, Math.round(imageSize.height))
+  const previewWidth = Math.max(1, previewRect.width)
+  const previewHeight = Math.max(1, previewRect.height)
+  const relativeX = (point.x - previewRect.x) / previewWidth
+  const relativeY = (point.y - previewRect.y) / previewHeight
+  return {
+    x: Math.min(width - 1, Math.max(0, Math.round(relativeX * width))),
+    y: Math.min(height - 1, Math.max(0, Math.round(relativeY * height))),
+  }
+}
+
+export function sampleImagePixel(imageData: RgbaImageData, point: Point): [number, number, number] {
+  const width = Math.max(1, Math.round(imageData.width))
+  const height = Math.max(1, Math.round(imageData.height))
+  const x = Math.min(width - 1, Math.max(0, Math.round(point.x)))
+  const y = Math.min(height - 1, Math.max(0, Math.round(point.y)))
+  const index = (y * width + x) * 4
+  return [
+    imageData.data[index] ?? 0,
+    imageData.data[index + 1] ?? 0,
+    imageData.data[index + 2] ?? 0,
+  ]
 }

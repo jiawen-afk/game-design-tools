@@ -3,18 +3,23 @@ import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
+  applyWheelZoom,
   createFullImageCrop,
   deriveExportFileName,
   isSupportedImageFile,
+  mapPreviewPointToImagePixel,
   MIN_IMAGE_CROP_SIZE,
   type CropBox,
   type ImageExportFormat,
+  type PreviewRect,
+  type Point,
 } from './imageProcessingModel'
 import {
   applyImageMatte,
   createImageDraft,
   exportProcessedImage,
   renderCroppedImageUrl,
+  sampleSourceImagePixel,
   type LoadedImageDraft,
   type ProcessedImageDraft,
 } from './imageProcessingPipeline'
@@ -144,6 +149,22 @@ export function useImageProcessingWorkspace() {
     setMatte((current) => ({ ...current, [key]: value }))
   }
 
+  const handleWheelZoom = (deltaY: number) => {
+    setPreviewZoom((current) => applyWheelZoom(current, deltaY))
+  }
+
+  const pickKeyColorFromSource = async (point: Point, previewRect: PreviewRect) => {
+    if (!draft) return
+    try {
+      const imagePoint = mapPreviewPointToImagePixel(point, previewRect, { width: draft.width, height: draft.height })
+      const keyColor = await sampleSourceImagePixel(draft.sourceUrl, imagePoint)
+      updateMatte('keyColor', keyColor)
+      message.success(`已取色：rgb(${keyColor.join(', ')})`)
+    } catch (error) {
+      message.error(`取色失败：${String(error)}`)
+    }
+  }
+
   const exportImage = async () => {
     if (!processed || !crop) return
     setExporting(true)
@@ -187,6 +208,8 @@ export function useImageProcessingWorkspace() {
     minCropSize: MIN_IMAGE_CROP_SIZE,
     uploadImage,
     updateMatte,
+    handleWheelZoom,
+    pickKeyColorFromSource,
     exportImage,
   }
 }
