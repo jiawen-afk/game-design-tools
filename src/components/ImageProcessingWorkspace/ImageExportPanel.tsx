@@ -1,7 +1,12 @@
-import { Button, Card, Select, Space, Typography } from 'antd'
-import { DownloadOutlined } from '@ant-design/icons'
+import { Button, Card, InputNumber, Select, Space, Switch, Typography } from 'antd'
+import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 
-import { getExportFormatInfo, type ImageExportFormat } from './imageProcessingModel'
+import {
+  getExportFormatInfo,
+  MAX_IMAGE_EXPORT_SIZE,
+  MIN_IMAGE_EXPORT_SIZE,
+  type ImageExportFormat,
+} from './imageProcessingModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -32,6 +37,54 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
             onChange={workspace.setExportFormat}
           />
         </label>
+        <div className="image-export-size-toolbar">
+          <Text strong>导出尺寸</Text>
+          <Space size={8}>
+            <Switch
+              checked={workspace.exportAspectLocked}
+              onChange={workspace.setExportAspectLocked}
+            />
+            <Text>锁定比例</Text>
+          </Space>
+        </div>
+        <div className="image-export-size-grid">
+          <label className="image-field">
+            <span>宽度</span>
+            <InputNumber
+              min={MIN_IMAGE_EXPORT_SIZE}
+              max={MAX_IMAGE_EXPORT_SIZE}
+              value={workspace.exportSize.width}
+              onChange={(value) => workspace.updateExportDimension('width', value)}
+            />
+          </label>
+          <label className="image-field">
+            <span>高度</span>
+            <InputNumber
+              min={MIN_IMAGE_EXPORT_SIZE}
+              max={MAX_IMAGE_EXPORT_SIZE}
+              value={workspace.exportSize.height}
+              onChange={(value) => workspace.updateExportDimension('height', value)}
+            />
+          </label>
+          <label className="image-field image-export-ratio-field">
+            <span>宽高比</span>
+            <InputNumber
+              min={0.0001}
+              max={MAX_IMAGE_EXPORT_SIZE}
+              step={0.0001}
+              precision={4}
+              value={workspace.exportAspectRatio}
+              onChange={workspace.updateExportAspectRatio}
+            />
+          </label>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={workspace.resetExportSizeToCrop}
+            disabled={!workspace.crop}
+          >
+            匹配裁剪
+          </Button>
+        </div>
         <Text type="secondary">导出文件名：{workspace.exportName}</Text>
         <Button
           type="primary"

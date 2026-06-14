@@ -41,6 +41,8 @@ export interface ExportFormatInfo {
 
 export const IMAGE_PROCESSING_ACCEPT = ['.webp', '.jpg', '.jpeg', '.png']
 export const MIN_IMAGE_CROP_SIZE = 16
+export const MIN_IMAGE_EXPORT_SIZE = 1
+export const MAX_IMAGE_EXPORT_SIZE = 8192
 export const MIN_PREVIEW_ZOOM = 0.5
 export const MAX_PREVIEW_ZOOM = 3
 export const PREVIEW_ZOOM_STEP = 0.1
@@ -98,6 +100,55 @@ export function sanitizeExportBaseName(name: string): string {
 
 export function deriveExportFileName(sourceName: string, format: ImageExportFormat): string {
   return `${sanitizeExportBaseName(sourceName)}-processed.${getExportFormatInfo(format).extension}`
+}
+
+export function normalizeExportSize(size: RectSize, fallback: RectSize = { width: 1, height: 1 }): RectSize {
+  const fallbackWidth = Math.max(MIN_IMAGE_EXPORT_SIZE, Math.round(finiteOr(fallback.width, 1)))
+  const fallbackHeight = Math.max(MIN_IMAGE_EXPORT_SIZE, Math.round(finiteOr(fallback.height, 1)))
+  const rawWidth = Math.round(finiteOr(size.width, fallbackWidth))
+  const rawHeight = Math.round(finiteOr(size.height, fallbackHeight))
+  const width = rawWidth > 0 ? rawWidth : fallbackWidth
+  const height = rawHeight > 0 ? rawHeight : fallbackHeight
+  return {
+    width: Math.min(MAX_IMAGE_EXPORT_SIZE, Math.max(MIN_IMAGE_EXPORT_SIZE, width)),
+    height: Math.min(MAX_IMAGE_EXPORT_SIZE, Math.max(MIN_IMAGE_EXPORT_SIZE, height)),
+  }
+}
+
+export function getAspectRatioValue(size: RectSize): number {
+  const normalized = normalizeExportSize(size)
+  return Number((normalized.width / normalized.height).toFixed(4))
+}
+
+export function getExportSizeAfterDimensionChange(
+  currentSize: RectSize,
+  dimension: 'width' | 'height',
+  value: number,
+  locked: boolean
+): RectSize {
+  const current = normalizeExportSize(currentSize)
+  const nextValue = normalizeExportSize(
+    dimension === 'width'
+      ? { width: value, height: current.height }
+      : { width: current.width, height: value },
+    current
+  )[dimension]
+
+  if (!locked) {
+    return normalizeExportSize({ ...current, [dimension]: nextValue })
+  }
+
+  const ratio = current.width / Math.max(1, current.height)
+  if (dimension === 'width') {
+    return normalizeExportSize({ width: nextValue, height: nextValue / ratio }, current)
+  }
+  return normalizeExportSize({ width: nextValue * ratio, height: nextValue }, current)
+}
+
+export function getExportSizeAfterAspectRatioChange(currentSize: RectSize, aspectRatio: number): RectSize {
+  const current = normalizeExportSize(currentSize)
+  const ratio = Math.max(0.0001, finiteOr(aspectRatio, getAspectRatioValue(current)))
+  return normalizeExportSize({ width: current.width, height: current.width / ratio }, current)
 }
 
 export function applyWheelZoom(currentZoom: number, deltaY: number): number {

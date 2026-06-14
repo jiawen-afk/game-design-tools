@@ -7,6 +7,7 @@ import {
   type CropBox,
   type ImageExportFormat,
   type Point,
+  type RectSize,
 } from './imageProcessingModel'
 
 export interface LoadedImageDraft {
@@ -72,13 +73,16 @@ export async function exportProcessedImage(
   sourceUrl: string,
   crop: CropBox,
   format: ImageExportFormat,
+  outputSize?: RectSize,
   matteBackground = '#ffffff'
 ): Promise<Blob> {
   const img = await loadImage(sourceUrl)
   const safeCrop = clampCropBox(crop, img.naturalWidth, img.naturalHeight)
+  const targetWidth = outputSize?.width ?? safeCrop.width
+  const targetHeight = outputSize?.height ?? safeCrop.height
   const canvas = document.createElement('canvas')
-  canvas.width = safeCrop.width
-  canvas.height = safeCrop.height
+  canvas.width = targetWidth
+  canvas.height = targetHeight
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('无法创建导出画布')
   const formatInfo = getExportFormatInfo(format)
@@ -86,7 +90,7 @@ export async function exportProcessedImage(
     ctx.fillStyle = matteBackground
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
-  ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, safeCrop.width, safeCrop.height)
+  ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, targetWidth, targetHeight)
   return canvasToFormatBlob(canvas, format)
 }
 

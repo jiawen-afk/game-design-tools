@@ -12,13 +12,18 @@ import {
   getDraggedPreviewRect,
   getCropBoxFromPreviewRect,
   getPreviewRectFromCropBox,
+  getAspectRatioValue,
+  getExportSizeAfterAspectRatioChange,
+  getExportSizeAfterDimensionChange,
   mapPreviewPointToImagePixel,
   MIN_IMAGE_CROP_SIZE,
+  normalizeExportSize,
   type ImageCropHandle,
   type PreviewRect,
   type CropBox,
   type ImageExportFormat,
   type Point,
+  type RectSize,
 } from './imageProcessingModel'
 import {
   applyImageMatte,
@@ -59,6 +64,9 @@ export function useImageProcessingWorkspace() {
     startPreviewRect: PreviewRect
   } | null>(null)
   const [exportFormat, setExportFormat] = useState<ImageExportFormat>('png')
+  const [exportSize, setExportSize] = useState<RectSize>({ width: 1, height: 1 })
+  const [exportAspectLocked, setExportAspectLocked] = useState(true)
+  const [exportSizeTouched, setExportSizeTouched] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
 
@@ -133,6 +141,11 @@ export function useImageProcessingWorkspace() {
     }
   }, [crop, processed])
 
+  useEffect(() => {
+    if (!crop || exportSizeTouched) return
+    setExportSize(normalizeExportSize({ width: crop.width, height: crop.height }))
+  }, [crop, exportSizeTouched])
+
   const previewImageRect = useMemo(() => {
     const previewSource = processed ?? draft
     if (!previewSource || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
@@ -185,10 +198,15 @@ export function useImageProcessingWorkspace() {
     }
     const onUp = (event: MouseEvent) => {
       const nextDraftRect = getNextDraftRect(event)
-      setCrop(getCropBoxFromPreviewRect(nextDraftRect, previewImageRect, {
+      const nextCrop = getCropBoxFromPreviewRect(nextDraftRect, previewImageRect, {
         width: processed.width,
         height: processed.height,
-      }))
+      })
+      setCrop(nextCrop)
+      setExportSize((current) => exportSizeTouched ? current : normalizeExportSize({
+        width: nextCrop.width,
+        height: nextCrop.height,
+      }, current))
       setCropDraftRect(null)
       setCropDrag(null)
     }
@@ -198,13 +216,14 @@ export function useImageProcessingWorkspace() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [cropDrag, minPreviewCropSize, previewImageRect, previewZoom, processed])
+  }, [cropDrag, exportSizeTouched, minPreviewCropSize, previewImageRect, previewZoom, processed])
 
   const canExport = Boolean(processed && crop)
   const exportName = useMemo(
     () => deriveExportFileName(draft?.sourceName ?? '', exportFormat),
     [draft?.sourceName, exportFormat]
   )
+  const exportAspectRatio = useMemo(() => getAspectRatioValue(exportSize), [exportSize])
 
   const uploadImage = async (file: File) => {
     if (!isSupportedImageFile(file)) {
@@ -219,6 +238,9 @@ export function useImageProcessingWorkspace() {
       })
       setProcessed(null)
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
+      setExportSize(normalizeExportSize({ width: nextDraft.width, height: nextDraft.height }))
+      setExportAspectLocked(true)
+      setExportSizeTouched(false)
       setCropDraftRect(null)
       setCropDrag(null)
       setPreviewZoom(1)
@@ -235,6 +257,28 @@ export function useImageProcessingWorkspace() {
   const handleWheelZoom = useCallback((deltaY: number) => {
     setPreviewZoom((current) => applyWheelZoom(current, deltaY))
   }, [])
+
+  const updateExportDimension = (dimension: 'width' | 'height', value: number | null) => {
+    setExportSizeTouched(true)
+    setExportSize((current) => getExportSizeAfterDimensionChange(
+      current,
+      dimension,
+      value ?? current[dimension],
+      exportAspectLocked
+    ))
+  }
+
+  const updateExportAspectRatio = (value: number | null) => {
+    if (!value) return
+    setExportSizeTouched(true)
+    setExportSize((current) => getExportSizeAfterAspectRatioChange(current, value))
+  }
+
+  const resetExportSizeToCrop = () => {
+    if (!crop) return
+    setExportSize(normalizeExportSize({ width: crop.width, height: crop.height }))
+    setExportSizeTouched(false)
+  }
 
   const setCropPreviewContainerSize = useCallback((size: { width: number; height: number }) => {
     setCropPreviewSize((current) => {
@@ -259,7 +303,7 @@ export function useImageProcessingWorkspace() {
     if (!processed || !crop) return
     setExporting(true)
     try {
-      const blob = await exportProcessedImage(processed.url, crop, exportFormat)
+      const blob = await exportProcessedImage(processed.url, crop, exportFormat, exportSize)
       const api = getDesktopApi()
       if (api) {
         const saved = await api.saveFile(exportName, await blob.arrayBuffer())
@@ -302,6 +346,10 @@ export function useImageProcessingWorkspace() {
     setCropDrag,
     exportFormat,
     setExportFormat,
+    exportSize,
+    exportAspectRatio,
+    exportAspectLocked,
+    setExportAspectLocked,
     exportName,
     processing,
     exporting,
@@ -310,6 +358,9 @@ export function useImageProcessingWorkspace() {
     uploadImage,
     updateMatte,
     handleWheelZoom,
+    updateExportDimension,
+    updateExportAspectRatio,
+    resetExportSizeToCrop,
     pickKeyColorFromSource,
     exportImage,
   }

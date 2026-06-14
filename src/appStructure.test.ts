@@ -61,6 +61,16 @@ test('image processing workspace keeps crop result stage on the right and contro
   assert.doesNotMatch(sideSource, /<ImageCropResultStage workspace=\{workspace\} \/>/)
 })
 
+test('image export panel supports size, aspect ratio, and locked sync controls', () => {
+  const source = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
+
+  assert.match(source, /<Switch[\s\S]*checked=\{workspace\.exportAspectLocked\}[\s\S]*onChange=\{workspace\.setExportAspectLocked\}/)
+  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportSize\.width\}[\s\S]*onChange=\{\(value\) => workspace\.updateExportDimension\('width', value\)\}/)
+  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportSize\.height\}[\s\S]*onChange=\{\(value\) => workspace\.updateExportDimension\('height', value\)\}/)
+  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportAspectRatio\}[\s\S]*onChange=\{workspace\.updateExportAspectRatio\}/)
+  assert.match(source, /onClick=\{workspace\.resetExportSizeToCrop\}/)
+})
+
 test('personal space is global navigation instead of a tool list item', () => {
   const source = appSource()
 

@@ -5,10 +5,14 @@ import {
   applyWheelZoom,
   clampCropBox,
   deriveExportFileName,
+  getAspectRatioValue,
+  getExportSizeAfterAspectRatioChange,
+  getExportSizeAfterDimensionChange,
   getExportFormatInfo,
   isSupportedImageFile,
   mapPreviewPointToImagePixel,
   normalizeCropBox,
+  normalizeExportSize,
   clampPreviewRect,
   fitContainedImageRect,
   getDraggedPreviewRect,
@@ -59,6 +63,25 @@ test('image processing workspace derives export filenames from source image name
   assert.equal(deriveExportFileName('hero.walk.png', 'webp'), 'hero.walk-processed.webp')
   assert.equal(deriveExportFileName('bad/name?.jpg', 'png'), 'bad_name_-processed.png')
   assert.equal(deriveExportFileName('', 'jpeg'), 'image-processed.jpeg')
+})
+
+test('image processing workspace normalizes export sizes for image output', () => {
+  assert.deepEqual(normalizeExportSize({ width: 120.4, height: 64.6 }), { width: 120, height: 65 })
+  assert.deepEqual(normalizeExportSize({ width: 0, height: Number.NaN }, { width: 320, height: 180 }), { width: 320, height: 180 })
+})
+
+test('image processing workspace links export dimensions when aspect ratio is locked', () => {
+  const current = { width: 320, height: 180 }
+
+  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'width', 640, true), { width: 640, height: 360 })
+  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'height', 90, true), { width: 160, height: 90 })
+  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'width', 640, false), { width: 640, height: 180 })
+})
+
+test('image processing workspace exposes editable export aspect ratio', () => {
+  assert.equal(getAspectRatioValue({ width: 1920, height: 1080 }), 1.7778)
+  assert.deepEqual(getExportSizeAfterAspectRatioChange({ width: 320, height: 180 }, 1), { width: 320, height: 320 })
+  assert.deepEqual(getExportSizeAfterAspectRatioChange({ width: 320, height: 180 }, 2), { width: 320, height: 160 })
 })
 
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {
