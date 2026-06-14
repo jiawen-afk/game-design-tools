@@ -273,6 +273,26 @@ export function useImageProcessingWorkspace() {
     setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
   }, [])
 
+  const resetWorkspace = useCallback(() => {
+    setDraft((previous) => {
+      if (previous) URL.revokeObjectURL(previous.sourceUrl)
+      return null
+    })
+    setProcessed((previous) => {
+      if (previous) URL.revokeObjectURL(previous.url)
+      return null
+    })
+    setCropPreview((previous) => {
+      if (previous) URL.revokeObjectURL(previous.url)
+      return null
+    })
+    setCrop(null)
+    setCropDraftRect(null)
+    setCropDrag(null)
+    setExportScaleState(1)
+    setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
+  }, [])
+
   const updateCropAspectRatio = (value: number | null) => {
     if (!value || !crop || !processed) return
     setCrop(getCropBoxAfterAspectRatioChange(crop, processed.width, processed.height, value, MIN_IMAGE_CROP_SIZE))
@@ -370,6 +390,7 @@ export function useImageProcessingWorkspace() {
     updateMatte,
     handleWheelZoom,
     resetPreviewTransform,
+    resetWorkspace,
     updateCropAspectRatio,
     pickKeyColorFromSource,
     exportImage,
