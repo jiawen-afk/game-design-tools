@@ -63,6 +63,18 @@ test('image processing workspace zooms with mouse wheel and clamps the result', 
   assert.equal(applyWheelZoom(3, -120), 3)
 })
 
+test('image processing workspace keeps zoom changes bounded for repeated wheel input', () => {
+  let zoom = 1
+  for (let i = 0; i < 20; i += 1) {
+    zoom = applyWheelZoom(zoom, -120)
+  }
+  assert.equal(zoom, 3)
+  for (let i = 0; i < 40; i += 1) {
+    zoom = applyWheelZoom(zoom, 120)
+  }
+  assert.equal(zoom, 0.5)
+})
+
 test('image processing workspace maps preview clicks back to source pixels', () => {
   assert.deepEqual(
     mapPreviewPointToImagePixel(

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Card, Empty, InputNumber, Slider, Space, Typography } from 'antd'
 
 import { normalizeCropBox, type CropBox } from './imageProcessingModel'
@@ -19,18 +20,31 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
   const preview = workspace.cropPreview
   const processed = workspace.processed
   const crop = workspace.crop
+  const { handleWheelZoom } = workspace
+  const previewRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const element = previewRef.current
+    if (!element) return
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      handleWheelZoom(event.deltaY)
+    }
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      element.removeEventListener('wheel', handleWheel)
+    }
+  }, [handleWheelZoom])
 
   return (
     <Card title="3. 裁剪与预览">
       {processed && crop ? (
         <Space orientation="vertical" size={14} style={{ width: '100%' }}>
           <div
+            ref={previewRef}
             className="image-preview-well"
             aria-label="裁剪预览"
-            onWheel={(event) => {
-              event.preventDefault()
-              workspace.handleWheelZoom(event.deltaY)
-            }}
           >
             {preview ? (
               <img
