@@ -72,6 +72,21 @@
   width: 100%;
 }
 
+.image-export-scale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+  align-items: center;
+}
+
+.image-export-scale-row .ant-slider {
+  margin: 0;
+}
+
+.image-export-scale-row .ant-input-number {
+  width: 100%;
+}
+
 .image-crop-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(96px, 1fr));

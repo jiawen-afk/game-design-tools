@@ -15,6 +15,7 @@ import {
   getAnchoredWheelZoomTransform,
   getAspectRatioValue,
   getCropBoxAfterAspectRatioChange,
+  getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
   mapPreviewPointToImagePixel,
   MIN_IMAGE_CROP_SIZE,
@@ -22,6 +23,7 @@ import {
   type ImageCropHandle,
   type PreviewRect,
   type CropBox,
+  type ExportDimension,
   type ImageExportFormat,
   type Point,
   type RectSize,
@@ -282,6 +284,11 @@ export function useImageProcessingWorkspace() {
     ))
   }, [])
 
+  const updateExportDimension = useCallback((dimension: ExportDimension, value: number | null) => {
+    if (!crop || value === null) return
+    setExportScaleState(getExportScaleAfterDimensionChange(crop, dimension, value))
+  }, [crop])
+
   const setCropPreviewContainerSize = useCallback((size: { width: number; height: number }) => {
     setCropPreviewSize((current) => {
       if (current.width === size.width && current.height === size.height) return current
@@ -352,6 +359,7 @@ export function useImageProcessingWorkspace() {
     exportSize,
     exportScale,
     setExportScale,
+    updateExportDimension,
     cropAspectRatio,
     exportName,
     processing,

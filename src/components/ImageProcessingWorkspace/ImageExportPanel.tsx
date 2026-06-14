@@ -3,7 +3,9 @@ import { DownloadOutlined } from '@ant-design/icons'
 
 import {
   getExportFormatInfo,
+  MAX_IMAGE_EXPORT_SIZE,
   MAX_IMAGE_EXPORT_SCALE,
+  MIN_IMAGE_EXPORT_SIZE,
   MIN_IMAGE_EXPORT_SCALE,
   type ImageExportFormat,
 } from './imageProcessingModel'
@@ -38,31 +40,44 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
           />
         </label>
         <label className="image-field">
-          <span>等比缩放：{workspace.exportScale.toFixed(2)}x</span>
-          <Slider
-            min={MIN_IMAGE_EXPORT_SCALE}
-            max={MAX_IMAGE_EXPORT_SCALE}
-            step={0.05}
-            value={workspace.exportScale}
-            onChange={workspace.setExportScale}
-          />
+          <span>等比缩放</span>
+          <div className="image-export-scale-row">
+            <Slider
+              min={MIN_IMAGE_EXPORT_SCALE}
+              max={MAX_IMAGE_EXPORT_SCALE}
+              step={0.05}
+              value={workspace.exportScale}
+              onChange={workspace.setExportScale}
+            />
+            <InputNumber
+              min={MIN_IMAGE_EXPORT_SCALE}
+              max={MAX_IMAGE_EXPORT_SCALE}
+              step={0.05}
+              precision={2}
+              value={workspace.exportScale}
+              onChange={(value) => workspace.setExportScale(value ?? workspace.exportScale)}
+              addonAfter="x"
+            />
+          </div>
         </label>
-        <Text strong>导出尺寸预览</Text>
+        <Text strong>导出尺寸</Text>
         <div className="image-export-size-grid image-export-size-preview">
           <label className="image-field">
             <span>宽度</span>
             <InputNumber
+              min={MIN_IMAGE_EXPORT_SIZE}
+              max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.width}
-              readOnly
-              controls={false}
+              onChange={(value) => workspace.updateExportDimension('width', value)}
             />
           </label>
           <label className="image-field">
             <span>高度</span>
             <InputNumber
+              min={MIN_IMAGE_EXPORT_SIZE}
+              max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.height}
-              readOnly
-              controls={false}
+              onChange={(value) => workspace.updateExportDimension('height', value)}
             />
           </label>
         </div>

@@ -22,6 +22,8 @@ export interface RectSize {
   height: number
 }
 
+export type ExportDimension = 'width' | 'height'
+
 export interface PreviewRect extends RectSize {
   x: number
   y: number
@@ -151,6 +153,15 @@ export function getCropBoxAfterAspectRatioChange(
 export function normalizeExportScale(scale: number): number {
   const next = finiteOr(scale, 1)
   return Math.min(MAX_IMAGE_EXPORT_SCALE, Math.max(MIN_IMAGE_EXPORT_SCALE, Number(next.toFixed(2))))
+}
+
+export function getExportScaleAfterDimensionChange(baseSize: RectSize, dimension: ExportDimension, value: number): number {
+  const base = normalizeExportSize(baseSize)
+  const normalizedValue = Math.min(
+    MAX_IMAGE_EXPORT_SIZE,
+    Math.max(MIN_IMAGE_EXPORT_SIZE, Math.round(finiteOr(value, base[dimension])))
+  )
+  return normalizeExportScale(normalizedValue / Math.max(1, base[dimension]))
 }
 
 export function getExportSizeAfterScaleChange(baseSize: RectSize, scale: number): RectSize {
