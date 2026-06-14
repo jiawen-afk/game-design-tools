@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Empty, Slider, Space, Switch, Typography } from 'antd'
 import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
@@ -16,6 +16,7 @@ type CropHandle = NonNullable<ImageProcessingWorkspaceViewModel['cropDrag']>['ha
 export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
   const boxRef = useRef<HTMLDivElement | null>(null)
   const layerRef = useRef<HTMLDivElement | null>(null)
+  const [comparePosition, setComparePosition] = useState(50)
   const {
     draft,
     handleWheelZoom,
@@ -120,7 +121,27 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
         </Space>
       </div>
       <div className="image-preview-stage-box" ref={boxRef}>
-        {workspace.draft && imageRect ? (
+        {workspace.upscalePreview ? (
+          <div className="image-upscale-compare">
+            <img src={workspace.upscalePreview.url} alt="高清化结果" />
+            <div
+              className="image-upscale-compare-before"
+              style={{ clipPath: `inset(0 ${100 - comparePosition}% 0 0)` }}
+            >
+              <img src={workspace.upscalePreview.originalUrl} alt="普通导出预览" />
+            </div>
+            <div className="image-upscale-compare-line" style={{ left: `${comparePosition}%` }} />
+            <input
+              aria-label="左右拉动对比高清化结果"
+              type="range"
+              min={0}
+              max={100}
+              value={comparePosition}
+              onChange={(event) => setComparePosition(Number(event.target.value))}
+            />
+          </div>
+        ) : null}
+        {!workspace.upscalePreview && workspace.draft && imageRect ? (
           <div
             className="image-preview-stage-layer"
             ref={layerRef}
