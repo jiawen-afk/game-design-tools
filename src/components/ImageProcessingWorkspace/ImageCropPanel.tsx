@@ -23,7 +23,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
   return (
     <Card title="3. 裁剪与预览">
       {processed && crop ? (
-        <Space direction="vertical" size={14} style={{ width: '100%' }}>
+        <Space orientation="vertical" size={14} style={{ width: '100%' }}>
           <div className="image-preview-well" aria-label="裁剪预览">
             {preview ? (
               <img

@@ -14,7 +14,7 @@ export interface ImageUploadPanelProps {
 export function ImageUploadPanel({ workspace }: ImageUploadPanelProps) {
   return (
     <Card title="1. 上传图片">
-      <Space direction="vertical" size={14} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={14} style={{ width: '100%' }}>
         <Dragger
           accept={IMAGE_PROCESSING_ACCEPT.join(',')}
           multiple={false}

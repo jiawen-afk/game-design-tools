@@ -23,7 +23,7 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
 
   return (
     <Card title="4. 导出图片">
-      <Space direction="vertical" size={14} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={14} style={{ width: '100%' }}>
         <label className="image-field">
           <span>导出格式</span>
           <Select

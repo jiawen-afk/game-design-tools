@@ -13,7 +13,7 @@ export interface ImageMattePanelProps {
 export function ImageMattePanel({ workspace }: ImageMattePanelProps) {
   return (
     <Card title="2. 色键抠图">
-      <Space direction="vertical" size={14} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={14} style={{ width: '100%' }}>
         <label className="image-field">
           <span>关键色</span>
           <ColorPicker
