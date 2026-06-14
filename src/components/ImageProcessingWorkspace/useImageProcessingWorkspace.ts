@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react'
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
@@ -12,6 +12,7 @@ import {
   getDraggedPreviewRect,
   getCropBoxFromPreviewRect,
   getPreviewRectFromCropBox,
+  getAnchoredWheelZoomTransform,
   getAspectRatioValue,
   getExportSizeAfterAspectRatioChange,
   getExportSizeAfterDimensionChange,
@@ -54,7 +55,10 @@ export function useImageProcessingWorkspace() {
   const [processed, setProcessed] = useState<ProcessedImageDraft | null>(null)
   const [crop, setCrop] = useState<CropBox | null>(null)
   const [cropPreview, setCropPreview] = useState<ProcessedImageDraft | null>(null)
-  const [previewZoom, setPreviewZoom] = useState(1)
+  const [previewTransform, setPreviewTransform] = useState<{ zoom: number; pan: Point }>({
+    zoom: 1,
+    pan: { x: 0, y: 0 },
+  })
   const [cropMode, setCropMode] = useState(false)
   const [cropPreviewSize, setCropPreviewSize] = useState({ width: 0, height: 0 })
   const [cropDraftRect, setCropDraftRect] = useState<PreviewRect | null>(null)
@@ -69,6 +73,8 @@ export function useImageProcessingWorkspace() {
   const [exportSizeTouched, setExportSizeTouched] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const previewZoom = previewTransform.zoom
+  const previewPan = previewTransform.pan
 
   useEffect(() => {
     return () => {
@@ -243,7 +249,7 @@ export function useImageProcessingWorkspace() {
       setExportSizeTouched(false)
       setCropDraftRect(null)
       setCropDrag(null)
-      setPreviewZoom(1)
+      setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
       message.success('图片已载入')
     } catch (error) {
       message.error(`图片读取失败：${String(error)}`)
@@ -254,8 +260,24 @@ export function useImageProcessingWorkspace() {
     setMatte((current) => ({ ...current, [key]: value }))
   }
 
-  const handleWheelZoom = useCallback((deltaY: number) => {
-    setPreviewZoom((current) => applyWheelZoom(current, deltaY))
+  const setPreviewZoom = useCallback((value: SetStateAction<number>) => {
+    setPreviewTransform((current) => ({
+      ...current,
+      zoom: typeof value === 'function' ? value(current.zoom) : value,
+    }))
+  }, [])
+
+  const handleWheelZoom = useCallback((deltaY: number, anchorFromCenter?: Point) => {
+    setPreviewTransform((current) => {
+      if (!anchorFromCenter) {
+        return { ...current, zoom: applyWheelZoom(current.zoom, deltaY) }
+      }
+      return getAnchoredWheelZoomTransform(current.zoom, current.pan, deltaY, anchorFromCenter)
+    })
+  }, [])
+
+  const resetPreviewTransform = useCallback(() => {
+    setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
   }, [])
 
   const updateExportDimension = (dimension: 'width' | 'height', value: number | null) => {
@@ -335,6 +357,7 @@ export function useImageProcessingWorkspace() {
     setCropMode,
     previewZoom,
     setPreviewZoom,
+    previewPan,
     cropPreviewSize,
     setCropPreviewContainerSize,
     previewImageRect,
@@ -358,6 +381,7 @@ export function useImageProcessingWorkspace() {
     uploadImage,
     updateMatte,
     handleWheelZoom,
+    resetPreviewTransform,
     updateExportDimension,
     updateExportAspectRatio,
     resetExportSizeToCrop,

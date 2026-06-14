@@ -158,6 +158,31 @@ export function applyWheelZoom(currentZoom: number, deltaY: number): number {
   return Math.min(MAX_PREVIEW_ZOOM, Math.max(MIN_PREVIEW_ZOOM, Number(next.toFixed(2))))
 }
 
+export function getAnchoredWheelZoomTransform(
+  currentZoom: number,
+  currentPan: Point,
+  deltaY: number,
+  anchorFromCenter: Point
+): { zoom: number; pan: Point } {
+  const zoom = applyWheelZoom(currentZoom, deltaY)
+  if (zoom === currentZoom) return { zoom, pan: currentPan }
+  const scaleChange = zoom / Math.max(MIN_PREVIEW_ZOOM, currentZoom)
+  return {
+    zoom,
+    pan: {
+      x: Number((anchorFromCenter.x - (anchorFromCenter.x - currentPan.x) * scaleChange).toFixed(4)),
+      y: Number((anchorFromCenter.y - (anchorFromCenter.y - currentPan.y) * scaleChange).toFixed(4)),
+    },
+  }
+}
+
+export function getPreviewAnchorFromStagePoint(point: Point, imageRect: PreviewRect): Point {
+  return {
+    x: point.x - (imageRect.x + imageRect.width / 2),
+    y: point.y - (imageRect.y + imageRect.height / 2),
+  }
+}
+
 export function mapPreviewPointToImagePixel(point: Point, previewRect: PreviewRect, imageSize: RectSize): Point {
   const width = Math.max(1, Math.round(imageSize.width))
   const height = Math.max(1, Math.round(imageSize.height))

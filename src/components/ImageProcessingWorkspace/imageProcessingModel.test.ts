@@ -8,6 +8,7 @@ import {
   getAspectRatioValue,
   getExportSizeAfterAspectRatioChange,
   getExportSizeAfterDimensionChange,
+  getAnchoredWheelZoomTransform,
   getExportFormatInfo,
   isSupportedImageFile,
   mapPreviewPointToImagePixel,
@@ -19,6 +20,7 @@ import {
   getCropBoxFromPreviewRect,
   getPreviewRectFromCropBox,
   sampleImagePixel,
+  getPreviewAnchorFromStagePoint,
 } from './imageProcessingModel'
 
 test('image processing workspace accepts common raster image formats', () => {
@@ -89,6 +91,40 @@ test('image processing workspace zooms with mouse wheel and clamps the result', 
   assert.equal(applyWheelZoom(1, 120), 0.9)
   assert.equal(applyWheelZoom(0.5, 120), 0.5)
   assert.equal(applyWheelZoom(3, -120), 3)
+})
+
+test('image processing workspace anchors wheel zoom around the pointer', () => {
+  assert.deepEqual(
+    getAnchoredWheelZoomTransform(1, { x: 0, y: 0 }, -120, { x: 200, y: 100 }),
+    { zoom: 1.1, pan: { x: -20, y: -10 } }
+  )
+  assert.deepEqual(
+    getAnchoredWheelZoomTransform(1.1, { x: -20, y: -10 }, 120, { x: 200, y: 100 }),
+    { zoom: 1, pan: { x: 0, y: 0 } }
+  )
+})
+
+test('image processing workspace keeps the same image point under the pointer after repeated anchored zooms', () => {
+  const pointerFromImageCenter = { x: 200, y: 100 }
+  const first = getAnchoredWheelZoomTransform(1, { x: 0, y: 0 }, -120, pointerFromImageCenter)
+  const second = getAnchoredWheelZoomTransform(
+    first.zoom,
+    first.pan,
+    -120,
+    pointerFromImageCenter
+  )
+
+  assert.deepEqual(second, { zoom: 1.2, pan: { x: -40, y: -20 } })
+})
+
+test('image processing workspace derives wheel anchor from the untransformed preview rect', () => {
+  assert.deepEqual(
+    getPreviewAnchorFromStagePoint(
+      { x: 520, y: 260 },
+      { x: 100, y: 40, width: 640, height: 360 }
+    ),
+    { x: 100, y: 40 }
+  )
 })
 
 test('image processing workspace keeps zoom changes bounded for repeated wheel input', () => {

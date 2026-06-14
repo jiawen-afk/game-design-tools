@@ -3,6 +3,7 @@ import { Empty, Slider, Space, Switch, Typography } from 'antd'
 import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
+import { getPreviewAnchorFromStagePoint } from './imageProcessingModel'
 
 const { Text } = Typography
 
@@ -41,11 +42,20 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
       event.preventDefault()
       event.stopPropagation()
       if (!draft) return
-      handleWheelZoom(event.deltaY)
+      const stageRect = element.getBoundingClientRect()
+      const imageRect = workspace.previewImageRect
+      if (!imageRect) {
+        handleWheelZoom(event.deltaY)
+        return
+      }
+      handleWheelZoom(event.deltaY, getPreviewAnchorFromStagePoint(
+        { x: event.clientX - stageRect.left, y: event.clientY - stageRect.top },
+        imageRect
+      ))
     }
     element.addEventListener('wheel', onWheel, { passive: false })
     return () => element.removeEventListener('wheel', onWheel)
-  }, [draft, handleWheelZoom])
+  }, [draft, handleWheelZoom, workspace.previewImageRect])
 
   const imageRect = workspace.previewImageRect
   const currentCropRect = workspace.activePreviewCropRect
@@ -119,7 +129,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
               top: imageRect.y,
               width: imageRect.width,
               height: imageRect.height,
-              transform: `scale(${workspace.previewZoom})`,
+              transform: `translate(${workspace.previewPan.x}px, ${workspace.previewPan.y}px) scale(${workspace.previewZoom})`,
             }}
           >
             <img
