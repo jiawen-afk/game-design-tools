@@ -6,10 +6,10 @@ import {
   clampCropBox,
   deriveExportFileName,
   getAspectRatioValue,
-  getExportSizeAfterAspectRatioChange,
-  getExportSizeAfterDimensionChange,
+  getExportSizeAfterScaleChange,
   getAnchoredWheelZoomTransform,
   getExportFormatInfo,
+  getCropBoxAfterAspectRatioChange,
   isSupportedImageFile,
   mapPreviewPointToImagePixel,
   normalizeCropBox,
@@ -72,18 +72,25 @@ test('image processing workspace normalizes export sizes for image output', () =
   assert.deepEqual(normalizeExportSize({ width: 0, height: Number.NaN }, { width: 320, height: 180 }), { width: 320, height: 180 })
 })
 
-test('image processing workspace links export dimensions when aspect ratio is locked', () => {
-  const current = { width: 320, height: 180 }
-
-  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'width', 640, true), { width: 640, height: 360 })
-  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'height', 90, true), { width: 160, height: 90 })
-  assert.deepEqual(getExportSizeAfterDimensionChange(current, 'width', 640, false), { width: 640, height: 180 })
+test('image processing workspace reports image aspect ratio values', () => {
+  assert.equal(getAspectRatioValue({ width: 1920, height: 1080 }), 1.7778)
 })
 
-test('image processing workspace exposes editable export aspect ratio', () => {
-  assert.equal(getAspectRatioValue({ width: 1920, height: 1080 }), 1.7778)
-  assert.deepEqual(getExportSizeAfterAspectRatioChange({ width: 320, height: 180 }, 1), { width: 320, height: 320 })
-  assert.deepEqual(getExportSizeAfterAspectRatioChange({ width: 320, height: 180 }, 2), { width: 320, height: 160 })
+test('image processing workspace adjusts crop boxes by aspect ratio', () => {
+  assert.deepEqual(
+    getCropBoxAfterAspectRatioChange({ x: 10, y: 20, width: 120, height: 80 }, 300, 220, 1),
+    { x: 10, y: 20, width: 120, height: 120 }
+  )
+  assert.deepEqual(
+    getCropBoxAfterAspectRatioChange({ x: 10, y: 150, width: 180, height: 40 }, 300, 200, 1),
+    { x: 10, y: 150, width: 50, height: 50 }
+  )
+})
+
+test('image processing workspace scales export size proportionally from the crop size', () => {
+  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 2), { width: 640, height: 360 })
+  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 0.5), { width: 160, height: 90 })
+  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 0), { width: 32, height: 18 })
 })
 
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {

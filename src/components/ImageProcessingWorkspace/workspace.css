@@ -75,25 +75,26 @@
 .image-crop-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(96px, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
-.image-export-size-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.image-crop-ratio-field {
+  grid-column: span 2;
 }
 
 .image-export-size-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(96px, 1fr));
-  gap: 10px;
+  gap: 8px;
   align-items: end;
 }
 
-.image-export-ratio-field {
-  grid-column: span 2;
+.image-export-size-preview .image-field {
+  gap: 4px;
+}
+
+.image-export-size-preview .ant-input-number {
+  background: var(--color-panel-strong);
 }
 
 .image-preview-stage {

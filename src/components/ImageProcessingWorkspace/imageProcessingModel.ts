@@ -43,6 +43,8 @@ export const IMAGE_PROCESSING_ACCEPT = ['.webp', '.jpg', '.jpeg', '.png']
 export const MIN_IMAGE_CROP_SIZE = 16
 export const MIN_IMAGE_EXPORT_SIZE = 1
 export const MAX_IMAGE_EXPORT_SIZE = 8192
+export const MIN_IMAGE_EXPORT_SCALE = 0.1
+export const MAX_IMAGE_EXPORT_SCALE = 4
 export const MIN_PREVIEW_ZOOM = 0.5
 export const MAX_PREVIEW_ZOOM = 3
 export const PREVIEW_ZOOM_STEP = 0.1
@@ -120,35 +122,44 @@ export function getAspectRatioValue(size: RectSize): number {
   return Number((normalized.width / normalized.height).toFixed(4))
 }
 
-export function getExportSizeAfterDimensionChange(
-  currentSize: RectSize,
-  dimension: 'width' | 'height',
-  value: number,
-  locked: boolean
-): RectSize {
-  const current = normalizeExportSize(currentSize)
-  const nextValue = normalizeExportSize(
-    dimension === 'width'
-      ? { width: value, height: current.height }
-      : { width: current.width, height: value },
-    current
-  )[dimension]
+export function getCropBoxAfterAspectRatioChange(
+  crop: CropBox,
+  imageWidth: number,
+  imageHeight: number,
+  aspectRatio: number,
+  minSize = MIN_IMAGE_CROP_SIZE
+): CropBox {
+  const current = clampCropBox(crop, imageWidth, imageHeight, minSize)
+  const ratio = Math.max(0.0001, finiteOr(aspectRatio, getAspectRatioValue(current)))
+  const availableWidth = Math.max(1, imageWidth - current.x)
+  const availableHeight = Math.max(1, imageHeight - current.y)
+  let width = current.width
+  let height = width / ratio
 
-  if (!locked) {
-    return normalizeExportSize({ ...current, [dimension]: nextValue })
+  if (height > availableHeight) {
+    height = availableHeight
+    width = height * ratio
+  }
+  if (width > availableWidth) {
+    width = availableWidth
+    height = width / ratio
   }
 
-  const ratio = current.width / Math.max(1, current.height)
-  if (dimension === 'width') {
-    return normalizeExportSize({ width: nextValue, height: nextValue / ratio }, current)
-  }
-  return normalizeExportSize({ width: nextValue * ratio, height: nextValue }, current)
+  return clampCropBox({ ...current, width, height }, imageWidth, imageHeight, minSize)
 }
 
-export function getExportSizeAfterAspectRatioChange(currentSize: RectSize, aspectRatio: number): RectSize {
-  const current = normalizeExportSize(currentSize)
-  const ratio = Math.max(0.0001, finiteOr(aspectRatio, getAspectRatioValue(current)))
-  return normalizeExportSize({ width: current.width, height: current.width / ratio }, current)
+export function normalizeExportScale(scale: number): number {
+  const next = finiteOr(scale, 1)
+  return Math.min(MAX_IMAGE_EXPORT_SCALE, Math.max(MIN_IMAGE_EXPORT_SCALE, Number(next.toFixed(2))))
+}
+
+export function getExportSizeAfterScaleChange(baseSize: RectSize, scale: number): RectSize {
+  const base = normalizeExportSize(baseSize)
+  const normalizedScale = normalizeExportScale(scale)
+  return normalizeExportSize({
+    width: base.width * normalizedScale,
+    height: base.height * normalizedScale,
+  }, base)
 }
 
 export function applyWheelZoom(currentZoom: number, deltaY: number): number {

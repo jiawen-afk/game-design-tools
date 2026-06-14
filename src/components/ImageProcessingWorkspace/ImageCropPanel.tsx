@@ -1,6 +1,6 @@
 import { Card, Empty, InputNumber, Slider, Space, Typography } from 'antd'
 
-import { normalizeCropBox, type CropBox } from './imageProcessingModel'
+import { MAX_IMAGE_EXPORT_SIZE, normalizeCropBox, type CropBox } from './imageProcessingModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -71,9 +71,20 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
                 onChange={(value) => updateCrop(workspace, { height: value ?? crop.height })}
               />
             </label>
+            <label className="image-field image-crop-ratio-field">
+              <span>宽高比</span>
+              <InputNumber
+                min={0.0001}
+                max={MAX_IMAGE_EXPORT_SIZE}
+                step={0.0001}
+                precision={4}
+                value={workspace.cropAspectRatio}
+                onChange={workspace.updateCropAspectRatio}
+              />
+            </label>
           </div>
 
-          <Text type="secondary">当前裁剪：{crop.x}, {crop.y}, {crop.width} × {crop.height}</Text>
+          <Text type="secondary">当前裁剪：{crop.x}, {crop.y}, {crop.width} × {crop.height}，比例 {workspace.cropAspectRatio.toFixed(4)}</Text>
         </Space>
       ) : (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后在右侧调整裁剪与结果。" />

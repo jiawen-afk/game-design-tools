@@ -61,14 +61,18 @@ test('image processing workspace keeps crop result stage on the right and contro
   assert.doesNotMatch(sideSource, /<ImageCropResultStage workspace=\{workspace\} \/>/)
 })
 
-test('image export panel supports size, aspect ratio, and locked sync controls', () => {
-  const source = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
+test('image crop panel owns crop aspect ratio while export panel scales locked output size', () => {
+  const cropSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropPanel.tsx', 'utf8')
+  const exportSource = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
 
-  assert.match(source, /<Switch[\s\S]*checked=\{workspace\.exportAspectLocked\}[\s\S]*onChange=\{workspace\.setExportAspectLocked\}/)
-  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportSize\.width\}[\s\S]*onChange=\{\(value\) => workspace\.updateExportDimension\('width', value\)\}/)
-  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportSize\.height\}[\s\S]*onChange=\{\(value\) => workspace\.updateExportDimension\('height', value\)\}/)
-  assert.match(source, /<InputNumber[\s\S]*value=\{workspace\.exportAspectRatio\}[\s\S]*onChange=\{workspace\.updateExportAspectRatio\}/)
-  assert.match(source, /onClick=\{workspace\.resetExportSizeToCrop\}/)
+  assert.match(cropSource, /value=\{workspace\.cropAspectRatio\}/)
+  assert.match(cropSource, /onChange=\{workspace\.updateCropAspectRatio\}/)
+  assert.match(exportSource, /value=\{workspace\.exportScale\}/)
+  assert.match(exportSource, /onChange=\{workspace\.setExportScale\}/)
+  assert.match(exportSource, /readOnly/)
+  assert.doesNotMatch(exportSource, /updateExportDimension/)
+  assert.doesNotMatch(exportSource, /updateExportAspectRatio/)
+  assert.doesNotMatch(exportSource, /setExportAspectLocked/)
 })
 
 test('personal space is global navigation instead of a tool list item', () => {

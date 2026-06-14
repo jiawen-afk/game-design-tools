@@ -1,10 +1,10 @@
-import { Button, Card, InputNumber, Select, Space, Switch, Typography } from 'antd'
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Card, InputNumber, Select, Slider, Space, Typography } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 
 import {
   getExportFormatInfo,
-  MAX_IMAGE_EXPORT_SIZE,
-  MIN_IMAGE_EXPORT_SIZE,
+  MAX_IMAGE_EXPORT_SCALE,
+  MIN_IMAGE_EXPORT_SCALE,
   type ImageExportFormat,
 } from './imageProcessingModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
@@ -37,53 +37,34 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
             onChange={workspace.setExportFormat}
           />
         </label>
-        <div className="image-export-size-toolbar">
-          <Text strong>导出尺寸</Text>
-          <Space size={8}>
-            <Switch
-              checked={workspace.exportAspectLocked}
-              onChange={workspace.setExportAspectLocked}
-            />
-            <Text>锁定比例</Text>
-          </Space>
-        </div>
-        <div className="image-export-size-grid">
+        <label className="image-field">
+          <span>等比缩放：{workspace.exportScale.toFixed(2)}x</span>
+          <Slider
+            min={MIN_IMAGE_EXPORT_SCALE}
+            max={MAX_IMAGE_EXPORT_SCALE}
+            step={0.05}
+            value={workspace.exportScale}
+            onChange={workspace.setExportScale}
+          />
+        </label>
+        <Text strong>导出尺寸预览</Text>
+        <div className="image-export-size-grid image-export-size-preview">
           <label className="image-field">
             <span>宽度</span>
             <InputNumber
-              min={MIN_IMAGE_EXPORT_SIZE}
-              max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.width}
-              onChange={(value) => workspace.updateExportDimension('width', value)}
+              readOnly
+              controls={false}
             />
           </label>
           <label className="image-field">
             <span>高度</span>
             <InputNumber
-              min={MIN_IMAGE_EXPORT_SIZE}
-              max={MAX_IMAGE_EXPORT_SIZE}
               value={workspace.exportSize.height}
-              onChange={(value) => workspace.updateExportDimension('height', value)}
+              readOnly
+              controls={false}
             />
           </label>
-          <label className="image-field image-export-ratio-field">
-            <span>宽高比</span>
-            <InputNumber
-              min={0.0001}
-              max={MAX_IMAGE_EXPORT_SIZE}
-              step={0.0001}
-              precision={4}
-              value={workspace.exportAspectRatio}
-              onChange={workspace.updateExportAspectRatio}
-            />
-          </label>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={workspace.resetExportSizeToCrop}
-            disabled={!workspace.crop}
-          >
-            匹配裁剪
-          </Button>
         </div>
         <Text type="secondary">导出文件名：{workspace.exportName}</Text>
         <Button
