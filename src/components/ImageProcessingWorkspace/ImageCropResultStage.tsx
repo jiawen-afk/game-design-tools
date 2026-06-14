@@ -6,13 +6,13 @@ import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWork
 
 const { Text } = Typography
 
-export interface ImagePreviewStageProps {
+export interface ImageCropResultStageProps {
   workspace: ImageProcessingWorkspaceViewModel
 }
 
 type CropHandle = NonNullable<ImageProcessingWorkspaceViewModel['cropDrag']>['handle']
 
-export function ImagePreviewStage({ workspace }: ImagePreviewStageProps) {
+export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
   const boxRef = useRef<HTMLDivElement | null>(null)
   const layerRef = useRef<HTMLDivElement | null>(null)
   const {
@@ -95,7 +95,7 @@ export function ImagePreviewStage({ workspace }: ImagePreviewStageProps) {
             unCheckedChildren={<EyeOutlined />}
             onChange={workspace.setCropMode}
           />
-          <Text>裁剪范围</Text>
+          <Text strong>裁剪与结果</Text>
           <Text type="secondary">{workspace.cropMode ? '裁剪模式' : '取色模式'}</Text>
         </Space>
         <Space size={10} className="image-preview-zoom">
@@ -122,7 +122,11 @@ export function ImagePreviewStage({ workspace }: ImagePreviewStageProps) {
               transform: `scale(${workspace.previewZoom})`,
             }}
           >
-            <img className="image-preview-stage-image" src={workspace.draft.sourceUrl} alt="图片预览" />
+            <img
+              className="image-preview-stage-image"
+              src={workspace.processed?.url ?? workspace.draft.sourceUrl}
+              alt="裁剪与抠图结果"
+            />
             {workspace.cropMode && localCropRect ? (
               <div className="image-crop-layer">
                 <div
@@ -243,7 +247,7 @@ export function ImagePreviewStage({ workspace }: ImagePreviewStageProps) {
             ) : null}
           </div>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后在这里预览、取色和裁剪。" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后在这里查看裁剪结果。" />
         )}
       </div>
     </div>

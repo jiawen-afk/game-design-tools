@@ -16,20 +16,13 @@ function updateCrop(workspace: ImageProcessingWorkspaceViewModel, patch: Partial
 }
 
 export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
-  const preview = workspace.cropPreview
   const processed = workspace.processed
   const crop = workspace.crop
 
   return (
-    <Card title="裁剪与结果" className="image-control-card">
+    <Card title="裁剪调整" className="image-control-card">
       {processed && crop ? (
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-          <div className="image-result-preview" aria-label="裁剪结果预览">
-            {preview ? (
-              <img src={preview.url} alt="裁剪结果预览" />
-            ) : null}
-          </div>
-
           <label className="image-field">
             <span>预览缩放：{workspace.previewZoom.toFixed(2)}x</span>
             <Slider
@@ -83,7 +76,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
           <Text type="secondary">当前裁剪：{crop.x}, {crop.y}, {crop.width} × {crop.height}</Text>
         </Space>
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后显示裁剪结果。" />
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="上传图片后在右侧调整裁剪与结果。" />
       )}
     </Card>
   )

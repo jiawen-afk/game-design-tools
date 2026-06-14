@@ -46,6 +46,21 @@ test('home page exposes image processing workspace as a first-class tool', () =>
   assert.match(source, /const personalSpaceShortcut = '4'/)
 })
 
+test('image processing workspace keeps crop result stage on the right and controls on the left', () => {
+  const source = readFileSync('src/components/ImageProcessingWorkspace/index.tsx', 'utf8')
+  const sideStart = source.indexOf('<div className="image-processing-side">')
+  const mainStart = source.indexOf('<div className="image-processing-main">')
+  const sideSource = source.slice(sideStart, mainStart)
+  const mainSource = source.slice(mainStart)
+
+  assert.notEqual(sideStart, -1)
+  assert.notEqual(mainStart, -1)
+  assert.match(sideSource, /<ImageUploadPanel workspace=\{workspace\} \/>[\s\S]*<ImageMattePanel workspace=\{workspace\} \/>[\s\S]*<ImageCropPanel workspace=\{workspace\} \/>[\s\S]*<ImageExportPanel workspace=\{workspace\} \/>/)
+  assert.match(mainSource, /<ImageCropResultStage workspace=\{workspace\} \/>/)
+  assert.doesNotMatch(mainSource, /<ImageCropPanel workspace=\{workspace\} \/>/)
+  assert.doesNotMatch(sideSource, /<ImageCropResultStage workspace=\{workspace\} \/>/)
+})
+
 test('personal space is global navigation instead of a tool list item', () => {
   const source = appSource()
 

@@ -1,9 +1,9 @@
 import { Space, Typography } from 'antd'
 
 import { ImageCropPanel } from './ImageCropPanel'
+import { ImageCropResultStage } from './ImageCropResultStage'
 import { ImageExportPanel } from './ImageExportPanel'
 import { ImageMattePanel } from './ImageMattePanel'
-import { ImagePreviewStage } from './ImagePreviewStage'
 import { ImageUploadPanel } from './ImageUploadPanel'
 import { useImageProcessingWorkspace } from './useImageProcessingWorkspace'
 import './workspace.css'
@@ -27,7 +27,7 @@ export default function ImageProcessingWorkspace() {
           <ImageExportPanel workspace={workspace} />
         </div>
         <div className="image-processing-main">
-          <ImagePreviewStage workspace={workspace} />
+          <ImageCropResultStage workspace={workspace} />
         </div>
       </div>
     </Space>

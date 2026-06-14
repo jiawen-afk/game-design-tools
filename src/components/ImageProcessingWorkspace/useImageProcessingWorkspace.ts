@@ -134,9 +134,10 @@ export function useImageProcessingWorkspace() {
   }, [crop, processed])
 
   const previewImageRect = useMemo(() => {
-    if (!draft || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
-    return fitContainedImageRect({ width: draft.width, height: draft.height }, cropPreviewSize)
-  }, [cropPreviewSize.height, cropPreviewSize.width, draft])
+    const previewSource = processed ?? draft
+    if (!previewSource || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
+    return fitContainedImageRect({ width: previewSource.width, height: previewSource.height }, cropPreviewSize)
+  }, [cropPreviewSize.height, cropPreviewSize.width, draft, processed])
 
   const previewCropRect = useMemo(() => {
     if (!crop || !processed || !previewImageRect) return null
