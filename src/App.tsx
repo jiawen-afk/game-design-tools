@@ -4,19 +4,21 @@ import {
   AppstoreOutlined,
   ArrowLeftOutlined,
   AudioOutlined,
+  PictureOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 
 import { SiteFooter } from './components/SiteFooter'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
+const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
 const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWorkspace'))
 
-type ToolId = 'multi-frame-sprite' | 'voice-deployment'
+type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment'
 type ActiveSurface = ToolId | 'personal-space'
 
-const personalSpaceShortcut = '3'
+const personalSpaceShortcut = '4'
 
 const tools: Array<{
   id: ToolId
@@ -37,13 +39,22 @@ const tools: Array<{
     shortcut: '1',
   },
   {
+    id: 'image-processing',
+    name: '图片处理工作台',
+    summary: '单张图片上传、色键抠图、裁剪预览并导出常用图片格式。',
+    details: '适合先处理角色肖像、道具图和需要透明底的静态图片，再进入后续素材流程。',
+    input: 'WebP、JPG、JPEG、PNG 单张图片',
+    output: 'PNG、WebP、JPG、JPEG 图片',
+    shortcut: '2',
+  },
+  {
     id: 'voice-deployment',
     name: '配音工作台',
     summary: '检测本地 VoxCPM Gradio 服务连接状态，准备部署环境并调用本地语音生成接口。',
     details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键准备脚本，完成后可用 gradio_client 调用本地 Gradio 服务生成语音。',
     input: '目标文本、控制描述、参考音频',
     output: 'WAV 音频（Gradio generate 接口）',
-    shortcut: '2',
+    shortcut: '3',
   },
 ]
 
@@ -84,9 +95,11 @@ export default function App() {
   if (activeSurface !== null) {
     const activeWorkspace = activeSurface === 'multi-frame-sprite'
       ? <MultiFrameSpriteWorkspace />
-      : activeSurface === 'voice-deployment'
-        ? <VoiceDeploymentWorkspace />
-        : <PersonalSpaceWorkspace />
+      : activeSurface === 'image-processing'
+        ? <ImageProcessingWorkspace />
+        : activeSurface === 'voice-deployment'
+          ? <VoiceDeploymentWorkspace />
+          : <PersonalSpaceWorkspace />
     const surfaceTitle = activeSurface === 'personal-space' ? '个人空间' : activeToolMeta?.name
     const surfaceKicker = activeSurface === 'personal-space' ? '全局空间' : '工作台'
 
@@ -130,6 +143,8 @@ export default function App() {
             <kbd>1</kbd>
             <span>精灵</span>
             <kbd>2</kbd>
+            <span>图片</span>
+            <kbd>3</kbd>
             <span>配音</span>
             <kbd>{personalSpaceShortcut}</kbd>
             <span>个人空间</span>
@@ -156,7 +171,7 @@ export default function App() {
                 <div>
                   <div className="tool-row-title">
                     <h3>{tool.name}</h3>
-                    <span>{tool.id === 'multi-frame-sprite' ? '素材整理' : '本地部署'}</span>
+                    <span>{tool.id === 'multi-frame-sprite' ? '素材整理' : tool.id === 'image-processing' ? '图片编辑' : '本地部署'}</span>
                   </div>
                   <p>{tool.summary}</p>
                   <p className="tool-details">{tool.details}</p>
@@ -174,7 +189,7 @@ export default function App() {
               </div>
               <Button
                 type="primary"
-                icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : undefined}
+                icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : tool.id === 'image-processing' ? <PictureOutlined /> : undefined}
                 onClick={() => setActiveSurface(tool.id)}
               >
                 打开工具

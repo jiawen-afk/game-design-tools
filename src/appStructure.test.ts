@@ -23,20 +23,33 @@ test('home page exposes renamed workspaces and global personal space', () => {
   const source = [
     appSource(),
     readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceShell.tsx', 'utf8'),
+    readFileSync('src/components/ImageProcessingWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8'),
   ].join('\n')
 
   assert.match(source, /精灵图工作台/)
+  assert.match(source, /图片处理工作台/)
   assert.match(source, /配音工作台/)
   assert.match(source, /个人空间/)
   assert.doesNotMatch(source, /多图动作精灵工作台/)
   assert.doesNotMatch(source, /游戏角色语音工作台/)
 })
 
+test('home page exposes image processing workspace as a first-class tool', () => {
+  const source = appSource()
+
+  assert.match(source, /const ImageProcessingWorkspace = lazy\(\(\) => import\('\.\/components\/ImageProcessingWorkspace'\)\)/)
+  assert.match(source, /type ToolId = 'multi-frame-sprite' \| 'image-processing' \| 'voice-deployment'/)
+  assert.match(source, /图片处理工作台/)
+  assert.match(source, /单张图片上传、色键抠图、裁剪预览并导出常用图片格式。/)
+  assert.match(source, /activeSurface === 'image-processing'\s*\?\s*<ImageProcessingWorkspace \/>/)
+  assert.match(source, /const personalSpaceShortcut = '4'/)
+})
+
 test('personal space is global navigation instead of a tool list item', () => {
   const source = appSource()
 
-  assert.match(source, /type ToolId = 'multi-frame-sprite' \| 'voice-deployment'/)
+  assert.match(source, /type ToolId = 'multi-frame-sprite' \| 'image-processing' \| 'voice-deployment'/)
   assert.match(source, /type ActiveSurface = ToolId \| 'personal-space'/)
   assert.doesNotMatch(source, /id: 'personal-space'/)
   assert.match(source, /打开个人空间/)
