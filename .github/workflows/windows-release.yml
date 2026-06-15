@@ -11,7 +11,7 @@ on:
       tag:
         description: "Release tag to create or update"
         required: true
-        default: "v0.1.0-windows-x64"
+        default: "v0.2.0-windows-x64"
 
 permissions:
   contents: write
@@ -50,15 +50,15 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0-windows-x64-latest' }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.2.0-windows-x64-latest' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $outputDir = Resolve-Path '..\game-design-tools-windows-x64'
           $files = @(
-            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-setup.exe'
-            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-portable.exe'
-            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-win.zip'
-            Join-Path $outputDir 'Game Design Tools-0.1.0-x64-setup.exe.blockmap'
+            Join-Path $outputDir 'Game Design Tools-0.2.0-x64-setup.exe'
+            Join-Path $outputDir 'Game Design Tools-0.2.0-x64-portable.exe'
+            Join-Path $outputDir 'Game Design Tools-0.2.0-x64-win.zip'
+            Join-Path $outputDir 'Game Design Tools-0.2.0-x64-setup.exe.blockmap'
             Join-Path $outputDir 'latest.yml'
           )
 

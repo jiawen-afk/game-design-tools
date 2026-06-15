@@ -4,8 +4,8 @@ import { getDesktopApi, type DesktopAppUpdateStatus } from '../desktopApi'
 
 const fallbackAppUpdateStatus: DesktopAppUpdateStatus = {
   appName: 'Game Design Tools',
-  currentVersion: '0.1.0',
-  channel: 'v0.1.0-windows-x64-latest',
+  currentVersion: '0.2.0',
+  channel: 'v0.2.0-windows-x64-latest',
   phase: 'unavailable',
   checking: false,
   updateAvailable: false,

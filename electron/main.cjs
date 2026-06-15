@@ -11,7 +11,7 @@ const allowedPersonalSpaceRoots = new Set()
 const appUpdateStatus = {
   appName: 'Game Design Tools',
   currentVersion: app.getVersion(),
-  channel: 'v0.1.0-windows-x64-latest',
+  channel: 'v0.2.0-windows-x64-latest',
   phase: 'idle',
   checking: false,
   updateAvailable: false,
@@ -27,7 +27,7 @@ autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowPrerelease = false
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://github.com/jiawen-afk/game-design-tools/releases/download/v0.1.0-windows-x64-latest',
+  url: 'https://github.com/jiawen-afk/game-design-tools/releases/download/v0.2.0-windows-x64-latest',
 })
 
 function resolveAppPath(...parts) {
