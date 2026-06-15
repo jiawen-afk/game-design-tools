@@ -23,9 +23,9 @@
 
 从 [GitHub Releases 页面](https://github.com/jiawen-afk/game-design-tools/releases) 下载 Windows x64 包，根据使用习惯选择：
 
-- `Game Design Tools-0.2.0-x64-setup.exe`：安装版，可创建开始菜单和桌面快捷方式
-- `Game Design Tools-0.2.0-x64-portable.exe`：便携版
-- `Game Design Tools-0.2.0-x64-win.zip`：压缩包版
+- `Game Design Tools-{version}-x64-setup.exe`：安装版，可创建开始菜单和桌面快捷方式
+- `Game Design Tools-{version}-x64-portable.exe`：便携版
+- `Game Design Tools-{version}-x64-win.zip`：压缩包版
 
 首次使用建议：
 

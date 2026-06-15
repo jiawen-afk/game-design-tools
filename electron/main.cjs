@@ -8,10 +8,23 @@ const os = require('node:os')
 const path = require('node:path')
 
 const allowedPersonalSpaceRoots = new Set()
+
+function getPackageVersion() {
+  try {
+    return parseJsonText(fs.readFileSync(resolveAppPath('package.json'), 'utf8')).version || app.getVersion()
+  } catch {
+    return app.getVersion()
+  }
+}
+
+function getAppReleaseTag() {
+  return `v${getPackageVersion()}-windows-x64-latest`
+}
+
 const appUpdateStatus = {
   appName: 'Game Design Tools',
   currentVersion: app.getVersion(),
-  channel: 'v0.2.0-windows-x64-latest',
+  channel: getAppReleaseTag(),
   phase: 'idle',
   checking: false,
   updateAvailable: false,
@@ -27,7 +40,7 @@ autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.allowPrerelease = false
 autoUpdater.setFeedURL({
   provider: 'generic',
-  url: 'https://github.com/jiawen-afk/game-design-tools/releases/download/v0.2.0-windows-x64-latest',
+  url: `https://github.com/jiawen-afk/game-design-tools/releases/download/${appUpdateStatus.channel}`,
 })
 
 function resolveAppPath(...parts) {

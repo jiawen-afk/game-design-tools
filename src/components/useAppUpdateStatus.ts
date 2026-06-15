@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { appReleaseTag, appVersion } from '../appReleaseMetadata'
 import { getDesktopApi, type DesktopAppUpdateStatus } from '../desktopApi'
 
 const fallbackAppUpdateStatus: DesktopAppUpdateStatus = {
   appName: 'Game Design Tools',
-  currentVersion: '0.2.0',
-  channel: 'v0.2.0-windows-x64-latest',
+  currentVersion: appVersion,
+  channel: appReleaseTag,
   phase: 'unavailable',
   checking: false,
   updateAvailable: false,
