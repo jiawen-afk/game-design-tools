@@ -39,6 +39,30 @@ export interface DesktopCommandResult {
   output: string
 }
 
+export type DesktopAppUpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'latest'
+  | 'error'
+  | 'unavailable'
+
+export interface DesktopAppUpdateStatus {
+  appName: string
+  currentVersion: string
+  channel: string
+  phase: DesktopAppUpdatePhase
+  checking: boolean
+  updateAvailable: boolean
+  updateDownloaded: boolean
+  latestVersion: string
+  downloadPercent: number
+  message: string
+  error: string
+}
+
 export interface DesktopUpscaleRuntimeStatus {
   installed: boolean
   path: string
@@ -88,6 +112,10 @@ export interface GameDesignToolsDesktopApi {
   removePersonalSpaceEntry(parentPath: string, name: string): Promise<boolean>
   saveFile(fileName: string, data: ArrayBuffer): Promise<DesktopFileInfo | null>
   openPath(targetPath: string): Promise<boolean>
+  getAppUpdateStatus(): Promise<DesktopAppUpdateStatus>
+  checkForAppUpdates(): Promise<DesktopAppUpdateStatus>
+  installAppUpdate(): Promise<boolean>
+  onAppUpdateStatus(listener: (status: DesktopAppUpdateStatus) => void): () => void
   detectHardware(): Promise<DesktopHardwareReport>
   runVoxcpmSetup(options: DesktopVoxcpmSetupOptions): Promise<DesktopVoxcpmSetupResult>
   queryVoxcpmSetupStatus(): Promise<DesktopCommandResult>

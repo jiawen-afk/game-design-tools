@@ -192,6 +192,37 @@ test('site footer exposes an about dialog with the project open source software 
   assert.match(softwareSource, /https:\/\/github\.com\/OpenBMB\/VoxCPM/)
 })
 
+test('desktop client exposes version and auto update controls through the footer', () => {
+  const footerSource = siteFooterSource()
+  const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const packageSource = packageJsonSource()
+
+  assert.match(packageSource, /"electron-updater"/)
+  assert.match(mainSource, /autoUpdater/)
+  assert.match(mainSource, /app-update:get-status/)
+  assert.match(mainSource, /app-update:check/)
+  assert.match(mainSource, /app-update:install/)
+  assert.match(mainSource, /app-update:status/)
+  assert.match(mainSource, /v0\.1\.0-windows-x64-latest/)
+  assert.match(mainSource, /provider:\s*'generic'/)
+  assert.match(mainSource, /releases\/download\/v0\.1\.0-windows-x64-latest/)
+  assert.match(preloadSource, /getAppUpdateStatus/)
+  assert.match(preloadSource, /checkForAppUpdates/)
+  assert.match(preloadSource, /installAppUpdate/)
+  assert.match(preloadSource, /onAppUpdateStatus/)
+  assert.match(desktopApiSource, /DesktopAppUpdateStatus/)
+  assert.match(desktopApiSource, /getAppUpdateStatus/)
+  assert.match(desktopApiSource, /checkForAppUpdates/)
+  assert.match(desktopApiSource, /installAppUpdate/)
+  assert.match(desktopApiSource, /onAppUpdateStatus/)
+  assert.match(footerSource, /当前版本/)
+  assert.match(footerSource, /检查更新/)
+  assert.match(footerSource, /立即重启安装/)
+  assert.match(footerSource, /useAppUpdateStatus/)
+})
+
 test('personal space page covers required management modules', () => {
   const source = [
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),

@@ -310,6 +310,22 @@ h1 {
   color: inherit;
 }
 
+.footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-update {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-update-button {
+  height: auto;
+  padding: 0;
+}
+
 .open-source-list {
   display: grid;
   gap: 10px;
