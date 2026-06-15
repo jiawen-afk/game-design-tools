@@ -46,7 +46,7 @@ export const MIN_IMAGE_CROP_SIZE = 16
 export const MIN_IMAGE_EXPORT_SIZE = 1
 export const MAX_IMAGE_EXPORT_SIZE = 8192
 export const MIN_IMAGE_EXPORT_SCALE = 0.1
-export const MAX_IMAGE_EXPORT_SCALE = 4
+export const MAX_IMAGE_EXPORT_SCALE = 16
 export const MIN_PREVIEW_ZOOM = 0.1
 export const MAX_PREVIEW_ZOOM = 3
 export const PREVIEW_ZOOM_STEP = 0.1
@@ -171,6 +171,13 @@ export function getExportSizeAfterScaleChange(baseSize: RectSize, scale: number)
     width: base.width * normalizedScale,
     height: base.height * normalizedScale,
   }, base)
+}
+
+export function resolveExportBaseSize(crop: RectSize | null, upscaleEnabled: boolean, upscaleSize: RectSize | null): RectSize {
+  if (upscaleEnabled && upscaleSize) {
+    return normalizeExportSize(upscaleSize, crop ?? upscaleSize)
+  }
+  return crop ?? { width: 1, height: 1 }
 }
 
 export function applyWheelZoom(currentZoom: number, deltaY: number): number {

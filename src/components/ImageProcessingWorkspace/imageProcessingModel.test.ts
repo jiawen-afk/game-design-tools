@@ -8,6 +8,7 @@ import {
   getAspectRatioValue,
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
+  resolveExportBaseSize,
   getAnchoredWheelZoomTransform,
   getExportFormatInfo,
   getCropBoxAfterAspectRatioChange,
@@ -117,8 +118,14 @@ test('image processing workspace derives export scale from a target height', () 
 test('image processing workspace clamps derived export scale to the export limits', () => {
   const scale = getExportScaleAfterDimensionChange({ width: 320, height: 180 }, 'width', 9999)
 
-  assert.equal(scale, 4)
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, scale), { width: 1280, height: 720 })
+  assert.equal(scale, 16)
+  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, scale), { width: 5120, height: 2880 })
+})
+
+test('image processing workspace resolves upscale preview as the export base size', () => {
+  assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, true, { width: 800, height: 400 }), { width: 800, height: 400 })
+  assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, false, { width: 800, height: 400 }), { width: 400, height: 200 })
+  assert.deepEqual(resolveExportBaseSize(null, true, null), { width: 1, height: 1 })
 })
 
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {

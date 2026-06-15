@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
@@ -17,6 +17,7 @@ import {
   getCropBoxAfterAspectRatioChange,
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
+  resolveExportBaseSize,
   mapPreviewPointToImagePixel,
   MIN_IMAGE_CROP_SIZE,
   normalizeExportScale,
@@ -93,6 +94,7 @@ export function useImageProcessingWorkspace() {
   } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const exportScaleSnapshotRef = useRef<number | null>(null)
   const previewZoom = previewTransform.zoom
   const previewPan = previewTransform.pan
 
@@ -185,11 +187,14 @@ export function useImageProcessingWorkspace() {
   }, [crop, processed])
 
   useEffect(() => {
+    if (!upscalePreview) return
     setUpscalePreview((previous) => {
       if (previous) URL.revokeObjectURL(previous.url)
       return null
     })
-  }, [crop, exportFormat, exportScale, processed, upscaleOptions])
+    setExportScaleState(exportScaleSnapshotRef.current ?? 1)
+    exportScaleSnapshotRef.current = null
+  }, [crop, exportFormat, processed, upscaleOptions, upscalePreview])
 
   const previewImageRect = useMemo(() => {
     const previewSource = processed ?? draft
@@ -265,9 +270,13 @@ export function useImageProcessingWorkspace() {
     [draft?.sourceName, exportFormat]
   )
   const cropAspectRatio = useMemo(() => crop ? getAspectRatioValue(crop) : 1, [crop])
+  const exportBaseSize = useMemo(
+    () => resolveExportBaseSize(crop, upscaleEnabled, upscalePreview ? { width: upscalePreview.width, height: upscalePreview.height } : null),
+    [crop, upscaleEnabled, upscalePreview]
+  )
   const exportSize = useMemo(
-    () => getExportSizeAfterScaleChange(crop ?? { width: 1, height: 1 }, exportScale),
-    [crop, exportScale]
+    () => getExportSizeAfterScaleChange(exportBaseSize, exportScale),
+    [exportBaseSize, exportScale]
   )
 
   const uploadImage = async (file: File) => {
@@ -284,6 +293,7 @@ export function useImageProcessingWorkspace() {
       setProcessed(null)
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
       setExportScaleState(1)
+      exportScaleSnapshotRef.current = null
       setUpscalePreview((previous) => {
         if (previous) URL.revokeObjectURL(previous.url)
         return null
@@ -339,6 +349,7 @@ export function useImageProcessingWorkspace() {
       if (previous) URL.revokeObjectURL(previous.url)
       return null
     })
+    exportScaleSnapshotRef.current = null
     setCropDraftRect(null)
     setCropDrag(null)
     setExportScaleState(1)
@@ -380,6 +391,18 @@ export function useImageProcessingWorkspace() {
     setUpscaleOptions((current) => normalizeUpscaleOptions({ ...current, ...patch }))
   }, [])
 
+  const updateUpscaleEnabled = useCallback((enabled: boolean) => {
+    setUpscaleEnabled(enabled)
+    if (!enabled) {
+      setUpscalePreview((previous) => {
+        if (previous) URL.revokeObjectURL(previous.url)
+        return null
+      })
+      setExportScaleState(exportScaleSnapshotRef.current ?? 1)
+      exportScaleSnapshotRef.current = null
+    }
+  }, [])
+
   const runUpscalePreview = useCallback(async () => {
     if (!processed || !crop || !cropPreview) return
     const api = getDesktopApi()
@@ -394,6 +417,9 @@ export function useImageProcessingWorkspace() {
     setUpscaleProcessing(true)
     try {
       const blob = await exportProcessedImage(processed.url, crop, exportFormat, exportSize)
+      if (exportScaleSnapshotRef.current === null) {
+        exportScaleSnapshotRef.current = exportScale
+      }
       const result = await api.upscaleImage({
         inputName: exportName,
         outputFormat: exportFormat,
@@ -415,13 +441,14 @@ export function useImageProcessingWorkspace() {
           height: exportSize.height * upscaleOptions.scale,
         }
       })
+      setExportScaleState(1)
       message.success('高清化预览已生成')
     } catch (error) {
       message.error(`高清化失败：${String(error)}`)
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [crop, cropPreview, exportFormat, exportName, exportSize, processed, upscaleOptions, upscaleRuntimeStatus])
+  }, [crop, cropPreview, exportFormat, exportName, exportScale, exportSize, processed, upscaleOptions, upscaleRuntimeStatus])
 
   const updateCropAspectRatio = (value: number | null) => {
     if (!value || !crop || !processed) return
@@ -435,9 +462,9 @@ export function useImageProcessingWorkspace() {
   }, [])
 
   const updateExportDimension = useCallback((dimension: ExportDimension, value: number | null) => {
-    if (!crop || value === null) return
-    setExportScaleState(getExportScaleAfterDimensionChange(crop, dimension, value))
-  }, [crop])
+    if (value === null) return
+    setExportScaleState(getExportScaleAfterDimensionChange(exportBaseSize, dimension, value))
+  }, [exportBaseSize])
 
   const setCropPreviewContainerSize = useCallback((size: { width: number; height: number }) => {
     setCropPreviewSize((current) => {
@@ -462,8 +489,11 @@ export function useImageProcessingWorkspace() {
     if (!processed || !crop) return
     setExporting(true)
     try {
-      const blob = await exportProcessedImage(processed.url, crop, exportFormat, exportSize)
-      const exportBlob = upscalePreview?.blob ?? blob
+      const exportSource = upscaleEnabled && upscalePreview ? upscalePreview.url : processed.url
+      const exportCrop = upscaleEnabled && upscalePreview
+        ? { x: 0, y: 0, width: upscalePreview.width, height: upscalePreview.height }
+        : crop
+      const exportBlob = await exportProcessedImage(exportSource, exportCrop, exportFormat, exportSize)
       const api = getDesktopApi()
       if (api) {
         const saved = await api.saveFile(exportName, await exportBlob.arrayBuffer())
@@ -511,7 +541,7 @@ export function useImageProcessingWorkspace() {
     exportScale,
     setExportScale,
     upscaleEnabled,
-    setUpscaleEnabled,
+    setUpscaleEnabled: updateUpscaleEnabled,
     upscaleOptions,
     updateUpscaleOptions,
     upscaleRuntimeStatus,
