@@ -130,6 +130,7 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(hookSource, /exportScaleSnapshotRef/)
   assert.match(hookSource, /upscalePreview\.url/)
   assert.match(hookSource, /exportProcessedImage\(exportSource, exportCrop, exportFormat, exportSize\)/)
+  assert.doesNotMatch(hookSource, /\[crop, exportFormat, processed, upscaleOptions, upscalePreview\]/)
   assert.match(stageSource, /image-upscale-compare/)
   assert.match(stageSource, /workspace\.upscalePreview/)
   assert.match(desktopApiSource, /queryUpscaleStatus/)

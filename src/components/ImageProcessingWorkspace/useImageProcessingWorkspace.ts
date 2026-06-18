@@ -194,7 +194,7 @@ export function useImageProcessingWorkspace() {
     })
     setExportScaleState(exportScaleSnapshotRef.current ?? 1)
     exportScaleSnapshotRef.current = null
-  }, [crop, exportFormat, processed, upscaleOptions, upscalePreview])
+  }, [crop, exportFormat, processed, upscaleOptions])
 
   const previewImageRect = useMemo(() => {
     const previewSource = processed ?? draft
