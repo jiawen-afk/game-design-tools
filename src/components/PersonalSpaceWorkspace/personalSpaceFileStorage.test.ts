@@ -36,17 +36,18 @@ test('writes asset resources into category and import-date folders with hashed n
     createdAt: '2026-06-06T12:00:00.000Z',
   }
 
-  const stored = await writeAssetResourcesToDirectory(root, asset, [
+  const resources = [
     { name: 'sprite.png', data: new Blob(['png']) },
     { name: 'index.json', data: new Blob(['{}'], { type: 'application/json' }) },
-  ])
+  ]
+  const stored = await writeAssetResourcesToDirectory(root, asset, resources)
 
-  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.equal(stored.storageResourcePaths.length, resources.length)
   assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/2026-06-06\/[a-f0-9]{16}\.png$/)
   assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/2026-06-06\/[a-f0-9]{16}\.json$/)
   assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /主角行走|sprite|index/)
-  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'png')
-  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), '{}')
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), await resources[0]!.data.text())
+  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), await resources[1]!.data.text())
 })
 
 test('uploaded character sprite resources require png and index json, keep original asset name, and use hashed storage names', async () => {
@@ -56,20 +57,21 @@ test('uploaded character sprite resources require png and index json, keep origi
     settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
   }
 
-  const stored = await createSpriteAssetForUpload(state, [
+  const files = [
     new File(['png'], 'hero.png', { type: 'image/png' }),
     new File(['{}'], 'index.json', { type: 'application/json' }),
-  ], root)
+  ]
+  const stored = await createSpriteAssetForUpload(state, files, root)
 
   assert.equal(stored.kind, 'sprite')
   assert.equal(stored.name, 'hero.png')
   assert.equal(stored.groupName, '默认分组')
-  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.equal(stored.storageResourcePaths.length, files.length)
   assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
   assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.json$/)
   assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /hero\.png|index\.json/)
-  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'png')
-  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), '{}')
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), await files[0]!.text())
+  assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), await files[1]!.text())
   await assert.rejects(
     () => createSpriteAssetForUpload(state, [new File(['{}'], 'index.json')], null),
     /请选择一个 PNG 精灵图和一个 index\.json/,
@@ -86,15 +88,16 @@ test('uploaded portrait resources are stored under the portrait category', async
     createdAt: '2026-06-06T12:00:00.000Z',
   }
 
-  const stored = await writeAssetResourcesToDirectory(root, asset, [
+  const resources = [
     { name: 'portrait.png', data: new Blob(['portrait']) },
-  ])
+  ]
+  const stored = await writeAssetResourcesToDirectory(root, asset, resources)
 
   assert.equal(stored.name, 'hero-face.png')
-  assert.equal(stored.storageResourcePaths.length, 1)
+  assert.equal(stored.storageResourcePaths.length, resources.length)
   assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/角色肖像\/2026-06-06\/[a-f0-9]{16}\.png$/)
   assert.doesNotMatch(stored.storageResourcePaths[0]!, /hero-face/)
-  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'portrait')
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), await resources[0]!.data.text())
 })
 
 test('uploaded character voice resources keep original file names and use voice storage folders', async () => {
@@ -104,16 +107,17 @@ test('uploaded character voice resources keep original file names and use voice 
     settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
   }
 
-  const stored = await createVoiceAssetForUpload(state, new File(['voice'], 'merchant-hello.wav', { type: 'audio/wav' }), root)
+  const file = new File(['voice'], 'merchant-hello.wav', { type: 'audio/wav' })
+  const stored = await createVoiceAssetForUpload(state, file, root)
 
   assert.equal(stored.kind, 'voice')
   assert.equal(stored.name, 'merchant-hello.wav')
   assert.equal(stored.groupName, '默认分组')
   assert.deepEqual(stored.tags, ['配音'])
-  assert.equal(stored.storageResourcePaths.length, 1)
+  assert.equal(stored.storageResourcePaths.length, [file].length)
   assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/配音\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.wav$/)
   assert.doesNotMatch(stored.storageResourcePaths[0]!, /merchant-hello/)
-  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'voice')
+  assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), await file.text())
 })
 
 test('deletes stored resource files and leaves missing files as pending cleanup', async () => {

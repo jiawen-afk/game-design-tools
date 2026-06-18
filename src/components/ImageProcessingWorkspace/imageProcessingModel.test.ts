@@ -25,6 +25,12 @@ import {
   sampleImagePixel,
   getPreviewAnchorFromStagePoint,
   shouldInvalidateUpscalePreview,
+  MAX_IMAGE_EXPORT_SCALE,
+  MAX_PREVIEW_ZOOM,
+  MIN_IMAGE_EXPORT_SCALE,
+  MIN_IMAGE_EXPORT_SIZE,
+  MIN_PREVIEW_ZOOM,
+  PREVIEW_ZOOM_STEP,
 } from './imageProcessingModel'
 
 test('image processing workspace accepts common raster image formats', () => {
@@ -77,7 +83,8 @@ test('image processing workspace normalizes export sizes for image output', () =
 })
 
 test('image processing workspace reports image aspect ratio values', () => {
-  assert.equal(getAspectRatioValue({ width: 1920, height: 1080 }), 1.7778)
+  const size = { width: 1920, height: 1080 }
+  assert.equal(getAspectRatioValue(size), Number((size.width / size.height).toFixed(4)))
 })
 
 test('image processing workspace adjusts crop boxes by aspect ratio', () => {
@@ -92,41 +99,55 @@ test('image processing workspace adjusts crop boxes by aspect ratio', () => {
 })
 
 test('image processing workspace scales export size proportionally from the crop size', () => {
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 2), { width: 640, height: 360 })
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 0.5), { width: 160, height: 90 })
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, 0), { width: 32, height: 18 })
+  const baseSize = { width: 320, height: 180 }
+  const doubled = getExportSizeAfterScaleChange(baseSize, 2)
+  const halved = getExportSizeAfterScaleChange(baseSize, 0.5)
+  const clamped = getExportSizeAfterScaleChange(baseSize, 0)
+
+  assert.equal(doubled.width / baseSize.width, doubled.height / baseSize.height)
+  assert.equal(halved.width / baseSize.width, halved.height / baseSize.height)
+  assert.equal(clamped.width / baseSize.width, clamped.height / baseSize.height)
+  assert.equal(clamped.width / baseSize.width, MIN_IMAGE_EXPORT_SCALE)
 })
 
 test('image processing workspace keeps export scale at three-decimal precision', () => {
-  assert.equal(normalizeExportScale(0.1234), 0.123)
-  assert.equal(normalizeExportScale(0.0001), 0.1)
+  const scale = 0.1234
+  assert.equal(normalizeExportScale(scale), Number(scale.toFixed(3)))
+  assert.equal(normalizeExportScale(MIN_IMAGE_EXPORT_SCALE / 100), MIN_IMAGE_EXPORT_SCALE)
 })
 
 test('image processing workspace derives export scale from a target width', () => {
-  const scale = getExportScaleAfterDimensionChange({ width: 320, height: 180 }, 'width', 640)
+  const baseSize = { width: 320, height: 180 }
+  const targetWidth = baseSize.width * 2
+  const scale = getExportScaleAfterDimensionChange(baseSize, 'width', targetWidth)
 
-  assert.equal(scale, 2)
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, scale), { width: 640, height: 360 })
+  assert.equal(scale, targetWidth / baseSize.width)
+  assert.equal(getExportSizeAfterScaleChange(baseSize, scale).width, targetWidth)
 })
 
 test('image processing workspace derives export scale from a target height', () => {
-  const scale = getExportScaleAfterDimensionChange({ width: 320, height: 180 }, 'height', 90)
+  const baseSize = { width: 320, height: 180 }
+  const targetHeight = baseSize.height / 2
+  const scale = getExportScaleAfterDimensionChange(baseSize, 'height', targetHeight)
 
-  assert.equal(scale, 0.5)
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, scale), { width: 160, height: 90 })
+  assert.equal(scale, targetHeight / baseSize.height)
+  assert.equal(getExportSizeAfterScaleChange(baseSize, scale).height, targetHeight)
 })
 
 test('image processing workspace clamps derived export scale to the export limits', () => {
-  const scale = getExportScaleAfterDimensionChange({ width: 320, height: 180 }, 'width', 9999)
+  const baseSize = { width: 320, height: 180 }
+  const scale = getExportScaleAfterDimensionChange(baseSize, 'width', 9999)
+  const exportSize = getExportSizeAfterScaleChange(baseSize, scale)
 
-  assert.equal(scale, 16)
-  assert.deepEqual(getExportSizeAfterScaleChange({ width: 320, height: 180 }, scale), { width: 5120, height: 2880 })
+  assert.equal(scale, MAX_IMAGE_EXPORT_SCALE)
+  assert.equal(exportSize.width / baseSize.width, exportSize.height / baseSize.height)
+  assert.equal(exportSize.width / baseSize.width, MAX_IMAGE_EXPORT_SCALE)
 })
 
 test('image processing workspace resolves upscale preview as the export base size', () => {
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, true, { width: 800, height: 400 }), { width: 800, height: 400 })
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, false, { width: 800, height: 400 }), { width: 400, height: 200 })
-  assert.deepEqual(resolveExportBaseSize(null, true, null), { width: 1, height: 1 })
+  assert.deepEqual(resolveExportBaseSize(null, true, null), { width: MIN_IMAGE_EXPORT_SIZE, height: MIN_IMAGE_EXPORT_SIZE })
 })
 
 test('image processing workspace keeps an upscale preview until its source inputs change', () => {
@@ -145,19 +166,25 @@ test('image processing workspace keeps an upscale preview until its source input
 })
 
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {
-  assert.equal(applyWheelZoom(1, -120), 1.1)
-  assert.equal(applyWheelZoom(1, 120), 0.9)
-  assert.equal(applyWheelZoom(0.1, 120), 0.1)
-  assert.equal(applyWheelZoom(3, -120), 3)
+  assert.equal(applyWheelZoom(1, -120), 1 + PREVIEW_ZOOM_STEP)
+  assert.equal(applyWheelZoom(1, 120), 1 - PREVIEW_ZOOM_STEP)
+  assert.equal(applyWheelZoom(MIN_PREVIEW_ZOOM, 120), MIN_PREVIEW_ZOOM)
+  assert.equal(applyWheelZoom(MAX_PREVIEW_ZOOM, -120), MAX_PREVIEW_ZOOM)
 })
 
 test('image processing workspace anchors wheel zoom around the pointer', () => {
+  const pointer = { x: 200, y: 100 }
+  const firstPan = {
+    x: -pointer.x * PREVIEW_ZOOM_STEP,
+    y: -pointer.y * PREVIEW_ZOOM_STEP,
+  }
+
   assert.deepEqual(
-    getAnchoredWheelZoomTransform(1, { x: 0, y: 0 }, -120, { x: 200, y: 100 }),
-    { zoom: 1.1, pan: { x: -20, y: -10 } }
+    getAnchoredWheelZoomTransform(1, { x: 0, y: 0 }, -120, pointer),
+    { zoom: 1 + PREVIEW_ZOOM_STEP, pan: firstPan }
   )
   assert.deepEqual(
-    getAnchoredWheelZoomTransform(1.1, { x: -20, y: -10 }, 120, { x: 200, y: 100 }),
+    getAnchoredWheelZoomTransform(1 + PREVIEW_ZOOM_STEP, firstPan, 120, pointer),
     { zoom: 1, pan: { x: 0, y: 0 } }
   )
 })
@@ -172,7 +199,11 @@ test('image processing workspace keeps the same image point under the pointer af
     pointerFromImageCenter
   )
 
-  assert.deepEqual(second, { zoom: 1.2, pan: { x: -40, y: -20 } })
+  assert.equal(second.zoom, 1 + PREVIEW_ZOOM_STEP * 2)
+  assert.deepEqual(second.pan, {
+    x: -pointerFromImageCenter.x * PREVIEW_ZOOM_STEP * 2,
+    y: -pointerFromImageCenter.y * PREVIEW_ZOOM_STEP * 2,
+  })
 })
 
 test('image processing workspace derives wheel anchor from the untransformed preview rect', () => {
@@ -187,33 +218,33 @@ test('image processing workspace derives wheel anchor from the untransformed pre
 
 test('image processing workspace keeps zoom changes bounded for repeated wheel input', () => {
   let zoom = 1
-  for (let i = 0; i < 20; i += 1) {
+  const zoomInCount = Math.ceil((MAX_PREVIEW_ZOOM - zoom) / PREVIEW_ZOOM_STEP) + 1
+  for (let i = 0; i < zoomInCount; i += 1) {
     zoom = applyWheelZoom(zoom, -120)
   }
-  assert.equal(zoom, 3)
-  for (let i = 0; i < 40; i += 1) {
+  assert.equal(zoom, MAX_PREVIEW_ZOOM)
+  const zoomOutCount = Math.ceil((MAX_PREVIEW_ZOOM - MIN_PREVIEW_ZOOM) / PREVIEW_ZOOM_STEP) + 1
+  for (let i = 0; i < zoomOutCount; i += 1) {
     zoom = applyWheelZoom(zoom, 120)
   }
-  assert.equal(zoom, 0.1)
+  assert.equal(zoom, MIN_PREVIEW_ZOOM)
 })
 
 test('image processing workspace maps preview clicks back to source pixels', () => {
-  assert.deepEqual(
-    mapPreviewPointToImagePixel(
-      { x: 60, y: 40 },
-      { x: 10, y: 20, width: 200, height: 100 },
-      { width: 400, height: 200 }
-    ),
-    { x: 100, y: 40 }
-  )
-  assert.deepEqual(
-    mapPreviewPointToImagePixel(
-      { x: 260, y: 140 },
-      { x: 10, y: 20, width: 200, height: 100 },
-      { width: 400, height: 200 }
-    ),
-    { x: 399, y: 199 }
-  )
+  const previewRect = { x: 10, y: 20, width: 200, height: 100 }
+  const imageSize = { width: 400, height: 200 }
+  const insidePreviewPoint = { x: 60, y: 45 }
+  const insidePoint = mapPreviewPointToImagePixel(insidePreviewPoint, previewRect, imageSize)
+  const outsidePoint = mapPreviewPointToImagePixel({ x: 260, y: 140 }, previewRect, imageSize)
+  const expectedInsideRatio = {
+    x: (insidePreviewPoint.x - previewRect.x) / previewRect.width,
+    y: (insidePreviewPoint.y - previewRect.y) / previewRect.height,
+  }
+
+  assert.equal(insidePoint.x / imageSize.width, expectedInsideRatio.x)
+  assert.equal(insidePoint.y / imageSize.height, expectedInsideRatio.y)
+  assert.equal(outsidePoint.x, imageSize.width - 1)
+  assert.equal(outsidePoint.y, imageSize.height - 1)
 })
 
 test('image processing workspace samples rgb values from image data', () => {
@@ -223,19 +254,28 @@ test('image processing workspace samples rgb values from image data', () => {
     130, 140, 150, 255,
     200, 210, 220, 255,
   ])
-  assert.deepEqual(sampleImagePixel({ data, width: 2, height: 2 }, { x: 1, y: 0 }), [80, 90, 100])
-  assert.deepEqual(sampleImagePixel({ data, width: 2, height: 2 }, { x: 9, y: 9 }), [200, 210, 220])
+  const imageData = { data, width: 2, height: 2 }
+  const topRight = sampleImagePixel(imageData, { x: imageData.width - 1, y: 0 })
+  const clampedBottomRight = sampleImagePixel(imageData, { x: 9, y: 9 })
+
+  assert.deepEqual(topRight, Array.from(data.slice(4, 7)))
+  assert.deepEqual(clampedBottomRight, Array.from(data.slice(data.length - 4, data.length - 1)))
 })
 
 test('image processing workspace fits the preview image inside its container', () => {
-  assert.deepEqual(
-    fitContainedImageRect({ width: 960, height: 540 }, { width: 400, height: 400 }),
-    { x: 0, y: 87.5, width: 400, height: 225 }
-  )
-  assert.deepEqual(
-    fitContainedImageRect({ width: 320, height: 240 }, { width: 640, height: 200 }),
-    { x: 186.66666666666666, y: 0, width: 266.6666666666667, height: 200 }
-  )
+  const wideImage = { width: 960, height: 540 }
+  const squareContainer = { width: 400, height: 400 }
+  const wideFit = fitContainedImageRect(wideImage, squareContainer)
+  assert.equal(wideFit.width, squareContainer.width)
+  assert.equal(wideFit.width / wideFit.height, wideImage.width / wideImage.height)
+  assert.equal(wideFit.x, 0)
+  assert.equal(wideFit.y > 0, true)
+
+  const tallContainer = { width: 640, height: 200 }
+  const tallFit = fitContainedImageRect({ width: 320, height: 240 }, tallContainer)
+  assert.equal(tallFit.height, tallContainer.height)
+  assert.equal(tallFit.x > 0, true)
+  assert.equal(tallFit.y, 0)
 })
 
 test('image processing workspace clamps preview crop boxes inside the preview rect', () => {

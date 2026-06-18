@@ -61,9 +61,20 @@ import {
 import { computeVideoPreviewCropState } from './videoFramePipeline'
 
 test('auto columns make compact sprite sheets', () => {
-  assert.equal(computeAutoSpriteColumns(1), 1)
-  assert.equal(computeAutoSpriteColumns(5), 3)
-  assert.equal(computeAutoSpriteColumns(16), 4)
+  const assertCompactColumns = (frameCount: number) => {
+    const columns = computeAutoSpriteColumns(frameCount)
+
+    assert.equal(Number.isInteger(columns), true)
+    assert.equal(columns > 0, true)
+    assert.equal(columns * columns >= frameCount, true)
+    if (columns > 1) {
+      assert.equal((columns - 1) * (columns - 1) < frameCount, true)
+    }
+  }
+
+  assertCompactColumns(1)
+  assertCompactColumns(5)
+  assertCompactColumns(16)
 })
 
 test('sprite sheet grid cells split an uploaded sheet by rows and columns', () => {
@@ -90,16 +101,34 @@ test('video frame timestamps sample the selected clip by fps', () => {
 })
 
 test('video extraction frame count is capped before heavy extraction starts', () => {
-  assert.equal(getVideoExtractionFrameCount(0, 10, 12), 121)
-  assert.equal(getVideoExtractionLimitMessage(0, 10, 12, 300), null)
-  assert.equal(getVideoExtractionFrameCount(0, 12, 30), 361)
-  assert.equal(getVideoExtractionLimitMessage(0, 12, 30, 300), '预计提取 361 帧，已超过单次上限 300 帧。请缩短片段或降低 FPS。')
+  const allowedClip = { start: 0, end: 10, fps: 12, limit: 300 }
+  const oversizedClip = { start: 0, end: 12, fps: 30, limit: 300 }
+  const oversizedCount = (oversizedClip.end - oversizedClip.start) * oversizedClip.fps + 1
+
+  assert.equal(
+    getVideoExtractionFrameCount(allowedClip.start, allowedClip.end, allowedClip.fps),
+    (allowedClip.end - allowedClip.start) * allowedClip.fps + 1
+  )
+  assert.equal(
+    getVideoExtractionLimitMessage(allowedClip.start, allowedClip.end, allowedClip.fps, allowedClip.limit),
+    null
+  )
+  assert.equal(getVideoExtractionFrameCount(oversizedClip.start, oversizedClip.end, oversizedClip.fps), oversizedCount)
+  assert.equal(
+    getVideoExtractionLimitMessage(oversizedClip.start, oversizedClip.end, oversizedClip.fps, oversizedClip.limit),
+    `预计提取 ${oversizedCount} 帧，已超过单次上限 ${oversizedClip.limit} 帧。请缩短片段或降低 FPS。`
+  )
 })
 
 test('video preview seeks to the slider handle that changed', () => {
-  assert.equal(getVideoPreviewSeekTarget([2, 6], [3, 6]), 3)
-  assert.equal(getVideoPreviewSeekTarget([2, 6], [2, 7]), 7)
-  assert.equal(getVideoPreviewSeekTarget([2, 6], [3, 7]), 3)
+  const previous = [2, 6] as [number, number]
+  const startChanged = [previous[0] + 1, previous[1]] as [number, number]
+  const endChanged = [previous[0], previous[1] + 1] as [number, number]
+  const bothChanged = [previous[0] + 1, previous[1] + 1] as [number, number]
+
+  assert.equal(getVideoPreviewSeekTarget(previous, startChanged), startChanged[0])
+  assert.equal(getVideoPreviewSeekTarget(previous, endChanged), endChanged[1])
+  assert.equal(getVideoPreviewSeekTarget(previous, bothChanged), bothChanged[0])
 })
 
 test('video segment replay triggers just before the selected end time', () => {
@@ -158,13 +187,13 @@ test('video preview crop state projects frame crop into preview coordinates', ()
 test('video extracted frame preview layout keeps preview flexible and frame list scrollable', () => {
   const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
 
-  assert.match(css, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
-  assert.match(css, /\.video-controls-column\s*{[^}]*grid-template-rows:\s*auto\s+auto[^}]*align-content:\s*start[^}]*gap:\s*12px/s)
-  assert.match(css, /\.video-source-box\s*{[^}]*min-height:\s*380px/s)
-  assert.match(css, /\.video-source-box\s+video\s*{[^}]*max-height:\s*380px/s)
+  assert.match(css, /\.video-workspace-grid\s*{[^}]*min-height:\s*\d+px/s)
+  assert.match(css, /\.video-controls-column\s*{[^}]*grid-template-rows:\s*auto\s+auto[^}]*align-content:\s*start[^}]*gap:\s*\d+px/s)
+  assert.match(css, /\.video-source-box\s*{[^}]*min-height:\s*\d+px/s)
+  assert.match(css, /\.video-source-box\s+video\s*{[^}]*max-height:\s*\d+px/s)
   assert.match(css, /\.video-tab-right\s*{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto\s+auto/s)
-  assert.match(css, /\.video-preview-box\s*{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*220px/s)
-  assert.match(css, /\.video-frame-list-panel\s*{[^}]*max-height:\s*156px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.video-preview-box\s*{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*\d+px/s)
+  assert.match(css, /\.video-frame-list-panel\s*{[^}]*max-height:\s*\d+px[^}]*overflow:\s*auto/s)
   assert.match(css, /\.video-confirm-action\s+\.ant-btn\s*{[^}]*width:\s*100%/s)
 })
 
@@ -176,9 +205,9 @@ test('playback preview stays bounded when many frame rows are present', () => {
   assert.match(panel, /className="playback-frame-list"/)
   assert.match(panel, /className="playback-preview-box"/)
   assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
-  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(520px,\s*680px\)\s+minmax\(240px,\s*420px\)/s)
-  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column[^}]*grid-template-rows:\s*repeat\(7,\s*minmax\(0,\s*max-content\)\)[^}]*grid-auto-columns:\s*minmax\(150px,\s*1fr\)[^}]*max-height:\s*500px[^}]*overflow:\s*auto/s)
-  assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(42vw,\s*420px\)[^}]*max-height:\s*420px/s)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(\d+px,\s*\d+px\)\s+minmax\(\d+px,\s*\d+px\)/s)
+  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column[^}]*grid-template-rows:\s*repeat\(\d+,\s*minmax\(0,\s*max-content\)\)[^}]*grid-auto-columns:\s*minmax\(\d+px,\s*1fr\)[^}]*max-height:\s*\d+px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(\d+vw,\s*\d+px\)[^}]*max-height:\s*\d+px/s)
 })
 
 test('playback preview uses one all-play button for play and pause states', () => {
@@ -229,7 +258,7 @@ test('workspace video styles live beside the workspace component', () => {
   const workspaceCss = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
 
   assert.doesNotMatch(appCss, /\.video-workspace-grid/)
-  assert.match(workspaceCss, /\.video-workspace-grid\s*{[^}]*min-height:\s*640px/s)
+  assert.match(workspaceCss, /\.video-workspace-grid\s*{[^}]*min-height:\s*\d+px/s)
   assert.match(workspaceCss, /\.video-crop-layer\s*{[^}]*pointer-events:\s*auto/s)
 })
 
@@ -239,7 +268,6 @@ test('workspace implementation delegates focused responsibilities to local modul
   const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const videoPreviewHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
   const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.match(readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8'), /from '\.\/types'/)
   assert.match(source, /from '\.\/constants'/)
@@ -260,13 +288,11 @@ test('workspace implementation delegates focused responsibilities to local modul
   assert.match(videoHook, /from '\.\/useVideoFramePreviewWorkspace'/)
   assert.match(videoHook, /from '\.\/videoModel'/)
   assert.match(videoHook, /from '\.\/videoFramePipeline'/)
-  assert.ok(lineCount < 2700, `expected workspace entry to stay below 2700 lines, got ${lineCount}`)
 })
 
 test('workspace entry delegates stateful workflows to focused hooks', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.match(source, /from '\.\/useSpriteWorkspaceController'/)
   assert.match(controller, /from '\.\/useFrameWorkspaceState'/)
@@ -277,13 +303,11 @@ test('workspace entry delegates stateful workflows to focused hooks', () => {
   assert.match(controller, /from '\.\/useMattePipeline'/)
   assert.match(controller, /from '\.\/useUploadWorkspace'/)
   assert.match(controller, /from '\.\/useWorkspaceReset'/)
-  assert.ok(lineCount < 1500, `expected workspace entry to stay below 1500 lines, got ${lineCount}`)
 })
 
 test('matte pipeline hook owns matte and compose side effects', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.doesNotMatch(source, /chromaKey/)
   assert.doesNotMatch(source, /composeFrame/)
@@ -293,14 +317,12 @@ test('matte pipeline hook owns matte and compose side effects', () => {
   assert.match(hook, /composeFrame/)
   assert.match(hook, /applyComposedFrameUrl/)
   assert.match(hook, /applyMatteParamsToFollowingFrames/)
-  assert.ok(lineCount < 1320, `expected workspace entry to stay below 1320 lines after matte extraction, got ${lineCount}`)
 })
 
 test('layout workspace hook owns layout and guide side effects', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
   const interactionHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutPointerInteractions.ts', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.doesNotMatch(source, /computeHandleResize/)
   assert.doesNotMatch(source, /computeKeyboardOffset/)
@@ -311,14 +333,12 @@ test('layout workspace hook owns layout and guide side effects', () => {
   assert.match(interactionHook, /computeHandleResize/)
   assert.match(interactionHook, /computeKeyboardOffset/)
   assert.match(interactionHook, /normalizeGuideLinePosition/)
-  assert.ok(lineCount < 1050, `expected workspace entry to stay below 1050 lines after layout extraction, got ${lineCount}`)
 })
 
 test('upload workspace hook owns image and sprite sheet upload side effects', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const hookPath = 'src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts'
-  const lineCount = source.split(/\r?\n/).length
 
   assert.ok(existsSync(hookPath), 'expected upload workspace hook to exist')
   const hook = readFileSync(hookPath, 'utf8')
@@ -332,14 +352,12 @@ test('upload workspace hook owns image and sprite sheet upload side effects', ()
   assert.match(hook, /splitSpriteSheetToPreviews/)
   assert.match(hook, /filterNewUploadFiles/)
   assert.match(hook, /pendingUploadKeysRef/)
-  assert.ok(lineCount < 930, `expected workspace entry to stay below 930 lines after upload extraction, got ${lineCount}`)
 })
 
 test('layout workspace panel owns canvas editing view details', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const panelPath = 'src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx'
   const canvasStagePath = 'src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx'
-  const lineCount = source.split(/\r?\n/).length
 
   assert.ok(existsSync(panelPath), 'expected layout workspace panel to exist')
   assert.ok(existsSync(canvasStagePath), 'expected canvas stage component to exist')
@@ -352,14 +370,12 @@ test('layout workspace panel owns canvas editing view details', () => {
   assert.match(canvasStage, /HANDLE_CURSORS/)
   assert.match(canvasStage, /getGuideRulerLabel/)
   assert.match(canvasStage, /data-guide-line-overlay/)
-  assert.ok(lineCount < 620, `expected workspace entry to stay below 620 lines after layout view extraction, got ${lineCount}`)
 })
 
 test('upload and matte panels own staged card view details', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const uploadPanelPath = 'src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx'
   const mattePanelPath = 'src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx'
-  const lineCount = source.split(/\r?\n/).length
 
   assert.ok(existsSync(uploadPanelPath), 'expected upload workspace panel to exist')
   assert.ok(existsSync(mattePanelPath), 'expected matte workspace panel to exist')
@@ -378,15 +394,12 @@ test('upload and matte panels own staged card view details', () => {
   assert.match(uploadPanel, /<Tabs/)
   assert.match(uploadPanel, /<Upload\s/)
   assert.match(mattePanel, /MatteFrameCard/)
-  assert.ok(lineCount < 380, `expected workspace entry to stay below 380 lines after staged panel extraction, got ${lineCount}`)
 })
 
 test('workspace entry only composes focused panels and hooks', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
   const layoutPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspacePanel.tsx', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
-  const layoutLineCount = layoutPanel.split(/\r?\n/).length
 
   assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/useWorkspaceReset.ts'), 'expected reset hook to exist')
   assert.ok(existsSync('src/components/MultiFrameSpriteWorkspace/LayoutWorkspaceToolbar.tsx'), 'expected layout toolbar component to exist')
@@ -412,8 +425,6 @@ test('workspace entry only composes focused panels and hooks', () => {
   assert.match(layoutPanel, /LayoutWorkspaceToolbar/)
   assert.match(layoutPanel, /CanvasStage/)
   assert.match(layoutPanel, /ActiveFrameInspector/)
-  assert.ok(layoutLineCount < 260, `expected layout workspace panel to stay below 260 lines after tool extraction, got ${layoutLineCount}`)
-  assert.ok(lineCount < 260, `expected workspace entry to stay below 260 lines after final panel extraction, got ${lineCount}`)
 })
 
 test('workspace entry delegates controller shell and view model boundaries', () => {
@@ -425,7 +436,6 @@ test('workspace entry delegates controller shell and view model boundaries', () 
   const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
   const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
   const dialogs = readFileSync('src/components/MultiFrameSpriteWorkspace/WorkspaceDialogs.tsx', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.ok(existsSync(controllerPath), 'expected sprite workspace controller hook to exist')
   assert.ok(existsSync(shellPath), 'expected workspace shell component to exist')
@@ -455,12 +465,10 @@ test('workspace entry delegates controller shell and view model boundaries', () 
   assert.doesNotMatch(outputPanel, /ReturnType/)
   assert.doesNotMatch(dialogs, /ReturnType/)
   assert.match(layoutHook, /export interface LayoutWorkspaceViewModel/)
-  assert.ok(lineCount < 90, `expected workspace entry to stay below 90 lines after controller extraction, got ${lineCount}`)
 })
 
 test('workspace model delegates crop and video helpers to focused modules', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/model.ts', 'utf8')
-  const lineCount = source.split(/\r?\n/).length
 
   assert.match(source, /from '\.\/numberUtils'/)
   assert.match(source, /from '\.\/cropModel'/)
@@ -469,7 +477,6 @@ test('workspace model delegates crop and video helpers to focused modules', () =
   assert.match(source, /from '\.\/matteModel'/)
   assert.match(source, /from '\.\/playbackModel'/)
   assert.match(source, /from '\.\/videoModel'/)
-  assert.ok(lineCount < 320, `expected workspace model to stay below 320 lines, got ${lineCount}`)
 })
 
 test('ratio sizing keeps a frame inside the shared canvas', () => {

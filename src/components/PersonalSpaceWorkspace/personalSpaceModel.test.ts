@@ -91,16 +91,18 @@ test('creates personal space sprite asset from exported sprite files', () => {
 })
 
 test('sprite modal preview uses the original frame ratio instead of thumbnail scaling', () => {
+  const frame = { x: 32, y: 48, w: 96, h: 128 }
+  const sheet = { w: 384, h: 512 }
   const style = spriteFrameModalStyle(
-    { x: 32, y: 48, w: 96, h: 128 },
-    { w: 384, h: 512 },
+    frame,
+    sheet,
   )
 
   assert.deepEqual(style, {
-    width: '96px',
-    height: '128px',
-    backgroundPosition: '-32px -48px',
-    backgroundSize: '384px 512px',
+    width: `${frame.w}px`,
+    height: `${frame.h}px`,
+    backgroundPosition: `-${frame.x}px -${frame.y}px`,
+    backgroundSize: `${sheet.w}px ${sheet.h}px`,
   })
 })
 
@@ -532,7 +534,7 @@ test('assets archived with a storage directory receive categorized target paths'
 
   const archived = archiveAssetForStorageDirectory(state, sprite)
 
-  assert.equal(archived.storageResourcePaths.length, 2)
+  assert.equal(archived.storageResourcePaths.length, sprite.resourcePaths.length)
   assert.match(archived.storageResourcePaths[0]!, /^D:\\GameAssets\\精灵图\\2026-06-06\\[a-f0-9]{16}\.png$/)
   assert.match(archived.storageResourcePaths[1]!, /^D:\\GameAssets\\精灵图\\2026-06-06\\[a-f0-9]{16}\.json$/)
   assert.doesNotMatch(archived.storageResourcePaths.join('\n'), /hero|index/)
@@ -555,7 +557,7 @@ test('portrait assets archived with a storage directory use the character portra
   const archived = archiveAssetForStorageDirectory(state, portrait)
 
   assert.equal(archived.name, 'hero-face.png')
-  assert.equal(archived.storageResourcePaths.length, 1)
+  assert.equal(archived.storageResourcePaths.length, portrait.resourcePaths.length)
   assert.match(archived.storageResourcePaths[0]!, /^D:\\GameAssets\\角色肖像\\2026-06-06\\[a-f0-9]{16}\.png$/)
   assert.doesNotMatch(archived.storageResourcePaths[0]!, /hero-face/)
 })

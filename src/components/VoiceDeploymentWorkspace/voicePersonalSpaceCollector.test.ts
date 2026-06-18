@@ -59,7 +59,7 @@ test('collecting generated voice requires an authorized personal space directory
       /请先在个人空间-设置中授权目录/
     )
     const state = JSON.parse(storage.getItem(personalSpaceStorageKey) ?? '{}')
-    assert.equal(state.assets.length, 0)
+    assert.deepEqual(state.assets, [])
   } finally {
     setPersonalSpaceDirectoryHandle(null)
     globalThis.fetch = originalFetch
@@ -91,7 +91,7 @@ test('collecting generated voice loads the persisted authorized directory and st
     const state = await collectVoiceRecordToPersonalSpace(record, undefined, { directoryHandleStore: store })
 
     assert.equal(state.settings.storageDirectory, 'PersonalSpace')
-    assert.equal(state.assets.length, 1)
+    assert.deepEqual(state.assets.map((asset) => asset.sourceKey), [`voice-record:${record.id}`])
     assert.match(state.assets[0]!.storageResourcePaths[0]!, /^PersonalSpace\/配音\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.wav$/)
     assert.equal(await root.readText(state.assets[0]!.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), 'voice')
   } finally {
@@ -131,8 +131,8 @@ test('collecting the same generated voice again keeps only the latest asset and 
       { directoryHandleStore: store },
     )
 
-    assert.equal(firstState.assets.length, 1)
-    assert.equal(secondState.assets.length, 1)
+    assert.deepEqual(firstState.assets.map((asset) => asset.sourceKey), [`voice-record:${record.id}`])
+    assert.deepEqual(secondState.assets.map((asset) => asset.sourceKey), [`voice-record:${record.id}`])
     assert.notEqual(secondState.assets[0]!.id, firstState.assets[0]!.id)
     assert.equal(secondState.assets[0]!.sourceKey, 'voice-record:voice-1')
     assert.deepEqual(secondState.assets[0]!.linkedCharacterIds, [characterId])
