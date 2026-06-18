@@ -24,6 +24,7 @@ import {
   getPreviewRectFromCropBox,
   sampleImagePixel,
   getPreviewAnchorFromStagePoint,
+  shouldInvalidateUpscalePreview,
 } from './imageProcessingModel'
 
 test('image processing workspace accepts common raster image formats', () => {
@@ -126,6 +127,21 @@ test('image processing workspace resolves upscale preview as the export base siz
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, true, { width: 800, height: 400 }), { width: 800, height: 400 })
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, false, { width: 800, height: 400 }), { width: 400, height: 200 })
   assert.deepEqual(resolveExportBaseSize(null, true, null), { width: 1, height: 1 })
+})
+
+test('image processing workspace keeps an upscale preview until its source inputs change', () => {
+  const previewInputs = {
+    crop: { x: 12, y: 8, width: 320, height: 180 },
+    exportFormat: 'png' as const,
+    processedUrl: 'processed://source',
+    upscaleOptions: { model: 'upscayl-standard-4x' as const, scale: 4, tileSize: 0, ttaMode: false },
+  }
+
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, previewInputs), false)
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, crop: { ...previewInputs.crop, width: 300 } }), true)
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, exportFormat: 'webp' }), true)
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, processedUrl: 'processed://next' }), true)
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, upscaleOptions: { ...previewInputs.upscaleOptions, model: 'digital-art-4x' } }), true)
 })
 
 test('image processing workspace zooms with mouse wheel and clamps the result', () => {

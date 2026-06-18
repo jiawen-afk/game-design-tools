@@ -19,6 +19,7 @@ import {
   getExportSizeAfterScaleChange,
   resolveExportBaseSize,
   mapPreviewPointToImagePixel,
+  shouldInvalidateUpscalePreview,
   MIN_IMAGE_CROP_SIZE,
   normalizeExportScale,
   type ImageCropHandle,
@@ -95,6 +96,12 @@ export function useImageProcessingWorkspace() {
   const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
   const exportScaleSnapshotRef = useRef<number | null>(null)
+  const upscalePreviewInputsRef = useRef<{
+    crop: CropBox | null
+    exportFormat: ImageExportFormat
+    processedUrl: string | null
+    upscaleOptions: UpscaleOptions
+  } | null>(null)
   const previewZoom = previewTransform.zoom
   const previewPan = previewTransform.pan
 
@@ -188,13 +195,22 @@ export function useImageProcessingWorkspace() {
 
   useEffect(() => {
     if (!upscalePreview) return
+    const previewInputs = upscalePreviewInputsRef.current
+    const currentInputs = {
+      crop,
+      exportFormat,
+      processedUrl: processed?.url ?? null,
+      upscaleOptions,
+    }
+    if (previewInputs && !shouldInvalidateUpscalePreview(previewInputs, currentInputs)) return
     setUpscalePreview((previous) => {
       if (previous) URL.revokeObjectURL(previous.url)
       return null
     })
     setExportScaleState(exportScaleSnapshotRef.current ?? 1)
     exportScaleSnapshotRef.current = null
-  }, [crop, exportFormat, processed, upscaleOptions])
+    upscalePreviewInputsRef.current = null
+  }, [crop, exportFormat, processed, upscaleOptions, upscalePreview])
 
   const previewImageRect = useMemo(() => {
     const previewSource = processed ?? draft
@@ -294,6 +310,7 @@ export function useImageProcessingWorkspace() {
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
       setExportScaleState(1)
       exportScaleSnapshotRef.current = null
+      upscalePreviewInputsRef.current = null
       setUpscalePreview((previous) => {
         if (previous) URL.revokeObjectURL(previous.url)
         return null
@@ -350,6 +367,7 @@ export function useImageProcessingWorkspace() {
       return null
     })
     exportScaleSnapshotRef.current = null
+    upscalePreviewInputsRef.current = null
     setCropDraftRect(null)
     setCropDrag(null)
     setExportScaleState(1)
@@ -400,6 +418,7 @@ export function useImageProcessingWorkspace() {
       })
       setExportScaleState(exportScaleSnapshotRef.current ?? 1)
       exportScaleSnapshotRef.current = null
+      upscalePreviewInputsRef.current = null
     }
   }, [])
 
@@ -441,6 +460,12 @@ export function useImageProcessingWorkspace() {
           height: exportSize.height * upscaleOptions.scale,
         }
       })
+      upscalePreviewInputsRef.current = {
+        crop,
+        exportFormat,
+        processedUrl: processed.url,
+        upscaleOptions,
+      }
       setExportScaleState(1)
       message.success('高清化预览已生成')
     } catch (error) {

@@ -180,6 +180,32 @@ export function resolveExportBaseSize(crop: RectSize | null, upscaleEnabled: boo
   return crop ?? { width: 1, height: 1 }
 }
 
+export interface UpscalePreviewInputs {
+  crop: CropBox | null
+  exportFormat: ImageExportFormat
+  processedUrl: string | null
+  upscaleOptions: {
+    model: string
+    scale: number
+    tileSize: number
+    ttaMode: boolean
+  }
+}
+
+export function shouldInvalidateUpscalePreview(previous: UpscalePreviewInputs, next: UpscalePreviewInputs): boolean {
+  const sameCrop = previous.crop?.x === next.crop?.x
+    && previous.crop?.y === next.crop?.y
+    && previous.crop?.width === next.crop?.width
+    && previous.crop?.height === next.crop?.height
+  const sameFormat = previous.exportFormat === next.exportFormat
+  const sameProcessed = previous.processedUrl === next.processedUrl
+  const sameOptions = previous.upscaleOptions.model === next.upscaleOptions.model
+    && previous.upscaleOptions.scale === next.upscaleOptions.scale
+    && previous.upscaleOptions.tileSize === next.upscaleOptions.tileSize
+    && previous.upscaleOptions.ttaMode === next.upscaleOptions.ttaMode
+  return !(sameCrop && sameFormat && sameProcessed && sameOptions)
+}
+
 export function applyWheelZoom(currentZoom: number, deltaY: number): number {
   if (deltaY === 0) return currentZoom
   const direction = deltaY > 0 ? -1 : 1
