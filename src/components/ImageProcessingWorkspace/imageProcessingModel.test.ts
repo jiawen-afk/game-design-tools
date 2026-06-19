@@ -9,6 +9,7 @@ import {
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
   resolveExportBaseSize,
+  resolveMatteImageSource,
   getAnchoredWheelZoomTransform,
   getExportFormatInfo,
   getCropBoxAfterAspectRatioChange,
@@ -148,6 +149,16 @@ test('image processing workspace resolves upscale preview as the export base siz
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, true, { width: 800, height: 400 }), { width: 800, height: 400 })
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, false, { width: 800, height: 400 }), { width: 400, height: 200 })
   assert.deepEqual(resolveExportBaseSize(null, true, null), { width: MIN_IMAGE_EXPORT_SIZE, height: MIN_IMAGE_EXPORT_SIZE })
+})
+
+test('image processing workspace resolves the active image source from matte state', () => {
+  const draft = { url: 'blob://source', width: 320, height: 180 }
+  const processed = { url: 'blob://matte', width: 320, height: 180 }
+
+  assert.equal(resolveMatteImageSource(draft, processed, true), processed)
+  assert.equal(resolveMatteImageSource(draft, processed, false), draft)
+  assert.equal(resolveMatteImageSource(draft, null, false), draft)
+  assert.equal(resolveMatteImageSource(draft, null, true), null)
 })
 
 test('image processing workspace keeps an upscale preview until its source inputs change', () => {

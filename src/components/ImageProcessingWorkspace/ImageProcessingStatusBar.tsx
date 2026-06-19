@@ -17,7 +17,7 @@ export function ImageProcessingStatusBar({ workspace }: ImageProcessingStatusBar
   return (
     <div className="image-processing-status">
       <Text type="secondary">源图：{sizeText(workspace.draft?.width, workspace.draft?.height)}</Text>
-      <Text type="secondary">处理后：{sizeText(workspace.processed?.width, workspace.processed?.height)}</Text>
+      <Text type="secondary">处理后：{sizeText(workspace.activeImageSource?.width, workspace.activeImageSource?.height)}</Text>
       <Text type="secondary">裁剪：{sizeText(workspace.crop?.width, workspace.crop?.height)}</Text>
       <Text type="secondary">导出：{sizeText(workspace.exportSize.width, workspace.exportSize.height)}</Text>
       <Text type="secondary">{workspace.exporting ? '正在导出' : workspace.processing ? '正在处理' : '就绪'}</Text>

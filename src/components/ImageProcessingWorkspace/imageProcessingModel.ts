@@ -22,6 +22,10 @@ export interface RectSize {
   height: number
 }
 
+export interface ImageSourceLike extends RectSize {
+  url: string
+}
+
 export type ExportDimension = 'width' | 'height'
 
 export interface PreviewRect extends RectSize {
@@ -178,6 +182,14 @@ export function resolveExportBaseSize(crop: RectSize | null, upscaleEnabled: boo
     return normalizeExportSize(upscaleSize, crop ?? upscaleSize)
   }
   return crop ?? { width: 1, height: 1 }
+}
+
+export function resolveMatteImageSource(
+  draft: ImageSourceLike | null,
+  processed: ImageSourceLike | null,
+  matteEnabled: boolean
+): ImageSourceLike | null {
+  return matteEnabled ? processed : draft
 }
 
 export interface UpscalePreviewInputs {

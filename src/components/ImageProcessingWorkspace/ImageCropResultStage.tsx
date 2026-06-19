@@ -107,7 +107,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
             onChange={workspace.setCropMode}
           />
           <Text strong>裁剪与结果</Text>
-          <Text type="secondary">{workspace.cropMode ? '裁剪模式' : '取色模式'}</Text>
+          <Text type="secondary">{workspace.cropMode ? '裁剪模式' : workspace.matteEnabled ? '取色模式' : '原图预览'}</Text>
         </Space>
         <Space size={10} className="image-preview-zoom">
           <Text>缩放 {workspace.previewZoom.toFixed(2)}x</Text>
@@ -155,7 +155,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
           >
             <img
               className="image-preview-stage-image"
-              src={workspace.processed?.url ?? workspace.draft.sourceUrl}
+              src={workspace.activeImageSource?.url ?? workspace.draft.sourceUrl}
               alt="裁剪与抠图结果"
             />
             {workspace.cropMode && localCropRect ? (
@@ -261,7 +261,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
                 />
               </div>
             ) : null}
-            {!workspace.cropMode ? (
+            {!workspace.cropMode && workspace.matteEnabled ? (
               <button
                 type="button"
                 className="image-preview-pick-layer"

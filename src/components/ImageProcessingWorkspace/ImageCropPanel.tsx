@@ -16,18 +16,18 @@ export interface ImageCropPanelProps {
 }
 
 function updateCrop(workspace: ImageProcessingWorkspaceViewModel, patch: Partial<CropBox>) {
-  if (!workspace.processed || !workspace.crop) return
-  const next = normalizeCropBox({ ...workspace.crop, ...patch }, workspace.processed.width, workspace.processed.height, workspace.minCropSize)
+  if (!workspace.activeImageSource || !workspace.crop) return
+  const next = normalizeCropBox({ ...workspace.crop, ...patch }, workspace.activeImageSource.width, workspace.activeImageSource.height, workspace.minCropSize)
   workspace.setCrop(next)
 }
 
 export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
-  const processed = workspace.processed
+  const activeImageSource = workspace.activeImageSource
   const crop = workspace.crop
 
   return (
     <Card title="裁剪调整" className="image-control-card">
-      {processed && crop ? (
+      {activeImageSource && crop ? (
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <label className="image-field">
             <span>预览缩放：{workspace.previewZoom.toFixed(2)}x</span>
@@ -45,7 +45,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>X</span>
               <CommittedNumberInput
                 min={0}
-                max={processed.width}
+                max={activeImageSource.width}
                 value={crop.x}
                 onCommit={(value) => updateCrop(workspace, { x: value })}
               />
@@ -54,7 +54,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>Y</span>
               <CommittedNumberInput
                 min={0}
-                max={processed.height}
+                max={activeImageSource.height}
                 value={crop.y}
                 onCommit={(value) => updateCrop(workspace, { y: value })}
               />
@@ -63,7 +63,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>宽度</span>
               <CommittedNumberInput
                 min={workspace.minCropSize}
-                max={processed.width}
+                max={activeImageSource.width}
                 value={crop.width}
                 onCommit={(value) => updateCrop(workspace, { width: value })}
               />
@@ -72,7 +72,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>高度</span>
               <CommittedNumberInput
                 min={workspace.minCropSize}
-                max={processed.height}
+                max={activeImageSource.height}
                 value={crop.height}
                 onCommit={(value) => updateCrop(workspace, { height: value })}
               />

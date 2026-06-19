@@ -147,6 +147,37 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(packageSource, /imageUpscaleModel\.test\.ts/)
 })
 
+test('image processing matte can be toggled without disabling crop and export flow', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const matteSource = readFileSync('src/components/ImageProcessingWorkspace/ImageMattePanel.tsx', 'utf8')
+  const cropSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropPanel.tsx', 'utf8')
+  const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
+
+  assert.match(hookSource, /matteEnabled/)
+  assert.match(hookSource, /useState\(true\)/)
+  assert.match(hookSource, /resolveMatteImageSource/)
+  assert.match(hookSource, /activeImageSource/)
+  assert.match(matteSource, /Switch/)
+  assert.match(matteSource, /checked=\{workspace\.matteEnabled\}/)
+  assert.match(matteSource, /onChange=\{workspace\.setMatteEnabled\}/)
+  assert.match(cropSource, /workspace\.activeImageSource/)
+  assert.match(stageSource, /workspace\.activeImageSource\?\.url/)
+  assert.match(stageSource, /workspace\.matteEnabled/)
+})
+
+test('image processing resets stale upscale enhancement when replacing the image', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const uploadStart = hookSource.indexOf('const uploadImage = async')
+  const resetStart = hookSource.indexOf('const resetWorkspace = useCallback')
+  const uploadSource = hookSource.slice(uploadStart, resetStart)
+  const resetSource = hookSource.slice(resetStart)
+
+  assert.notEqual(uploadStart, -1)
+  assert.notEqual(resetStart, -1)
+  assert.match(uploadSource, /setUpscaleEnabled\(false\)/)
+  assert.match(resetSource, /setUpscaleEnabled\(false\)/)
+})
+
 test('personal space is global navigation instead of a tool list item', () => {
   const source = appSource()
 

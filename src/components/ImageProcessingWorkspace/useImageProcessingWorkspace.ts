@@ -18,6 +18,7 @@ import {
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
   resolveExportBaseSize,
+  resolveMatteImageSource,
   mapPreviewPointToImagePixel,
   shouldInvalidateUpscalePreview,
   MIN_IMAGE_CROP_SIZE,
@@ -27,8 +28,8 @@ import {
   type CropBox,
   type ExportDimension,
   type ImageExportFormat,
+  type ImageSourceLike,
   type Point,
-  type RectSize,
 } from './imageProcessingModel'
 import {
   applyImageMatte,
@@ -63,6 +64,7 @@ export type ImageProcessingWorkspaceViewModel = ReturnType<typeof useImageProces
 export function useImageProcessingWorkspace() {
   const [draft, setDraft] = useState<LoadedImageDraft | null>(null)
   const [matte, setMatte] = useState<MatteParams>(DEFAULT_MATTE)
+  const [matteEnabled, setMatteEnabled] = useState(true)
   const [processed, setProcessed] = useState<ProcessedImageDraft | null>(null)
   const [crop, setCrop] = useState<CropBox | null>(null)
   const [cropPreview, setCropPreview] = useState<ProcessedImageDraft | null>(null)
@@ -104,6 +106,13 @@ export function useImageProcessingWorkspace() {
   } | null>(null)
   const previewZoom = previewTransform.zoom
   const previewPan = previewTransform.pan
+  const draftImageSource = useMemo<ImageSourceLike | null>(() => draft
+    ? { url: draft.sourceUrl, width: draft.width, height: draft.height }
+    : null, [draft])
+  const activeImageSource = useMemo(
+    () => resolveMatteImageSource(draftImageSource, processed, matteEnabled),
+    [draftImageSource, matteEnabled, processed]
+  )
 
   useEffect(() => {
     return () => {
@@ -147,6 +156,12 @@ export function useImageProcessingWorkspace() {
       setCropPreview(null)
       return
     }
+    if (!matteEnabled) {
+      setProcessed(null)
+      setProcessing(false)
+      setCrop((current) => current ?? createFullImageCrop(draft.width, draft.height))
+      return
+    }
     let alive = true
     setProcessing(true)
     void applyImageMatte(draft.sourceUrl, matte)
@@ -168,15 +183,15 @@ export function useImageProcessingWorkspace() {
     return () => {
       alive = false
     }
-  }, [draft, matte])
+  }, [draft, matte, matteEnabled])
 
   useEffect(() => {
-    if (!processed || !crop) {
+    if (!activeImageSource || !crop) {
       setCropPreview(null)
       return
     }
     let alive = true
-    void renderCroppedImageUrl(processed.url, crop)
+    void renderCroppedImageUrl(activeImageSource.url, crop)
       .then((result) => {
         if (!alive) {
           URL.revokeObjectURL(result.url)
@@ -191,7 +206,7 @@ export function useImageProcessingWorkspace() {
     return () => {
       alive = false
     }
-  }, [crop, processed])
+  }, [activeImageSource, crop])
 
   useEffect(() => {
     if (!upscalePreview) return
@@ -199,7 +214,7 @@ export function useImageProcessingWorkspace() {
     const currentInputs = {
       crop,
       exportFormat,
-      processedUrl: processed?.url ?? null,
+      processedUrl: activeImageSource?.url ?? null,
       upscaleOptions,
     }
     if (previewInputs && !shouldInvalidateUpscalePreview(previewInputs, currentInputs)) return
@@ -210,29 +225,28 @@ export function useImageProcessingWorkspace() {
     setExportScaleState(exportScaleSnapshotRef.current ?? 1)
     exportScaleSnapshotRef.current = null
     upscalePreviewInputsRef.current = null
-  }, [crop, exportFormat, processed, upscaleOptions, upscalePreview])
+  }, [activeImageSource, crop, exportFormat, upscaleOptions, upscalePreview])
 
   const previewImageRect = useMemo(() => {
-    const previewSource = processed ?? draft
-    if (!previewSource || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
-    return fitContainedImageRect({ width: previewSource.width, height: previewSource.height }, cropPreviewSize)
-  }, [cropPreviewSize.height, cropPreviewSize.width, draft, processed])
+    if (!activeImageSource || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
+    return fitContainedImageRect({ width: activeImageSource.width, height: activeImageSource.height }, cropPreviewSize)
+  }, [activeImageSource, cropPreviewSize.height, cropPreviewSize.width])
 
   const previewCropRect = useMemo(() => {
-    if (!crop || !processed || !previewImageRect) return null
-    return getPreviewRectFromCropBox(crop, previewImageRect, { width: processed.width, height: processed.height })
-  }, [crop, previewImageRect, processed])
+    if (!crop || !activeImageSource || !previewImageRect) return null
+    return getPreviewRectFromCropBox(crop, previewImageRect, { width: activeImageSource.width, height: activeImageSource.height })
+  }, [activeImageSource, crop, previewImageRect])
 
   const activePreviewCropRect = cropDraftRect ?? previewCropRect
 
   const minPreviewCropSize = useMemo(() => {
-    if (!previewImageRect || !processed) return MIN_IMAGE_CROP_SIZE
-    const scale = previewImageRect.width / Math.max(1, processed.width)
+    if (!previewImageRect || !activeImageSource) return MIN_IMAGE_CROP_SIZE
+    const scale = previewImageRect.width / Math.max(1, activeImageSource.width)
     return Math.max(4, MIN_IMAGE_CROP_SIZE * scale)
-  }, [previewImageRect, processed])
+  }, [activeImageSource, previewImageRect])
 
   useEffect(() => {
-    if (!cropDrag || !previewImageRect || !processed) return
+    if (!cropDrag || !previewImageRect || !activeImageSource) return
     const toLocalRect = (rect: PreviewRect): PreviewRect => ({
       x: rect.x - previewImageRect.x,
       y: rect.y - previewImageRect.y,
@@ -265,8 +279,8 @@ export function useImageProcessingWorkspace() {
     const onUp = (event: MouseEvent) => {
       const nextDraftRect = getNextDraftRect(event)
       const nextCrop = getCropBoxFromPreviewRect(nextDraftRect, previewImageRect, {
-        width: processed.width,
-        height: processed.height,
+        width: activeImageSource.width,
+        height: activeImageSource.height,
       })
       setCrop(nextCrop)
       setCropDraftRect(null)
@@ -278,9 +292,9 @@ export function useImageProcessingWorkspace() {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [cropDrag, minPreviewCropSize, previewImageRect, previewZoom, processed])
+  }, [activeImageSource, cropDrag, minPreviewCropSize, previewImageRect, previewZoom])
 
-  const canExport = Boolean(processed && crop)
+  const canExport = Boolean(activeImageSource && crop)
   const exportName = useMemo(
     () => deriveExportFileName(draft?.sourceName ?? '', exportFormat),
     [draft?.sourceName, exportFormat]
@@ -308,7 +322,9 @@ export function useImageProcessingWorkspace() {
       })
       setProcessed(null)
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
+      setMatteEnabled(true)
       setExportScaleState(1)
+      setUpscaleEnabled(false)
       exportScaleSnapshotRef.current = null
       upscalePreviewInputsRef.current = null
       setUpscalePreview((previous) => {
@@ -362,6 +378,8 @@ export function useImageProcessingWorkspace() {
       return null
     })
     setCrop(null)
+    setMatteEnabled(true)
+    setUpscaleEnabled(false)
     setUpscalePreview((previous) => {
       if (previous) URL.revokeObjectURL(previous.url)
       return null
@@ -423,7 +441,7 @@ export function useImageProcessingWorkspace() {
   }, [])
 
   const runUpscalePreview = useCallback(async () => {
-    if (!processed || !crop || !cropPreview) return
+    if (!activeImageSource || !crop || !cropPreview) return
     const api = getDesktopApi()
     if (!api) {
       message.warning('当前不是桌面运行环境，无法执行高清化。')
@@ -435,7 +453,7 @@ export function useImageProcessingWorkspace() {
     }
     setUpscaleProcessing(true)
     try {
-      const blob = await exportProcessedImage(processed.url, crop, exportFormat, exportSize)
+      const blob = await exportProcessedImage(activeImageSource.url, crop, exportFormat, exportSize)
       if (exportScaleSnapshotRef.current === null) {
         exportScaleSnapshotRef.current = exportScale
       }
@@ -463,7 +481,7 @@ export function useImageProcessingWorkspace() {
       upscalePreviewInputsRef.current = {
         crop,
         exportFormat,
-        processedUrl: processed.url,
+        processedUrl: activeImageSource.url,
         upscaleOptions,
       }
       setExportScaleState(1)
@@ -473,11 +491,11 @@ export function useImageProcessingWorkspace() {
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [crop, cropPreview, exportFormat, exportName, exportScale, exportSize, processed, upscaleOptions, upscaleRuntimeStatus])
+  }, [activeImageSource, crop, cropPreview, exportFormat, exportName, exportScale, exportSize, upscaleOptions, upscaleRuntimeStatus])
 
   const updateCropAspectRatio = (value: number | null) => {
-    if (!value || !crop || !processed) return
-    setCrop(getCropBoxAfterAspectRatioChange(crop, processed.width, processed.height, value, MIN_IMAGE_CROP_SIZE))
+    if (!value || !crop || !activeImageSource) return
+    setCrop(getCropBoxAfterAspectRatioChange(crop, activeImageSource.width, activeImageSource.height, value, MIN_IMAGE_CROP_SIZE))
   }
 
   const setExportScale = useCallback((value: SetStateAction<number>) => {
@@ -511,10 +529,10 @@ export function useImageProcessingWorkspace() {
   }
 
   const exportImage = async () => {
-    if (!processed || !crop) return
+    if (!activeImageSource || !crop) return
     setExporting(true)
     try {
-      const exportSource = upscaleEnabled && upscalePreview ? upscalePreview.url : processed.url
+      const exportSource = upscaleEnabled && upscalePreview ? upscalePreview.url : activeImageSource.url
       const exportCrop = upscaleEnabled && upscalePreview
         ? { x: 0, y: 0, width: upscalePreview.width, height: upscalePreview.height }
         : crop
@@ -542,7 +560,10 @@ export function useImageProcessingWorkspace() {
   return {
     draft,
     matte,
+    matteEnabled,
+    setMatteEnabled,
     processed,
+    activeImageSource,
     crop,
     setCrop,
     cropPreview,
