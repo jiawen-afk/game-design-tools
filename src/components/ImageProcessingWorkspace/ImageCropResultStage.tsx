@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Empty, Slider, Space, Switch, Typography } from 'antd'
 import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
@@ -17,6 +17,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
   const boxRef = useRef<HTMLDivElement | null>(null)
   const layerRef = useRef<HTMLDivElement | null>(null)
   const [comparePosition, setComparePosition] = useState(50)
+  const [dragDepth, setDragDepth] = useState(0)
   const {
     draft,
     handleWheelZoom,
@@ -95,6 +96,29 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
     top,
     cursor,
   })
+  const hasDraggedFiles = (event: DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer.types).includes('Files')
+  const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    setDragDepth((current) => current + 1)
+  }
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+  const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    setDragDepth((current) => Math.max(0, current - 1))
+  }
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    setDragDepth(0)
+    const [file] = Array.from(event.dataTransfer.files)
+    if (file) void workspace.uploadImage(file)
+  }
 
   return (
     <div className="image-preview-stage">
@@ -120,7 +144,20 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
           />
         </Space>
       </div>
-      <div className="image-preview-stage-box" ref={boxRef}>
+      <div
+        className="image-preview-stage-box"
+        ref={boxRef}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {dragDepth > 0 ? (
+          <div className="image-preview-drop-overlay">
+            <Text strong>拖入图片替换</Text>
+            <Text type="secondary">松开后载入 WebP、JPG、JPEG 或 PNG</Text>
+          </div>
+        ) : null}
         {workspace.upscalePreview ? (
           <div className="image-upscale-compare">
             <img src={workspace.upscalePreview.url} alt="高清化结果" />

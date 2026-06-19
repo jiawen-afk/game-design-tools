@@ -178,6 +178,20 @@ test('image processing resets stale upscale enhancement when replacing the image
   assert.match(resetSource, /setUpscaleEnabled\(false\)/)
 })
 
+test('image processing result stage accepts dragged image files for replacement', () => {
+  const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
+  const cssSource = readFileSync('src/components/ImageProcessingWorkspace/workspace.css', 'utf8')
+
+  assert.match(stageSource, /onDragEnter/)
+  assert.match(stageSource, /onDragOver/)
+  assert.match(stageSource, /onDragLeave/)
+  assert.match(stageSource, /onDrop/)
+  assert.match(stageSource, /workspace\.uploadImage/)
+  assert.match(stageSource, /dataTransfer\.files/)
+  assert.match(stageSource, /拖入图片替换/)
+  assert.match(cssSource, /image-preview-drop-overlay/)
+})
+
 test('personal space is global navigation instead of a tool list item', () => {
   const source = appSource()
 

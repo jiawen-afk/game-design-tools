@@ -268,6 +268,20 @@
   pointer-events: none;
 }
 
+.image-preview-drop-overlay {
+  position: absolute;
+  inset: 10px;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  text-align: center;
+  border: 1px dashed var(--color-brand);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel) 88%, transparent);
+  pointer-events: none;
+}
+
 .image-upscale-compare {
   position: absolute;
   inset: 0;
