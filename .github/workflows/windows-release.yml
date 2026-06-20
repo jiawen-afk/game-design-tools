@@ -56,22 +56,41 @@ jobs:
           $package = Get-Content package.json -Raw | ConvertFrom-Json
           $version = $package.version
           $productName = $package.build.productName
+          $releaseProductName = $productName -replace '\s+', '-'
           $releaseTag = "windows-x64-latest"
           $env:RELEASE_TAG = if ($env:RELEASE_TAG_INPUT) { $env:RELEASE_TAG_INPUT } else { $releaseTag }
           $outputDir = Resolve-Path '..\game-design-tools-windows-x64'
-          $files = @(
-            Join-Path $outputDir "$productName-$version-x64-setup.exe"
-            Join-Path $outputDir "$productName-$version-x64-portable.exe"
-            Join-Path $outputDir "$productName-$version-x64-win.zip"
-            Join-Path $outputDir "$productName-$version-x64-setup.exe.blockmap"
-            Join-Path $outputDir 'latest.yml'
+          $releaseUploadDir = New-Item -ItemType Directory -Force -Path (Join-Path $env:RUNNER_TEMP 'release-upload')
+          $artifacts = @(
+            @{
+              Source = Join-Path $outputDir "$productName-$version-x64-setup.exe"
+              Target = Join-Path $releaseUploadDir "$releaseProductName-$version-x64-setup.exe"
+            }
+            @{
+              Source = Join-Path $outputDir "$productName-$version-x64-portable.exe"
+              Target = Join-Path $releaseUploadDir "$releaseProductName-$version-x64-portable.exe"
+            }
+            @{
+              Source = Join-Path $outputDir "$productName-$version-x64-win.zip"
+              Target = Join-Path $releaseUploadDir "$releaseProductName-$version-x64-win.zip"
+            }
+            @{
+              Source = Join-Path $outputDir "$productName-$version-x64-setup.exe.blockmap"
+              Target = Join-Path $releaseUploadDir "$releaseProductName-$version-x64-setup.exe.blockmap"
+            }
+            @{
+              Source = Join-Path $outputDir 'latest.yml'
+              Target = Join-Path $releaseUploadDir 'latest.yml'
+            }
           )
 
-          foreach ($file in $files) {
-            if (-not (Test-Path $file)) {
-              throw "Missing release artifact: $file"
+          foreach ($artifact in $artifacts) {
+            if (-not (Test-Path $artifact.Source)) {
+              throw "Missing release artifact: $($artifact.Source)"
             }
+            Copy-Item -LiteralPath $artifact.Source -Destination $artifact.Target -Force
           }
+          $files = $artifacts | ForEach-Object { $_.Target }
 
           $notes = @"
           Windows 10/11 x64 desktop package.
