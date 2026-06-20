@@ -18,7 +18,7 @@ function getPackageVersion() {
 }
 
 function getAppReleaseTag() {
-  return `v${getPackageVersion()}-windows-x64-latest`
+  return 'windows-x64-latest'
 }
 
 const appUpdateStatus = {
