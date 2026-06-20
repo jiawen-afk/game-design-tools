@@ -233,6 +233,16 @@ export function resolveSpillColor(
   return [0, 255, 0]
 }
 
+export function computeChromaKeyAlpha(distance: number, tolerance: number, smoothness: number): number {
+  const threshold = Math.max(0, tolerance)
+  const feather = Math.max(0, smoothness)
+  if (distance <= threshold) return 0
+  if (feather > 0 && distance < threshold + feather) {
+    return Math.min(1, (distance - threshold) / feather)
+  }
+  return 1
+}
+
 export function getSpillColorHex(
   mode: SpillColorMode,
   customHex?: string,

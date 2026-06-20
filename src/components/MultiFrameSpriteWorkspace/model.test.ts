@@ -31,6 +31,7 @@ import {
   filterLivePlaybackFrameIds,
   filterNewUploadFiles,
   buildMatteFrameGroups,
+  computeChromaKeyAlpha,
   filterVisibleFrames,
   getInitialMatteFrameIds,
   getGuideEmptyStateText,
@@ -982,6 +983,19 @@ test('spill color options expose preview hex values', () => {
   assert.equal(getSpillColorHex('magenta'), '#ff00ff')
   assert.equal(getSpillColorHex('custom', '#123abc'), '#123abc')
   assert.equal(getSpillColorHex('custom', 'bad'), '#00ff00')
+})
+
+test('chroma key alpha matches FrameRonin tolerance and feather semantics', () => {
+  assert.equal(computeChromaKeyAlpha(79, 80, 5), 0)
+  assert.equal(computeChromaKeyAlpha(82.5, 80, 5), 0.5)
+  assert.equal(computeChromaKeyAlpha(86, 80, 5), 1)
+})
+
+test('sprite matte pipeline uses FrameRonin chroma key feather units', () => {
+  const pipeline = readFileSync('src/components/MultiFrameSpriteWorkspace/imagePipeline.ts', 'utf8')
+
+  assert.match(pipeline, /computeChromaKeyAlpha/)
+  assert.doesNotMatch(pipeline, /50\s*\+\s*\(matte\.smoothness\s*\/\s*100\)\s*\*\s*120/)
 })
 
 test('hex colors normalize picker values without falling back to green', () => {

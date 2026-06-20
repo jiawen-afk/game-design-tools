@@ -1,5 +1,5 @@
 import { buildSpriteSheetGridCells } from './model'
-import { normalizeHexColor, resolveSpillColor, type MatteDefaults } from './matteModel'
+import { computeChromaKeyAlpha, normalizeHexColor, resolveSpillColor, type MatteDefaults } from './matteModel'
 import type {
   ComposeStyle,
   FrameItem,
@@ -99,8 +99,6 @@ export async function chromaKey(sourceUrl: string, matte: MatteParams): Promise<
   ctx.drawImage(img, 0, 0)
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
   const [kr, kg, kb] = matte.keyColor
-  const thresh = (matte.tolerance / 100) * 100
-  const smooth = 50 + (matte.smoothness / 100) * 120
   const spillStr = matte.spill / 100
   const spillColor = resolveSpillColor(matte.spillColorMode, matte.customSpillHex, matte.keyColor)
   const maxSpill = Math.max(...spillColor)
@@ -116,15 +114,10 @@ export async function chromaKey(sourceUrl: string, matte: MatteParams): Promise<
     const dg = g - kg
     const db = b - kb
     const dist = Math.sqrt(dr * dr + dg * dg + db * db)
-    let alpha = 1
-    if (dist <= thresh) {
-      alpha = 0
-    } else if (dist < thresh + smooth) {
-      alpha = Math.min(1, (dist - thresh) / smooth)
-    }
+    const alpha = computeChromaKeyAlpha(dist, matte.tolerance, matte.smoothness)
 
     if (spillStr > 0 && alpha > 0) {
-      const baseMask = Math.max(0, dist - thresh)
+      const baseMask = Math.max(0, dist - matte.tolerance)
       const spillVal = Math.pow(Math.min(1, baseMask / Math.max(1, spillStr * 120)), 1.5)
       const gray = r * 0.2126 + g * 0.7152 + b * 0.0722
       let rr = gray * (1 - spillVal) + r * spillVal

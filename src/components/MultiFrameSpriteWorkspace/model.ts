@@ -39,6 +39,7 @@ export {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
   buildMatteFrameGroups,
+  computeChromaKeyAlpha,
   coerceMatteDefaults,
   getSpillColorHex,
   getInitialMatteFrameIds,
