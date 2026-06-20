@@ -341,7 +341,7 @@ autoUpdater.on('download-progress', (progress) => {
     updateDownloaded: false,
     downloadPercent: Math.round(percent),
     error: '',
-    message: `正在下载更新 ${Math.round(percent)}%。`,
+    message: '正在下载更新...',
   })
 })
 

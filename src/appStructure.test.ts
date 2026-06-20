@@ -268,6 +268,8 @@ test('desktop client exposes version and auto update controls through the footer
   assert.match(footerSource, /检查更新/)
   assert.match(footerSource, /立即重启安装/)
   assert.match(footerSource, /useAppUpdateStatus/)
+  assert.match(footerSource, /downloadPercent\}%/)
+  assert.doesNotMatch(mainSource, /正在下载更新 \$\{Math\.round\(percent\)\}%。/)
 })
 
 test('release version strings are derived from package metadata instead of duplicated literals', () => {
