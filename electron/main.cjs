@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron')
 const { autoUpdater } = require('electron-updater')
 const { spawn } = require('node:child_process')
 const fs = require('node:fs')
@@ -262,12 +262,21 @@ function parseJsonText(text) {
   return JSON.parse(String(text).replace(/^\uFEFF/, ''))
 }
 
+function getInitialWindowBounds() {
+  const workAreaSize = screen.getPrimaryDisplay().workAreaSize
+  return {
+    width: Math.max(980, Math.min(1280, workAreaSize.width - 48)),
+    height: Math.max(640, Math.min(860, workAreaSize.height - 48)),
+  }
+}
+
 function createWindow() {
+  const bounds = getInitialWindowBounds()
   const win = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: bounds.width,
+    height: bounds.height,
     minWidth: 980,
-    minHeight: 680,
+    minHeight: 640,
     title: 'Game Design Tools',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
