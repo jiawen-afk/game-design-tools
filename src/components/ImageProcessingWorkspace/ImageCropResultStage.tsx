@@ -160,12 +160,19 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
         ) : null}
         {workspace.upscalePreview ? (
           <div className="image-upscale-compare">
-            <img src={workspace.upscalePreview.url} alt="高清化结果" />
+            <div
+              className="image-upscale-compare-after"
+              style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
+            >
+              <img src={workspace.upscalePreview.url} alt="高清化结果" />
+              <span className="image-upscale-compare-label image-upscale-compare-label-after">处理后</span>
+            </div>
             <div
               className="image-upscale-compare-before"
               style={{ clipPath: `inset(0 ${100 - comparePosition}% 0 0)` }}
             >
               <img src={workspace.upscalePreview.originalUrl} alt="普通导出预览" />
+              <span className="image-upscale-compare-label image-upscale-compare-label-before">处理前</span>
             </div>
             <div className="image-upscale-compare-line" style={{ left: `${comparePosition}%` }} />
             <input

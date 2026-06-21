@@ -298,6 +298,13 @@
   object-fit: contain;
 }
 
+.image-upscale-compare-after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
 .image-upscale-compare-before {
   position: absolute;
   inset: 0;
@@ -308,6 +315,30 @@
 
 .image-upscale-compare-before img {
   width: 100%;
+}
+
+.image-upscale-compare-label {
+  position: absolute;
+  top: 12px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in oklch, white 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-ink) 76%, transparent);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.image-upscale-compare-label-before {
+  z-index: 5;
+  left: 12px;
+}
+
+.image-upscale-compare-label-after {
+  z-index: 5;
+  right: 12px;
 }
 
 .image-upscale-compare-line {
