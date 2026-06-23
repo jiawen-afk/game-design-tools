@@ -1,0 +1,44 @@
+import type { PersonalSpaceState } from './personalSpaceModel'
+import { clonePersonalSpaceState, defaultPersonalSpaceState } from './personalSpaceState'
+
+export const projectSpaceStatesStorageKey = 'game-design-tools.project-space.states.v1'
+
+export interface ProjectSpaceStateReadOptions {
+  storage?: Storage
+  fallbackState?: PersonalSpaceState
+}
+
+type StoredProjectStates = Record<string, PersonalSpaceState>
+
+function readStoredProjectStates(storage: Storage): StoredProjectStates {
+  try {
+    const raw = storage.getItem(projectSpaceStatesStorageKey)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeStoredProjectStates(states: StoredProjectStates, storage: Storage) {
+  storage.setItem(projectSpaceStatesStorageKey, JSON.stringify(states))
+}
+
+export function hasProjectSpaceState(projectId: string, storage: Storage = localStorage) {
+  return Boolean(projectId && readStoredProjectStates(storage)[projectId])
+}
+
+export function readProjectSpaceState(projectId: string, options: ProjectSpaceStateReadOptions = {}) {
+  const storage = options.storage ?? localStorage
+  const stored = projectId ? readStoredProjectStates(storage)[projectId] : null
+  if (stored) return clonePersonalSpaceState(stored)
+  return clonePersonalSpaceState(options.fallbackState ?? defaultPersonalSpaceState)
+}
+
+export function writeProjectSpaceState(projectId: string, state: PersonalSpaceState, storage: Storage = localStorage) {
+  if (!projectId) return
+  const states = readStoredProjectStates(storage)
+  states[projectId] = clonePersonalSpaceState(state)
+  writeStoredProjectStates(states, storage)
+}

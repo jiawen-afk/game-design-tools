@@ -155,6 +155,13 @@ export {
 } from './personalSpaceState'
 
 export {
+  hasProjectSpaceState,
+  projectSpaceStatesStorageKey,
+  readProjectSpaceState,
+  writeProjectSpaceState,
+} from './projectSpaceState'
+
+export {
   addStoryboardGroup,
   assignVoiceToStoryboardGroup,
   deleteStoryboardGroup,
