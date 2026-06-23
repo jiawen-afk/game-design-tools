@@ -29,4 +29,10 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   installUpscaleRuntime: (options) => invoke('upscayl:install', options),
   upscaleImage: (options) => invoke('upscayl:upscale', options),
   onUpscaleInstallProgress: (listener) => on('upscayl:install-progress', listener),
+  listProjectConnectionProfiles: (type) => invoke('project-profile:list', type),
+  saveProjectConnectionProfile: (input) => invoke('project-profile:save', input),
+  deleteProjectConnectionProfile: (profileId) => invoke('project-profile:delete', profileId),
+  verifyProjectDatabaseProfile: (profileId) => invoke('project-profile:verify-database', profileId),
+  initializeProjectDatabaseSchema: (profileId, dialect) => invoke('project-profile:initialize-database-schema', profileId, dialect),
+  verifyProjectKodoProfile: (profileId, projectId) => invoke('project-profile:verify-kodo', profileId, projectId),
 })

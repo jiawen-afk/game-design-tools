@@ -102,6 +102,20 @@ export interface DesktopUpscaleImageResult {
   data: ArrayBuffer | Uint8Array
 }
 
+export interface ProjectConnectionProfileSummary {
+  id: string
+  type: 'database' | 'qiniu_kodo'
+  displayName: string
+  redactedSummary: string
+  lastVerifiedAt: string | null
+}
+
+export interface ProjectConnectionVerificationResult {
+  ok: boolean
+  message: string
+  lastVerifiedAt: string | null
+}
+
 export interface GameDesignToolsDesktopApi {
   selectPersonalSpaceDirectory(): Promise<DesktopDirectoryInfo | null>
   registerPersonalSpaceDirectory(rootPath: string): Promise<DesktopDirectoryInfo>
@@ -124,6 +138,12 @@ export interface GameDesignToolsDesktopApi {
   installUpscaleRuntime(options?: DesktopUpscaleInstallOptions): Promise<DesktopUpscaleRuntimeStatus>
   upscaleImage(options: DesktopUpscaleImageOptions): Promise<DesktopUpscaleImageResult>
   onUpscaleInstallProgress(listener: (progress: DesktopUpscaleInstallProgress) => void): () => void
+  listProjectConnectionProfiles(type?: 'database' | 'qiniu_kodo'): Promise<ProjectConnectionProfileSummary[]>
+  saveProjectConnectionProfile(input: unknown): Promise<ProjectConnectionProfileSummary>
+  deleteProjectConnectionProfile(profileId: string): Promise<boolean>
+  verifyProjectDatabaseProfile(profileId: string): Promise<ProjectConnectionVerificationResult>
+  initializeProjectDatabaseSchema(profileId: string, dialect: 'postgresql' | 'mysql'): Promise<ProjectConnectionVerificationResult>
+  verifyProjectKodoProfile(profileId: string, projectId: string): Promise<ProjectConnectionVerificationResult>
 }
 
 declare global {

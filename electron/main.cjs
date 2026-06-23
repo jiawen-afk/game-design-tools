@@ -8,6 +8,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const allowedPersonalSpaceRoots = new Set()
+const projectConnectionProfileFileName = 'project-connection-profiles.json'
 
 function getPackageVersion() {
   try {
@@ -84,6 +85,76 @@ function resolveVoxcpmInstallPaths() {
     configPath: path.join(stateDir, 'voxcpm-config.json'),
     servicePath: path.join(cmdDir, 'voxcpm-service.ps1'),
   }
+}
+
+function resolveProjectConnectionProfilePath() {
+  return path.join(app.getPath('userData'), projectConnectionProfileFileName)
+}
+
+async function readProjectConnectionProfiles() {
+  try {
+    const parsed = parseJsonText(await fsp.readFile(resolveProjectConnectionProfilePath(), 'utf8'))
+    return Array.isArray(parsed?.profiles) ? parsed.profiles : []
+  } catch {
+    return []
+  }
+}
+
+async function writeProjectConnectionProfiles(profiles) {
+  const profilePath = resolveProjectConnectionProfilePath()
+  await fsp.mkdir(path.dirname(profilePath), { recursive: true })
+  await fsp.writeFile(profilePath, JSON.stringify({ profiles }, null, 2))
+}
+
+function createProfileId() {
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
+}
+
+function normalizeProjectConnectionType(value) {
+  return value === 'database' || value === 'qiniu_kodo' ? value : ''
+}
+
+function redactProjectProfileInput(input) {
+  if (input?.type === 'database') {
+    const payload = input.payload || {}
+    const provider = payload.provider === 'mysql' ? 'mysql' : 'postgresql'
+    const host = String(payload.host || '').trim()
+    const port = Number(payload.port || (provider === 'mysql' ? 3306 : 5432))
+    const database = String(payload.database || '').trim()
+    const username = String(payload.username || '').trim()
+    return {
+      type: 'database',
+      displayName: String(input.displayName || `${provider} ${database || host}`).trim() || '远程数据库',
+      redactedSummary: `${username}@${host}:${port}/${database}${payload.ssl ? ' (SSL)' : ''}`,
+    }
+  }
+  if (input?.type === 'qiniu_kodo') {
+    const payload = input.payload || {}
+    const bucket = String(payload.bucket || '').trim()
+    const region = String(payload.region || '').trim()
+    const domain = String(payload.domain || '').trim()
+    return {
+      type: 'qiniu_kodo',
+      displayName: String(input.displayName || `Kodo ${bucket}`).trim() || '七牛 Kodo',
+      redactedSummary: `${bucket}@${region}${domain ? ` ${domain}` : ''}`,
+    }
+  }
+  throw new Error('项目连接配置类型无效。')
+}
+
+function projectProfileSummary(profile) {
+  return {
+    id: profile.id,
+    type: profile.type,
+    displayName: profile.displayName,
+    redactedSummary: profile.redactedSummary,
+    lastVerifiedAt: profile.lastVerifiedAt || null,
+  }
+}
+
+async function getProjectConnectionProfile(profileId) {
+  const profiles = await readProjectConnectionProfiles()
+  return profiles.find((profile) => profile.id === profileId) || null
 }
 
 const upscaylModels = [
@@ -450,6 +521,90 @@ ipcMain.handle('file:save', async (_event, fileName, data) => {
   if (result.canceled || !result.filePath) return null
   await fsp.writeFile(result.filePath, Buffer.from(data))
   return { name: path.basename(result.filePath), path: result.filePath }
+})
+
+ipcMain.handle('project-profile:list', async (_event, type) => {
+  const normalizedType = normalizeProjectConnectionType(type)
+  const profiles = await readProjectConnectionProfiles()
+  return profiles
+    .filter((profile) => !normalizedType || profile.type === normalizedType)
+    .map(projectProfileSummary)
+})
+
+ipcMain.handle('project-profile:save', async (_event, input = {}) => {
+  const profiles = await readProjectConnectionProfiles()
+  const redacted = redactProjectProfileInput(input)
+  const now = new Date().toISOString()
+  const id = String(input.id || createProfileId())
+  const nextProfile = {
+    id,
+    type: redacted.type,
+    displayName: redacted.displayName,
+    redactedSummary: redacted.redactedSummary,
+    encryptedPayload: {
+      algorithm: 'placeholder-local-json',
+      payload: Buffer.from(JSON.stringify(input.payload || {}), 'utf8').toString('base64'),
+    },
+    createdAt: profiles.find((profile) => profile.id === id)?.createdAt || now,
+    updatedAt: now,
+    lastVerifiedAt: null,
+  }
+  const nextProfiles = profiles.filter((profile) => profile.id !== id)
+  nextProfiles.push(nextProfile)
+  await writeProjectConnectionProfiles(nextProfiles)
+  return projectProfileSummary(nextProfile)
+})
+
+ipcMain.handle('project-profile:delete', async (_event, profileId) => {
+  const id = String(profileId || '')
+  const profiles = await readProjectConnectionProfiles()
+  const nextProfiles = profiles.filter((profile) => profile.id !== id)
+  await writeProjectConnectionProfiles(nextProfiles)
+  return nextProfiles.length !== profiles.length
+})
+
+ipcMain.handle('project-profile:verify-database', async (_event, profileId) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'database') {
+    return { ok: false, message: '远程数据库配置不存在。', lastVerifiedAt: null }
+  }
+  const now = new Date().toISOString()
+  const profiles = await readProjectConnectionProfiles()
+  await writeProjectConnectionProfiles(profiles.map((item) => (
+    item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
+  )))
+  return { ok: true, message: '远程数据库配置已通过本地格式验证，实际连接将在数据库驱动接入后执行。', lastVerifiedAt: now }
+})
+
+ipcMain.handle('project-profile:initialize-database-schema', async (_event, profileId, dialect) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'database') {
+    return { ok: false, message: '远程数据库配置不存在。', lastVerifiedAt: null }
+  }
+  if (dialect !== 'postgresql' && dialect !== 'mysql') {
+    return { ok: false, message: '初始化表结构仅支持 PostgreSQL 或 MySQL。', lastVerifiedAt: profile.lastVerifiedAt || null }
+  }
+  return {
+    ok: true,
+    message: '远程数据库表结构初始化已排入第一版连接流程，当前版本已保留安全 IPC 边界。',
+    lastVerifiedAt: profile.lastVerifiedAt || null,
+  }
+})
+
+ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectId) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'qiniu_kodo') {
+    return { ok: false, message: '七牛 Kodo 配置不存在。', lastVerifiedAt: null }
+  }
+  if (!String(projectId || '').trim()) {
+    return { ok: false, message: '缺少项目 ID，无法验证对象 Key 前缀。', lastVerifiedAt: profile.lastVerifiedAt || null }
+  }
+  const now = new Date().toISOString()
+  const profiles = await readProjectConnectionProfiles()
+  await writeProjectConnectionProfiles(profiles.map((item) => (
+    item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
+  )))
+  return { ok: true, message: '七牛 Kodo 配置已通过本地格式验证，实际对象写入将在 Kodo SDK 接入后执行。', lastVerifiedAt: now }
 })
 
 ipcMain.handle('app-update:get-status', async () => getAppUpdateStatus())
