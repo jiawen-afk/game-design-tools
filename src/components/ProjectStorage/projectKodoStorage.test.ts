@@ -37,6 +37,7 @@ interface KodoVerifyOptions {
   createClient?: (payload: KodoPayload) => Promise<{
     putObject: (objectKey: string, body: Buffer, mimeType: string) => Promise<void>
     statObject: (objectKey: string) => Promise<void>
+    getObject: (objectKey: string) => Promise<Buffer>
     deleteObject: (objectKey: string) => Promise<void>
   }>
 }
@@ -103,6 +104,10 @@ test('kodo verification uploads stats and deletes a probe object under project p
         statObject: async (objectKey) => {
           events.push(`stat:${objectKey}`)
         },
+        getObject: async (objectKey) => {
+          events.push(`get:${objectKey}`)
+          return Buffer.from('game-design-tools-kodo-verification')
+        },
         deleteObject: async (objectKey) => {
           events.push(`delete:${objectKey}`)
         },
@@ -117,6 +122,7 @@ test('kodo verification uploads stats and deletes a probe object under project p
   assert.deepEqual(events, [
     'put:objects/默认_项目/verification/probe_1.txt:game-design-tools-kodo-verification:text/plain',
     'stat:objects/默认_项目/verification/probe_1.txt',
+    'get:objects/默认_项目/verification/probe_1.txt',
     'delete:objects/默认_项目/verification/probe_1.txt',
   ])
 })
@@ -152,6 +158,10 @@ test('kodo verification deletes probe object when stat fails', async () => {
         events.push(`stat:${objectKey}`)
         throw new Error('object not found')
       },
+      getObject: async (objectKey) => {
+        events.push(`get:${objectKey}`)
+        return Buffer.from('should not read')
+      },
       deleteObject: async (objectKey) => {
         events.push(`delete:${objectKey}`)
       },
@@ -165,6 +175,40 @@ test('kodo verification deletes probe object when stat fails', async () => {
     'put:objects/p1/verification/probe_2.txt',
     'stat:objects/p1/verification/probe_2.txt',
     'delete:objects/p1/verification/probe_2.txt',
+  ])
+})
+
+test('kodo verification downloads probe object so invalid access domains are rejected', async () => {
+  const events: string[] = []
+
+  const result = await verifyKodoProfile(kodoProfile(validPayload), {
+    projectId: 'p1',
+    probeId: 'probe_3',
+    createClient: async () => ({
+      putObject: async (objectKey) => {
+        events.push(`put:${objectKey}`)
+      },
+      statObject: async (objectKey) => {
+        events.push(`stat:${objectKey}`)
+      },
+      getObject: async (objectKey) => {
+        events.push(`get:${objectKey}`)
+        throw new Error('getaddrinfo ENOTFOUND kodi.linjiawen.com')
+      },
+      deleteObject: async (objectKey) => {
+        events.push(`delete:${objectKey}`)
+      },
+    }),
+  })
+
+  assert.equal(result.ok, false)
+  assert.match(result.message, /ENOTFOUND kodi\.linjiawen\.com/)
+  assert.equal(result.lastVerifiedAt, null)
+  assert.deepEqual(events, [
+    'put:objects/p1/verification/probe_3.txt',
+    'stat:objects/p1/verification/probe_3.txt',
+    'get:objects/p1/verification/probe_3.txt',
+    'delete:objects/p1/verification/probe_3.txt',
   ])
 })
 

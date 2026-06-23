@@ -152,6 +152,7 @@ async function verifyKodoProfile(profile, options = {}) {
     await client.putObject(objectKey, body, 'text/plain')
     uploaded = true
     await client.statObject(objectKey)
+    await client.getObject(objectKey)
     await client.deleteObject(objectKey)
     uploaded = false
     const now = options.now || (() => new Date().toISOString())
