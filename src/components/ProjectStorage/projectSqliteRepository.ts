@@ -1,7 +1,17 @@
 import { createProjectId } from './projectId'
 import { createProjectSchemaSql } from './projectSchema'
 import type { LegacyProjectRows } from './projectLegacyMigration'
-import type { Asset, Project, ProjectSettings } from './projectStorageTypes'
+import type {
+  Asset,
+  AssetGroup,
+  AssetRelation,
+  Character,
+  CharacterAssetLink,
+  Project,
+  ProjectSettings,
+  StoryboardGroup,
+  StoryboardVoiceEntry,
+} from './projectStorageTypes'
 
 export interface CreateLocalProjectInput {
   name: string
@@ -28,6 +38,7 @@ export interface ProjectRepository {
   listProjects(): Promise<Project[]>
   getProject(projectId: string): Promise<ProjectWithSettings | null>
   importProjectRows(rows: LegacyProjectRows): Promise<void>
+  exportProjectRows(projectId: string): Promise<LegacyProjectRows | null>
   listAssets(projectId: string): Promise<Asset[]>
   deleteProject(projectId: string): Promise<void>
 }
@@ -36,7 +47,13 @@ export class MemoryProjectRepository implements ProjectRepository {
   private initialized = false
   private projects = new Map<string, Project>()
   private settings = new Map<string, ProjectSettings>()
+  private assetGroups = new Map<string, AssetGroup[]>()
   private assets = new Map<string, Asset[]>()
+  private characters = new Map<string, Character[]>()
+  private characterAssetLinks = new Map<string, CharacterAssetLink[]>()
+  private storyboardGroups = new Map<string, StoryboardGroup[]>()
+  private storyboardVoiceEntries = new Map<string, StoryboardVoiceEntry[]>()
+  private assetRelations = new Map<string, AssetRelation[]>()
 
   async initializeSchema() {
     createProjectSchemaSql('sqlite')
@@ -69,7 +86,13 @@ export class MemoryProjectRepository implements ProjectRepository {
     }
     this.projects.set(id, project)
     this.settings.set(id, settings)
+    this.assetGroups.set(id, [])
     this.assets.set(id, [])
+    this.characters.set(id, [])
+    this.characterAssetLinks.set(id, [])
+    this.storyboardGroups.set(id, [])
+    this.storyboardVoiceEntries.set(id, [])
+    this.assetRelations.set(id, [])
     return { project, settings }
   }
 
@@ -101,7 +124,30 @@ export class MemoryProjectRepository implements ProjectRepository {
     if (!this.initialized) await this.initializeSchema()
     this.projects.set(rows.project.id, rows.project)
     this.settings.set(rows.project.id, rows.settings)
+    this.assetGroups.set(rows.project.id, [...rows.assetGroups])
     this.assets.set(rows.project.id, [...rows.assets])
+    this.characters.set(rows.project.id, [...rows.characters])
+    this.characterAssetLinks.set(rows.project.id, [...rows.characterAssetLinks])
+    this.storyboardGroups.set(rows.project.id, [...rows.storyboardGroups])
+    this.storyboardVoiceEntries.set(rows.project.id, [...rows.storyboardVoiceEntries])
+    this.assetRelations.set(rows.project.id, [...rows.assetRelations])
+  }
+
+  async exportProjectRows(projectId: string) {
+    const project = this.projects.get(projectId)
+    const settings = this.settings.get(projectId)
+    if (!project || !settings) return null
+    return {
+      project,
+      settings,
+      assetGroups: [...(this.assetGroups.get(projectId) ?? [])],
+      assets: [...(this.assets.get(projectId) ?? [])],
+      characters: [...(this.characters.get(projectId) ?? [])],
+      characterAssetLinks: [...(this.characterAssetLinks.get(projectId) ?? [])],
+      storyboardGroups: [...(this.storyboardGroups.get(projectId) ?? [])],
+      storyboardVoiceEntries: [...(this.storyboardVoiceEntries.get(projectId) ?? [])],
+      assetRelations: [...(this.assetRelations.get(projectId) ?? [])],
+    }
   }
 
   async listAssets(projectId: string) {
@@ -111,7 +157,13 @@ export class MemoryProjectRepository implements ProjectRepository {
   async deleteProject(projectId: string) {
     this.projects.delete(projectId)
     this.settings.delete(projectId)
+    this.assetGroups.delete(projectId)
     this.assets.delete(projectId)
+    this.characters.delete(projectId)
+    this.characterAssetLinks.delete(projectId)
+    this.storyboardGroups.delete(projectId)
+    this.storyboardVoiceEntries.delete(projectId)
+    this.assetRelations.delete(projectId)
   }
 }
 

@@ -1,7 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  addCharacterProfile,
+  addStoryboardGroup,
+  assignAssetToCharacterColumn,
+  assignVoiceToStoryboardGroup,
+  createPersonalSpaceAsset,
+  defaultPersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
 import { createMemoryProjectRepository } from './projectSqliteRepository'
 
@@ -50,6 +57,31 @@ test('local project repository imports migrated rows and hard deletes project ro
   assert.deepEqual(await repository.listProjects(), [])
   assert.equal(await repository.getProject('p1'), null)
   assert.deepEqual(await repository.listAssets('p1'), [])
+})
+
+test('local project repository exports the complete project row set', async () => {
+  const repository = createMemoryProjectRepository()
+  await repository.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  let state = addCharacterProfile({ ...defaultPersonalSpaceState, assets: [voice] }, '商人')
+  state = addStoryboardGroup(state, '开场')
+  state = assignAssetToCharacterColumn(state, state.characters[0]!.id, voice.id, 'voice')
+  state = assignVoiceToStoryboardGroup(state, state.storyboardGroups[0]!.id, voice.id, '欢迎')
+  const rows = migratePersonalSpaceStateToProjectRows(state, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+
+  await repository.importProjectRows(rows)
+
+  assert.deepEqual(await repository.exportProjectRows('p1'), rows)
 })
 
 test('local project repository updates project name and description', async () => {

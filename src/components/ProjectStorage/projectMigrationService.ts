@@ -1,5 +1,4 @@
 import { createProjectStorageId } from './projectId'
-import type { LegacyProjectRows } from './projectLegacyMigration'
 import type { ProjectObjectStorage } from './projectObjectStorage'
 import type { ProjectRepository } from './projectSqliteRepository'
 import type { Asset, CleanupTaskStatus, ProjectStorageProvider } from './projectStorageTypes'
@@ -30,53 +29,32 @@ function listAssetObjectKeys(asset: Asset) {
   ]
 }
 
-function emptyMigratedProjectRows(rows: LegacyProjectRows): LegacyProjectRows {
-  return {
-    project: rows.project,
-    settings: rows.settings,
-    assetGroups: [],
-    assets: rows.assets,
-    characters: [],
-    characterAssetLinks: [],
-    storyboardGroups: [],
-    storyboardVoiceEntries: [],
-    assetRelations: [],
-  }
-}
-
 export async function migrateLocalProjectToRemote(input: LocalToRemoteMigrationInput) {
-  const source = await input.localRepository.getProject(input.projectId)
-  if (!source) throw new Error('项目不存在')
-  const assets = await input.localRepository.listAssets(input.projectId)
+  const sourceRows = await input.localRepository.exportProjectRows(input.projectId)
+  if (!sourceRows) throw new Error('项目不存在')
 
   try {
-    for (const asset of assets) {
+    for (const asset of sourceRows.assets) {
       for (const objectKey of listAssetObjectKeys(asset)) {
         await input.uploadObject(objectKey)
       }
     }
 
-    await input.remoteRepository.importProjectRows(emptyMigratedProjectRows({
+    await input.remoteRepository.importProjectRows({
+      ...sourceRows,
       project: {
-        ...source.project,
+        ...sourceRows.project,
         mode: 'remote',
         updated_at: input.now,
       },
       settings: {
-        ...source.settings,
+        ...sourceRows.settings,
         storage_provider: 'qiniu_kodo',
-        database_provider: source.settings.database_provider === 'sqlite' ? 'postgresql' : source.settings.database_provider,
+        database_provider: sourceRows.settings.database_provider === 'sqlite' ? 'postgresql' : sourceRows.settings.database_provider,
         local_object_root: null,
         updated_at: input.now,
       },
-      assetGroups: [],
-      assets,
-      characters: [],
-      characterAssetLinks: [],
-      storyboardGroups: [],
-      storyboardVoiceEntries: [],
-      assetRelations: [],
-    }))
+    })
 
     return { status: 'succeeded' as const, errorMessage: '' }
   } catch (error) {
