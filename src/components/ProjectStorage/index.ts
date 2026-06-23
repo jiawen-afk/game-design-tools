@@ -1,3 +1,5 @@
 export * from './projectStorageModel'
 export * from './projectLegacyMigration'
 export * from './projectSqliteRepository'
+export * from './projectObjectStorage'
+export * from './projectLocalObjectStorage'

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "desktop:dev": "npm run build && electron .",
     "desktop:build:win": "npm run build && electron-builder --win --x64",
-    "test": "tsx --test src/appStructure.test.ts src/components/ProjectStorage/projectStorageModel.test.ts src/components/ProjectStorage/projectLegacyMigration.test.ts src/components/ProjectStorage/projectSqliteRepository.test.ts src/components/ImageProcessingWorkspace/imageProcessingModel.test.ts src/components/ImageProcessingWorkspace/imageUpscaleModel.test.ts src/components/MultiFrameSpriteWorkspace/model.test.ts src/components/VoiceDeploymentWorkspace/voiceDeploymentModel.test.ts src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.test.ts src/components/PersonalSpaceWorkspace/personalSpaceModel.test.ts src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.test.ts"
+    "test": "tsx --test src/appStructure.test.ts src/components/ProjectStorage/projectStorageModel.test.ts src/components/ProjectStorage/projectLegacyMigration.test.ts src/components/ProjectStorage/projectSqliteRepository.test.ts src/components/ProjectStorage/projectLocalObjectStorage.test.ts src/components/ImageProcessingWorkspace/imageProcessingModel.test.ts src/components/ImageProcessingWorkspace/imageUpscaleModel.test.ts src/components/MultiFrameSpriteWorkspace/model.test.ts src/components/VoiceDeploymentWorkspace/voiceDeploymentModel.test.ts src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.test.ts src/components/PersonalSpaceWorkspace/personalSpaceModel.test.ts src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.test.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
