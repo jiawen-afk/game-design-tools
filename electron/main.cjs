@@ -6,6 +6,10 @@ const fsp = require('node:fs/promises')
 const https = require('node:https')
 const os = require('node:os')
 const path = require('node:path')
+const {
+  initializeRemoteDatabaseSchema,
+  verifyRemoteDatabaseProfile,
+} = require('./projectRemoteDatabase.cjs')
 
 const allowedPersonalSpaceRoots = new Set()
 const projectConnectionProfileFileName = 'project-connection-profiles.json'
@@ -568,12 +572,15 @@ ipcMain.handle('project-profile:verify-database', async (_event, profileId) => {
   if (!profile || profile.type !== 'database') {
     return { ok: false, message: '远程数据库配置不存在。', lastVerifiedAt: null }
   }
-  const now = new Date().toISOString()
-  const profiles = await readProjectConnectionProfiles()
-  await writeProjectConnectionProfiles(profiles.map((item) => (
-    item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
-  )))
-  return { ok: true, message: '远程数据库配置已通过本地格式验证，实际连接将在数据库驱动接入后执行。', lastVerifiedAt: now }
+  const result = await verifyRemoteDatabaseProfile(profile)
+  if (result.ok) {
+    const now = result.lastVerifiedAt || new Date().toISOString()
+    const profiles = await readProjectConnectionProfiles()
+    await writeProjectConnectionProfiles(profiles.map((item) => (
+      item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
+    )))
+  }
+  return result
 })
 
 ipcMain.handle('project-profile:initialize-database-schema', async (_event, profileId, dialect) => {
@@ -584,11 +591,7 @@ ipcMain.handle('project-profile:initialize-database-schema', async (_event, prof
   if (dialect !== 'postgresql' && dialect !== 'mysql') {
     return { ok: false, message: '初始化表结构仅支持 PostgreSQL 或 MySQL。', lastVerifiedAt: profile.lastVerifiedAt || null }
   }
-  return {
-    ok: true,
-    message: '远程数据库表结构初始化已排入第一版连接流程，当前版本已保留安全 IPC 边界。',
-    lastVerifiedAt: profile.lastVerifiedAt || null,
-  }
+  return initializeRemoteDatabaseSchema(profile)
 })
 
 ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectId) => {
