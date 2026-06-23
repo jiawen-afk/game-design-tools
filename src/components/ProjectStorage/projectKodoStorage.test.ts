@@ -5,10 +5,12 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const {
   getKodoObject,
+  normalizeDownloadDomain,
   normalizeKodoPayload,
   verifyKodoProfile,
 } = require('../../../electron/projectKodoStorage.cjs') as {
   getKodoObject: (profile: unknown, objectKey: string, options: KodoObjectOptions) => Promise<{ data: Buffer; mimeType: string }>
+  normalizeDownloadDomain: (domain: string) => string
   normalizeKodoPayload: (profile: unknown) => KodoPayload
   verifyKodoProfile: (profile: unknown, options: KodoVerifyOptions) => Promise<KodoVerifyResult>
 }
@@ -76,6 +78,12 @@ test('kodo profile payload is decoded and validated before remote verification',
     () => normalizeKodoPayload(kodoProfile({ ...validPayload, bucket: '' })),
     /缺少 Bucket/,
   )
+})
+
+test('kodo download domain accepts bare host names from project configuration', () => {
+  assert.equal(normalizeDownloadDomain('kodi.linjiawen.com'), 'https://kodi.linjiawen.com')
+  assert.equal(normalizeDownloadDomain('https://cdn.example.com/'), 'https://cdn.example.com')
+  assert.equal(normalizeDownloadDomain('http://cdn.example.com/'), 'http://cdn.example.com')
 })
 
 test('kodo verification uploads stats and deletes a probe object under project prefix', async () => {

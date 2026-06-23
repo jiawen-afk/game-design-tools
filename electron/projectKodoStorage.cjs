@@ -76,7 +76,8 @@ function unwrapQiniuResponse(response, operation) {
 function normalizeDownloadDomain(domain) {
   const normalized = String(domain || '').trim().replace(/\/+$/, '')
   if (!normalized) throw new Error('缺少 Kodo 访问域名，无法读取对象。')
-  return normalized
+  if (/^https?:\/\//i.test(normalized)) return normalized
+  return `https://${normalized}`
 }
 
 function downloadBuffer(url) {
@@ -197,6 +198,7 @@ module.exports = {
   createQiniuKodoClient,
   deleteKodoObject,
   getKodoObject,
+  normalizeDownloadDomain,
   normalizeKodoPayload,
   normalizeProjectPrefix,
   putKodoObject,
