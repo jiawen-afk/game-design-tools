@@ -301,6 +301,22 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       asset.primary_object_key,
       ...(asset.sprite_index_object_key ? [asset.sprite_index_object_key] : []),
     ]
+    const projectResourceIds = [
+      asset.primary_resource_id,
+      ...(asset.sprite_index_resource_id ? [asset.sprite_index_resource_id] : []),
+    ]
+    const projectResourceSizes = [
+      asset.primary_size_bytes,
+      ...(asset.sprite_index_resource_id ? [asset.sprite_index_size_bytes] : []),
+    ]
+    const projectResourceHashes = [
+      asset.primary_hash_sha256,
+      ...(asset.sprite_index_resource_id ? [asset.sprite_index_hash_sha256] : []),
+    ]
+    const projectResourceMimeTypes = [
+      asset.primary_mime_type,
+      ...(asset.sprite_index_resource_id ? [asset.sprite_index_mime_type] : []),
+    ]
     return {
       id: asset.id,
       kind: asset.kind,
@@ -314,6 +330,10 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       linkedStoryboardIds: idsUniqueInOrder(storyboardIds),
       linkedVoiceAssetIds: idsUniqueInOrder(linkedVoiceAssetIds),
       storageResourcePaths: resourcePaths,
+      projectResourceIds,
+      projectResourceSizes,
+      projectResourceHashes,
+      projectResourceMimeTypes,
       sourceKey: asset.source_key ?? undefined,
     }
   })

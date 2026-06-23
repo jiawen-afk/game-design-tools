@@ -20,6 +20,9 @@ const {
   createLocalProjectObjectStorage,
 } = require('./projectLocalObjectStorage.cjs')
 const {
+  createProjectAssetCacheStorage,
+} = require('./projectAssetCacheStorage.cjs')
+const {
   deleteKodoObject,
   getKodoObject,
   putKodoObject,
@@ -116,6 +119,10 @@ function resolveProjectLocalDatabasePath() {
 
 function resolveProjectLocalObjectRootPath() {
   return path.join(app.getPath('userData'), 'project-objects')
+}
+
+function resolveProjectAssetCacheRootPath() {
+  return path.join(app.getPath('userData'), 'project-asset-cache')
 }
 
 async function readProjectConnectionProfiles() {
@@ -703,6 +710,26 @@ ipcMain.handle('project-local-object:get', async (_event, objectKey) => (
 ipcMain.handle('project-local-object:delete', async (_event, objectKey) => (
   createLocalProjectObjectStorage(resolveProjectLocalObjectRootPath())
     .deleteObject(String(objectKey || ''))
+))
+
+ipcMain.handle('project-asset-cache:get', async (_event, ref, expectedFingerprint) => (
+  createProjectAssetCacheStorage(resolveProjectAssetCacheRootPath())
+    .getCachedResource(ref || {}, String(expectedFingerprint || ''))
+))
+
+ipcMain.handle('project-asset-cache:put', async (_event, ref, fingerprint, data, mimeType) => (
+  createProjectAssetCacheStorage(resolveProjectAssetCacheRootPath())
+    .putCachedResource(ref || {}, String(fingerprint || ''), Buffer.from(data), { mimeType })
+))
+
+ipcMain.handle('project-asset-cache:delete-resource', async (_event, ref) => (
+  createProjectAssetCacheStorage(resolveProjectAssetCacheRootPath())
+    .deleteCachedResource(ref || {})
+))
+
+ipcMain.handle('project-asset-cache:delete-project', async (_event, projectId) => (
+  createProjectAssetCacheStorage(resolveProjectAssetCacheRootPath())
+    .deleteProjectCache(String(projectId || ''))
 ))
 
 ipcMain.handle('project-remote-repository:create-project', async (_event, input = {}) => {

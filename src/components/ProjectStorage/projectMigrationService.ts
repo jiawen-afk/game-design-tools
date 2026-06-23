@@ -1,5 +1,6 @@
 import { createProjectStorageId } from './projectId'
 import { migratePersonalSpaceStateToProjectRows, type LegacyProjectRows } from './projectLegacyMigration'
+import type { ProjectAssetManager, ProjectAssetResourceRef } from './projectAssetManager'
 import type { ProjectObjectStorage } from './projectObjectStorage'
 import type { ProjectRepository } from './projectSqliteRepository'
 import type { Asset, CleanupTaskStatus, ProjectDatabaseProvider, ProjectStorageProvider } from './projectStorageTypes'
@@ -16,6 +17,7 @@ export interface LocalToRemoteMigrationInput {
   uploadObject?: (objectKey: string) => Promise<void>
   sourceObjectStorage?: ProjectObjectStorage
   remoteObjectStorage?: ProjectObjectStorage
+  assetManager?: ProjectAssetManager
   now: string
 }
 
@@ -28,6 +30,7 @@ export interface ProjectSpaceStateSyncInput {
   localRepository?: ProjectRepository
   objectStorage?: ProjectObjectStorage
   localObjectStorage?: ProjectObjectStorage
+  assetManager?: ProjectAssetManager
   storageProvider?: ProjectStorageProvider
   databaseProvider?: ProjectDatabaseProvider
   remoteDatabaseProfileId?: string | null
@@ -52,6 +55,54 @@ function listAssetObjectKeys(asset: Asset) {
     asset.primary_object_key,
     ...(asset.sprite_index_object_key ? [asset.sprite_index_object_key] : []),
   ]
+}
+
+function buildAssetResourceRef(
+  projectMode: 'local' | 'remote',
+  asset: Asset,
+  role: 'primary' | 'sprite_index',
+): ProjectAssetResourceRef | null {
+  if (role === 'sprite_index') {
+    if (!asset.sprite_index_resource_id || !asset.sprite_index_object_key) return null
+    return {
+      projectId: asset.project_id,
+      projectMode,
+      assetId: asset.id,
+      resourceId: asset.sprite_index_resource_id,
+      role,
+      objectKey: asset.sprite_index_object_key,
+      mimeType: asset.sprite_index_mime_type,
+      sizeBytes: asset.sprite_index_size_bytes,
+      hashSha256: asset.sprite_index_hash_sha256,
+    }
+  }
+  return {
+    projectId: asset.project_id,
+    projectMode,
+    assetId: asset.id,
+    resourceId: asset.primary_resource_id,
+    role,
+    objectKey: asset.primary_object_key,
+    mimeType: asset.primary_mime_type,
+    sizeBytes: asset.primary_size_bytes,
+    hashSha256: asset.primary_hash_sha256,
+  }
+}
+
+async function putAssetResourceObject(
+  input: ProjectSpaceStateSyncInput,
+  asset: Asset,
+  role: 'primary' | 'sprite_index',
+  blob: Blob,
+) {
+  const ref = buildAssetResourceRef(input.storageProvider === 'qiniu_kodo' ? 'remote' : 'local', asset, role)
+  if (input.storageProvider === 'qiniu_kodo' && input.assetManager && ref) {
+    await input.assetManager.putResource(ref, blob)
+    return
+  }
+  const objectStorage = input.objectStorage ?? input.localObjectStorage
+  if (!objectStorage) throw new Error('缺少项目对象存储。')
+  await objectStorage.putObject(role === 'sprite_index' ? asset.sprite_index_object_key! : asset.primary_object_key, blob)
 }
 
 function isProjectObjectKey(path: string | undefined) {
@@ -84,7 +135,7 @@ function replaceAssetInRows(rows: LegacyProjectRows, asset: Asset) {
 
 async function writeAssetObjects(input: ProjectSpaceStateSyncInput, rows: LegacyProjectRows) {
   const objectStorage = input.objectStorage ?? input.localObjectStorage
-  if (!objectStorage) throw new Error('缺少项目对象存储。')
+  if (!objectStorage && !input.assetManager) throw new Error('缺少项目对象存储。')
   for (let index = 0; index < rows.assets.length; index += 1) {
     let asset = rows.assets[index]!
     const sourceAsset = input.state.assets[index]
@@ -92,21 +143,21 @@ async function writeAssetObjects(input: ProjectSpaceStateSyncInput, rows: Legacy
 
     if (!isProjectObjectKey(sourceAsset.storageResourcePaths[0]) || !isProjectObjectKey(sourceAsset.resourcePaths[0])) {
       const primaryBlob = await readAssetResourceBlob(sourceAsset, 0, input.directoryHandle)
-      await objectStorage.putObject(asset.primary_object_key, primaryBlob)
       asset = {
         ...asset,
         primary_size_bytes: primaryBlob.size,
       }
+      await putAssetResourceObject(input, asset, 'primary', primaryBlob)
     }
 
     if (asset.sprite_index_object_key) {
       if (!isProjectObjectKey(sourceAsset.storageResourcePaths[1]) || !isProjectObjectKey(sourceAsset.resourcePaths[1])) {
         const spriteIndexBlob = await readAssetResourceBlob(sourceAsset, 1, input.directoryHandle)
-        await objectStorage.putObject(asset.sprite_index_object_key, spriteIndexBlob)
         asset = {
           ...asset,
           sprite_index_size_bytes: spriteIndexBlob.size,
         }
+        await putAssetResourceObject(input, asset, 'sprite_index', spriteIndexBlob)
       }
     }
 
@@ -181,15 +232,26 @@ async function uploadProjectObject(input: LocalToRemoteMigrationInput, objectKey
   throw new Error('缺少项目对象迁移上传器。')
 }
 
+async function uploadAssetResource(input: LocalToRemoteMigrationInput, asset: Asset, role: 'primary' | 'sprite_index') {
+  const ref = buildAssetResourceRef('remote', asset, role)
+  const objectKey = role === 'sprite_index' ? asset.sprite_index_object_key : asset.primary_object_key
+  if (!objectKey) return
+  if (input.assetManager && ref && input.sourceObjectStorage) {
+    const objectData = await input.sourceObjectStorage.getObject(objectKey)
+    await input.assetManager.putResource(ref, objectData)
+    return
+  }
+  await uploadProjectObject(input, objectKey)
+}
+
 export async function migrateLocalProjectToRemote(input: LocalToRemoteMigrationInput) {
   const sourceRows = await input.localRepository.exportProjectRows(input.projectId)
   if (!sourceRows) throw new Error('项目不存在')
 
   try {
     for (const asset of sourceRows.assets) {
-      for (const objectKey of listAssetObjectKeys(asset)) {
-        await uploadProjectObject(input, objectKey)
-      }
+      await uploadAssetResource(input, asset, 'primary')
+      await uploadAssetResource(input, asset, 'sprite_index')
     }
 
     const migratedRows: LegacyProjectRows = {
@@ -226,6 +288,7 @@ export async function hardDeleteProjectWithObjects(input: {
   repository: ProjectRepository
   localRepository?: ProjectRepository
   objectStorage: ProjectObjectStorage
+  assetManager?: ProjectAssetManager
   storageProvider?: ProjectStorageProvider
   now: string
 }) {
@@ -236,6 +299,7 @@ export async function hardDeleteProjectWithObjects(input: {
   if (input.localRepository && input.localRepository !== input.repository) {
     await input.localRepository.deleteProject(input.projectId)
   }
+  await input.assetManager?.deleteProjectCache(input.projectId)
 
   return {
     deletedProject: true,

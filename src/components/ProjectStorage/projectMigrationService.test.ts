@@ -13,6 +13,7 @@ import {
 import { createMemoryDirectoryHandle } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import { createMemoryProjectObjectStorage } from './projectLocalObjectStorage'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
+import { createMemoryProjectAssetCacheStorage, createProjectAssetFingerprint, createProjectAssetManager } from './projectAssetManager'
 import {
   hardDeleteProjectWithObjects,
   migrateLocalProjectToRemote,
@@ -171,6 +172,60 @@ test('local to remote migration copies object bytes from local storage to remote
 
   assert.equal(result.status, 'succeeded')
   assert.equal(await (await remoteObjects.getObject(objectKey)).text(), 'voice-bytes')
+})
+
+test('local to remote migration caches uploaded remote resources through asset manager', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const assetManager = createProjectAssetManager({
+    localObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    cacheStorage,
+  })
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [voice] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await local.importProjectRows(rows)
+  const asset = rows.assets[0]!
+  await localObjects.putObject(asset.primary_object_key, new Blob(['voice-bytes'], { type: 'audio/wav' }))
+
+  const result = await migrateLocalProjectToRemote({
+    projectId: 'p1',
+    localRepository: local,
+    remoteRepository: remote,
+    sourceObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    assetManager,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'succeeded')
+  const ref = {
+    projectId: 'p1',
+    projectMode: 'remote' as const,
+    assetId: asset.id,
+    resourceId: asset.primary_resource_id,
+    role: 'primary' as const,
+    objectKey: asset.primary_object_key,
+    mimeType: asset.primary_mime_type,
+    sizeBytes: asset.primary_size_bytes,
+    hashSha256: asset.primary_hash_sha256,
+  }
+  assert.equal(await (await cacheStorage.getCachedResource(ref, createProjectAssetFingerprint(ref)))!.text(), 'voice-bytes')
 })
 
 test('syncing the active project snapshot before migration persists characters, sprites, voices, and object bytes', async () => {
@@ -378,6 +433,62 @@ test('syncing project snapshot can persist directly to remote repository and obj
   assert.equal(await (await remoteObjects.getObject(remoteRows.assets[0]!.primary_object_key)).text(), 'voice-bytes')
 })
 
+test('syncing project snapshot to remote caches uploaded resources through asset manager', async () => {
+  const remote = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const assetManager = createProjectAssetManager({
+    localObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    cacheStorage,
+  })
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await remote.initializeSchema()
+  await directory.writeText('配音/2026-06-23/welcome.wav', 'voice-bytes')
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      resourcePaths: ['blob:expired-voice'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-23/welcome.wav'],
+  }
+
+  const rows = await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '远程项目',
+    localObjectRoot: '',
+    state: { ...defaultPersonalSpaceState, assets: [voice] },
+    repository: remote,
+    objectStorage: remoteObjects,
+    assetManager,
+    storageProvider: 'qiniu_kodo',
+    databaseProvider: 'postgresql',
+    remoteDatabaseProfileId: 'db1',
+    remoteStorageProfileId: 'kodo1',
+    directoryHandle: directory,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const asset = rows.assets[0]!
+  const ref = {
+    projectId: 'p1',
+    projectMode: 'remote' as const,
+    assetId: asset.id,
+    resourceId: asset.primary_resource_id,
+    role: 'primary' as const,
+    objectKey: asset.primary_object_key,
+    mimeType: asset.primary_mime_type,
+    sizeBytes: asset.primary_size_bytes,
+    hashSha256: asset.primary_hash_sha256,
+  }
+  assert.equal(await (await remoteObjects.getObject(asset.primary_object_key)).text(), 'voice-bytes')
+  assert.equal(await (await cacheStorage.getCachedResource(ref, createProjectAssetFingerprint(ref)))!.text(), 'voice-bytes')
+})
+
 test('syncing restored remote project rows updates metadata without requiring local object reads', async () => {
   const remote = createMemoryProjectRepository()
   const remoteObjects = createMemoryProjectObjectStorage()
@@ -550,4 +661,53 @@ test('hard deleting a remote project can also remove the migrated local snapshot
 
   assert.deepEqual(await remote.listProjects(), [])
   assert.deepEqual(await local.listProjects(), [])
+})
+
+test('hard deleting a project clears project asset cache', async () => {
+  const repository = createMemoryProjectRepository()
+  const storage = createMemoryProjectObjectStorage()
+  const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const assetManager = createProjectAssetManager({
+    localObjectStorage: storage,
+    remoteObjectStorage: storage,
+    cacheStorage,
+  })
+  await repository.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [voice] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await repository.importProjectRows(rows)
+  const asset = rows.assets[0]!
+  const ref = {
+    projectId: 'p1',
+    projectMode: 'remote' as const,
+    assetId: asset.id,
+    resourceId: asset.primary_resource_id,
+    role: 'primary' as const,
+    objectKey: asset.primary_object_key,
+    mimeType: asset.primary_mime_type,
+    sizeBytes: asset.primary_size_bytes,
+    hashSha256: asset.primary_hash_sha256,
+  }
+  await cacheStorage.putCachedResource(ref, createProjectAssetFingerprint(ref), new Blob(['cache']))
+
+  await hardDeleteProjectWithObjects({
+    projectId: 'p1',
+    repository,
+    objectStorage: storage,
+    assetManager,
+    storageProvider: 'qiniu_kodo',
+    now: '2026-06-23T00:00:00.000Z',
+  })
+
+  assert.equal(await cacheStorage.getCachedResource(ref, createProjectAssetFingerprint(ref)), null)
 })

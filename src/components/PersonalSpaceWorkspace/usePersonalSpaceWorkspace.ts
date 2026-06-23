@@ -4,9 +4,11 @@ import type { UploadProps } from 'antd'
 import {
   clearActiveProjectId,
   createDesktopLocalProjectObjectStorage,
+  createDesktopProjectAssetCacheStorage,
   createDesktopLocalProjectRepository,
   createDesktopRemoteProjectRepository,
   createDesktopKodoProjectObjectStorage,
+  createProjectAssetManager,
   createProjectWorkspaceBootstrapper,
   hardDeleteProjectWithObjects,
   mergeProjectsRemoteFirst,
@@ -87,6 +89,7 @@ const REMOTE_PROJECT_SYNC_DEBOUNCE_MS = 1500
 const REMOTE_PROJECT_PERIODIC_SYNC_MS = 60000
 const projectRepository = createDesktopLocalProjectRepository()
 const projectObjectStorage = createDesktopLocalProjectObjectStorage()
+const projectAssetCacheStorage = createDesktopProjectAssetCacheStorage()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
 
 type RemoteProjectSettingsSnapshot = Pick<
@@ -198,6 +201,11 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }
   const remoteProjectRepository = createDesktopRemoteProjectRepository(getRemoteDatabaseProfileId)
   const remoteProjectObjectStorage = createDesktopKodoProjectObjectStorage(getRemoteStorageProfileId)
+  const projectAssetManager = createProjectAssetManager({
+    localObjectStorage: projectObjectStorage,
+    remoteObjectStorage: remoteProjectObjectStorage,
+    cacheStorage: projectAssetCacheStorage,
+  })
 
   const refreshProjectList = async (preferredProjectId = selectedManagementProjectId) => {
     const [localProjects, remoteProjects] = await Promise.all([
@@ -293,6 +301,16 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     return project?.mode === 'remote' ? remoteProjectRepository : projectRepository
   }
 
+  const projectReadOptionsForActiveProject = () => {
+    const project = findProject(activeProjectIdRef.current)
+    return {
+      projectObjectStorage: project?.mode === 'remote' ? remoteProjectObjectStorage : projectObjectStorage,
+      projectAssetManager,
+      projectId: project?.id,
+      projectMode: project?.mode,
+    }
+  }
+
   const syncProjectStateToStorage = async (project: Project, nextSpace: PersonalSpaceState) => {
     if (project.mode === 'remote') {
       await ensureRemoteProjectSettings(project.id)
@@ -304,6 +322,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         state: nextSpace,
         repository: remoteProjectRepository,
         objectStorage: remoteProjectObjectStorage,
+        assetManager: projectAssetManager,
         storageProvider: 'qiniu_kodo',
         databaseProvider: remoteSettings.database_provider,
         remoteDatabaseProfileId: remoteSettings.remote_database_profile_id,
@@ -552,6 +571,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       repository,
       localRepository: projectToDelete?.mode === 'remote' ? projectRepository : undefined,
       objectStorage: projectToDelete?.mode === 'remote' ? remoteProjectObjectStorage : projectObjectStorage,
+      assetManager: projectAssetManager,
       storageProvider: projectToDelete?.mode === 'remote' ? 'qiniu_kodo' : 'local',
       now: new Date().toISOString(),
     })
@@ -621,6 +641,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         remoteStorageProfileId: settingsWorkspace.selectedKodoProfileId,
         sourceObjectStorage: projectObjectStorage,
         remoteObjectStorage: remoteProjectObjectStorage,
+        assetManager: projectAssetManager,
         now: new Date().toISOString(),
       })
 
@@ -673,7 +694,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardAsset = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-legacy-${id}`,
-      () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
+      () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle, projectReadOptionsForActiveProject()),
       '已导出剧情编排 ZIP',
       '已保存剧情编排 ZIP',
       '导出剧情编排资产失败',
@@ -683,7 +704,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardVoiceAssets = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-voices-${id}`,
-      () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
+      () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectReadOptionsForActiveProject()),
       '已导出分组配音资产 ZIP',
       '已保存分组配音资产 ZIP',
       '导出分组配音资产失败',
@@ -693,7 +714,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardCharacterAssets = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-characters-${id}`,
-      () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
+      () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectReadOptionsForActiveProject()),
       '已导出分组关联角色资产 ZIP',
       '已保存分组关联角色资产 ZIP',
       '导出分组关联角色资产失败',
@@ -703,7 +724,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportAllStoryboardVoiceAssets = async () => {
     await exportStoryboardWithStatus(
       'all-voices',
-      () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle, projectObjectStorage),
+      () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle, projectReadOptionsForActiveProject()),
       '已导出所有分组配音资产 ZIP',
       '已保存所有分组配音资产 ZIP',
       '导出所有分组配音资产失败',
@@ -713,7 +734,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportAllStoryboardCharacterAssets = async () => {
     await exportStoryboardWithStatus(
       'all-characters',
-      () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle, projectObjectStorage),
+      () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle, projectReadOptionsForActiveProject()),
       '已导出所有分组关联角色资产 ZIP',
       '已保存所有分组关联角色资产 ZIP',
       '导出所有分组关联角色资产失败',
@@ -937,6 +958,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const activeProjectObjectStorage = activeProject?.mode === 'remote'
     ? remoteProjectObjectStorage
     : projectObjectStorage
+  const projectResourceReadOptions = {
+    projectObjectStorage: activeProjectObjectStorage,
+    projectAssetManager,
+    projectId: activeProject?.id,
+    projectMode: activeProject?.mode,
+  }
 
   const storyboardVoiceRefs = (assetId: string) => space.storyboardGroups
     .flatMap((group) => group.voiceEntries
@@ -950,6 +977,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     activeProject,
     enabledProjectId: activeProjectId,
     projectObjectStorage: activeProjectObjectStorage,
+    projectAssetManager,
+    projectResourceReadOptions,
     workspacePage,
     openProjectManagement,
     closeProjectManagement,

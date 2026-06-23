@@ -2,10 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  buildProjectAssetResourceRef,
   readProjectAssetResourceBlob,
   resolveProjectAssetResourceSource,
 } from './projectAssetResourceResolver'
-import { createMemoryProjectObjectStorage } from '../ProjectStorage'
+import { createMemoryProjectObjectStorage, type ProjectAssetManager } from '../ProjectStorage'
 
 test('project asset resources can be read from provider-neutral object keys', async () => {
   const storage = createMemoryProjectObjectStorage()
@@ -48,4 +49,44 @@ test('project asset resource sources create playable object URLs from object sto
     URL.createObjectURL = previousCreateObjectUrl
     URL.revokeObjectURL = previousRevokeObjectUrl
   }
+})
+
+test('project asset resources can be read through the asset manager', async () => {
+  const ref = buildProjectAssetResourceRef({
+    asset: {
+      id: 'a1',
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: 'voice.wav',
+      groupName: '默认分组',
+      resourcePaths: ['objects/远程项目/audio_wav/r1.wav'],
+      createdAt: '2026-06-24T00:00:00.000Z',
+      linkedCharacterIds: [],
+      linkedStoryboardIds: [],
+      linkedVoiceAssetIds: [],
+      storageResourcePaths: ['objects/远程项目/audio_wav/r1.wav'],
+      projectResourceIds: ['r1'],
+      projectResourceSizes: [5],
+      projectResourceHashes: ['hash-a'],
+      projectResourceMimeTypes: ['audio/wav'],
+    },
+    resourceIndex: 0,
+    projectId: 'p1',
+    projectMode: 'remote',
+  })!
+  const manager: ProjectAssetManager = {
+    putResource: async () => {},
+    getResourceBlob: async (input) => new Blob([`${input.resourceId}:${input.hashSha256}`], { type: input.mimeType ?? '' }),
+    resolveResourceSource: async () => ({ source: '' }),
+    deleteResources: async () => {},
+    deleteProjectCache: async () => {},
+  }
+
+  const blob = await readProjectAssetResourceBlob(ref.objectKey, ref.objectKey, {
+    projectAssetManager: manager,
+    resourceRef: ref,
+  })
+
+  assert.equal(blob.type, 'audio/wav')
+  assert.equal(await blob.text(), 'r1:hash-a')
 })

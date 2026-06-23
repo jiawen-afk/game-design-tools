@@ -1,4 +1,5 @@
-import type { ProjectObjectStorage } from '../ProjectStorage'
+import type { ProjectAssetManager, ProjectAssetResourceRef, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
+import type { PersonalSpaceAsset } from './personalSpaceModel'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -18,6 +19,8 @@ export function isProjectObjectKey(path: string | undefined) {
 export interface ProjectAssetResourceResolverOptions {
   directoryHandle?: PersonalSpaceDirectoryHandle | null
   projectObjectStorage?: ProjectObjectStorage | null
+  projectAssetManager?: ProjectAssetManager | null
+  resourceRef?: ProjectAssetResourceRef | null
 }
 
 export interface ResolvedProjectAssetResource {
@@ -50,11 +53,42 @@ async function readUrlResourceBlob(path: string) {
   return response.blob()
 }
 
+function objectKeyResourceId(objectKey: string) {
+  const fileName = objectKey.split('/').at(-1) ?? ''
+  return fileName.replace(/\.[^.]+$/, '') || fileName || objectKey
+}
+
+export function buildProjectAssetResourceRef(input: {
+  asset: PersonalSpaceAsset
+  resourceIndex: number
+  projectId: string
+  projectMode: ProjectMode
+}): ProjectAssetResourceRef | null {
+  const objectKey = input.asset.storageResourcePaths[input.resourceIndex] ?? input.asset.resourcePaths[input.resourceIndex] ?? ''
+  if (!isProjectObjectKey(objectKey)) return null
+  const role = input.resourceIndex === 1 ? 'sprite_index' : 'primary'
+  return {
+    projectId: input.projectId,
+    projectMode: input.projectMode,
+    assetId: input.asset.id,
+    resourceId: input.asset.projectResourceIds?.[input.resourceIndex] ?? objectKeyResourceId(objectKey),
+    role,
+    objectKey,
+    mimeType: input.asset.projectResourceMimeTypes?.[input.resourceIndex] ?? null,
+    sizeBytes: input.asset.projectResourceSizes?.[input.resourceIndex] ?? null,
+    hashSha256: input.asset.projectResourceHashes?.[input.resourceIndex] ?? null,
+  }
+}
+
 export async function readProjectAssetResourceBlob(
   storedPath: string | undefined,
   resourcePath: string | undefined,
   options: ProjectAssetResourceResolverOptions = {},
 ) {
+  if (options.projectAssetManager && options.resourceRef) {
+    return options.projectAssetManager.getResourceBlob(options.resourceRef)
+  }
+
   const objectKey = isProjectObjectKey(storedPath) ? storedPath : isProjectObjectKey(resourcePath) ? resourcePath : ''
   if (objectKey) {
     if (!options.projectObjectStorage) throw new Error('缺少项目对象存储，无法读取项目素材。')

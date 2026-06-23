@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button, Empty, Popconfirm, Space, Upload } from 'antd'
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
-import type { ProjectObjectStorage } from '../ProjectStorage'
+import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { CharacterAssetPicker } from './CharacterAssetPicker'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
@@ -39,6 +39,9 @@ interface PersonalCharacterPanelProps {
   ) => void
   onMoveCharacterVoice: (characterId: string, draggedAssetId: string, targetAssetId: string) => void
   projectObjectStorage?: ProjectObjectStorage
+  projectAssetManager?: ProjectAssetManager
+  projectId?: string
+  projectMode?: ProjectMode
 }
 
 export function PersonalCharacterPanel({
@@ -62,6 +65,9 @@ export function PersonalCharacterPanel({
   onUnassignAsset,
   onMoveCharacterVoice,
   projectObjectStorage,
+  projectAssetManager,
+  projectId,
+  projectMode,
 }: PersonalCharacterPanelProps) {
   const [creatingCharacter, setCreatingCharacter] = useState(false)
   const [selectedCharacterFilter, setSelectedCharacterFilter] = useState('全部角色')
@@ -206,7 +212,15 @@ export function PersonalCharacterPanel({
                     const asset = allAssets.find((candidate) => candidate.id === link.assetId)
                     return (
                       <div className="linked-asset-row" key={link.assetId}>
-                        {asset && <PersonalAssetPreview asset={asset} projectObjectStorage={projectObjectStorage} />}
+                        {asset && (
+                          <PersonalAssetPreview
+                            asset={asset}
+                            projectObjectStorage={projectObjectStorage}
+                            projectAssetManager={projectAssetManager}
+                            projectId={projectId}
+                            projectMode={projectMode}
+                          />
+                        )}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '肖像'}</strong>
                           <Button
@@ -244,7 +258,15 @@ export function PersonalCharacterPanel({
                     const asset = allAssets.find((candidate) => candidate.id === link.assetId)
                     return (
                       <div className="linked-asset-row" key={link.assetId}>
-                        {asset && <PersonalAssetPreview asset={asset} projectObjectStorage={projectObjectStorage} />}
+                        {asset && (
+                          <PersonalAssetPreview
+                            asset={asset}
+                            projectObjectStorage={projectObjectStorage}
+                            projectAssetManager={projectAssetManager}
+                            projectId={projectId}
+                            projectMode={projectMode}
+                          />
+                        )}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '精灵图'}</strong>
                           <Button
@@ -299,7 +321,15 @@ export function PersonalCharacterPanel({
                         }}
                       >
                         <div className="linked-asset-row character-voice-row">
-                          {voiceAsset ? <PersonalAssetPreview asset={voiceAsset} projectObjectStorage={projectObjectStorage} /> : <div className="asset-preview character-voice-preview-placeholder">音</div>}
+                          {voiceAsset ? (
+                            <PersonalAssetPreview
+                              asset={voiceAsset}
+                              projectObjectStorage={projectObjectStorage}
+                              projectAssetManager={projectAssetManager}
+                              projectId={projectId}
+                              projectMode={projectMode}
+                            />
+                          ) : <div className="asset-preview character-voice-preview-placeholder">音</div>}
                           <div className="character-voice-main">
                             <strong>{voiceAsset?.name ?? '配音'}</strong>
                             <span className="character-voice-dialogue">{voiceAsset?.dialogueText || '未填写对白文本'}</span>

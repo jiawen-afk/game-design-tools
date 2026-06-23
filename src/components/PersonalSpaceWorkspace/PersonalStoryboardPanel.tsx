@@ -28,7 +28,7 @@ import {
   resolveStoryboardVoicePlaybackSource,
   revokeObjectUrls,
 } from './storyboardPlaybackSources'
-import { scheduleStoryboardVoiceStarts, type ProjectObjectStorage } from '../ProjectStorage'
+import { scheduleStoryboardVoiceStarts, type ProjectAssetManager, type ProjectMode, type ProjectObjectStorage } from '../ProjectStorage'
 
 type StoryboardPlaybackStep = {
   groupId: string
@@ -62,6 +62,9 @@ interface PersonalStoryboardPanelProps {
   onUpdateStoryboardVoiceText: (groupId: string, assetId: string, text: string) => void
   onMoveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string, placement?: StoryboardVoiceDropPlacement) => void
   projectObjectStorage?: ProjectObjectStorage
+  projectAssetManager?: ProjectAssetManager
+  projectId?: string
+  projectMode?: ProjectMode
 }
 
 export function PersonalStoryboardPanel({
@@ -88,6 +91,9 @@ export function PersonalStoryboardPanel({
   onUpdateStoryboardVoiceText,
   onMoveStoryboardVoice,
   projectObjectStorage,
+  projectAssetManager,
+  projectId,
+  projectMode,
 }: PersonalStoryboardPanelProps) {
   const characterById = useMemo(() => new Map(characters.map((character) => [character.id, character])), [characters])
   const voiceById = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, asset])), [voiceAssets])
@@ -200,7 +206,12 @@ export function PersonalStoryboardPanel({
     if (startIndex < 0) return
     const playbackSources = await Promise.all(orderedEntries.slice(startIndex).map(async (entry) => {
       const asset = voiceById.get(entry.assetId)
-      const playbackSource = asset ? await resolveStoryboardVoicePlaybackSource(asset, projectObjectStorage) : null
+      const playbackSource = asset ? await resolveStoryboardVoicePlaybackSource(asset, {
+        projectObjectStorage,
+        projectAssetManager,
+        projectId,
+        projectMode,
+      }) : null
       if (!playbackSource) return null
       const durationUs = await loadStoryboardVoiceDurationUs(playbackSource.source)
       return { entry, playbackSource, durationUs }
@@ -495,6 +506,9 @@ export function PersonalStoryboardPanel({
                           onPlayFrom={playStoryboardFrom}
                           onStopPlayback={stopStoryboardPlayback}
                           projectObjectStorage={projectObjectStorage}
+                          projectAssetManager={projectAssetManager}
+                          projectId={projectId}
+                          projectMode={projectMode}
                         />
                       )
                     })}

@@ -1,16 +1,28 @@
 import type { PersonalSpaceAsset } from './personalSpaceModel'
-import type { ProjectObjectStorage } from '../ProjectStorage'
-import { resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
+import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
+import { buildProjectAssetResourceRef, resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
 
 export type StoryboardPlaybackSource = { source: string; objectUrl?: string } | null
 
 export async function resolveStoryboardVoicePlaybackSource(
   asset: PersonalSpaceAsset,
-  projectObjectStorage?: ProjectObjectStorage,
+  options: {
+    projectObjectStorage?: ProjectObjectStorage
+    projectAssetManager?: ProjectAssetManager
+    projectId?: string
+    projectMode?: ProjectMode
+  } = {},
 ): Promise<StoryboardPlaybackSource> {
   const storedPath = asset.storageResourcePaths[0]
   const source = asset.resourcePaths[0]
-  const resolved = await resolveProjectAssetResourceSource(storedPath, source, { projectObjectStorage })
+  const resourceRef = options.projectId && options.projectMode
+    ? buildProjectAssetResourceRef({ asset, resourceIndex: 0, projectId: options.projectId, projectMode: options.projectMode })
+    : null
+  const resolved = await resolveProjectAssetResourceSource(storedPath, source, {
+    projectObjectStorage: options.projectObjectStorage,
+    projectAssetManager: options.projectAssetManager,
+    resourceRef,
+  })
   return resolved ? { source: resolved.source, objectUrl: resolved.objectUrl } : null
 }
 

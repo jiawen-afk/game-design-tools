@@ -6,6 +6,7 @@ import type {
   LegacyProjectRows,
   Project,
   ProjectDatabaseProvider,
+  ProjectAssetResourceRef,
   ProjectWithSettings,
   UpdateProjectInput,
 } from './components/ProjectStorage'
@@ -172,6 +173,10 @@ export interface GameDesignToolsDesktopApi {
   putLocalProjectObject(objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
   getLocalProjectObject(objectKey: string): Promise<DesktopProjectObjectReadResult>
   deleteLocalProjectObject(objectKey: string): Promise<boolean>
+  getProjectAssetCacheResource(ref: ProjectAssetResourceRef, expectedFingerprint: string): Promise<DesktopProjectObjectReadResult | null>
+  putProjectAssetCacheResource(ref: ProjectAssetResourceRef, fingerprint: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
+  deleteProjectAssetCacheResource(ref: ProjectAssetResourceRef): Promise<boolean>
+  deleteProjectAssetCacheForProject(projectId: string): Promise<boolean>
   createRemoteProject(input: {
     id: string
     name: string

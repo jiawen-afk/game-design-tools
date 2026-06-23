@@ -41,6 +41,9 @@ export default function PersonalSpaceWorkspace() {
       onDeleteGroup={workspace.deleteAssetGroup}
       onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
       projectObjectStorage={workspace.projectObjectStorage}
+      projectAssetManager={workspace.projectAssetManager}
+      projectId={workspace.activeProject?.id}
+      projectMode={workspace.activeProject?.mode}
     />
   )
 
@@ -183,6 +186,9 @@ export default function PersonalSpaceWorkspace() {
                 onUnassignAsset={workspace.unassignAsset}
                 onMoveCharacterVoice={workspace.moveCharacterVoice}
                 projectObjectStorage={workspace.projectObjectStorage}
+                projectAssetManager={workspace.projectAssetManager}
+                projectId={workspace.activeProject?.id}
+                projectMode={workspace.activeProject?.mode}
               />
             ),
           },
@@ -215,6 +221,9 @@ export default function PersonalSpaceWorkspace() {
                 onUpdateStoryboardVoiceText={workspace.updateStoryboardVoice}
                 onMoveStoryboardVoice={workspace.moveStoryboardVoice}
                 projectObjectStorage={workspace.projectObjectStorage}
+                projectAssetManager={workspace.projectAssetManager}
+                projectId={workspace.activeProject?.id}
+                projectMode={workspace.activeProject?.mode}
               />
             ),
           },

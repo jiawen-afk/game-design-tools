@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Modal } from 'antd'
 import { PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
 
-import type { ProjectObjectStorage } from '../ProjectStorage'
+import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
 import { spriteFrameModalStyle } from './personalSpacePreviewModel'
-import { resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
+import { buildProjectAssetResourceRef, resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
 
 function assetPreviewSource(asset: PersonalSpaceAsset) {
   return asset.resourcePaths[0] ?? ''
@@ -19,12 +19,23 @@ function useStoredResourcePreviewSource(
   asset: PersonalSpaceAsset,
   resourceIndex: number,
   fallbackSource: string,
-  projectObjectStorage?: ProjectObjectStorage,
+  options: {
+    projectObjectStorage?: ProjectObjectStorage
+    projectAssetManager?: ProjectAssetManager
+    projectId?: string
+    projectMode?: ProjectMode
+    enabled?: boolean
+  } = {},
 ) {
   const storedPath = asset.storageResourcePaths[resourceIndex] ?? ''
   const [storedSource, setStoredSource] = useState('')
+  const enabled = options.enabled ?? true
 
   useEffect(() => {
+    if (!enabled) {
+      setStoredSource('')
+      return undefined
+    }
     if ((!storedPath && !fallbackSource) || !canCreateObjectUrl()) {
       setStoredSource('')
       return undefined
@@ -32,7 +43,19 @@ function useStoredResourcePreviewSource(
     let alive = true
     let objectUrl = ''
     void (async () => {
-      const resolved = await resolveProjectAssetResourceSource(storedPath, fallbackSource, { projectObjectStorage })
+      const resourceRef = options.projectId && options.projectMode
+        ? buildProjectAssetResourceRef({
+          asset,
+          resourceIndex,
+          projectId: options.projectId,
+          projectMode: options.projectMode,
+        })
+        : null
+      const resolved = await resolveProjectAssetResourceSource(storedPath, fallbackSource, {
+        projectObjectStorage: options.projectObjectStorage,
+        projectAssetManager: options.projectAssetManager,
+        resourceRef,
+      })
       objectUrl = resolved?.objectUrl ?? ''
       if (alive) setStoredSource(resolved?.source ?? '')
       else if (objectUrl) URL.revokeObjectURL(objectUrl)
@@ -43,9 +66,9 @@ function useStoredResourcePreviewSource(
       alive = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [fallbackSource, projectObjectStorage, storedPath])
+  }, [asset, enabled, fallbackSource, options.projectAssetManager, options.projectId, options.projectMode, options.projectObjectStorage, resourceIndex, storedPath])
 
-  return storedSource || fallbackSource
+  return enabled ? (storedSource || fallbackSource) : ''
 }
 
 interface SpritePreviewFrame {
@@ -61,9 +84,18 @@ interface SpritePreviewIndex {
   frames?: SpritePreviewFrame[]
 }
 
-function useSpritePreviewIndex(asset: PersonalSpaceAsset, projectObjectStorage?: ProjectObjectStorage) {
+function useSpritePreviewIndex(
+  asset: PersonalSpaceAsset,
+  options: {
+    projectObjectStorage?: ProjectObjectStorage
+    projectAssetManager?: ProjectAssetManager
+    projectId?: string
+    projectMode?: ProjectMode
+    enabled?: boolean
+  },
+) {
   const [index, setIndex] = useState<SpritePreviewIndex | null>(null)
-  const indexSource = useStoredResourcePreviewSource(asset, 1, asset.resourcePaths[1] ?? '', projectObjectStorage)
+  const indexSource = useStoredResourcePreviewSource(asset, 1, asset.resourcePaths[1] ?? '', options)
 
   useEffect(() => {
     if (asset.kind !== 'sprite' || !indexSource) {
@@ -90,9 +122,15 @@ function useSpritePreviewIndex(asset: PersonalSpaceAsset, projectObjectStorage?:
 export function PersonalAssetPreview({
   asset,
   projectObjectStorage,
+  projectAssetManager,
+  projectId,
+  projectMode,
 }: {
   asset: PersonalSpaceAsset
   projectObjectStorage?: ProjectObjectStorage
+  projectAssetManager?: ProjectAssetManager
+  projectId?: string
+  projectMode?: ProjectMode
 }) {
   const [imageOpen, setImageOpen] = useState(false)
   const [audioPlaying, setAudioPlaying] = useState(false)
@@ -100,8 +138,25 @@ export function PersonalAssetPreview({
   const [spritePlaying, setSpritePlaying] = useState(false)
   const [spriteFrameIndex, setSpriteFrameIndex] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const source = useStoredResourcePreviewSource(asset, 0, assetPreviewSource(asset), projectObjectStorage)
-  const spriteIndex = useSpritePreviewIndex(asset, projectObjectStorage)
+  const shouldLoadFullSource = asset.kind === 'voice'
+    ? audioPlaying
+    : asset.kind === 'sprite'
+      ? spriteOpen
+      : imageOpen
+  const source = useStoredResourcePreviewSource(asset, 0, assetPreviewSource(asset), {
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
+    enabled: shouldLoadFullSource,
+  })
+  const spriteIndex = useSpritePreviewIndex(asset, {
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
+    enabled: spriteOpen,
+  })
   const spriteFrames = spriteIndex?.frames ?? []
   const spriteFrame = spriteFrames[spriteFrameIndex % Math.max(1, spriteFrames.length)]
 
@@ -116,15 +171,12 @@ export function PersonalAssetPreview({
 
   if (asset.kind === 'voice') {
     const toggleAudio = () => {
-      const audio = audioRef.current
-      if (!audio) return
-      if (audio.paused) {
-        void audio.play()
-        setAudioPlaying(true)
-      } else {
-        audio.pause()
+      if (audioPlaying) {
+        audioRef.current?.pause()
         setAudioPlaying(false)
+        return
       }
+      setAudioPlaying(true)
     }
     return (
       <div className="asset-preview asset-preview-audio">
@@ -134,7 +186,14 @@ export function PersonalAssetPreview({
           onClick={toggleAudio}
           aria-label={audioPlaying ? '暂停声音预览' : '播放声音预览'}
         />
-        <audio ref={audioRef} src={source} onEnded={() => setAudioPlaying(false)} />
+        <audio
+          ref={audioRef}
+          src={source}
+          onCanPlay={() => {
+            if (audioPlaying) void audioRef.current?.play()
+          }}
+          onEnded={() => setAudioPlaying(false)}
+        />
       </div>
     )
   }

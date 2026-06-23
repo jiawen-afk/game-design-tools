@@ -31,6 +31,10 @@ export interface PersonalSpaceAsset {
   linkedStoryboardIds: string[]
   linkedVoiceAssetIds: string[]
   storageResourcePaths: string[]
+  projectResourceIds?: string[]
+  projectResourceSizes?: Array<number | null>
+  projectResourceHashes?: Array<string | null>
+  projectResourceMimeTypes?: Array<string | null>
   sourceKey?: string
 }
 
