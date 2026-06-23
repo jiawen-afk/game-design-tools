@@ -126,6 +126,7 @@ export function usePersonalSpaceSettingsWorkspace({
   }, [messageApi])
 
   useEffect(() => {
+    setDatabaseVerification(null)
     setDatabaseSchemaReady(false)
   }, [selectedDatabaseProfileId])
 
@@ -222,6 +223,12 @@ export function usePersonalSpaceSettingsWorkspace({
     void messageApi.success('已保存远程数据库配置')
   }
 
+  const selectDatabaseProfile = (profileId: string) => {
+    setSelectedDatabaseProfileId(profileId)
+    setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
+  }
+
   const deleteDatabaseProfile = async () => {
     const desktopApi = getDesktopApi()
     if (!desktopApi || !selectedDatabaseProfileId) {
@@ -262,7 +269,35 @@ export function usePersonalSpaceSettingsWorkspace({
     setKodoProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
     setSelectedKodoProfileId(summary.id)
     setKodoVerification(null)
+    setKodoVerificationProjectId('')
     void messageApi.success('已保存七牛 Kodo 配置')
+  }
+
+  const selectKodoProfile = (profileId: string) => {
+    setSelectedKodoProfileId(profileId)
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+  }
+
+  const deleteKodoProfile = async () => {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi || !selectedKodoProfileId) {
+      void messageApi.warning('请先选择七牛 Kodo 配置')
+      return
+    }
+    const deletedProfileId = selectedKodoProfileId
+    const deleted = await desktopApi.deleteProjectConnectionProfile(deletedProfileId)
+    const { kodoProfiles: nextKodoProfiles } = await refreshProjectConnectionProfiles()
+    if (!deleted) {
+      void messageApi.warning('七牛 Kodo 配置不存在或已删除')
+      return
+    }
+    setSelectedKodoProfileId((current) => (
+      current === deletedProfileId ? nextKodoProfiles[0]?.id || '' : current
+    ))
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+    void messageApi.success('已删除七牛 Kodo 配置')
   }
 
   const verifyDatabaseProfile = async () => {
@@ -328,13 +363,14 @@ export function usePersonalSpaceSettingsWorkspace({
     kodoVerificationProjectId,
     databaseSchemaReady,
     remoteReady,
-    setSelectedDatabaseProfileId,
-    setSelectedKodoProfileId,
+    setSelectedDatabaseProfileId: selectDatabaseProfile,
+    setSelectedKodoProfileId: selectKodoProfile,
     setDatabaseProfileDraft,
     setKodoProfileDraft,
     saveDatabaseProfile,
     deleteDatabaseProfile,
     saveKodoProfile,
+    deleteKodoProfile,
     verifyDatabaseProfile,
     initializeDatabaseSchema,
     verifyKodoProfile,

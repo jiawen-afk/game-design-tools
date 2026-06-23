@@ -102,6 +102,28 @@ test('remote database schema initialization executes PostgreSQL project schema s
   assert.deepEqual(executedStatements, createProjectSchemaSql('postgresql'))
 })
 
+test('remote database schema initialization is idempotent when repeated', async () => {
+  const executedStatements: string[] = []
+  const profile = databaseProfile(postgresqlPayload)
+  const options: RemoteDatabaseTestOptions = {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement) => { executedStatements.push(statement) },
+      end: async () => {},
+    }),
+  }
+
+  const first = await initializeRemoteDatabaseSchema(profile, options)
+  const second = await initializeRemoteDatabaseSchema(profile, options)
+
+  assert.equal(first.ok, true)
+  assert.equal(second.ok, true)
+  assert.deepEqual(executedStatements, [
+    ...createProjectSchemaSql('postgresql'),
+    ...createProjectSchemaSql('postgresql'),
+  ])
+})
+
 test('remote database schema initialization returns failure when PostgreSQL connection fails', async () => {
   const result = await initializeRemoteDatabaseSchema(databaseProfile(postgresqlPayload), {
     createPostgresClient: () => ({

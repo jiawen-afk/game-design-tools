@@ -1,3 +1,4 @@
+import { getDesktopApi } from '../../desktopApi'
 import type { ProjectObjectDeleteResult, ProjectObjectStorage } from './projectObjectStorage'
 
 export interface MemoryProjectObjectStorageOptions {
@@ -44,4 +45,58 @@ export class MemoryProjectObjectStorage implements ProjectObjectStorage {
 
 export function createMemoryProjectObjectStorage(options?: MemoryProjectObjectStorageOptions) {
   return new MemoryProjectObjectStorage(options)
+}
+
+export class DesktopLocalProjectObjectStorage implements ProjectObjectStorage {
+  private readonly fallbackStorage = createMemoryProjectObjectStorage()
+
+  async putObject(objectKey: string, data: Blob) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) {
+      await this.fallbackStorage.putObject(objectKey, data)
+      return
+    }
+    await desktopApi.putLocalProjectObject(
+      objectKey,
+      await data.arrayBuffer(),
+      data.type || 'application/octet-stream',
+    )
+  }
+
+  async getObject(objectKey: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackStorage.getObject(objectKey)
+    const result = await desktopApi.getLocalProjectObject(objectKey)
+    const bytes = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
+    const data = new Uint8Array(bytes.byteLength)
+    data.set(bytes)
+    return new Blob([data.buffer], { type: result.mimeType || 'application/octet-stream' })
+  }
+
+  async deleteObject(objectKey: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) {
+      await this.fallbackStorage.deleteObject(objectKey)
+      return
+    }
+    await desktopApi.deleteLocalProjectObject(objectKey)
+  }
+
+  async deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult> {
+    const deletedKeys: string[] = []
+    const failed: ProjectObjectDeleteResult['failed'] = []
+    for (const objectKey of objectKeys) {
+      try {
+        await this.deleteObject(objectKey)
+        deletedKeys.push(objectKey)
+      } catch (error) {
+        failed.push({ objectKey, errorMessage: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    return { deletedKeys, failed }
+  }
+}
+
+export function createDesktopLocalProjectObjectStorage() {
+  return new DesktopLocalProjectObjectStorage()
 }

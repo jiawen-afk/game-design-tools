@@ -45,6 +45,7 @@ interface ProjectManagementPanelProps {
   onSaveDatabaseProfile: () => void
   onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
+  onDeleteKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
   onVerifyKodoProfile: (projectId: string) => void
@@ -83,6 +84,7 @@ export function ProjectManagementPanel({
   onSaveDatabaseProfile,
   onDeleteDatabaseProfile,
   onSaveKodoProfile,
+  onDeleteKodoProfile,
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
   onVerifyKodoProfile,
@@ -211,6 +213,7 @@ export function ProjectManagementPanel({
           onSaveDatabaseProfile={onSaveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
+          onDeleteKodoProfile={onDeleteKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
@@ -312,6 +315,7 @@ export function ProjectManagementPanel({
           onSaveDatabaseProfile={onSaveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
+          onDeleteKodoProfile={onDeleteKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
@@ -376,6 +380,7 @@ interface RemoteProjectSettingsProps {
   onSaveDatabaseProfile: () => void
   onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
+  onDeleteKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
   onVerifyKodoProfile: (projectId: string) => void
@@ -402,6 +407,7 @@ function RemoteProjectSettings({
   onSaveDatabaseProfile,
   onDeleteDatabaseProfile,
   onSaveKodoProfile,
+  onDeleteKodoProfile,
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
   onVerifyKodoProfile,
@@ -572,6 +578,17 @@ function RemoteProjectSettings({
             onChange={onSelectedKodoProfileChange}
           />
           <Button icon={<SaveOutlined />} onClick={onSaveKodoProfile}>保存 Kodo 配置</Button>
+          <Popconfirm
+            title="删除 Kodo 配置"
+            description="只删除本机保存的对象存储配置，不会删除七牛 Kodo 中的对象。"
+            okText="删除配置"
+            cancelText="取消"
+            onConfirm={onDeleteKodoProfile}
+          >
+            <Button danger icon={<DeleteOutlined />} disabled={!selectedKodoProfileId}>
+              删除 Kodo 配置
+            </Button>
+          </Popconfirm>
           <Button onClick={() => onVerifyKodoProfile(selectedVerificationProjectId)} disabled={!selectedKodoProfileId || !selectedVerificationProjectId}>
             验证 Kodo
           </Button>

@@ -17,6 +17,9 @@ const {
   createLocalProjectRepository,
 } = require('./projectLocalRepository.cjs')
 const {
+  createLocalProjectObjectStorage,
+} = require('./projectLocalObjectStorage.cjs')
+const {
   deleteKodoObject,
   putKodoObject,
   verifyKodoProfile,
@@ -108,6 +111,10 @@ function resolveProjectConnectionProfilePath() {
 
 function resolveProjectLocalDatabasePath() {
   return path.join(app.getPath('userData'), 'project-space.sqlite')
+}
+
+function resolveProjectLocalObjectRootPath() {
+  return path.join(app.getPath('userData'), 'project-objects')
 }
 
 async function readProjectConnectionProfiles() {
@@ -681,6 +688,21 @@ ipcMain.handle('project-local-repository:delete-project', async (_event, project
   await getLocalProjectRepository().deleteProject(String(projectId || ''))
   return true
 })
+
+ipcMain.handle('project-local-object:put', async (_event, objectKey, data, mimeType) => (
+  createLocalProjectObjectStorage(resolveProjectLocalObjectRootPath())
+    .putObject(String(objectKey || ''), Buffer.from(data), { mimeType })
+))
+
+ipcMain.handle('project-local-object:get', async (_event, objectKey) => (
+  createLocalProjectObjectStorage(resolveProjectLocalObjectRootPath())
+    .getObject(String(objectKey || ''))
+))
+
+ipcMain.handle('project-local-object:delete', async (_event, objectKey) => (
+  createLocalProjectObjectStorage(resolveProjectLocalObjectRootPath())
+    .deleteObject(String(objectKey || ''))
+))
 
 ipcMain.handle('project-remote-repository:create-project', async (_event, input = {}) => {
   const repository = await getRemoteDatabaseRepository(String(input.databaseProfileId || ''))

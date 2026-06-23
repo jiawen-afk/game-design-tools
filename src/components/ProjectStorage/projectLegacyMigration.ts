@@ -12,13 +12,14 @@ import type {
   StoryboardGroup,
   StoryboardVoiceEntry,
 } from './projectStorageTypes'
-import type { PersonalSpaceAsset, PersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { defaultPersonalSpaceState, type PersonalSpaceAsset, type PersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 
 export interface LegacyMigrationOptions {
   projectId: string
   projectName: string
   now: string
   localObjectRoot: string
+  preserveSourceIds?: boolean
 }
 
 export interface LegacyProjectRows {
@@ -43,8 +44,8 @@ function fileNameFromPath(path: string, fallback: string) {
   return path.split(/[\\/]/).pop()?.trim() || fallback
 }
 
-function createIdMap(sourceIds: string[]) {
-  return new Map(sourceIds.map((sourceId) => [sourceId, createProjectStorageId()]))
+function createIdMap(sourceIds: string[], preserveSourceIds = false) {
+  return new Map(sourceIds.map((sourceId) => [sourceId, preserveSourceIds ? sourceId : createProjectStorageId()]))
 }
 
 function mappedId(map: Map<string, string>, sourceId: string) {
@@ -62,6 +63,23 @@ function findPrimaryPath(asset: PersonalSpaceAsset) {
 function findSpriteIndexPath(asset: PersonalSpaceAsset) {
   if (asset.kind !== 'sprite') return undefined
   return asset.storageResourcePaths[1] ?? asset.resourcePaths[1]
+}
+
+function isProjectObjectKey(path: string | undefined) {
+  return Boolean(path?.startsWith('objects/'))
+}
+
+function objectKeyFileName(objectKey: string, fallback: string) {
+  return objectKey.split('/').pop()?.trim() || fallback
+}
+
+function objectKeyExtension(objectKey: string) {
+  return objectKeyFileName(objectKey, '').match(/\.[^.\\/]+$/)?.[0] ?? ''
+}
+
+function objectKeyResourceId(objectKey: string, fallback: string) {
+  const fileName = objectKeyFileName(objectKey, fallback)
+  return fileName.replace(/\.[^.\\/]+$/, '') || fallback
 }
 
 export function migratePersonalSpaceStateToProjectRows(
@@ -90,9 +108,9 @@ export function migratePersonalSpaceStateToProjectRows(
     updated_at: options.now,
   }
 
-  const assetIdMap = createIdMap(state.assets.map((asset) => asset.id))
-  const characterIdMap = createIdMap(state.characters.map((character) => character.id))
-  const storyboardIdMap = createIdMap(state.storyboardGroups.map((group) => group.id))
+  const assetIdMap = createIdMap(state.assets.map((asset) => asset.id), options.preserveSourceIds)
+  const characterIdMap = createIdMap(state.characters.map((character) => character.id), options.preserveSourceIds)
+  const storyboardIdMap = createIdMap(state.storyboardGroups.map((group) => group.id), options.preserveSourceIds)
 
   const assetGroups = (Object.entries(state.assetGroups) as Array<[ProjectAssetGroupKind, string[]]>).flatMap(([kind, names]) => (
     names.map((name, sortOrder): AssetGroup => ({
@@ -111,20 +129,35 @@ export function migratePersonalSpaceStateToProjectRows(
   const assets = state.assets.map((asset): Asset => {
     const primaryPath = findPrimaryPath(asset)
     const spriteIndexPath = findSpriteIndexPath(asset)
+    const primaryResourceId = options.preserveSourceIds && isProjectObjectKey(primaryPath)
+      ? objectKeyResourceId(primaryPath, createProjectStorageId())
+      : createProjectStorageId()
+    const spriteIndexResourceId = options.preserveSourceIds && isProjectObjectKey(spriteIndexPath)
+      ? objectKeyResourceId(spriteIndexPath!, createProjectStorageId())
+      : spriteIndexPath ? createProjectStorageId() : undefined
     const resources = createAssetResourceFields({
       projectId: options.projectId,
       projectName: options.projectName,
       fileName: fileNameFromPath(primaryPath, asset.name),
       mimeType: mimeTypeForAsset(asset, 0),
       sizeBytes: 0,
-      resourceId: createProjectStorageId(),
+      resourceId: primaryResourceId,
       spriteIndex: spriteIndexPath ? {
         fileName: fileNameFromPath(spriteIndexPath, 'index.json'),
         mimeType: mimeTypeForAsset(asset, 1),
         sizeBytes: 0,
-        resourceId: createProjectStorageId(),
+        resourceId: spriteIndexResourceId,
       } : undefined,
     })
+    if (options.preserveSourceIds && isProjectObjectKey(primaryPath)) {
+      resources.primary_object_key = primaryPath
+      resources.primary_file_name = objectKeyFileName(primaryPath, asset.name)
+      resources.primary_extension = objectKeyExtension(primaryPath)
+    }
+    if (options.preserveSourceIds && isProjectObjectKey(spriteIndexPath)) {
+      resources.sprite_index_object_key = spriteIndexPath!
+      resources.sprite_index_file_name = objectKeyFileName(spriteIndexPath!, 'index.json')
+    }
     return {
       id: mappedId(assetIdMap, asset.id),
       project_id: options.projectId,
@@ -219,5 +252,132 @@ export function migratePersonalSpaceStateToProjectRows(
     storyboardGroups,
     storyboardVoiceEntries,
     assetRelations,
+  }
+}
+
+function groupNameById(rows: LegacyProjectRows) {
+  return new Map(rows.assetGroups.map((group) => [group.id, group.name]))
+}
+
+function sortedByOrder<T extends { sort_order: number }>(items: T[]) {
+  return [...items].sort((left, right) => left.sort_order - right.sort_order)
+}
+
+function idsUniqueInOrder(ids: string[]) {
+  return Array.from(new Set(ids))
+}
+
+function restoreAssetGroups(rows: LegacyProjectRows): PersonalSpaceState['assetGroups'] {
+  return {
+    image: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'image')).map((group) => group.name),
+    sprite: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sprite')).map((group) => group.name),
+    voice: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'voice')).map((group) => group.name),
+  }
+}
+
+function restoreStarredAssetGroups(rows: LegacyProjectRows): PersonalSpaceState['starredAssetGroups'] {
+  return {
+    image: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'image' && group.starred)).map((group) => group.name),
+    sprite: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sprite' && group.starred)).map((group) => group.name),
+    voice: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'voice' && group.starred)).map((group) => group.name),
+  }
+}
+
+function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
+  const groupNames = groupNameById(rows)
+  return rows.assets.map((asset): PersonalSpaceAsset => {
+    const characterIds = rows.characterAssetLinks
+      .filter((link) => link.asset_id === asset.id)
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((link) => link.character_id)
+    const storyboardIds = rows.storyboardVoiceEntries
+      .filter((entry) => entry.asset_id === asset.id)
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map((entry) => entry.storyboard_id)
+    const linkedVoiceAssetIds = rows.assetRelations
+      .filter((relation) => relation.source_asset_id === asset.id && relation.relation_type === 'effect_voice')
+      .map((relation) => relation.target_asset_id)
+    const resourcePaths = [
+      asset.primary_object_key,
+      ...(asset.sprite_index_object_key ? [asset.sprite_index_object_key] : []),
+    ]
+    return {
+      id: asset.id,
+      kind: asset.kind,
+      assetSubtype: asset.asset_subtype,
+      name: asset.name,
+      groupName: asset.group_id ? groupNames.get(asset.group_id) ?? '默认分组' : '默认分组',
+      dialogueText: asset.dialogue_text ?? undefined,
+      resourcePaths,
+      createdAt: asset.created_at,
+      linkedCharacterIds: idsUniqueInOrder(characterIds),
+      linkedStoryboardIds: idsUniqueInOrder(storyboardIds),
+      linkedVoiceAssetIds: idsUniqueInOrder(linkedVoiceAssetIds),
+      storageResourcePaths: resourcePaths,
+      sourceKey: asset.source_key ?? undefined,
+    }
+  })
+}
+
+function restoreCharacters(rows: LegacyProjectRows): PersonalSpaceState['characters'] {
+  return sortedByOrder(rows.characters).map((character) => {
+    const links = sortedByOrder(rows.characterAssetLinks.filter((link) => link.character_id === character.id))
+    const portraitAssets = links
+      .filter((link) => link.column_kind === 'portrait')
+      .map((link) => ({ assetId: link.asset_id, order: link.sort_order }))
+    const spriteAssets = links
+      .filter((link) => link.column_kind === 'sprite')
+      .map((link) => ({ assetId: link.asset_id, order: link.sort_order }))
+    const voiceAssets = links
+      .filter((link) => link.column_kind === 'voice')
+      .map((link) => ({ assetId: link.asset_id, order: link.sort_order }))
+    return {
+      id: character.id,
+      name: character.name,
+      order: character.sort_order,
+      starred: character.starred,
+      portraitAssets,
+      spriteAssets,
+      voiceAssets,
+      portraitAssetIds: portraitAssets.map((link) => link.assetId),
+      spriteAssetIds: spriteAssets.map((link) => link.assetId),
+      voiceAssetIds: voiceAssets.map((link) => link.assetId),
+    }
+  })
+}
+
+function restoreStoryboardGroups(rows: LegacyProjectRows): PersonalSpaceState['storyboardGroups'] {
+  return rows.storyboardGroups.map((group) => {
+    const entries = sortedByOrder(rows.storyboardVoiceEntries.filter((entry) => entry.storyboard_id === group.id))
+    const characterIds = idsUniqueInOrder(entries.flatMap((entry) => entry.character_id ? [entry.character_id] : []))
+    return {
+      id: group.id,
+      name: group.name,
+      starred: group.starred,
+      voiceEntries: entries.map((entry) => ({
+        assetId: entry.asset_id,
+        text: entry.text,
+        startOffsetUs: entry.start_offset_us,
+        order: entry.sort_order,
+      })),
+      characterIds,
+      voiceAssetIds: entries.map((entry) => entry.asset_id),
+    }
+  })
+}
+
+export function restoreProjectRowsToPersonalSpaceState(rows: LegacyProjectRows): PersonalSpaceState {
+  return {
+    ...defaultPersonalSpaceState,
+    settings: {
+      ...defaultPersonalSpaceState.settings,
+      storageDirectory: rows.settings.local_object_root ?? '',
+    },
+    assetGroups: restoreAssetGroups(rows),
+    starredAssetGroups: restoreStarredAssetGroups(rows),
+    characters: restoreCharacters(rows),
+    assets: restoreAssets(rows),
+    storyboardGroups: restoreStoryboardGroups(rows),
+    pendingDeletedResourcePaths: [],
   }
 }

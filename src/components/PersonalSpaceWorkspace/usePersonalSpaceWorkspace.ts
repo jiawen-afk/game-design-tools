@@ -3,18 +3,21 @@ import type { UploadProps } from 'antd'
 
 import {
   clearActiveProjectId,
+  createDesktopLocalProjectObjectStorage,
   createDesktopLocalProjectRepository,
   createDesktopRemoteProjectRepository,
   createDesktopKodoProjectObjectStorage,
-  createMemoryProjectObjectStorage,
   createProjectWorkspaceBootstrapper,
   hardDeleteProjectWithObjects,
   mergeProjectsRemoteFirst,
   migrateLocalProjectToRemote,
   readActiveProjectId,
   resolveEnabledProjectId,
+  restoreProjectRowsToPersonalSpaceState,
+  sanitizeObjectKeyPart,
   syncProjectSpaceStateToLocalProjectStorage,
   type Project,
+  type ProjectSettings,
   writeActiveProjectId,
 } from '../ProjectStorage'
 import {
@@ -80,9 +83,20 @@ interface PersonalSpaceMessageApi {
 type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
 type ProjectSpacePage = 'workbench' | 'management'
 
+const REMOTE_PROJECT_SYNC_DEBOUNCE_MS = 1500
+const REMOTE_PROJECT_PERIODIC_SYNC_MS = 60000
 const projectRepository = createDesktopLocalProjectRepository()
-const projectObjectStorage = createMemoryProjectObjectStorage()
+const projectObjectStorage = createDesktopLocalProjectObjectStorage()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
+
+type RemoteProjectSettingsSnapshot = Pick<
+  ProjectSettings,
+  'database_provider' | 'remote_database_profile_id' | 'remote_storage_profile_id'
+>
+
+function objectProjectNameFromPrefix(prefix: string) {
+  return prefix.split('/')[1] ?? ''
+}
 
 function assetKindLabel(kind: string) {
   if (kind === 'sprite') return '精灵图'
@@ -125,9 +139,18 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [activeModule, setActiveModule] = useState<PersonalSpaceActiveModule>('characters')
   const [storyboardExportingKey, setStoryboardExportingKey] = useState('')
   const [migratingProjectId, setMigratingProjectId] = useState('')
+  const [syncingProjectId, setSyncingProjectId] = useState('')
   const spaceRef = useRef(space)
   const activeProjectIdRef = useRef('')
   const migrationInFlightProjectIdRef = useRef('')
+  const manualSyncInFlightProjectIdRef = useRef('')
+  const remoteSyncSequenceRef = useRef(0)
+  const remoteSyncTimerRef = useRef<number | null>(null)
+  const remoteSyncIntervalRef = useRef<number | null>(null)
+  const queuedRemoteSyncSpaceRef = useRef<PersonalSpaceState | null>(null)
+  const remoteSyncInFlightRef = useRef(false)
+  const remoteProjectSettingsByIdRef = useRef<Record<string, RemoteProjectSettingsSnapshot>>({})
+  const remoteProjectIdByObjectProjectNameRef = useRef<Record<string, string>>({})
   const spriteUploadBatchKeyByCharacter = useRef<Record<string, string>>({})
   const imageSpriteUploadBatchKey = useRef<string | null>(null)
   const settingsWorkspace = usePersonalSpaceSettingsWorkspace({
@@ -135,8 +158,46 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
     messageApi,
   })
-  const remoteProjectRepository = createDesktopRemoteProjectRepository(() => settingsWorkspace.selectedDatabaseProfileId)
-  const remoteProjectObjectStorage = createDesktopKodoProjectObjectStorage(() => settingsWorkspace.selectedKodoProfileId)
+  const rememberRemoteProjectSettings = (project: Project, settings: ProjectSettings) => {
+    remoteProjectSettingsByIdRef.current[project.id] = {
+      database_provider: settings.database_provider,
+      remote_database_profile_id: settings.remote_database_profile_id,
+      remote_storage_profile_id: settings.remote_storage_profile_id,
+    }
+    remoteProjectIdByObjectProjectNameRef.current[sanitizeObjectKeyPart(project.name)] = project.id
+    const objectProjectName = objectProjectNameFromPrefix(project.object_key_prefix)
+    if (objectProjectName) remoteProjectIdByObjectProjectNameRef.current[objectProjectName] = project.id
+  }
+  const selectedRemoteSettingsSnapshot = (): RemoteProjectSettingsSnapshot => ({
+    database_provider: settingsWorkspace.databaseProfileDraft.provider,
+    remote_database_profile_id: settingsWorkspace.selectedDatabaseProfileId || null,
+    remote_storage_profile_id: settingsWorkspace.selectedKodoProfileId || null,
+  })
+  const remoteSettingsForProject = (projectId: string): RemoteProjectSettingsSnapshot => (
+    remoteProjectSettingsByIdRef.current[projectId] ?? selectedRemoteSettingsSnapshot()
+  )
+  const ensureRemoteProjectSettings = async (projectId: string) => {
+    if (remoteProjectSettingsByIdRef.current[projectId]) return
+    const localSnapshot = await projectRepository.getProject(projectId)
+    if (localSnapshot?.project.mode === 'remote') {
+      rememberRemoteProjectSettings(localSnapshot.project, localSnapshot.settings)
+    }
+  }
+  const getRemoteDatabaseProfileId = (projectId?: string) => (
+    projectId
+      ? remoteProjectSettingsByIdRef.current[projectId]?.remote_database_profile_id || settingsWorkspace.selectedDatabaseProfileId
+      : settingsWorkspace.selectedDatabaseProfileId
+  )
+  const getRemoteStorageProfileId = (objectKey?: string) => {
+    const objectProjectName = objectKey?.split('/')[1] ?? ''
+    const projectId = objectProjectName ? remoteProjectIdByObjectProjectNameRef.current[objectProjectName] : ''
+    return (
+      (projectId ? remoteProjectSettingsByIdRef.current[projectId]?.remote_storage_profile_id : '') ||
+      settingsWorkspace.selectedKodoProfileId
+    )
+  }
+  const remoteProjectRepository = createDesktopRemoteProjectRepository(getRemoteDatabaseProfileId)
+  const remoteProjectObjectStorage = createDesktopKodoProjectObjectStorage(getRemoteStorageProfileId)
 
   const refreshProjectList = async (preferredProjectId = selectedManagementProjectId) => {
     const [localProjects, remoteProjects] = await Promise.all([
@@ -180,9 +241,157 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     writeActiveProjectId(projectId)
   }
 
+  const findProject = (projectId: string, projectList = projects) => (
+    projectList.find((item) => item.id === projectId)
+  )
+
+  const loadProjectSpaceState = async (
+    projectId: string,
+    fallbackState?: PersonalSpaceState,
+    projectList = projects,
+  ) => {
+    const fallbackSpace = fallbackState ?? createEmptyProjectSpaceState()
+    const project = findProject(projectId, projectList)
+    if (project?.mode === 'remote') {
+      try {
+        await ensureRemoteProjectSettings(projectId)
+        const remoteRows = await remoteProjectRepository.exportProjectRows(projectId)
+        if (remoteRows) rememberRemoteProjectSettings(remoteRows.project, remoteRows.settings)
+        const nextSpace = remoteRows
+          ? restoreProjectRowsToPersonalSpaceState(remoteRows)
+          : readProjectSpaceState(projectId, { fallbackState: fallbackSpace })
+        writeProjectSpaceState(projectId, nextSpace)
+        if (!remoteRows) {
+          void messageApi.warning('远程项目数据读取失败，已使用本地项目缓存')
+        }
+        return nextSpace
+      } catch (error) {
+        void messageApi.warning(`远程项目数据读取失败，已使用本地项目缓存：${String(error)}`)
+      }
+    }
+
+    return hasProjectSpaceState(projectId)
+      ? readProjectSpaceState(projectId)
+      : fallbackSpace
+  }
+
+  const activateProjectStateFromStorage = async (
+    projectId: string,
+    fallbackState?: PersonalSpaceState,
+    projectList = projects,
+  ) => {
+    if (!projectId) {
+      activateProjectState('')
+      return
+    }
+    const nextSpace = await loadProjectSpaceState(projectId, fallbackState, projectList)
+    activateProjectState(projectId, nextSpace)
+  }
+
   const findProjectRepository = (projectId: string) => {
-    const project = projects.find((item) => item.id === projectId)
+    const project = findProject(projectId)
     return project?.mode === 'remote' ? remoteProjectRepository : projectRepository
+  }
+
+  const syncProjectStateToStorage = async (project: Project, nextSpace: PersonalSpaceState) => {
+    if (project.mode === 'remote') {
+      await ensureRemoteProjectSettings(project.id)
+      const remoteSettings = remoteSettingsForProject(project.id)
+      await syncProjectSpaceStateToLocalProjectStorage({
+        projectId: project.id,
+        projectName: project.name,
+        localObjectRoot: '',
+        state: nextSpace,
+        repository: remoteProjectRepository,
+        objectStorage: remoteProjectObjectStorage,
+        storageProvider: 'qiniu_kodo',
+        databaseProvider: remoteSettings.database_provider,
+        remoteDatabaseProfileId: remoteSettings.remote_database_profile_id,
+        remoteStorageProfileId: remoteSettings.remote_storage_profile_id,
+        directoryHandle: settingsWorkspace.directoryHandle,
+        now: new Date().toISOString(),
+      })
+      return
+    }
+
+    await syncProjectSpaceStateToLocalProjectStorage({
+      projectId: project.id,
+      projectName: project.name,
+      localObjectRoot: settingsWorkspace.draftStorageDirectory || nextSpace.settings.storageDirectory || '',
+      state: nextSpace,
+      localRepository: projectRepository,
+      localObjectStorage: projectObjectStorage,
+      directoryHandle: settingsWorkspace.directoryHandle,
+      now: new Date().toISOString(),
+    })
+  }
+
+  const syncActiveProjectStateToStorage = async (nextSpace: PersonalSpaceState) => {
+    const projectId = activeProjectIdRef.current
+    const project = findProject(projectId)
+    if (!projectId || project?.mode !== 'remote') return
+    const syncSequence = remoteSyncSequenceRef.current + 1
+    remoteSyncSequenceRef.current = syncSequence
+    try {
+      await syncProjectStateToStorage(project, nextSpace)
+    } catch (error) {
+      if (remoteSyncSequenceRef.current === syncSequence) {
+        void messageApi.warning(`同步远程项目失败：${String(error)}`)
+      }
+    }
+  }
+
+  const flushQueuedRemoteSync = async () => {
+    if (remoteSyncInFlightRef.current) return
+    const queuedSpace = queuedRemoteSyncSpaceRef.current
+    queuedRemoteSyncSpaceRef.current = null
+    if (!queuedSpace) return
+    remoteSyncInFlightRef.current = true
+    try {
+      await syncActiveProjectStateToStorage(queuedSpace)
+    } finally {
+      remoteSyncInFlightRef.current = false
+      if (queuedRemoteSyncSpaceRef.current) void flushQueuedRemoteSync()
+    }
+  }
+
+  const scheduleRemoteProjectSync = (nextSpace: PersonalSpaceState, delay = REMOTE_PROJECT_SYNC_DEBOUNCE_MS) => {
+    const project = findProject(activeProjectIdRef.current)
+    if (project?.mode !== 'remote') return
+    queuedRemoteSyncSpaceRef.current = nextSpace
+    if (remoteSyncTimerRef.current !== null) window.clearTimeout(remoteSyncTimerRef.current)
+    remoteSyncTimerRef.current = window.setTimeout(() => {
+      remoteSyncTimerRef.current = null
+      void flushQueuedRemoteSync()
+    }, delay)
+  }
+
+  const syncActiveProjectNow = async () => {
+    if (manualSyncInFlightProjectIdRef.current) {
+      void messageApi.warning('项目正在同步，请稍候')
+      return
+    }
+    const syncProjectId = activeProjectIdRef.current
+    const project = findProject(syncProjectId)
+    if (!syncProjectId || !project) {
+      void messageApi.warning('请先启用一个项目空间')
+      return
+    }
+
+    manualSyncInFlightProjectIdRef.current = syncProjectId
+    setSyncingProjectId(syncProjectId)
+    try {
+      writeProjectSpaceState(syncProjectId, spaceRef.current)
+      await syncProjectStateToStorage(project, spaceRef.current)
+      void messageApi.success('已同步项目空间')
+    } catch (error) {
+      void messageApi.warning(`同步项目空间失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      if (manualSyncInFlightProjectIdRef.current === syncProjectId) {
+        manualSyncInFlightProjectIdRef.current = ''
+        setSyncingProjectId('')
+      }
+    }
   }
 
   useEffect(() => {
@@ -198,7 +407,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       setProjects(nextProjects)
       setSelectedManagementProjectId(enabledProjectId || nextProjects[0]?.id || '')
       if (enabledProjectId) {
-        activateProjectState(enabledProjectId, legacySpace)
+        void activateProjectStateFromStorage(enabledProjectId, legacySpace, nextProjects)
       } else {
         activateProjectState('')
       }
@@ -215,8 +424,19 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     spaceRef.current = space
     if (activeProjectIdRef.current) {
       writeProjectSpaceState(activeProjectIdRef.current, space)
+      scheduleRemoteProjectSync(space)
     }
   }, [space])
+
+  useEffect(() => {
+    remoteSyncIntervalRef.current = window.setInterval(() => {
+      scheduleRemoteProjectSync(spaceRef.current, 0)
+    }, REMOTE_PROJECT_PERIODIC_SYNC_MS)
+    return () => {
+      if (remoteSyncTimerRef.current !== null) window.clearTimeout(remoteSyncTimerRef.current)
+      if (remoteSyncIntervalRef.current !== null) window.clearInterval(remoteSyncIntervalRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (settingsWorkspace.directoryHandleChecked && !settingsWorkspace.directoryHandle) {
@@ -244,9 +464,10 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       void messageApi.warning('项目不存在，无法启用')
       return
     }
-    activateProjectState(projectId)
     setSelectedManagementProjectId(projectId)
-    void messageApi.success('已启用项目')
+    void activateProjectStateFromStorage(projectId).then(() => {
+      void messageApi.success('已启用项目')
+    })
   }
 
   const disableActiveProject = () => {
@@ -299,6 +520,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       storageProfileId: settingsWorkspace.selectedKodoProfileId,
       now: new Date().toISOString(),
     })
+    rememberRemoteProjectSettings(created.project, created.settings)
     writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || ''))
     const nextProjects = await refreshProjectList(created.project.id)
     if (nextProjects.length === 1) activateProjectState(created.project.id)
@@ -306,6 +528,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }
 
   const renameProject = async (projectId: string, name: string, description: string) => {
+    await ensureRemoteProjectSettings(projectId)
     const repository = findProjectRepository(projectId)
     const updated = await repository.updateProject(projectId, {
       name,
@@ -322,10 +545,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const deleteProject = async (projectId: string) => {
     const projectToDelete = projects.find((project) => project.id === projectId)
+    if (projectToDelete?.mode === 'remote') await ensureRemoteProjectSettings(projectId)
     const repository = findProjectRepository(projectId)
     const result = await hardDeleteProjectWithObjects({
       projectId,
       repository,
+      localRepository: projectToDelete?.mode === 'remote' ? projectRepository : undefined,
       objectStorage: projectToDelete?.mode === 'remote' ? remoteProjectObjectStorage : projectObjectStorage,
       storageProvider: projectToDelete?.mode === 'remote' ? 'qiniu_kodo' : 'local',
       now: new Date().toISOString(),
@@ -335,7 +560,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     if (wasActive) activateProjectState('')
     const nextProjects = await refreshProjectList('')
     const nextEnabledProjectId = wasActive ? resolveEnabledProjectId(nextProjects, readActiveProjectId()) : activeProjectIdRef.current
-    if (wasActive && nextEnabledProjectId) activateProjectState(nextEnabledProjectId)
+    if (wasActive && nextEnabledProjectId) void activateProjectStateFromStorage(nextEnabledProjectId, undefined, nextProjects)
     if (result.cleanupTasks.length > 0) {
       void messageApi.warning('已删除项目，部分对象进入待清理记录。')
     } else {
@@ -359,6 +584,18 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     try {
       writeProjectSpaceState(migrationProjectId, spaceRef.current)
       const project = projects.find((item) => item.id === migrationProjectId)
+      if (project) {
+        rememberRemoteProjectSettings(project, {
+          project_id: migrationProjectId,
+          storage_provider: 'qiniu_kodo',
+          database_provider: settingsWorkspace.databaseProfileDraft.provider,
+          local_object_root: null,
+          remote_database_profile_id: settingsWorkspace.selectedDatabaseProfileId,
+          remote_storage_profile_id: settingsWorkspace.selectedKodoProfileId,
+          last_verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      }
       try {
         await syncProjectSpaceStateToLocalProjectStorage({
           projectId: migrationProjectId,
@@ -392,8 +629,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         return
       }
 
-      await refreshProjectList(migrationProjectId)
-      activateProjectState(migrationProjectId)
+      const nextProjects = await refreshProjectList(migrationProjectId)
+      await activateProjectStateFromStorage(migrationProjectId, undefined, nextProjects)
       void messageApi.success('已迁移到远程项目存储')
     } finally {
       if (migrationInFlightProjectIdRef.current === migrationProjectId) {
@@ -721,6 +958,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     newStoryboardName,
     storyboardExportingKey,
     migratingProjectId,
+    syncingProjectId,
     portraitAssets,
     spriteAssets,
     voiceAssets,
@@ -735,6 +973,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     renameProject,
     deleteProject,
     migrateActiveProjectToRemote,
+    syncActiveProjectNow,
     createCharacter,
     createStoryboard,
     exportStoryboardAsset,

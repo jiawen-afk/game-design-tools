@@ -97,6 +97,46 @@ test('local to remote migration imports project rows and switches remote setting
   assert.equal((await remote.listAssets('p1')).length, 1)
 })
 
+test('local to remote migration persists remote mode back to the local project snapshot', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [voice] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await local.importProjectRows(rows)
+
+  const result = await migrateLocalProjectToRemote({
+    projectId: 'p1',
+    localRepository: local,
+    remoteRepository: remote,
+    uploadObject: async () => {},
+    remoteDatabaseProvider: 'mysql',
+    remoteDatabaseProfileId: 'db1',
+    remoteStorageProfileId: 'kodo1',
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'succeeded')
+  const localSnapshot = await local.getProject('p1')
+  assert.equal(localSnapshot!.project.mode, 'remote')
+  assert.equal(localSnapshot!.settings.storage_provider, 'qiniu_kodo')
+  assert.equal(localSnapshot!.settings.database_provider, 'mysql')
+  assert.equal(localSnapshot!.settings.remote_database_profile_id, 'db1')
+  assert.equal(localSnapshot!.settings.remote_storage_profile_id, 'kodo1')
+  assert.equal(localSnapshot!.settings.local_object_root, null)
+})
+
 test('local to remote migration copies object bytes from local storage to remote storage', async () => {
   const local = createMemoryProjectRepository()
   const remote = createMemoryProjectRepository()
@@ -280,6 +320,104 @@ test('syncing project snapshot preserves resource bytes when voices precede spri
   assert.equal(await (await localObjects.getObject(migratedVoice.primary_object_key)).text(), 'voice-bytes')
 })
 
+test('syncing project snapshot can persist directly to remote repository and object storage', async () => {
+  const remote = createMemoryProjectRepository()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await remote.initializeSchema()
+  await remote.createRemoteProject({
+    id: 'p1',
+    name: '远程项目',
+    description: '团队资产',
+    databaseProvider: 'postgresql',
+    databaseProfileId: 'db1',
+    storageProfileId: 'kodo1',
+    now: '2026-06-23T00:00:00.000Z',
+  })
+  await directory.writeText('配音/2026-06-23/welcome.wav', 'voice-bytes')
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      resourcePaths: ['blob:expired-voice'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-23/welcome.wav'],
+  }
+  const state = {
+    ...defaultPersonalSpaceState,
+    assets: [voice],
+  }
+
+  await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '远程项目',
+    localObjectRoot: '',
+    state,
+    repository: remote,
+    objectStorage: remoteObjects,
+    storageProvider: 'qiniu_kodo',
+    databaseProvider: 'postgresql',
+    remoteDatabaseProfileId: 'db1',
+    remoteStorageProfileId: 'kodo1',
+    directoryHandle: directory,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const remoteRows = await remote.exportProjectRows('p1')
+  assert.ok(remoteRows)
+  assert.equal(remoteRows.project.mode, 'remote')
+  assert.equal(remoteRows.settings.storage_provider, 'qiniu_kodo')
+  assert.equal(remoteRows.settings.database_provider, 'postgresql')
+  assert.equal(remoteRows.settings.remote_database_profile_id, 'db1')
+  assert.equal(remoteRows.settings.remote_storage_profile_id, 'kodo1')
+  assert.equal(remoteRows.settings.local_object_root, null)
+  assert.equal(remoteRows.assets.length, 1)
+  assert.equal(remoteRows.assets[0]!.id, voice.id)
+  assert.equal(await (await remoteObjects.getObject(remoteRows.assets[0]!.primary_object_key)).text(), 'voice-bytes')
+})
+
+test('syncing restored remote project rows updates metadata without requiring local object reads', async () => {
+  const remote = createMemoryProjectRepository()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  await remote.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['objects/远程项目/audio_wav/r1.wav'],
+  })
+  const state = {
+    ...defaultPersonalSpaceState,
+    assets: [{
+      ...voice,
+      storageResourcePaths: ['objects/远程项目/audio_wav/r1.wav'],
+    }],
+  }
+
+  await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '远程项目',
+    localObjectRoot: '',
+    state,
+    repository: remote,
+    objectStorage: remoteObjects,
+    storageProvider: 'qiniu_kodo',
+    databaseProvider: 'postgresql',
+    remoteDatabaseProfileId: 'db1',
+    remoteStorageProfileId: 'kodo1',
+    directoryHandle: null,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const remoteRows = await remote.exportProjectRows('p1')
+  assert.ok(remoteRows)
+  assert.equal(remoteRows.assets[0]!.id, voice.id)
+  assert.equal(remoteRows.assets[0]!.primary_object_key, 'objects/远程项目/audio_wav/r1.wav')
+  await assert.rejects(remoteObjects.getObject('objects/远程项目/audio_wav/r1.wav'), /对象不存在/)
+})
+
 test('local to remote migration preserves project groups, character links, storyboards, and relations', async () => {
   const local = createMemoryProjectRepository()
   const remote = createMemoryProjectRepository()
@@ -367,4 +505,49 @@ test('hard delete records cleanup failures for object deletion', async () => {
   assert.deepEqual(result.cleanupTasks.map((task) => task.storage_provider), ['qiniu_kodo'])
   assert.deepEqual(result.cleanupTasks.map((task) => task.object_key), [objectKey])
   assert.deepEqual(await repository.listProjects(), [])
+})
+
+test('hard deleting a remote project can also remove the migrated local snapshot', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [voice] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await local.importProjectRows(rows)
+  await remote.importProjectRows({
+    ...rows,
+    project: { ...rows.project, mode: 'remote' },
+    settings: {
+      ...rows.settings,
+      storage_provider: 'qiniu_kodo',
+      database_provider: 'postgresql',
+      local_object_root: null,
+      remote_database_profile_id: 'db1',
+      remote_storage_profile_id: 'kodo1',
+    },
+  })
+  const storage = createMemoryProjectObjectStorage()
+
+  await hardDeleteProjectWithObjects({
+    projectId: 'p1',
+    repository: remote,
+    localRepository: local,
+    objectStorage: storage,
+    storageProvider: 'qiniu_kodo',
+    now: '2026-06-23T00:00:00.000Z',
+  })
+
+  assert.deepEqual(await remote.listProjects(), [])
+  assert.deepEqual(await local.listProjects(), [])
 })

@@ -126,6 +126,11 @@ export interface ProjectConnectionVerificationResult {
   lastVerifiedAt: string | null
 }
 
+export interface DesktopProjectObjectReadResult {
+  data: ArrayBuffer | Uint8Array
+  mimeType: string
+}
+
 export interface GameDesignToolsDesktopApi {
   selectPersonalSpaceDirectory(): Promise<DesktopDirectoryInfo | null>
   registerPersonalSpaceDirectory(rootPath: string): Promise<DesktopDirectoryInfo>
@@ -164,6 +169,9 @@ export interface GameDesignToolsDesktopApi {
   exportLocalProjectRows(projectId: string): Promise<LegacyProjectRows | null>
   listLocalProjectAssets(projectId: string): Promise<Asset[]>
   deleteLocalProject(projectId: string): Promise<boolean>
+  putLocalProjectObject(objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
+  getLocalProjectObject(objectKey: string): Promise<DesktopProjectObjectReadResult>
+  deleteLocalProjectObject(objectKey: string): Promise<boolean>
   createRemoteProject(input: {
     id: string
     name: string

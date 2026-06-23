@@ -1,5 +1,5 @@
 import { Button, message, Tabs, Tag } from 'antd'
-import { SwapOutlined } from '@ant-design/icons'
+import { SwapOutlined, SyncOutlined } from '@ant-design/icons'
 
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { ProjectManagementPanel } from './ProjectManagementPanel'
@@ -79,6 +79,7 @@ export default function PersonalSpaceWorkspace() {
           onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
           onDeleteDatabaseProfile={() => void workspace.deleteDatabaseProfile()}
           onSaveKodoProfile={() => void workspace.saveKodoProfile()}
+          onDeleteKodoProfile={() => void workspace.deleteKodoProfile()}
           onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
           onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}
           onVerifyKodoProfile={(projectId) => void workspace.verifyKodoProfile(projectId)}
@@ -109,6 +110,14 @@ export default function PersonalSpaceWorkspace() {
             </Tag>
           </div>
           <span className="project-current-path">{workspace.draftStorageDirectory || '未设置资源存储目录'}</span>
+          <Button
+            icon={<SyncOutlined />}
+            loading={workspace.syncingProjectId === workspace.enabledProjectId}
+            disabled={!workspace.enabledProjectId || workspace.syncingProjectId === workspace.enabledProjectId}
+            onClick={() => void workspace.syncActiveProjectNow()}
+          >
+            同步项目
+          </Button>
           <Button icon={<SwapOutlined />} onClick={workspace.openProjectManagement}>
             切换项目空间
           </Button>

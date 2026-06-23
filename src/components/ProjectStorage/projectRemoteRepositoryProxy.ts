@@ -10,9 +10,9 @@ import type {
 } from './projectSqliteRepository'
 
 export class DesktopRemoteProjectRepository implements ProjectRepository {
-  private readonly getDatabaseProfileId: () => string
+  private readonly getDatabaseProfileId: (projectId?: string) => string
 
-  constructor(getDatabaseProfileId: () => string = () => '') {
+  constructor(getDatabaseProfileId: (projectId?: string) => string = () => '') {
     this.getDatabaseProfileId = getDatabaseProfileId
   }
 
@@ -32,7 +32,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async updateProject(projectId: string, input: UpdateProjectInput) {
     const desktopApi = this.requireDesktopApi()
-    return desktopApi.updateRemoteProject(projectId, input, this.getDatabaseProfileId())
+    return desktopApi.updateRemoteProject(projectId, input, this.getDatabaseProfileId(projectId))
   }
 
   async listProjects() {
@@ -49,7 +49,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
     try {
-      return await desktopApi.getRemoteProject(projectId, this.getDatabaseProfileId())
+      return await desktopApi.getRemoteProject(projectId, this.getDatabaseProfileId(projectId))
     } catch {
       return null
     }
@@ -57,14 +57,14 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async importProjectRows(rows: LegacyProjectRows) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.importRemoteProjectRows(rows, this.getDatabaseProfileId())
+    await desktopApi.importRemoteProjectRows(rows, this.getDatabaseProfileId(rows.project.id))
   }
 
   async exportProjectRows(projectId: string) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
     try {
-      return await desktopApi.exportRemoteProjectRows(projectId, this.getDatabaseProfileId())
+      return await desktopApi.exportRemoteProjectRows(projectId, this.getDatabaseProfileId(projectId))
     } catch {
       return null
     }
@@ -74,7 +74,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
     try {
-      return await desktopApi.listRemoteProjectAssets(projectId, this.getDatabaseProfileId())
+      return await desktopApi.listRemoteProjectAssets(projectId, this.getDatabaseProfileId(projectId))
     } catch {
       return []
     }
@@ -82,7 +82,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async deleteProject(projectId: string) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.deleteRemoteProject(projectId, this.getDatabaseProfileId())
+    await desktopApi.deleteRemoteProject(projectId, this.getDatabaseProfileId(projectId))
   }
 
   private requireDesktopApi() {
@@ -92,6 +92,6 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
   }
 }
 
-export function createDesktopRemoteProjectRepository(getDatabaseProfileId?: () => string) {
+export function createDesktopRemoteProjectRepository(getDatabaseProfileId?: (projectId?: string) => string) {
   return new DesktopRemoteProjectRepository(getDatabaseProfileId)
 }

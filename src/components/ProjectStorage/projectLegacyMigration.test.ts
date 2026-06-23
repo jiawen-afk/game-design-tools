@@ -6,7 +6,7 @@ import {
   defaultPersonalSpaceState,
   type PersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
-import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
+import { migratePersonalSpaceStateToProjectRows, restoreProjectRowsToPersonalSpaceState } from './projectLegacyMigration'
 
 const semanticIdPrefixPattern = /^(asset|character|storyboard|group|link|relation)[_-]/
 
@@ -128,4 +128,134 @@ test('legacy migration converts assets, groups, character links, storyboard entr
   assert.equal(migrated.assetRelations[0]!.relation_type, 'effect_voice')
   assert.equal(migrated.assetRelations[0]!.source_asset_id, migratedEffect.id)
   assert.equal(migrated.assetRelations[0]!.target_asset_id, migratedVoice.id)
+})
+
+test('project rows restore project space state with groups, assets, links, storyboards, and relations', () => {
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      dialogueText: '欢迎来到我的商店。',
+      resourcePaths: ['D:\\voice\\welcome.wav'],
+    }),
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-23/audio.wav'],
+  }
+  const effect = {
+    ...createPersonalSpaceAsset({
+      kind: 'image',
+      assetSubtype: 'effect',
+      name: '火球',
+      groupName: '特效',
+      resourcePaths: ['D:\\image\\fire.png'],
+      linkedVoiceAssetIds: [voice.id],
+    }),
+    storageResourcePaths: ['ProjectRoot/图片/2026-06-23/fire.png'],
+  }
+  const state: PersonalSpaceState = {
+    ...defaultPersonalSpaceState,
+    assetGroups: { image: ['默认分组', '特效'], sprite: ['默认分组'], voice: ['默认分组'] },
+    starredAssetGroups: { image: ['特效'], sprite: [], voice: [] },
+    assets: [voice, effect],
+    characters: [{
+      id: 'character-old-1',
+      name: '商人',
+      order: 0,
+      starred: true,
+      portraitAssets: [],
+      spriteAssets: [],
+      voiceAssets: [{ assetId: voice.id, order: 0 }],
+      portraitAssetIds: [],
+      spriteAssetIds: [],
+      voiceAssetIds: [voice.id],
+    }],
+    storyboardGroups: [{
+      id: 'storyboard-old-1',
+      name: '开场',
+      starred: true,
+      voiceEntries: [{ assetId: voice.id, text: '欢迎', startOffsetUs: -100000, order: 0 }],
+      characterIds: ['character-old-1'],
+      voiceAssetIds: [voice.id],
+    }],
+  }
+  const rows = migratePersonalSpaceStateToProjectRows(state, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  const migratedVoice = rows.assets.find((asset) => asset.name === voice.name)!
+  const migratedEffect = rows.assets.find((asset) => asset.name === effect.name)!
+  const migratedCharacter = rows.characters[0]!
+  const migratedStoryboard = rows.storyboardGroups[0]!
+
+  const restored = restoreProjectRowsToPersonalSpaceState(rows)
+
+  assert.equal(restored.settings.storageDirectory, 'D:\\GameAssets')
+  assert.deepEqual(restored.assetGroups, {
+    image: ['默认分组', '特效'],
+    sprite: ['默认分组'],
+    voice: ['默认分组'],
+  })
+  assert.deepEqual(restored.starredAssetGroups, { image: ['特效'], sprite: [], voice: [] })
+  assert.deepEqual(restored.assets.map((asset) => [
+    asset.id,
+    asset.name,
+    asset.kind,
+    asset.assetSubtype,
+    asset.groupName,
+    asset.dialogueText ?? '',
+    asset.resourcePaths,
+    asset.storageResourcePaths,
+    asset.linkedCharacterIds,
+    asset.linkedStoryboardIds,
+    asset.linkedVoiceAssetIds,
+  ]), [
+    [
+      migratedVoice.id,
+      '欢迎',
+      'voice',
+      'character_voice',
+      '默认分组',
+      '欢迎来到我的商店。',
+      [migratedVoice.primary_object_key],
+      [migratedVoice.primary_object_key],
+      [migratedCharacter.id],
+      [migratedStoryboard.id],
+      [],
+    ],
+    [
+      migratedEffect.id,
+      '火球',
+      'image',
+      'effect',
+      '特效',
+      '',
+      [migratedEffect.primary_object_key],
+      [migratedEffect.primary_object_key],
+      [],
+      [],
+      [migratedVoice.id],
+    ],
+  ])
+  assert.deepEqual(restored.characters, [{
+    id: migratedCharacter.id,
+    name: '商人',
+    order: 0,
+    starred: true,
+    portraitAssets: [],
+    spriteAssets: [],
+    voiceAssets: [{ assetId: migratedVoice.id, order: 0 }],
+    portraitAssetIds: [],
+    spriteAssetIds: [],
+    voiceAssetIds: [migratedVoice.id],
+  }])
+  assert.deepEqual(restored.storyboardGroups, [{
+    id: migratedStoryboard.id,
+    name: '开场',
+    starred: true,
+    voiceEntries: [{ assetId: migratedVoice.id, text: '欢迎', startOffsetUs: -100000, order: 0 }],
+    characterIds: [migratedCharacter.id],
+    voiceAssetIds: [migratedVoice.id],
+  }])
 })
