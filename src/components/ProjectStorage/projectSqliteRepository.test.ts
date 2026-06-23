@@ -104,3 +104,25 @@ test('local project repository updates project name and description', async () =
   assert.equal(updated!.project.description, '项目说明')
   assert.equal(updated!.project.updated_at, '2026-06-24T00:00:00.000Z')
 })
+
+test('local project repository creates remote projects only with remote settings', async () => {
+  const repository = createMemoryProjectRepository()
+  const created = await repository.createRemoteProject({
+    id: 'remote-p1',
+    name: '远程项目',
+    description: '团队资产',
+    databaseProvider: 'mysql',
+    databaseProfileId: 'db1',
+    storageProfileId: 'kodo1',
+    now: '2026-06-23T00:00:00.000Z',
+  })
+
+  assert.equal(created.project.id, 'remote-p1')
+  assert.equal(created.project.mode, 'remote')
+  assert.equal(created.project.object_key_prefix, 'objects/remote-p1')
+  assert.equal(created.settings.storage_provider, 'qiniu_kodo')
+  assert.equal(created.settings.database_provider, 'mysql')
+  assert.equal(created.settings.local_object_root, null)
+  assert.equal(created.settings.remote_database_profile_id, 'db1')
+  assert.equal(created.settings.remote_storage_profile_id, 'kodo1')
+})

@@ -8,6 +8,7 @@ import type {
   Character,
   CharacterAssetLink,
   Project,
+  ProjectDatabaseProvider,
   ProjectSettings,
   StoryboardGroup,
   StoryboardVoiceEntry,
@@ -17,6 +18,16 @@ export interface CreateLocalProjectInput {
   name: string
   description: string
   localObjectRoot: string
+  now: string
+}
+
+export interface CreateRemoteProjectInput {
+  id?: string
+  name: string
+  description: string
+  databaseProvider: Extract<ProjectDatabaseProvider, 'postgresql' | 'mysql'>
+  databaseProfileId: string
+  storageProfileId: string
   now: string
 }
 
@@ -34,6 +45,7 @@ export interface ProjectWithSettings {
 export interface ProjectRepository {
   initializeSchema(): Promise<void>
   createProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings>
+  createRemoteProject(input: CreateRemoteProjectInput): Promise<ProjectWithSettings>
   updateProject(projectId: string, input: UpdateProjectInput): Promise<ProjectWithSettings | null>
   listProjects(): Promise<Project[]>
   getProject(projectId: string): Promise<ProjectWithSettings | null>
@@ -82,6 +94,42 @@ export class MemoryProjectRepository implements ProjectRepository {
       remote_database_profile_id: null,
       remote_storage_profile_id: null,
       last_verified_at: null,
+      updated_at: input.now,
+    }
+    this.projects.set(id, project)
+    this.settings.set(id, settings)
+    this.assetGroups.set(id, [])
+    this.assets.set(id, [])
+    this.characters.set(id, [])
+    this.characterAssetLinks.set(id, [])
+    this.storyboardGroups.set(id, [])
+    this.storyboardVoiceEntries.set(id, [])
+    this.assetRelations.set(id, [])
+    return { project, settings }
+  }
+
+  async createRemoteProject(input: CreateRemoteProjectInput): Promise<ProjectWithSettings> {
+    if (!this.initialized) await this.initializeSchema()
+    const id = input.id ?? createProjectId()
+    const project: Project = {
+      id,
+      name: input.name.trim() || '未命名项目',
+      description: input.description.trim(),
+      mode: 'remote',
+      status: 'active',
+      object_key_prefix: `objects/${id}`,
+      created_at: input.now,
+      updated_at: input.now,
+      metadata_json: null,
+    }
+    const settings: ProjectSettings = {
+      project_id: id,
+      storage_provider: 'qiniu_kodo',
+      database_provider: input.databaseProvider,
+      local_object_root: null,
+      remote_database_profile_id: input.databaseProfileId,
+      remote_storage_profile_id: input.storageProfileId,
+      last_verified_at: input.now,
       updated_at: input.now,
     }
     this.projects.set(id, project)
