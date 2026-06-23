@@ -107,39 +107,120 @@
   gap: 8px 12px;
 }
 
-.project-selector {
-  min-width: min(100%, 220px);
+.project-current-control {
+  min-width: min(100%, 280px);
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  text-align: right;
 }
 
-.project-settings-grid {
+.project-current-control strong {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-current-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.project-current-path {
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+
+.project-management-page {
+  display: grid;
+  gap: 16px;
+}
+
+.project-management-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.project-management-head h2 {
+  margin: 0 0 8px;
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+
+.project-management-head p {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.project-management-tabs {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  overflow: hidden;
+}
+
+.project-management-tabs > .ant-tabs-nav {
+  margin: 0;
+  padding: 0 16px;
+  background: var(--color-panel-strong);
+}
+
+.project-management-tabs > .ant-tabs-content-holder {
+  padding: 16px;
+}
+
+.project-create-grid {
   display: grid;
   gap: 12px;
-  padding: 12px;
+}
+
+.project-card {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
   border: 1px solid color-mix(in oklch, var(--color-line) 76%, white);
   border-radius: var(--radius-control);
   background: var(--color-panel);
 }
 
-.project-settings-head,
-.project-delete-row {
+.project-card-head {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
   justify-content: space-between;
 }
 
-.project-settings-head > div {
+.project-card-head > div {
   min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
-.project-actions {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.72fr) minmax(180px, 1fr);
-  gap: 8px;
-  align-items: end;
+.project-card-head h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 1.08rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .remote-settings-grid {
@@ -1221,10 +1302,6 @@ button.asset-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .project-actions {
-    grid-template-columns: 1fr;
-  }
-
   .remote-settings-grid,
   .remote-form-grid {
     grid-template-columns: 1fr;
@@ -1300,14 +1377,20 @@ button.asset-preview {
     text-align: left;
   }
 
-  .project-settings-head,
-  .project-delete-row {
-    display: grid;
-    justify-content: stretch;
+  .project-current-control {
+    min-width: 0;
+    justify-items: start;
+    text-align: left;
   }
 
-  .project-settings-head .project-selector {
-    width: 100%;
+  .project-current-tags {
+    justify-content: flex-start;
+  }
+
+  .project-management-head,
+  .project-card-head {
+    display: grid;
+    justify-content: stretch;
   }
 
   .remote-migration-row {

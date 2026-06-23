@@ -42,3 +42,10 @@ export function writeProjectSpaceState(projectId: string, state: PersonalSpaceSt
   states[projectId] = clonePersonalSpaceState(state)
   writeStoredProjectStates(states, storage)
 }
+
+export function deleteProjectSpaceState(projectId: string, storage: Storage = localStorage) {
+  if (!projectId) return
+  const states = readStoredProjectStates(storage)
+  delete states[projectId]
+  writeStoredProjectStates(states, storage)
+}

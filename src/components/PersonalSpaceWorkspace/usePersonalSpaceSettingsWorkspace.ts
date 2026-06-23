@@ -62,6 +62,8 @@ export function usePersonalSpaceSettingsWorkspace({
   const [selectedKodoProfileId, setSelectedKodoProfileId] = useState('')
   const [databaseVerification, setDatabaseVerification] = useState<ProjectConnectionVerificationResult | null>(null)
   const [kodoVerification, setKodoVerification] = useState<ProjectConnectionVerificationResult | null>(null)
+  const [kodoVerificationProjectId, setKodoVerificationProjectId] = useState('')
+  const [databaseSchemaReady, setDatabaseSchemaReady] = useState(false)
   const [databaseProfileDraft, setDatabaseProfileDraft] = useState<DatabaseProfileDraft>({
     provider: 'postgresql',
     host: '',
@@ -122,6 +124,15 @@ export function usePersonalSpaceSettingsWorkspace({
 
     return () => { mounted = false }
   }, [messageApi])
+
+  useEffect(() => {
+    setDatabaseSchemaReady(false)
+  }, [selectedDatabaseProfileId])
+
+  useEffect(() => {
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+  }, [selectedKodoProfileId])
 
   const saveSettings = () => {
     setSpace((current) => ({
@@ -206,6 +217,7 @@ export function usePersonalSpaceSettingsWorkspace({
     setDatabaseProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
     setSelectedDatabaseProfileId(summary.id)
     setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
     void messageApi.success('已保存远程数据库配置')
   }
 
@@ -239,6 +251,7 @@ export function usePersonalSpaceSettingsWorkspace({
     }
     const result = await desktopApi.verifyProjectDatabaseProfile(selectedDatabaseProfileId)
     setDatabaseVerification(result)
+    if (!result.ok) setDatabaseSchemaReady(false)
     await refreshProjectConnectionProfiles()
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
   }
@@ -250,6 +263,7 @@ export function usePersonalSpaceSettingsWorkspace({
       return
     }
     const result = await desktopApi.initializeProjectDatabaseSchema(selectedDatabaseProfileId, databaseProfileDraft.provider)
+    setDatabaseSchemaReady(result.ok)
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
   }
 
@@ -261,6 +275,7 @@ export function usePersonalSpaceSettingsWorkspace({
     }
     const result = await desktopApi.verifyProjectKodoProfile(selectedKodoProfileId, projectId)
     setKodoVerification(result)
+    setKodoVerificationProjectId(result.ok ? projectId : '')
     await refreshProjectConnectionProfiles()
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
   }
@@ -268,8 +283,8 @@ export function usePersonalSpaceSettingsWorkspace({
   const selectedDatabaseProfile = databaseProfiles.find((profile) => profile.id === selectedDatabaseProfileId)
   const selectedKodoProfile = kodoProfiles.find((profile) => profile.id === selectedKodoProfileId)
   const databaseReady = Boolean(selectedDatabaseProfileId && (databaseVerification?.ok || selectedDatabaseProfile?.lastVerifiedAt))
-  const kodoReady = Boolean(selectedKodoProfileId && (kodoVerification?.ok || selectedKodoProfile?.lastVerifiedAt))
-  const remoteReady = databaseReady && kodoReady
+  const kodoReady = Boolean(selectedKodoProfileId && kodoVerification?.ok && kodoVerificationProjectId)
+  const remoteReady = databaseReady && databaseSchemaReady && kodoReady
 
   return {
     draftStorageDirectory,
@@ -288,6 +303,8 @@ export function usePersonalSpaceSettingsWorkspace({
     kodoProfileDraft,
     databaseVerification,
     kodoVerification,
+    kodoVerificationProjectId,
+    databaseSchemaReady,
     remoteReady,
     setSelectedDatabaseProfileId,
     setSelectedKodoProfileId,

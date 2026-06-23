@@ -1,5 +1,8 @@
-import { message, Select, Tabs, Tag } from 'antd'
+import { Button, message, Tabs, Tag } from 'antd'
+import { SwapOutlined } from '@ant-design/icons'
+
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
+import { ProjectManagementPanel } from './ProjectManagementPanel'
 import { PersonalResourceSection } from './PersonalResourceSections'
 import { PersonalSettingsPanel } from './PersonalSettingsPanel'
 import { PersonalStoryboardPanel } from './PersonalStoryboardPanel'
@@ -11,6 +14,7 @@ import './personalSpace.css'
 export default function PersonalSpaceWorkspace() {
   const [messageApi, contextHolder] = message.useMessage()
   const workspace = usePersonalSpaceWorkspace(messageApi)
+  const workbenchDisabled = !workspace.enabledProjectId || !workspace.directoryHandle
 
   const materialSection = (section: (typeof workspace.resourceSections)[number]) => (
     <PersonalResourceSection
@@ -39,6 +43,49 @@ export default function PersonalSpaceWorkspace() {
     />
   )
 
+  if (workspace.workspacePage === 'management') {
+    return (
+      <section className="personal-space" aria-labelledby="project-management-title">
+        {contextHolder}
+        <ProjectManagementPanel
+          projects={workspace.projects}
+          enabledProjectId={workspace.enabledProjectId}
+          selectedProjectId={workspace.selectedManagementProjectId}
+          activeProject={workspace.activeProject}
+          remoteReady={workspace.remoteReady}
+          databaseProfiles={workspace.databaseProfiles}
+          kodoProfiles={workspace.kodoProfiles}
+          selectedDatabaseProfileId={workspace.selectedDatabaseProfileId}
+          selectedKodoProfileId={workspace.selectedKodoProfileId}
+          databaseProfileDraft={workspace.databaseProfileDraft}
+          kodoProfileDraft={workspace.kodoProfileDraft}
+          databaseVerification={workspace.databaseVerification}
+          kodoVerification={workspace.kodoVerification}
+          kodoVerificationProjectId={workspace.kodoVerificationProjectId}
+          databaseSchemaReady={workspace.databaseSchemaReady}
+          onSelectedProjectChange={workspace.setSelectedManagementProjectId}
+          onCreateLocalProject={workspace.createLocalProject}
+          onCreateRemoteProject={workspace.createRemoteProject}
+          onRenameProject={workspace.renameProject}
+          onDeleteProject={workspace.deleteProject}
+          onEnableProject={workspace.enableProject}
+          onDisableProject={workspace.disableActiveProject}
+          onMigrateToRemote={() => void workspace.migrateActiveProjectToRemote()}
+          onSelectedDatabaseProfileChange={workspace.setSelectedDatabaseProfileId}
+          onSelectedKodoProfileChange={workspace.setSelectedKodoProfileId}
+          onDatabaseProfileDraftChange={workspace.setDatabaseProfileDraft}
+          onKodoProfileDraftChange={workspace.setKodoProfileDraft}
+          onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
+          onSaveKodoProfile={() => void workspace.saveKodoProfile()}
+          onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
+          onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}
+          onVerifyKodoProfile={(projectId) => void workspace.verifyKodoProfile(projectId)}
+          onBack={workspace.closeProjectManagement}
+        />
+      </section>
+    )
+  }
+
   return (
     <section className="personal-space" aria-labelledby="personal-space-title">
       {contextHolder}
@@ -46,25 +93,23 @@ export default function PersonalSpaceWorkspace() {
         <div>
           <p className="kicker">项目空间</p>
           <h2 id="personal-space-title">项目资产与编排管理</h2>
-          <p>按项目管理角色、素材、剧情组和本地资源目录，为后续远程数据库与对象存储迁移保留同一套资产边界。</p>
+          <p>按项目管理角色、素材、剧情组和资源目录。启用的项目会成为当前所有数据保存的目标。</p>
         </div>
-        <div className="storage-status">
-          <Select
-            className="project-selector"
-            aria-label="选择项目"
-            value={workspace.projectSelector.value}
-            options={workspace.projectSelector.options}
-            placeholder="选择项目"
-            disabled={workspace.projectSelector.options.length === 0}
-            onChange={workspace.projectSelector.onChange}
-          />
-          <Tag color={workspace.activeProject?.mode === 'local' ? 'processing' : workspace.activeProject?.mode === 'remote' ? 'success' : undefined}>
-            {workspace.activeProject?.mode === 'local' ? '本地模式' : workspace.activeProject?.mode === 'remote' ? '远程模式' : '未选择项目'}
-          </Tag>
-          <Tag color={workspace.directoryHandle ? 'success' : undefined}>
-            {workspace.directoryHandle ? '已授权目录' : workspace.directoryHandleChecked ? '需要授权目录' : '检查授权目录'}
-          </Tag>
-          <span>{workspace.draftStorageDirectory || '未设置资源存储目录'}</span>
+        <div className="project-current-control">
+          <span className="field-label">当前项目</span>
+          <strong>{workspace.activeProject?.name ?? '未启用项目'}</strong>
+          <div className="project-current-tags">
+            <Tag color={workspace.activeProject?.mode === 'local' ? 'processing' : workspace.activeProject?.mode === 'remote' ? 'success' : undefined}>
+              {workspace.activeProject?.mode === 'local' ? '本地模式' : workspace.activeProject?.mode === 'remote' ? '远程模式' : '未选择项目'}
+            </Tag>
+            <Tag color={workspace.directoryHandle ? 'success' : undefined}>
+              {workspace.directoryHandle ? '已授权目录' : workspace.directoryHandleChecked ? '需要授权目录' : '检查授权目录'}
+            </Tag>
+          </div>
+          <span className="project-current-path">{workspace.draftStorageDirectory || '未设置资源存储目录'}</span>
+          <Button icon={<SwapOutlined />} onClick={workspace.openProjectManagement}>
+            切换项目空间
+          </Button>
         </div>
       </div>
 
@@ -103,7 +148,7 @@ export default function PersonalSpaceWorkspace() {
           {
             key: 'characters',
             label: '角色',
-            disabled: !workspace.directoryHandle,
+            disabled: workbenchDisabled,
             children: (
               <PersonalCharacterPanel
                 characters={workspace.space.characters}
@@ -131,7 +176,7 @@ export default function PersonalSpaceWorkspace() {
           {
             key: 'storyboards',
             label: '剧情编排',
-            disabled: !workspace.directoryHandle,
+            disabled: workbenchDisabled,
             children: (
               <PersonalStoryboardPanel
                 storyboardGroups={workspace.space.storyboardGroups}
@@ -162,7 +207,7 @@ export default function PersonalSpaceWorkspace() {
           {
             key: 'materials',
             label: '素材',
-            disabled: !workspace.directoryHandle,
+            disabled: workbenchDisabled,
             children: (
               <Tabs
                 className="personal-inner-tabs"
@@ -191,35 +236,10 @@ export default function PersonalSpaceWorkspace() {
             label: '设置',
             children: (
               <PersonalSettingsPanel
-                projects={workspace.projects}
-                activeProject={workspace.activeProject}
-                projectSelector={workspace.projectSelector}
                 storageDirectory={workspace.draftStorageDirectory}
                 deleteResourcesWithContent={workspace.space.settings.deleteResourcesWithContent}
                 savedSettings={workspace.savedSettings}
                 directoryHandle={workspace.directoryHandle}
-                onCreateLocalProject={workspace.createLocalProject}
-                onRenameProject={workspace.renameProject}
-                onDeleteProject={workspace.deleteProject}
-                databaseProfiles={workspace.databaseProfiles}
-                kodoProfiles={workspace.kodoProfiles}
-                selectedDatabaseProfileId={workspace.selectedDatabaseProfileId}
-                selectedKodoProfileId={workspace.selectedKodoProfileId}
-                databaseProfileDraft={workspace.databaseProfileDraft}
-                kodoProfileDraft={workspace.kodoProfileDraft}
-                databaseVerification={workspace.databaseVerification}
-                kodoVerification={workspace.kodoVerification}
-                remoteReady={workspace.remoteReady}
-                onSelectedDatabaseProfileChange={workspace.setSelectedDatabaseProfileId}
-                onSelectedKodoProfileChange={workspace.setSelectedKodoProfileId}
-                onDatabaseProfileDraftChange={workspace.setDatabaseProfileDraft}
-                onKodoProfileDraftChange={workspace.setKodoProfileDraft}
-                onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
-                onSaveKodoProfile={() => void workspace.saveKodoProfile()}
-                onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
-                onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}
-                onVerifyKodoProfile={() => void workspace.verifyKodoProfile(workspace.activeProject?.id ?? '')}
-                onMigrateToRemote={() => void workspace.migrateActiveProjectToRemote()}
                 onStorageDirectoryChange={workspace.setDraftStorageDirectory}
                 onChooseStorageDirectory={() => void workspace.chooseStorageDirectory()}
                 onOpenStorageDirectory={workspace.openStorageDirectory}

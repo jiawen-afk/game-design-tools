@@ -155,6 +155,7 @@ export {
 } from './personalSpaceState'
 
 export {
+  deleteProjectSpaceState,
   hasProjectSpaceState,
   projectSpaceStatesStorageKey,
   readProjectSpaceState,

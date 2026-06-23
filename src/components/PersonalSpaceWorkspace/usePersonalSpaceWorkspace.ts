@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
 
 import {
+  clearActiveProjectId,
   createMemoryProjectObjectStorage,
   createMemoryProjectRepository,
   createProjectWorkspaceBootstrapper,
   hardDeleteProjectWithObjects,
   migrateLocalProjectToRemote,
+  readActiveProjectId,
+  resolveEnabledProjectId,
   type Project,
+  writeActiveProjectId,
 } from '../ProjectStorage'
 import {
   addAssetGroup,
@@ -22,6 +26,7 @@ import {
   linkEffectAssetToVoice,
   moveCharacterVoice,
   moveStoryboardVoice,
+  defaultPersonalSpaceState,
   readPersonalSpaceState,
   renameAssetGroup,
   renameCharacterProfile,
@@ -32,6 +37,7 @@ import {
   transferAssetGroup,
   type AssetGroupKind,
   type CommonAssetKind,
+  type PersonalSpaceState,
   toggleAssetGroupStar,
   toggleCharacterStar,
   toggleStoryboardStar,
@@ -39,8 +45,13 @@ import {
   unassignVoiceFromStoryboardGroup,
   updatePersonalSpaceAsset,
   updateStoryboardVoiceText,
-  writePersonalSpaceState,
 } from './personalSpaceModel'
+import {
+  deleteProjectSpaceState,
+  hasProjectSpaceState,
+  readProjectSpaceState,
+  writeProjectSpaceState,
+} from './projectSpaceState'
 import {
   applyAssetDeleteResult,
   createCommonResourceAssetForUpload,
@@ -63,6 +74,7 @@ interface PersonalSpaceMessageApi {
 }
 
 type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
+type ProjectSpacePage = 'workbench' | 'management'
 
 const projectRepository = createMemoryProjectRepository()
 const remoteProjectRepository = createMemoryProjectRepository()
@@ -75,14 +87,42 @@ function assetKindLabel(kind: string) {
   return '图片'
 }
 
+function createEmptyProjectSpaceState(storageDirectory = ''): PersonalSpaceState {
+  return {
+    ...defaultPersonalSpaceState,
+    settings: {
+      ...defaultPersonalSpaceState.settings,
+      storageDirectory,
+    },
+    assetGroups: {
+      image: [...defaultPersonalSpaceState.assetGroups.image],
+      sprite: [...defaultPersonalSpaceState.assetGroups.sprite],
+      voice: [...defaultPersonalSpaceState.assetGroups.voice],
+    },
+    starredAssetGroups: {
+      image: [],
+      sprite: [],
+      voice: [],
+    },
+    characters: [],
+    assets: [],
+    storyboardGroups: [],
+    pendingDeletedResourcePaths: [],
+  }
+}
+
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProjectId, setActiveProjectId] = useState('')
+  const [workspacePage, setWorkspacePage] = useState<ProjectSpacePage>('workbench')
+  const [selectedManagementProjectId, setSelectedManagementProjectId] = useState('')
   const [newCharacterName, setNewCharacterName] = useState('')
   const [newStoryboardName, setNewStoryboardName] = useState('')
   const [activeModule, setActiveModule] = useState<PersonalSpaceActiveModule>('characters')
   const [storyboardExportingKey, setStoryboardExportingKey] = useState('')
+  const spaceRef = useRef(space)
+  const activeProjectIdRef = useRef('')
   const spriteUploadBatchKeyByCharacter = useRef<Record<string, string>>({})
   const imageSpriteUploadBatchKey = useRef<string | null>(null)
   const settingsWorkspace = usePersonalSpaceSettingsWorkspace({
@@ -91,7 +131,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     messageApi,
   })
 
-  const refreshProjectList = async (preferredProjectId = activeProjectId) => {
+  const refreshProjectList = async (preferredProjectId = selectedManagementProjectId) => {
     const [localProjects, remoteProjects] = await Promise.all([
       projectRepository.listProjects(),
       remoteProjectRepository.listProjects(),
@@ -100,15 +140,39 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       !remoteProjects.some((remoteProject) => remoteProject.id === project.id)
     ))]
     setProjects(nextProjects)
-    setActiveProjectId((current) => {
-      const nextPreferredProjectId = preferredProjectId || current
-      if (nextPreferredProjectId && nextProjects.some((project) => project.id === nextPreferredProjectId)) {
-        return nextPreferredProjectId
-      }
-      if (current && nextProjects.some((project) => project.id === current)) return current
+    setSelectedManagementProjectId((current) => {
+      const nextPreferredProjectId = preferredProjectId || current || activeProjectIdRef.current
+      if (nextPreferredProjectId && nextProjects.some((project) => project.id === nextPreferredProjectId)) return nextPreferredProjectId
       return nextProjects[0]?.id ?? ''
     })
     return nextProjects
+  }
+
+  const activateProjectState = (projectId: string, fallbackState?: PersonalSpaceState) => {
+    if (activeProjectIdRef.current && activeProjectIdRef.current !== projectId) {
+      writeProjectSpaceState(activeProjectIdRef.current, spaceRef.current)
+    }
+
+    if (!projectId) {
+      activeProjectIdRef.current = ''
+      setActiveProjectId('')
+      clearActiveProjectId()
+      const emptySpace = createEmptyProjectSpaceState()
+      spaceRef.current = emptySpace
+      setSpace(emptySpace)
+      return
+    }
+
+    if (!hasProjectSpaceState(projectId)) {
+      writeProjectSpaceState(projectId, fallbackState ?? createEmptyProjectSpaceState())
+    }
+
+    const nextSpace = readProjectSpaceState(projectId)
+    activeProjectIdRef.current = projectId
+    spaceRef.current = nextSpace
+    setActiveProjectId(projectId)
+    setSpace(nextSpace)
+    writeActiveProjectId(projectId)
   }
 
   const findProjectRepository = (projectId: string) => {
@@ -120,14 +184,17 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     let cancelled = false
 
     const initializeProjects = async () => {
-      const nextProjects = await projectBootstrapper.listProjects(space.settings.storageDirectory || '')
+      const legacySpace = readPersonalSpaceState()
+      const nextProjects = await projectBootstrapper.listProjects(legacySpace.settings.storageDirectory || '')
       if (cancelled) return
+      const enabledProjectId = resolveEnabledProjectId(nextProjects, readActiveProjectId())
       setProjects(nextProjects)
-      setActiveProjectId((current) => (
-        current && nextProjects.some((project) => project.id === current)
-          ? current
-          : nextProjects[0]?.id ?? ''
-      ))
+      setSelectedManagementProjectId(enabledProjectId || nextProjects[0]?.id || '')
+      if (enabledProjectId) {
+        activateProjectState(enabledProjectId, legacySpace)
+      } else {
+        activateProjectState('')
+      }
     }
 
     void initializeProjects()
@@ -138,7 +205,10 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }, [])
 
   useEffect(() => {
-    writePersonalSpaceState(space)
+    spaceRef.current = space
+    if (activeProjectIdRef.current) {
+      writeProjectSpaceState(activeProjectIdRef.current, space)
+    }
   }, [space])
 
   useEffect(() => {
@@ -149,12 +219,43 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const changeActiveModule = (key: string) => {
     const nextModule = key as PersonalSpaceActiveModule
+    if (!activeProjectIdRef.current && nextModule !== 'settings') {
+      setActiveModule('settings')
+      void messageApi.warning('请先启用一个项目空间')
+      return
+    }
     if (!settingsWorkspace.directoryHandle && nextModule !== 'settings') {
       setActiveModule('settings')
       void messageApi.warning('请先选择授权目录')
       return
     }
     setActiveModule(nextModule)
+  }
+
+  const enableProject = (projectId: string) => {
+    if (!projects.some((project) => project.id === projectId)) {
+      void messageApi.warning('项目不存在，无法启用')
+      return
+    }
+    activateProjectState(projectId)
+    setSelectedManagementProjectId(projectId)
+    void messageApi.success('已启用项目')
+  }
+
+  const disableActiveProject = () => {
+    if (!activeProjectIdRef.current) return
+    writeProjectSpaceState(activeProjectIdRef.current, spaceRef.current)
+    activateProjectState('')
+    void messageApi.warning('已取消启用项目')
+  }
+
+  const openProjectManagement = () => {
+    setSelectedManagementProjectId(activeProjectIdRef.current || projects[0]?.id || '')
+    setWorkspacePage('management')
+  }
+
+  const closeProjectManagement = () => {
+    setWorkspacePage('workbench')
   }
 
   const createLocalProject = async (name: string, description: string) => {
@@ -164,8 +265,37 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       localObjectRoot: settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || '',
       now: new Date().toISOString(),
     })
-    await refreshProjectList(created.project.id)
+    writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || ''))
+    const nextProjects = await refreshProjectList(created.project.id)
+    if (nextProjects.length === 1) activateProjectState(created.project.id)
     void messageApi.success('已创建本地项目')
+  }
+
+  const createRemoteProject = async (projectId: string, name: string, description: string) => {
+    if (
+      !projectId ||
+      !settingsWorkspace.remoteReady ||
+      settingsWorkspace.kodoVerificationProjectId !== projectId ||
+      !settingsWorkspace.selectedDatabaseProfileId ||
+      !settingsWorkspace.selectedKodoProfileId
+    ) {
+      void messageApi.warning('请先完成远程数据库验证、表结构初始化和七牛 Kodo 验证')
+      return
+    }
+
+    const created = await remoteProjectRepository.createRemoteProject({
+      id: projectId,
+      name,
+      description,
+      databaseProvider: settingsWorkspace.databaseProfileDraft.provider,
+      databaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
+      storageProfileId: settingsWorkspace.selectedKodoProfileId,
+      now: new Date().toISOString(),
+    })
+    writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || ''))
+    const nextProjects = await refreshProjectList(created.project.id)
+    if (nextProjects.length === 1) activateProjectState(created.project.id)
+    void messageApi.success('已创建远程项目')
   }
 
   const renameProject = async (projectId: string, name: string, description: string) => {
@@ -191,7 +321,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       objectStorage: projectObjectStorage,
       now: new Date().toISOString(),
     })
-    await refreshProjectList('')
+    deleteProjectSpaceState(projectId)
+    const wasActive = activeProjectIdRef.current === projectId
+    if (wasActive) activateProjectState('')
+    const nextProjects = await refreshProjectList('')
+    const nextEnabledProjectId = wasActive ? resolveEnabledProjectId(nextProjects, readActiveProjectId()) : activeProjectIdRef.current
+    if (wasActive && nextEnabledProjectId) activateProjectState(nextEnabledProjectId)
     if (result.cleanupTasks.length > 0) {
       void messageApi.warning('已删除项目，部分对象进入待清理记录。')
     } else {
@@ -200,11 +335,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }
 
   const migrateActiveProjectToRemote = async () => {
-    if (!activeProjectId || !settingsWorkspace.remoteReady) {
+    if (!activeProjectId || !settingsWorkspace.remoteReady || settingsWorkspace.kodoVerificationProjectId !== activeProjectId) {
       void messageApi.warning('请先验证远程数据库和七牛 Kodo 配置')
       return
     }
 
+    writeProjectSpaceState(activeProjectId, spaceRef.current)
     const result = await migrateLocalProjectToRemote({
       projectId: activeProjectId,
       localRepository: projectRepository,
@@ -222,6 +358,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
 
     await refreshProjectList(activeProjectId)
+    activateProjectState(activeProjectId)
     void messageApi.success('已迁移到远程项目存储')
   }
 
@@ -519,11 +656,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     voice: voiceAssets.length,
   }
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
-  const projectSelector = {
-    value: activeProject?.id ?? '',
-    options: projects.map((project) => ({ label: project.name, value: project.id })),
-    onChange: setActiveProjectId,
-  }
 
   const storyboardVoiceRefs = (assetId: string) => space.storyboardGroups
     .flatMap((group) => group.voiceEntries
@@ -535,7 +667,14 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     ...settingsWorkspace,
     projects,
     activeProject,
-    projectSelector,
+    enabledProjectId: activeProjectId,
+    workspacePage,
+    openProjectManagement,
+    closeProjectManagement,
+    selectedManagementProjectId,
+    setSelectedManagementProjectId,
+    enableProject,
+    disableActiveProject,
     activeModule,
     newCharacterName,
     newStoryboardName,
@@ -550,6 +689,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setNewStoryboardName,
     changeActiveModule,
     createLocalProject,
+    createRemoteProject,
     renameProject,
     deleteProject,
     migrateActiveProjectToRemote,

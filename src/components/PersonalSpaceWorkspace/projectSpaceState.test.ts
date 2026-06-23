@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from './personalSpaceModel'
 import {
+  deleteProjectSpaceState,
   hasProjectSpaceState,
   projectSpaceStatesStorageKey,
   readProjectSpaceState,
@@ -56,4 +57,18 @@ test('project space state uses fallback only for the first read of an unstored p
     }).assets,
     [],
   )
+})
+
+test('project space state can be hard deleted for removed projects', () => {
+  const storage = createMemoryStorage()
+  const p1Asset = createPersonalSpaceAsset({ kind: 'voice', name: 'p1.wav' })
+  const p2Asset = createPersonalSpaceAsset({ kind: 'voice', name: 'p2.wav' })
+
+  writeProjectSpaceState('p1', { ...defaultPersonalSpaceState, assets: [p1Asset] }, storage)
+  writeProjectSpaceState('p2', { ...defaultPersonalSpaceState, assets: [p2Asset] }, storage)
+  deleteProjectSpaceState('p1', storage)
+
+  assert.equal(hasProjectSpaceState('p1', storage), false)
+  assert.deepEqual(readProjectSpaceState('p1', { storage }).assets, [])
+  assert.deepEqual(readProjectSpaceState('p2', { storage }).assets.map((asset) => asset.name), ['p2.wav'])
 })
