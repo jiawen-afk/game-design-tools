@@ -1576,3 +1576,28 @@ test('video upload panel delegates extracted frame preview controls to a focused
   assert.match(previewPanelSource, /video-frame-list-panel/)
   assert.match(previewPanelSource, /video-confirm-action/)
 })
+
+test('project storage boundaries keep database and object storage out of workspace entries', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const projectStorageSource = readFileSync('src/components/ProjectStorage/projectAssetCollectionService.ts', 'utf8')
+
+  assert.doesNotMatch(workspaceSource, /projectSqliteRepository/)
+  assert.doesNotMatch(workspaceSource, /projectLocalObjectStorage/)
+  assert.match(hookSource, /projectAssetCollectionService|createProjectAssetFromCollection|createMemoryProjectRepository/)
+  assert.match(projectStorageSource, /createProjectAssetFromCollection/)
+})
+
+test('removed tag and note features do not return to project space', () => {
+  const projectSpaceSource = [
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8'),
+  ].join('\n')
+
+  assert.doesNotMatch(projectSpaceSource, /关联备注/)
+  assert.doesNotMatch(projectSpaceSource, /noteName/)
+  assert.doesNotMatch(projectSpaceSource, /tags_json/)
+  assert.doesNotMatch(projectSpaceSource, /标签/)
+})
