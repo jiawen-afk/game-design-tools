@@ -49,6 +49,7 @@ interface PersonalSettingsPanelProps {
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
   onVerifyKodoProfile: () => void
+  onMigrateToRemote: () => void
   onStorageDirectoryChange: (storageDirectory: string) => void
   onChooseStorageDirectory: () => void
   onOpenStorageDirectory: () => void
@@ -85,6 +86,7 @@ export function PersonalSettingsPanel({
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
   onVerifyKodoProfile,
+  onMigrateToRemote,
   onStorageDirectoryChange,
   onChooseStorageDirectory,
   onOpenStorageDirectory,
@@ -195,7 +197,7 @@ export function PersonalSettingsPanel({
           <div className="project-delete-row">
             <Popconfirm
               title="删除项目"
-              description="第一版会硬删除当前项目记录，资源对象删除将在后续迁移清理流程中接入。"
+              description="将硬删除当前项目记录，并尝试删除项目对象；失败对象会进入待清理记录。"
               okText="删除项目"
               cancelText="取消"
               onConfirm={() => activeProject && void onDeleteProject(activeProject.id)}
@@ -368,7 +370,7 @@ export function PersonalSettingsPanel({
           </div>
 
           <div className="remote-migration-row">
-            <Button type="primary" disabled={!remoteReady}>
+            <Button type="primary" disabled={!remoteReady} onClick={onMigrateToRemote}>
               迁移到远程
             </Button>
             <Tag color={remoteReady ? 'success' : undefined}>

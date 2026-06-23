@@ -271,6 +271,18 @@ test('project settings exposes remote database and qiniu kodo configuration', ()
   assert.match(hookSource, /verifyProjectKodoProfile/)
 })
 
+test('project workspace routes remote migration and hard delete through project storage services', () => {
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8')
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+
+  assert.match(panelSource, /onMigrateToRemote/)
+  assert.match(workspaceSource, /migrateLocalProjectToRemote/)
+  assert.match(workspaceSource, /hardDeleteProjectWithObjects/)
+  assert.match(workspaceSource, /refreshProjectList/)
+  assert.match(workspaceSource, /findProjectRepository/)
+  assert.doesNotMatch(workspaceSource, /await projectRepository\.deleteProject\(projectId\)/)
+})
+
 test('site footer is app-only and does not load web telemetry or filing content', () => {
   const source = siteFooterSource()
   const html = indexHtmlSource()

@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
 
-import { createMemoryProjectRepository, createProjectWorkspaceBootstrapper, type Project } from '../ProjectStorage'
+import {
+  createMemoryProjectObjectStorage,
+  createMemoryProjectRepository,
+  createProjectWorkspaceBootstrapper,
+  hardDeleteProjectWithObjects,
+  migrateLocalProjectToRemote,
+  type Project,
+} from '../ProjectStorage'
 import {
   addAssetGroup,
   addCharacterProfile,
@@ -58,6 +65,8 @@ interface PersonalSpaceMessageApi {
 type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
 
 const projectRepository = createMemoryProjectRepository()
+const remoteProjectRepository = createMemoryProjectRepository()
+const projectObjectStorage = createMemoryProjectObjectStorage()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
 
 function assetKindLabel(kind: string) {
@@ -81,6 +90,31 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
     messageApi,
   })
+
+  const refreshProjectList = async (preferredProjectId = activeProjectId) => {
+    const [localProjects, remoteProjects] = await Promise.all([
+      projectRepository.listProjects(),
+      remoteProjectRepository.listProjects(),
+    ])
+    const nextProjects = [...remoteProjects, ...localProjects.filter((project) => (
+      !remoteProjects.some((remoteProject) => remoteProject.id === project.id)
+    ))]
+    setProjects(nextProjects)
+    setActiveProjectId((current) => {
+      const nextPreferredProjectId = preferredProjectId || current
+      if (nextPreferredProjectId && nextProjects.some((project) => project.id === nextPreferredProjectId)) {
+        return nextPreferredProjectId
+      }
+      if (current && nextProjects.some((project) => project.id === current)) return current
+      return nextProjects[0]?.id ?? ''
+    })
+    return nextProjects
+  }
+
+  const findProjectRepository = (projectId: string) => {
+    const project = projects.find((item) => item.id === projectId)
+    return project?.mode === 'remote' ? remoteProjectRepository : projectRepository
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -130,13 +164,13 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       localObjectRoot: settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || '',
       now: new Date().toISOString(),
     })
-    setProjects(await projectRepository.listProjects())
-    setActiveProjectId(created.project.id)
+    await refreshProjectList(created.project.id)
     void messageApi.success('已创建本地项目')
   }
 
   const renameProject = async (projectId: string, name: string, description: string) => {
-    const updated = await projectRepository.updateProject(projectId, {
+    const repository = findProjectRepository(projectId)
+    const updated = await repository.updateProject(projectId, {
       name,
       description,
       updatedAt: new Date().toISOString(),
@@ -145,21 +179,50 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       void messageApi.warning('项目不存在，无法编辑')
       return
     }
-    setProjects(await projectRepository.listProjects())
-    setActiveProjectId(projectId)
+    await refreshProjectList(projectId)
     void messageApi.success('已编辑项目')
   }
 
   const deleteProject = async (projectId: string) => {
-    await projectRepository.deleteProject(projectId)
-    const nextProjects = await projectRepository.listProjects()
-    setProjects(nextProjects)
-    setActiveProjectId((current) => (
-      current === projectId
-        ? nextProjects[0]?.id ?? ''
-        : current
-    ))
-    void messageApi.success('已删除项目')
+    const repository = findProjectRepository(projectId)
+    const result = await hardDeleteProjectWithObjects({
+      projectId,
+      repository,
+      objectStorage: projectObjectStorage,
+      now: new Date().toISOString(),
+    })
+    await refreshProjectList('')
+    if (result.cleanupTasks.length > 0) {
+      void messageApi.warning('已删除项目，部分对象进入待清理记录。')
+    } else {
+      void messageApi.success('已删除项目')
+    }
+  }
+
+  const migrateActiveProjectToRemote = async () => {
+    if (!activeProjectId || !settingsWorkspace.remoteReady) {
+      void messageApi.warning('请先验证远程数据库和七牛 Kodo 配置')
+      return
+    }
+
+    const result = await migrateLocalProjectToRemote({
+      projectId: activeProjectId,
+      localRepository: projectRepository,
+      remoteRepository: remoteProjectRepository,
+      uploadObject: async (objectKey) => {
+        const objectData = await projectObjectStorage.getObject(objectKey)
+        await projectObjectStorage.putObject(objectKey, objectData)
+      },
+      now: new Date().toISOString(),
+    })
+
+    if (result.status === 'failed') {
+      void messageApi.warning(`迁移到远程失败：${result.errorMessage}`)
+      return
+    }
+
+    await refreshProjectList(activeProjectId)
+    void messageApi.success('已迁移到远程项目存储')
   }
 
   const createCharacter = () => {
@@ -489,6 +552,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     createLocalProject,
     renameProject,
     deleteProject,
+    migrateActiveProjectToRemote,
     createCharacter,
     createStoryboard,
     exportStoryboardAsset,

@@ -219,6 +219,7 @@ export default function PersonalSpaceWorkspace() {
                 onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
                 onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}
                 onVerifyKodoProfile={() => void workspace.verifyKodoProfile(workspace.activeProject?.id ?? '')}
+                onMigrateToRemote={() => void workspace.migrateActiveProjectToRemote()}
                 onStorageDirectoryChange={workspace.setDraftStorageDirectory}
                 onChooseStorageDirectory={() => void workspace.chooseStorageDirectory()}
                 onOpenStorageDirectory={workspace.openStorageDirectory}
