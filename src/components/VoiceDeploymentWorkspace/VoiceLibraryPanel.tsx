@@ -82,7 +82,7 @@ export function VoiceLibraryPanel({
           },
           {
             key: 'personal-space',
-            label: `个人空间 ${personalSpaceVoiceAssets.length}`,
+            label: `项目空间 ${personalSpaceVoiceAssets.length}`,
             children: (
               <PersonalSpaceVoiceAssetList
                 assets={personalSpaceVoiceAssets}

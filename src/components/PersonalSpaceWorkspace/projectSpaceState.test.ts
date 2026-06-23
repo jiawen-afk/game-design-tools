@@ -3,12 +3,16 @@ import assert from 'node:assert/strict'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from './personalSpaceModel'
 import {
+  readCurrentProjectSpaceState,
   deleteProjectSpaceState,
   hasProjectSpaceState,
   projectSpaceStatesStorageKey,
   readProjectSpaceState,
+  writeCurrentProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
+import { activeProjectStorageKey } from '../ProjectStorage/projectActiveProject'
+import { personalSpaceStorageKey } from './personalSpaceState'
 
 function createMemoryStorage(seed: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(seed))
@@ -71,4 +75,19 @@ test('project space state can be hard deleted for removed projects', () => {
   assert.equal(hasProjectSpaceState('p1', storage), false)
   assert.deepEqual(readProjectSpaceState('p1', { storage }).assets, [])
   assert.deepEqual(readProjectSpaceState('p2', { storage }).assets.map((asset) => asset.name), ['p2.wav'])
+})
+
+test('current project space helpers write external workspace changes into the enabled project', () => {
+  const legacyAsset = createPersonalSpaceAsset({ kind: 'voice', name: 'legacy.wav' })
+  const projectAsset = createPersonalSpaceAsset({ kind: 'sprite', name: 'walk.png' })
+  const storage = createMemoryStorage({
+    [activeProjectStorageKey]: 'p1',
+    [personalSpaceStorageKey]: JSON.stringify({ ...defaultPersonalSpaceState, assets: [legacyAsset] }),
+  })
+
+  writeCurrentProjectSpaceState({ ...defaultPersonalSpaceState, assets: [projectAsset] }, storage)
+
+  assert.deepEqual(readCurrentProjectSpaceState(storage).assets.map((asset) => asset.name), ['walk.png'])
+  assert.deepEqual(readProjectSpaceState('p1', { storage }).assets.map((asset) => asset.name), ['walk.png'])
+  assert.deepEqual(JSON.parse(storage.getItem(personalSpaceStorageKey)!).assets.map((asset: { name: string }) => asset.name), ['legacy.wav'])
 })

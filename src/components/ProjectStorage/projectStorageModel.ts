@@ -4,6 +4,7 @@ import {
   extensionFromFileName,
   mimeGroupFromMimeType,
   normalizeFileExtension,
+  sanitizeObjectKeyPart,
 } from './projectObjectKeys'
 import { PROJECT_SCHEMA_TABLES, createProjectSchemaSql } from './projectSchema'
 import type {
@@ -22,6 +23,7 @@ export interface LegacySubtypeInput {
 
 export interface ResourceFieldInput {
   projectId: string
+  projectName: string
   fileName: string
   mimeType: string
   sizeBytes: number
@@ -64,8 +66,8 @@ export function createAssetResourceFields(input: ResourceFieldInput): AssetResou
   return {
     primary_resource_id: primaryResourceId,
     primary_object_key: buildProjectObjectKey({
-      projectId: input.projectId,
-      mimeGroup: primaryMimeGroup,
+      projectName: input.projectName,
+      fileMime: input.mimeType,
       resourceId: primaryResourceId,
       extension: primaryExtension,
     }),
@@ -78,8 +80,8 @@ export function createAssetResourceFields(input: ResourceFieldInput): AssetResou
     sprite_index_resource_id: spriteIndexResourceId,
     sprite_index_object_key: input.spriteIndex && spriteIndexResourceId && spriteIndexExtension && spriteIndexMimeGroup
       ? buildProjectObjectKey({
-        projectId: input.projectId,
-        mimeGroup: spriteIndexMimeGroup,
+        projectName: input.projectName,
+        fileMime: input.spriteIndex.mimeType,
         resourceId: spriteIndexResourceId,
         extension: spriteIndexExtension,
       })
@@ -137,5 +139,6 @@ export {
   createResourceId,
   mimeGroupFromMimeType,
   normalizeFileExtension,
+  sanitizeObjectKeyPart,
 }
 export type * from './projectStorageTypes'

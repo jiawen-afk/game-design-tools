@@ -85,7 +85,7 @@ export function MatteWorkspacePanel({
                         title={personalSpaceCollectDisabledReason}
                         onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
                       >
-                        收藏到个人空间
+                        收藏到项目空间
                       </Button>
                     </Space>
                   </div>

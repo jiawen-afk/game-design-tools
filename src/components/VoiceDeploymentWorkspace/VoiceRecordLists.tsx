@@ -68,7 +68,7 @@ export function VoiceRecordList({
                   title={personalSpaceCollectDisabledReason}
                   onClick={() => onCollect(record)}
                 >
-                  收藏到个人空间
+                  收藏到项目空间
                 </Button>
                 <Dropdown
                   menu={{
@@ -116,7 +116,7 @@ export function PersonalSpaceVoiceAssetList({
   storyboardGroups,
 }: PersonalSpaceVoiceAssetListProps) {
   if (assets.length === 0) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到个人空间的配音" />
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到项目空间的配音" />
   }
 
   return (

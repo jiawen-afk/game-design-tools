@@ -5,10 +5,12 @@ import {
   collectPersonalSpaceAsset,
   createVoiceAssetFromRecord,
   linkEffectAssetToVoice,
-  readPersonalSpaceState,
-  writePersonalSpaceState,
   type PersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  readCurrentProjectSpaceState,
+  writeCurrentProjectSpaceState,
+} from '../PersonalSpaceWorkspace/projectSpaceState'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -62,7 +64,7 @@ export async function collectVoiceRecordToPersonalSpace(
   link?: VoiceCollectLink,
   options?: CollectVoiceRecordOptions,
 ): Promise<PersonalSpaceState> {
-  let space = readPersonalSpaceState()
+  let space = readCurrentProjectSpaceState()
   const baseAsset = createVoiceAssetFromRecord({
     ...record,
     dialogueText: record.params.text,
@@ -97,6 +99,6 @@ export async function collectVoiceRecordToPersonalSpace(
     nextSpace = assignVoiceToStoryboardGroup(nextSpace, link.targetId, asset.id, record.params.text)
   }
 
-  writePersonalSpaceState(nextSpace)
+  writeCurrentProjectSpaceState(nextSpace)
   return nextSpace
 }

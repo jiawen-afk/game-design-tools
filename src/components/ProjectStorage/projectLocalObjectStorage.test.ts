@@ -6,7 +6,7 @@ import { createMemoryProjectObjectStorage } from './projectLocalObjectStorage'
 
 test('local object storage writes, reads, and deletes objects by provider-neutral keys', async () => {
   const storage = createMemoryProjectObjectStorage()
-  const key = buildProjectObjectKey({ projectId: 'p1', mimeGroup: 'image', resourceId: 'r1', extension: 'png' })
+  const key = buildProjectObjectKey({ projectName: '默认项目', fileMime: 'image/png', resourceId: 'r1', extension: 'png' })
 
   await storage.putObject(key, new Blob(['hello'], { type: 'image/png' }))
   const read = await storage.getObject(key)

@@ -6,7 +6,7 @@ import {
   setPersonalSpaceDirectoryHandle,
 } from './personalSpaceFileStorage'
 
-export const personalSpaceDirectoryRequiredMessage = '请先在个人空间-设置中授权目录'
+export const personalSpaceDirectoryRequiredMessage = '请先在项目空间-设置中授权目录'
 
 export function usePersonalSpaceDirectoryAuthorization() {
   const [personalSpaceCollectEnabled, setPersonalSpaceCollectEnabled] = useState(() => Boolean(getPersonalSpaceDirectoryHandle()))

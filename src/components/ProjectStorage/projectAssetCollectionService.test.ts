@@ -6,6 +6,7 @@ import { createProjectAssetFromCollection } from './projectAssetCollectionServic
 test('voice collection creates character voice assets without tags', () => {
   const asset = createProjectAssetFromCollection({
     projectId: 'p1',
+    projectName: '默认项目',
     kind: 'voice',
     assetSubtype: 'character_voice',
     name: '欢迎',
@@ -20,7 +21,7 @@ test('voice collection creates character voice assets without tags', () => {
 
   assert.equal(asset.kind, 'voice')
   assert.equal(asset.asset_subtype, 'character_voice')
-  assert.equal(asset.primary_object_key, 'objects/p1/audio/r1.wav')
+  assert.equal(asset.primary_object_key, 'objects/默认项目/audio_wav/r1.wav')
   assert.equal(asset.dialogue_text, '欢迎')
   assert.equal('tags_json' in asset, false)
 })
@@ -28,6 +29,7 @@ test('voice collection creates character voice assets without tags', () => {
 test('sprite collection creates primary sprite and sprite index object fields', () => {
   const asset = createProjectAssetFromCollection({
     projectId: 'p1',
+    projectName: '默认项目',
     kind: 'sprite',
     assetSubtype: 'character_sprite',
     name: '行走',
@@ -50,8 +52,8 @@ test('sprite collection creates primary sprite and sprite index object fields', 
     },
   })
 
-  assert.equal(asset.primary_object_key, 'objects/p1/image/r1.png')
-  assert.equal(asset.sprite_index_object_key, 'objects/p1/application/r2.json')
+  assert.equal(asset.primary_object_key, 'objects/默认项目/image_png/r1.png')
+  assert.equal(asset.sprite_index_object_key, 'objects/默认项目/application_json/r2.json')
   assert.equal(asset.sprite_frame_width, 64)
   assert.equal(asset.sprite_frame_count, 16)
 })

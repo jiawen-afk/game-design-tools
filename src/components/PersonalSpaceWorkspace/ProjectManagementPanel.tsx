@@ -18,6 +18,7 @@ interface ProjectManagementPanelProps {
   enabledProjectId: string
   selectedProjectId: string
   activeProject: Project | null
+  migratingProjectId: string
   remoteReady: boolean
   databaseProfiles: ProjectConnectionProfileSummary[]
   kodoProfiles: ProjectConnectionProfileSummary[]
@@ -42,6 +43,7 @@ interface ProjectManagementPanelProps {
   onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
   onSaveDatabaseProfile: () => void
+  onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
@@ -54,6 +56,7 @@ export function ProjectManagementPanel({
   enabledProjectId,
   selectedProjectId,
   activeProject,
+  migratingProjectId,
   remoteReady,
   databaseProfiles,
   kodoProfiles,
@@ -78,6 +81,7 @@ export function ProjectManagementPanel({
   onDatabaseProfileDraftChange,
   onKodoProfileDraftChange,
   onSaveDatabaseProfile,
+  onDeleteDatabaseProfile,
   onSaveKodoProfile,
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
@@ -111,6 +115,7 @@ export function ProjectManagementPanel({
   const remoteReadyForCreation = remoteReady && kodoVerificationProjectId === remoteCreationProjectId
   const remoteReadyForSelectedProject = Boolean(selectedProject && remoteReady && kodoVerificationProjectId === selectedProject.id)
   const remoteReadinessText = remoteReady ? '远程 DB + 七牛 Kodo 已就绪' : '必须完成 DB 验证、初始化表结构和 Kodo 验证'
+  const selectedProjectMigrating = Boolean(selectedProject && migratingProjectId === selectedProject.id)
 
   const createProject = async () => {
     const name = newProjectName.trim()
@@ -204,6 +209,7 @@ export function ProjectManagementPanel({
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
           onKodoProfileDraftChange={onKodoProfileDraftChange}
           onSaveDatabaseProfile={onSaveDatabaseProfile}
+          onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
@@ -229,6 +235,7 @@ export function ProjectManagementPanel({
               checkedChildren="启用"
               unCheckedChildren="停用"
               checked={enabledProjectId === selectedProject.id}
+              disabled={selectedProjectMigrating}
               onChange={(checked) => {
                 if (checked) onEnableProject(selectedProject.id)
                 else onDisableProject()
@@ -256,17 +263,18 @@ export function ProjectManagementPanel({
           </label>
         </div>
         <Space wrap>
-          <Button icon={<EditOutlined />} disabled={!projectNameDraft.trim()} onClick={() => void editProject()}>
+          <Button icon={<EditOutlined />} disabled={selectedProjectMigrating || !projectNameDraft.trim()} onClick={() => void editProject()}>
             编辑项目
           </Button>
           {selectedProject.mode === 'local' && (
             <Button
               type="primary"
               icon={<SwapOutlined />}
-              disabled={enabledProjectId !== selectedProject.id || !remoteReadyForSelectedProject}
+              loading={selectedProjectMigrating}
+              disabled={selectedProjectMigrating || enabledProjectId !== selectedProject.id || !remoteReadyForSelectedProject}
               onClick={onMigrateToRemote}
             >
-              迁移到远程
+              {selectedProjectMigrating ? '迁移中' : '迁移到远程'}
             </Button>
           )}
           <Popconfirm
@@ -274,9 +282,10 @@ export function ProjectManagementPanel({
             description="将硬删除项目记录和项目内资产数据。"
             okText="删除项目"
             cancelText="取消"
+            disabled={selectedProjectMigrating}
             onConfirm={() => void onDeleteProject(selectedProject.id)}
           >
-            <Button danger icon={<DeleteOutlined />}>删除项目</Button>
+            <Button danger icon={<DeleteOutlined />} disabled={selectedProjectMigrating}>删除项目</Button>
           </Popconfirm>
         </Space>
       </section>
@@ -301,6 +310,7 @@ export function ProjectManagementPanel({
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
           onKodoProfileDraftChange={onKodoProfileDraftChange}
           onSaveDatabaseProfile={onSaveDatabaseProfile}
+          onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
@@ -364,6 +374,7 @@ interface RemoteProjectSettingsProps {
   onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
   onSaveDatabaseProfile: () => void
+  onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
@@ -389,6 +400,7 @@ function RemoteProjectSettings({
   onDatabaseProfileDraftChange,
   onKodoProfileDraftChange,
   onSaveDatabaseProfile,
+  onDeleteDatabaseProfile,
   onSaveKodoProfile,
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
@@ -481,6 +493,17 @@ function RemoteProjectSettings({
             onChange={onSelectedDatabaseProfileChange}
           />
           <Button icon={<SaveOutlined />} onClick={onSaveDatabaseProfile}>保存数据库配置</Button>
+          <Popconfirm
+            title="删除数据库配置"
+            description="只删除本机保存的连接配置，不会删除远程数据库或表数据。"
+            okText="删除配置"
+            cancelText="取消"
+            onConfirm={onDeleteDatabaseProfile}
+          >
+            <Button danger icon={<DeleteOutlined />} disabled={!selectedDatabaseProfileId}>
+              删除数据库配置
+            </Button>
+          </Popconfirm>
           <Button onClick={onVerifyDatabaseProfile} disabled={!selectedDatabaseProfileId}>测试连接</Button>
           <Button onClick={onInitializeDatabaseSchema} disabled={!selectedDatabaseProfileId}>初始化表结构</Button>
         </Space>

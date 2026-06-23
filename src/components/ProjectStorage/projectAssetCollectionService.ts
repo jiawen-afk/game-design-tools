@@ -4,6 +4,7 @@ import type { Asset, ProjectAssetKind, ProjectAssetSubtype } from './projectStor
 
 export interface ProjectAssetCollectionInput {
   projectId: string
+  projectName: string
   kind: ProjectAssetKind
   assetSubtype: ProjectAssetSubtype
   name: string
@@ -32,6 +33,7 @@ export interface ProjectAssetCollectionInput {
 export function createProjectAssetFromCollection(input: ProjectAssetCollectionInput): Asset {
   const resources = createAssetResourceFields({
     projectId: input.projectId,
+    projectName: input.projectName,
     fileName: input.fileName,
     mimeType: input.mimeType,
     sizeBytes: input.sizeBytes,

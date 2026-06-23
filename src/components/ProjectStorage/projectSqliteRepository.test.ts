@@ -26,7 +26,7 @@ test('local project repository initializes schema idempotently and stores projec
 
   assert.equal(project.project.name, '本地项目')
   assert.equal(project.project.mode, 'local')
-  assert.equal(project.project.object_key_prefix, `objects/${project.project.id}`)
+  assert.equal(project.project.object_key_prefix, 'objects/本地项目')
   assert.equal(project.settings.database_provider, 'sqlite')
   assert.equal(project.settings.storage_provider, 'local')
   assert.equal(project.settings.local_object_root, 'D:\\GameAssets')
@@ -119,7 +119,7 @@ test('local project repository creates remote projects only with remote settings
 
   assert.equal(created.project.id, 'remote-p1')
   assert.equal(created.project.mode, 'remote')
-  assert.equal(created.project.object_key_prefix, 'objects/remote-p1')
+  assert.equal(created.project.object_key_prefix, 'objects/远程项目')
   assert.equal(created.settings.storage_provider, 'qiniu_kodo')
   assert.equal(created.settings.database_provider, 'mysql')
   assert.equal(created.settings.local_object_root, null)

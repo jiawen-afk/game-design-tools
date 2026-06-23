@@ -10,9 +10,14 @@ import {
   defaultPersonalSpaceState,
   updatePersonalSpaceAsset,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { createMemoryDirectoryHandle } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import { createMemoryProjectObjectStorage } from './projectLocalObjectStorage'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
-import { hardDeleteProjectWithObjects, migrateLocalProjectToRemote } from './projectMigrationService'
+import {
+  hardDeleteProjectWithObjects,
+  migrateLocalProjectToRemote,
+  syncProjectSpaceStateToLocalProjectStorage,
+} from './projectMigrationService'
 import { createMemoryProjectRepository } from './projectSqliteRepository'
 
 test('local to remote migration keeps project local when object upload fails', async () => {
@@ -72,6 +77,8 @@ test('local to remote migration imports project rows and switches remote setting
     localRepository: local,
     remoteRepository: remote,
     uploadObject: async (objectKey) => { uploadedKeys.push(objectKey) },
+    remoteDatabaseProfileId: 'db1',
+    remoteStorageProfileId: 'kodo1',
     now: '2026-06-23T01:00:00.000Z',
   })
 
@@ -84,8 +91,193 @@ test('local to remote migration imports project rows and switches remote setting
   assert.equal(remoteProject!.project.mode, 'remote')
   assert.equal(remoteProject!.settings.storage_provider, 'qiniu_kodo')
   assert.notEqual(remoteProject!.settings.database_provider, 'sqlite')
+  assert.equal(remoteProject!.settings.remote_database_profile_id, 'db1')
+  assert.equal(remoteProject!.settings.remote_storage_profile_id, 'kodo1')
   assert.equal(remoteProject!.settings.local_object_root, null)
   assert.equal((await remote.listAssets('p1')).length, 1)
+})
+
+test('local to remote migration copies object bytes from local storage to remote storage', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  const voice = createPersonalSpaceAsset({
+    kind: 'voice',
+    assetSubtype: 'character_voice',
+    name: '欢迎',
+    resourcePaths: ['welcome.wav'],
+  })
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [voice] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await local.importProjectRows(rows)
+  const objectKey = rows.assets[0]!.primary_object_key
+  await localObjects.putObject(objectKey, new Blob(['voice-bytes'], { type: 'audio/wav' }))
+
+  const result = await migrateLocalProjectToRemote({
+    projectId: 'p1',
+    localRepository: local,
+    remoteRepository: remote,
+    sourceObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'succeeded')
+  assert.equal(await (await remoteObjects.getObject(objectKey)).text(), 'voice-bytes')
+})
+
+test('syncing the active project snapshot before migration persists characters, sprites, voices, and object bytes', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  await directory.writeText('精灵图/2026-06-23/walk.png', 'sprite-bytes')
+  await directory.writeText('精灵图/2026-06-23/index.json', '{"frames":[]}')
+  await directory.writeText('配音/2026-06-23/welcome.wav', 'voice-bytes')
+
+  const sprite = {
+    ...createPersonalSpaceAsset({
+      kind: 'sprite',
+      assetSubtype: 'character_sprite',
+      name: '行走',
+      resourcePaths: ['blob:expired-sprite', 'blob:expired-index'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: [
+      'ProjectRoot/精灵图/2026-06-23/walk.png',
+      'ProjectRoot/精灵图/2026-06-23/index.json',
+    ],
+  }
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      dialogueText: '欢迎来到我的商店。',
+      resourcePaths: ['blob:expired-voice'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-23/welcome.wav'],
+  }
+  let state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+    assets: [sprite, voice],
+  }
+  state = addCharacterProfile(state, '商人')
+  const characterId = state.characters[0]!.id
+  state = assignAssetToCharacterColumn(state, characterId, sprite.id, 'sprite')
+  state = assignAssetToCharacterColumn(state, characterId, voice.id, 'voice')
+
+  await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '默认项目',
+    localObjectRoot: 'D:\\GameAssets',
+    state,
+    localRepository: local,
+    localObjectStorage: localObjects,
+    directoryHandle: directory,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const localRows = await local.exportProjectRows('p1')
+  assert.ok(localRows)
+  assert.deepEqual(localRows.characters.map((character) => character.name), ['商人'])
+  assert.deepEqual(localRows.characterAssetLinks.map((link) => link.column_kind).sort(), ['sprite', 'voice'])
+  const migratedSprite = localRows.assets.find((asset) => asset.kind === 'sprite')!
+  const migratedVoice = localRows.assets.find((asset) => asset.kind === 'voice')!
+  assert.equal(await (await localObjects.getObject(migratedSprite.primary_object_key)).text(), 'sprite-bytes')
+  assert.equal(await (await localObjects.getObject(migratedSprite.sprite_index_object_key!)).text(), '{"frames":[]}')
+  assert.equal(await (await localObjects.getObject(migratedVoice.primary_object_key)).text(), 'voice-bytes')
+  assert.equal(migratedSprite.primary_size_bytes, 'sprite-bytes'.length)
+  assert.equal(migratedSprite.sprite_index_size_bytes, '{"frames":[]}'.length)
+  assert.equal(migratedVoice.primary_size_bytes, 'voice-bytes'.length)
+
+  const result = await migrateLocalProjectToRemote({
+    projectId: 'p1',
+    localRepository: local,
+    remoteRepository: remote,
+    sourceObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    now: '2026-06-23T02:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'succeeded')
+  const remoteRows = await remote.exportProjectRows('p1')
+  assert.ok(remoteRows)
+  assert.equal(remoteRows.assets.length, 2)
+  assert.deepEqual(remoteRows.characters.map((character) => character.name), ['商人'])
+  assert.deepEqual(remoteRows.characterAssetLinks.map((link) => link.column_kind).sort(), ['sprite', 'voice'])
+  assert.equal(await (await remoteObjects.getObject(migratedSprite.primary_object_key)).text(), 'sprite-bytes')
+  assert.equal(await (await remoteObjects.getObject(migratedSprite.sprite_index_object_key!)).text(), '{"frames":[]}')
+  assert.equal(await (await remoteObjects.getObject(migratedVoice.primary_object_key)).text(), 'voice-bytes')
+})
+
+test('syncing project snapshot preserves resource bytes when voices precede sprites', async () => {
+  const local = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await local.initializeSchema()
+  await directory.writeText('精灵图/2026-06-23/walk.png', 'sprite-bytes')
+  await directory.writeText('精灵图/2026-06-23/index.json', '{"frames":[]}')
+  await directory.writeText('配音/2026-06-23/welcome.wav', 'voice-bytes')
+
+  const sprite = {
+    ...createPersonalSpaceAsset({
+      kind: 'sprite',
+      assetSubtype: 'character_sprite',
+      name: '行走',
+      resourcePaths: ['blob:expired-sprite', 'blob:expired-index'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: [
+      'ProjectRoot/精灵图/2026-06-23/walk.png',
+      'ProjectRoot/精灵图/2026-06-23/index.json',
+    ],
+  }
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      resourcePaths: ['blob:expired-voice'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-23/welcome.wav'],
+  }
+  const state = {
+    ...defaultPersonalSpaceState,
+    assets: [voice, sprite],
+  }
+
+  await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '默认项目',
+    localObjectRoot: 'D:\\GameAssets',
+    state,
+    localRepository: local,
+    localObjectStorage: localObjects,
+    directoryHandle: directory,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const localRows = await local.exportProjectRows('p1')
+  assert.ok(localRows)
+  const migratedSprite = localRows.assets.find((asset) => asset.kind === 'sprite')!
+  const migratedVoice = localRows.assets.find((asset) => asset.kind === 'voice')!
+  assert.equal(await (await localObjects.getObject(migratedSprite.primary_object_key)).text(), 'sprite-bytes')
+  assert.equal(await (await localObjects.getObject(migratedSprite.sprite_index_object_key!)).text(), '{"frames":[]}')
+  assert.equal(await (await localObjects.getObject(migratedVoice.primary_object_key)).text(), 'voice-bytes')
 })
 
 test('local to remote migration preserves project groups, character links, storyboards, and relations', async () => {
@@ -167,10 +359,12 @@ test('hard delete records cleanup failures for object deletion', async () => {
     projectId: 'p1',
     repository,
     objectStorage: storage,
+    storageProvider: 'qiniu_kodo',
     now: '2026-06-23T00:00:00.000Z',
   })
 
   assert.equal(result.deletedProject, true)
+  assert.deepEqual(result.cleanupTasks.map((task) => task.storage_provider), ['qiniu_kodo'])
   assert.deepEqual(result.cleanupTasks.map((task) => task.object_key), [objectKey])
   assert.deepEqual(await repository.listProjects(), [])
 })

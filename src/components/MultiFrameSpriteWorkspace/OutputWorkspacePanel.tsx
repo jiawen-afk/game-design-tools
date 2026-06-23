@@ -81,11 +81,11 @@ export function OutputWorkspacePanel({
               value={spriteExport.collectCharacterId}
               options={spriteExport.collectCharacterOptions}
               placeholder="选择角色"
-              notFoundContent="个人空间还没有角色。请先在个人空间创建角色。"
+              notFoundContent="项目空间还没有角色。请先在项目空间创建角色。"
               onChange={spriteExport.setCollectCharacterId}
             />
           </label>
-          <p className="field-note">会先把当前精灵图收藏到个人空间，再关联到这个角色的精灵图栏。</p>
+          <p className="field-note">会先把当前精灵图收藏到项目空间，再关联到这个角色的精灵图栏。</p>
         </div>
       </Modal>
 

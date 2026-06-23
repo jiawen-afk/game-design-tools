@@ -18,9 +18,11 @@ import {
 } from './voiceDeploymentModel'
 import {
   addCharacterProfile,
-  readPersonalSpaceState,
-  writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  readCurrentProjectSpaceState,
+  writeCurrentProjectSpaceState,
+} from '../PersonalSpaceWorkspace/projectSpaceState'
 import { useAppToast } from '../AppToastProvider'
 import {
   personalSpaceDirectoryRequiredMessage,
@@ -75,7 +77,7 @@ export default function VoiceDeploymentWorkspace() {
     setModelPath,
   } = useVoiceDeploymentSetup()
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
-  const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readPersonalSpaceState())
+  const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readCurrentProjectSpaceState())
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
   const [selectedVoiceCharacterId, setSelectedVoiceCharacterId] = useState<string | null>(null)
   const {
@@ -108,7 +110,7 @@ export default function VoiceDeploymentWorkspace() {
   const createVoiceCharacter = useCallback((name: string) => {
     const nextSpace = addCharacterProfile(personalSpaceSnapshot, name)
     const createdCharacter = nextSpace.characters[nextSpace.characters.length - 1]
-    writePersonalSpaceState(nextSpace)
+    writeCurrentProjectSpaceState(nextSpace)
     setPersonalSpaceSnapshot(nextSpace)
     setSelectedVoiceCharacterId(createdCharacter?.id ?? null)
     void messageApi.success(`已创建角色：${createdCharacter?.name ?? name.trim()}`)
@@ -125,11 +127,11 @@ export default function VoiceDeploymentWorkspace() {
         : link?.target === 'effect' ? '并关联特效'
         : link?.target === 'storyboard' ? '并关联剧情'
         : ''
-      void messageApi.success(`已收藏到个人空间${linkLabel}`)
+      void messageApi.success(`已收藏到项目空间${linkLabel}`)
     } catch (error) {
       const reason = error instanceof Error && error.message === personalSpaceDirectoryRequiredMessage
         ? error.message
-        : '收藏到个人空间失败，请检查浏览器存储权限。'
+        : '收藏到项目空间失败，请检查浏览器存储权限。'
       void messageApi.error(reason)
     }
   }, [messageApi])
@@ -172,7 +174,7 @@ export default function VoiceDeploymentWorkspace() {
     characterLinkOptions,
     effectLinkOptions,
     storyboardLinkOptions,
-    onOpen: () => setPersonalSpaceSnapshot(readPersonalSpaceState()),
+    onOpen: () => setPersonalSpaceSnapshot(readCurrentProjectSpaceState()),
     onConfirm: (record, link) => void collectRecordToPersonalSpace(record, link),
   })
 
@@ -220,7 +222,7 @@ export default function VoiceDeploymentWorkspace() {
                 onChange={updateCollectLinkTargetId}
               />
             </label>
-            <p className="field-note">会先把当前配音收藏到个人空间，再建立这条关联。</p>
+            <p className="field-note">会先把当前配音收藏到项目空间，再建立这条关联。</p>
           </div>
         )}
       </Modal>

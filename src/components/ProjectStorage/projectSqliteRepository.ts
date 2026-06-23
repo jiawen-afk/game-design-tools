@@ -1,4 +1,5 @@
 import { createProjectId } from './projectId'
+import { sanitizeObjectKeyPart } from './projectStorageModel'
 import { createProjectSchemaSql } from './projectSchema'
 import type { LegacyProjectRows } from './projectLegacyMigration'
 import type {
@@ -75,13 +76,14 @@ export class MemoryProjectRepository implements ProjectRepository {
   async createProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings> {
     if (!this.initialized) await this.initializeSchema()
     const id = createProjectId()
+    const name = input.name.trim() || '未命名项目'
     const project: Project = {
       id,
-      name: input.name.trim() || '未命名项目',
+      name,
       description: input.description.trim(),
       mode: 'local',
       status: 'active',
-      object_key_prefix: `objects/${id}`,
+      object_key_prefix: `objects/${sanitizeObjectKeyPart(name)}`,
       created_at: input.now,
       updated_at: input.now,
       metadata_json: null,
@@ -111,13 +113,14 @@ export class MemoryProjectRepository implements ProjectRepository {
   async createRemoteProject(input: CreateRemoteProjectInput): Promise<ProjectWithSettings> {
     if (!this.initialized) await this.initializeSchema()
     const id = input.id ?? createProjectId()
+    const name = input.name.trim() || '未命名项目'
     const project: Project = {
       id,
-      name: input.name.trim() || '未命名项目',
+      name,
       description: input.description.trim(),
       mode: 'remote',
       status: 'active',
-      object_key_prefix: `objects/${id}`,
+      object_key_prefix: `objects/${sanitizeObjectKeyPart(name)}`,
       created_at: input.now,
       updated_at: input.now,
       metadata_json: null,

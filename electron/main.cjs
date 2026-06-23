@@ -10,6 +10,17 @@ const {
   initializeRemoteDatabaseSchema,
   verifyRemoteDatabaseProfile,
 } = require('./projectRemoteDatabase.cjs')
+const {
+  createRemoteProjectRepository,
+} = require('./projectRemoteRepository.cjs')
+const {
+  createLocalProjectRepository,
+} = require('./projectLocalRepository.cjs')
+const {
+  deleteKodoObject,
+  putKodoObject,
+  verifyKodoProfile,
+} = require('./projectKodoStorage.cjs')
 
 const allowedPersonalSpaceRoots = new Set()
 const projectConnectionProfileFileName = 'project-connection-profiles.json'
@@ -95,6 +106,10 @@ function resolveProjectConnectionProfilePath() {
   return path.join(app.getPath('userData'), projectConnectionProfileFileName)
 }
 
+function resolveProjectLocalDatabasePath() {
+  return path.join(app.getPath('userData'), 'project-space.sqlite')
+}
+
 async function readProjectConnectionProfiles() {
   try {
     const parsed = parseJsonText(await fsp.readFile(resolveProjectConnectionProfilePath(), 'utf8'))
@@ -159,6 +174,20 @@ function projectProfileSummary(profile) {
 async function getProjectConnectionProfile(profileId) {
   const profiles = await readProjectConnectionProfiles()
   return profiles.find((profile) => profile.id === profileId) || null
+}
+
+async function getRemoteDatabaseRepository(profileId) {
+  const profiles = await readProjectConnectionProfiles()
+  const databaseProfiles = profiles.filter((profile) => profile.type === 'database')
+  const profile = profileId
+    ? databaseProfiles.find((item) => item.id === profileId)
+    : databaseProfiles.find((item) => item.lastVerifiedAt) || databaseProfiles[0]
+  if (!profile) throw new Error('远程数据库配置不存在。')
+  return createRemoteProjectRepository(profile)
+}
+
+function getLocalProjectRepository() {
+  return createLocalProjectRepository(resolveProjectLocalDatabasePath())
 }
 
 const upscaylModels = [
@@ -599,15 +628,112 @@ ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectI
   if (!profile || profile.type !== 'qiniu_kodo') {
     return { ok: false, message: '七牛 Kodo 配置不存在。', lastVerifiedAt: null }
   }
-  if (!String(projectId || '').trim()) {
-    return { ok: false, message: '缺少项目 ID，无法验证对象 Key 前缀。', lastVerifiedAt: profile.lastVerifiedAt || null }
+  const result = await verifyKodoProfile(profile, { projectId })
+  if (result.ok) {
+    const now = result.lastVerifiedAt || new Date().toISOString()
+    const profiles = await readProjectConnectionProfiles()
+    await writeProjectConnectionProfiles(profiles.map((item) => (
+      item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
+    )))
   }
-  const now = new Date().toISOString()
-  const profiles = await readProjectConnectionProfiles()
-  await writeProjectConnectionProfiles(profiles.map((item) => (
-    item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
-  )))
-  return { ok: true, message: '七牛 Kodo 配置已通过本地格式验证，实际对象写入将在 Kodo SDK 接入后执行。', lastVerifiedAt: now }
+  return result
+})
+
+ipcMain.handle('project-local-repository:initialize', async () => {
+  await getLocalProjectRepository().initializeSchema()
+  return true
+})
+
+ipcMain.handle('project-local-repository:create-project', async (_event, input = {}) => (
+  getLocalProjectRepository().createProject(input)
+))
+
+ipcMain.handle('project-local-repository:create-remote-project', async (_event, input = {}) => (
+  getLocalProjectRepository().createRemoteProject(input)
+))
+
+ipcMain.handle('project-local-repository:update-project', async (_event, projectId, input = {}) => (
+  getLocalProjectRepository().updateProject(String(projectId || ''), input)
+))
+
+ipcMain.handle('project-local-repository:list-projects', async () => (
+  getLocalProjectRepository().listProjects()
+))
+
+ipcMain.handle('project-local-repository:get-project', async (_event, projectId) => (
+  getLocalProjectRepository().getProject(String(projectId || ''))
+))
+
+ipcMain.handle('project-local-repository:import-rows', async (_event, rows) => {
+  await getLocalProjectRepository().importProjectRows(rows)
+  return true
+})
+
+ipcMain.handle('project-local-repository:export-rows', async (_event, projectId) => (
+  getLocalProjectRepository().exportProjectRows(String(projectId || ''))
+))
+
+ipcMain.handle('project-local-repository:list-assets', async (_event, projectId) => (
+  getLocalProjectRepository().listAssets(String(projectId || ''))
+))
+
+ipcMain.handle('project-local-repository:delete-project', async (_event, projectId) => {
+  await getLocalProjectRepository().deleteProject(String(projectId || ''))
+  return true
+})
+
+ipcMain.handle('project-remote-repository:create-project', async (_event, input = {}) => {
+  const repository = await getRemoteDatabaseRepository(String(input.databaseProfileId || ''))
+  return repository.createRemoteProject(input)
+})
+
+ipcMain.handle('project-remote-repository:update-project', async (_event, projectId, input = {}, databaseProfileId = '') => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || input.databaseProfileId || ''))
+  return repository.updateProject(String(projectId || ''), input)
+})
+
+ipcMain.handle('project-remote-repository:list-projects', async (_event, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  return repository.listProjects()
+})
+
+ipcMain.handle('project-remote-repository:get-project', async (_event, projectId, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  return repository.getProject(String(projectId || ''))
+})
+
+ipcMain.handle('project-remote-repository:import-rows', async (_event, rows, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || rows?.settings?.remote_database_profile_id || ''))
+  await repository.importProjectRows(rows)
+  return true
+})
+
+ipcMain.handle('project-remote-repository:export-rows', async (_event, projectId, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  return repository.exportProjectRows(String(projectId || ''))
+})
+
+ipcMain.handle('project-remote-repository:list-assets', async (_event, projectId, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  return repository.listAssets(String(projectId || ''))
+})
+
+ipcMain.handle('project-remote-repository:delete-project', async (_event, projectId, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  await repository.deleteProject(String(projectId || ''))
+  return true
+})
+
+ipcMain.handle('project-kodo-object:put', async (_event, profileId, objectKey, data, mimeType) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'qiniu_kodo') throw new Error('七牛 Kodo 配置不存在。')
+  return putKodoObject(profile, String(objectKey || ''), Buffer.from(data), { mimeType })
+})
+
+ipcMain.handle('project-kodo-object:delete', async (_event, profileId, objectKey) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'qiniu_kodo') throw new Error('七牛 Kodo 配置不存在。')
+  return deleteKodoObject(profile, String(objectKey || ''))
 })
 
 ipcMain.handle('app-update:get-status', async () => getAppUpdateStatus())

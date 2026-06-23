@@ -1,15 +1,15 @@
 import type { ProjectMimeGroup } from './projectStorageTypes'
 
 export interface ProjectObjectKeyInput {
-  projectId: string
-  mimeGroup: string
+  projectName: string
+  fileMime: string
   resourceId: string
   extension: string
 }
 
 const knownMimeGroups = new Set<ProjectMimeGroup>(['image', 'audio', 'application', 'video', 'text', 'font', 'model'])
 
-function sanitizeObjectKeyPart(value: string) {
+export function sanitizeObjectKeyPart(value: string) {
   return (value.trim() || 'unnamed').replace(/[\\/]+/g, '_').replace(/\s+/g, '_')
 }
 
@@ -29,11 +29,10 @@ export function mimeGroupFromMimeType(mimeType: string): ProjectMimeGroup {
 }
 
 export function buildProjectObjectKey(input: ProjectObjectKeyInput) {
-  const mimeGroup = sanitizeObjectKeyPart(input.mimeGroup.split('/')[0] || 'application')
   return [
     'objects',
-    sanitizeObjectKeyPart(input.projectId),
-    mimeGroup,
+    sanitizeObjectKeyPart(input.projectName),
+    sanitizeObjectKeyPart(input.fileMime.trim().toLowerCase() || 'application/octet-stream'),
     `${sanitizeObjectKeyPart(input.resourceId)}.${normalizeFileExtension(input.extension)}`,
   ].join('/')
 }

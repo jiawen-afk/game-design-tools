@@ -1,4 +1,14 @@
 import type { DownloadSource, ModelVersion } from './components/VoiceDeploymentWorkspace/voiceDeploymentModel'
+import type {
+  Asset,
+  CreateLocalProjectInput,
+  CreateRemoteProjectInput,
+  LegacyProjectRows,
+  Project,
+  ProjectDatabaseProvider,
+  ProjectWithSettings,
+  UpdateProjectInput,
+} from './components/ProjectStorage'
 
 export interface DesktopDirectoryInfo {
   name: string
@@ -144,6 +154,34 @@ export interface GameDesignToolsDesktopApi {
   verifyProjectDatabaseProfile(profileId: string): Promise<ProjectConnectionVerificationResult>
   initializeProjectDatabaseSchema(profileId: string, dialect: 'postgresql' | 'mysql'): Promise<ProjectConnectionVerificationResult>
   verifyProjectKodoProfile(profileId: string, projectId: string): Promise<ProjectConnectionVerificationResult>
+  initializeLocalProjectRepository(): Promise<boolean>
+  createLocalProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings>
+  createLocalRemoteProject(input: CreateRemoteProjectInput): Promise<ProjectWithSettings>
+  updateLocalProject(projectId: string, input: UpdateProjectInput): Promise<ProjectWithSettings | null>
+  listLocalProjects(): Promise<Project[]>
+  getLocalProject(projectId: string): Promise<ProjectWithSettings | null>
+  importLocalProjectRows(rows: LegacyProjectRows): Promise<boolean>
+  exportLocalProjectRows(projectId: string): Promise<LegacyProjectRows | null>
+  listLocalProjectAssets(projectId: string): Promise<Asset[]>
+  deleteLocalProject(projectId: string): Promise<boolean>
+  createRemoteProject(input: {
+    id: string
+    name: string
+    description: string
+    databaseProvider: Extract<ProjectDatabaseProvider, 'postgresql' | 'mysql'>
+    databaseProfileId: string
+    storageProfileId: string
+    now: string
+  }): Promise<ProjectWithSettings>
+  updateRemoteProject(projectId: string, input: UpdateProjectInput, databaseProfileId?: string): Promise<ProjectWithSettings | null>
+  listRemoteProjects(databaseProfileId?: string): Promise<Project[]>
+  getRemoteProject(projectId: string, databaseProfileId?: string): Promise<ProjectWithSettings | null>
+  importRemoteProjectRows(rows: LegacyProjectRows, databaseProfileId?: string): Promise<boolean>
+  exportRemoteProjectRows(projectId: string, databaseProfileId?: string): Promise<LegacyProjectRows | null>
+  listRemoteProjectAssets(projectId: string, databaseProfileId?: string): Promise<Asset[]>
+  deleteRemoteProject(projectId: string, databaseProfileId?: string): Promise<boolean>
+  putProjectKodoObject(profileId: string, objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
+  deleteProjectKodoObject(profileId: string, objectKey: string): Promise<boolean>
 }
 
 declare global {

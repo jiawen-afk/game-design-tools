@@ -11,9 +11,11 @@ import {
   collectPersonalSpaceAsset,
   createSpriteAssetFromExport,
   hashText,
-  readPersonalSpaceState,
-  writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  readCurrentProjectSpaceState,
+  writeCurrentProjectSpaceState,
+} from '../PersonalSpaceWorkspace/projectSpaceState'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -164,7 +166,7 @@ export function useSpriteExport({
       })
       const spritePath = URL.createObjectURL(spriteBlob)
       const indexPath = URL.createObjectURL(new Blob([indexJson], { type: 'application/json' }))
-      const space = readPersonalSpaceState()
+      const space = readCurrentProjectSpaceState()
       const baseAsset = createSpriteAssetFromExport({
         name: 'sprite.png',
         spritePath,
@@ -179,17 +181,17 @@ export function useSpriteExport({
       if (characterId) {
         nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite')
       }
-      writePersonalSpaceState(nextSpace)
-      message.success(characterId ? '已收藏到 个人空间-素材-精灵图，并关联角色' : '已收藏到 个人空间-素材-精灵图')
+      writeCurrentProjectSpaceState(nextSpace)
+      message.success(characterId ? '已收藏到 项目空间-素材-精灵图，并关联角色' : '已收藏到 项目空间-素材-精灵图')
     } catch (e) {
-      message.error(`收藏到个人空间失败：${String(e)}`)
+      message.error(`收藏到项目空间失败：${String(e)}`)
     } finally {
       setExporting(false)
     }
   }
 
   const openCollectCharacterDialog = () => {
-    const space = readPersonalSpaceState()
+    const space = readCurrentProjectSpaceState()
     const options = space.characters.map((character) => ({ label: character.name, value: character.id }))
     setCollectCharacterOptions(options)
     setCollectCharacterId(options[0]?.value ?? null)

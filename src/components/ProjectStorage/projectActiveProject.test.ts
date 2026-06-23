@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   activeProjectStorageKey,
   clearActiveProjectId,
+  mergeProjectsRemoteFirst,
   readActiveProjectId,
   resolveEnabledProjectId,
   writeActiveProjectId,
@@ -50,4 +51,22 @@ test('enabled project resolution prefers persisted id and auto-enables only sing
   assert.equal(resolveEnabledProjectId([project('p1'), project('p2')], ''), '')
   assert.equal(resolveEnabledProjectId([project('p1'), project('p2')], 'p2'), 'p2')
   assert.equal(resolveEnabledProjectId([project('p1'), project('p2')], 'missing'), '')
+})
+
+test('project list merge prefers migrated remote projects over local snapshots with the same id', () => {
+  const localMigratedSnapshot = project('p1')
+  const localOnlyProject = project('p2')
+  const remoteMigratedProject: Project = {
+    ...project('p1'),
+    name: '远程项目',
+    mode: 'remote',
+    updated_at: '2026-06-24T00:00:00.000Z',
+  }
+
+  const merged = mergeProjectsRemoteFirst([localMigratedSnapshot, localOnlyProject], [remoteMigratedProject])
+
+  assert.deepEqual(merged.map((item) => [item.id, item.mode, item.name]), [
+    ['p1', 'remote', '远程项目'],
+    ['p2', 'local', 'p2'],
+  ])
 })

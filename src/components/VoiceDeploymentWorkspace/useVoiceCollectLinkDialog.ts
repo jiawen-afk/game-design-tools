@@ -59,7 +59,7 @@ export function useVoiceCollectLinkDialog({
         title: '收藏并关联角色',
         label: '选择角色',
         options: characterLinkOptions,
-        empty: '个人空间还没有角色。请先在个人空间创建角色。',
+        empty: '项目空间还没有角色。请先在项目空间创建角色。',
       }
     }
     if (pendingCollectLink?.target === 'effect') {
@@ -67,7 +67,7 @@ export function useVoiceCollectLinkDialog({
         title: '收藏并关联特效',
         label: '选择特效素材',
         options: effectLinkOptions,
-        empty: '个人空间还没有特效素材。请先在个人空间导入特效素材。',
+        empty: '项目空间还没有特效素材。请先在项目空间导入特效素材。',
       }
     }
     if (pendingCollectLink?.target === 'storyboard') {
@@ -75,7 +75,7 @@ export function useVoiceCollectLinkDialog({
         title: '收藏并关联剧情',
         label: '选择剧情组',
         options: storyboardLinkOptions,
-        empty: '个人空间还没有剧情组。请先在个人空间创建剧情编排。',
+        empty: '项目空间还没有剧情组。请先在项目空间创建剧情编排。',
       }
     }
     return null

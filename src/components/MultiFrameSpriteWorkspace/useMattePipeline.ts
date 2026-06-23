@@ -16,9 +16,11 @@ import type { ComposeStyle, FrameItem, MatteParams } from './types'
 import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
 import {
   createResourceAssetFromUpload,
-  readPersonalSpaceState,
-  writePersonalSpaceState,
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import {
+  readCurrentProjectSpaceState,
+  writeCurrentProjectSpaceState,
+} from '../PersonalSpaceWorkspace/projectSpaceState'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -377,7 +379,7 @@ export function useMattePipeline({
       return
     }
     try {
-      const space = readPersonalSpaceState()
+      const space = readCurrentProjectSpaceState()
       const assets = []
       for (const item of items) {
         const blob = await readMatteBlob(item)
@@ -392,13 +394,13 @@ export function useMattePipeline({
         const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
         assets.push(asset)
       }
-      writePersonalSpaceState({
+      writeCurrentProjectSpaceState({
         ...space,
         assets: [...assets, ...space.assets],
       })
-      message.success(`已成功导入 ${assets.length} 张抠图到 个人空间-素材-公共图片`)
+      message.success(`已成功导入 ${assets.length} 张抠图到 项目空间-素材-公共图片`)
     } catch (error) {
-      message.error(`收藏到个人空间失败：${String(error)}`)
+      message.error(`收藏到项目空间失败：${String(error)}`)
     }
   }
 

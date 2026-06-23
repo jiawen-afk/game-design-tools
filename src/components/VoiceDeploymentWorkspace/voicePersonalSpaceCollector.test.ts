@@ -56,7 +56,7 @@ test('collecting generated voice requires an authorized personal space directory
   try {
     await assert.rejects(
       () => collectVoiceRecordToPersonalSpace(createVoiceRecord(), undefined, { directoryHandleStore: null }),
-      /请先在个人空间-设置中授权目录/
+      /请先在项目空间-设置中授权目录/
     )
     const state = JSON.parse(storage.getItem(personalSpaceStorageKey) ?? '{}')
     assert.deepEqual(state.assets, [])

@@ -1,5 +1,5 @@
 import { createProjectStorageId } from './projectId'
-import { createAssetResourceFields } from './projectStorageModel'
+import { createAssetResourceFields, sanitizeObjectKeyPart } from './projectStorageModel'
 import type {
   Asset,
   AssetGroup,
@@ -74,7 +74,7 @@ export function migratePersonalSpaceStateToProjectRows(
     description: '',
     mode: 'local',
     status: 'active',
-    object_key_prefix: `objects/${options.projectId}`,
+    object_key_prefix: `objects/${sanitizeObjectKeyPart(options.projectName)}`,
     created_at: options.now,
     updated_at: options.now,
     metadata_json: null,
@@ -113,6 +113,7 @@ export function migratePersonalSpaceStateToProjectRows(
     const spriteIndexPath = findSpriteIndexPath(asset)
     const resources = createAssetResourceFields({
       projectId: options.projectId,
+      projectName: options.projectName,
       fileName: fileNameFromPath(primaryPath, asset.name),
       mimeType: mimeTypeForAsset(asset, 0),
       sizeBytes: 0,

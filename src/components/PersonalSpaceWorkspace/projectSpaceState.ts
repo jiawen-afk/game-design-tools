@@ -1,5 +1,11 @@
 import type { PersonalSpaceState } from './personalSpaceModel'
-import { clonePersonalSpaceState, defaultPersonalSpaceState } from './personalSpaceState'
+import { readActiveProjectId } from '../ProjectStorage/projectActiveProject'
+import {
+  clonePersonalSpaceState,
+  defaultPersonalSpaceState,
+  readPersonalSpaceState,
+  writePersonalSpaceState,
+} from './personalSpaceState'
 
 export const projectSpaceStatesStorageKey = 'game-design-tools.project-space.states.v1'
 
@@ -48,4 +54,19 @@ export function deleteProjectSpaceState(projectId: string, storage: Storage = lo
   const states = readStoredProjectStates(storage)
   delete states[projectId]
   writeStoredProjectStates(states, storage)
+}
+
+export function readCurrentProjectSpaceState(storage: Storage = localStorage) {
+  const projectId = readActiveProjectId(storage)
+  if (projectId) return readProjectSpaceState(projectId, { storage, fallbackState: readPersonalSpaceState(storage) })
+  return readPersonalSpaceState(storage)
+}
+
+export function writeCurrentProjectSpaceState(state: PersonalSpaceState, storage: Storage = localStorage) {
+  const projectId = readActiveProjectId(storage)
+  if (projectId) {
+    writeProjectSpaceState(projectId, state, storage)
+    return
+  }
+  writePersonalSpaceState(state, storage)
 }

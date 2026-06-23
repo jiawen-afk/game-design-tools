@@ -23,3 +23,12 @@ export function resolveEnabledProjectId(projects: Project[], persistedProjectId:
   if (persistedProjectId && projects.some((project) => project.id === persistedProjectId)) return persistedProjectId
   return projects.length === 1 ? projects[0]!.id : ''
 }
+
+export function mergeProjectsRemoteFirst(localProjects: Project[], remoteProjects: Project[]) {
+  return [
+    ...remoteProjects,
+    ...localProjects.filter((project) => (
+      !remoteProjects.some((remoteProject) => remoteProject.id === project.id)
+    )),
+  ]
+}

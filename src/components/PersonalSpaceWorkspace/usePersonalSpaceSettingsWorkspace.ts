@@ -144,7 +144,7 @@ export function usePersonalSpaceSettingsWorkspace({
     }))
     setSavedSettings(true)
     window.setTimeout(() => setSavedSettings(false), 1600)
-    void messageApi.success('已保存个人空间设置')
+    void messageApi.success('已保存项目空间设置')
   }
 
   const chooseStorageDirectory = async () => {
@@ -152,7 +152,7 @@ export function usePersonalSpaceSettingsWorkspace({
       const handle = await pickPersonalSpaceDirectory()
       if (!handle) {
         setDirectoryHandleChecked(true)
-        void messageApi.warning('当前桌面运行时不可用，无法启用个人空间素材管理。')
+        void messageApi.warning('当前桌面运行时不可用，无法启用项目空间素材管理。')
         return
       }
       setDirectoryHandle(handle)
@@ -189,13 +189,14 @@ export function usePersonalSpaceSettingsWorkspace({
 
   const refreshProjectConnectionProfiles = async () => {
     const desktopApi = getDesktopApi()
-    if (!desktopApi) return
+    if (!desktopApi) return { databaseProfiles: [], kodoProfiles: [] }
     const [nextDatabaseProfiles, nextKodoProfiles] = await Promise.all([
       desktopApi.listProjectConnectionProfiles('database'),
       desktopApi.listProjectConnectionProfiles('qiniu_kodo'),
     ])
     setDatabaseProfiles(nextDatabaseProfiles)
     setKodoProfiles(nextKodoProfiles)
+    return { databaseProfiles: nextDatabaseProfiles, kodoProfiles: nextKodoProfiles }
   }
 
   const saveDatabaseProfile = async () => {
@@ -219,6 +220,27 @@ export function usePersonalSpaceSettingsWorkspace({
     setDatabaseVerification(null)
     setDatabaseSchemaReady(false)
     void messageApi.success('已保存远程数据库配置')
+  }
+
+  const deleteDatabaseProfile = async () => {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi || !selectedDatabaseProfileId) {
+      void messageApi.warning('请先选择远程数据库配置')
+      return
+    }
+    const deletedProfileId = selectedDatabaseProfileId
+    const deleted = await desktopApi.deleteProjectConnectionProfile(deletedProfileId)
+    const { databaseProfiles: nextDatabaseProfiles } = await refreshProjectConnectionProfiles()
+    if (!deleted) {
+      void messageApi.warning('远程数据库配置不存在或已删除')
+      return
+    }
+    setSelectedDatabaseProfileId((current) => (
+      current === deletedProfileId ? nextDatabaseProfiles[0]?.id || '' : current
+    ))
+    setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
+    void messageApi.success('已删除远程数据库配置')
   }
 
   const saveKodoProfile = async () => {
@@ -311,6 +333,7 @@ export function usePersonalSpaceSettingsWorkspace({
     setDatabaseProfileDraft,
     setKodoProfileDraft,
     saveDatabaseProfile,
+    deleteDatabaseProfile,
     saveKodoProfile,
     verifyDatabaseProfile,
     initializeDatabaseSchema,

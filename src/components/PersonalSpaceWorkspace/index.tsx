@@ -52,6 +52,7 @@ export default function PersonalSpaceWorkspace() {
           enabledProjectId={workspace.enabledProjectId}
           selectedProjectId={workspace.selectedManagementProjectId}
           activeProject={workspace.activeProject}
+          migratingProjectId={workspace.migratingProjectId}
           remoteReady={workspace.remoteReady}
           databaseProfiles={workspace.databaseProfiles}
           kodoProfiles={workspace.kodoProfiles}
@@ -76,6 +77,7 @@ export default function PersonalSpaceWorkspace() {
           onDatabaseProfileDraftChange={workspace.setDatabaseProfileDraft}
           onKodoProfileDraftChange={workspace.setKodoProfileDraft}
           onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
+          onDeleteDatabaseProfile={() => void workspace.deleteDatabaseProfile()}
           onSaveKodoProfile={() => void workspace.saveKodoProfile()}
           onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
           onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}

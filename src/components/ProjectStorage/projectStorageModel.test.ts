@@ -25,14 +25,14 @@ test('project ids and resource ids have no semantic prefixes', () => {
   }
 })
 
-test('project object keys use project id, mime group, resource id, and extension', () => {
+test('project object keys use project name, full mime type, resource id, and extension', () => {
   assert.equal(
-    buildProjectObjectKey({ projectId: 'p123', mimeGroup: 'image', resourceId: 'r456', extension: 'PNG' }),
-    'objects/p123/image/r456.png',
+    buildProjectObjectKey({ projectName: '默认 项目', fileMime: 'image/png', resourceId: 'r456', extension: 'PNG' }),
+    'objects/默认_项目/image_png/r456.png',
   )
   assert.equal(
-    buildProjectObjectKey({ projectId: 'Project Name', mimeGroup: 'application/json', resourceId: 'index 1', extension: '.json' }),
-    'objects/Project_Name/application/index_1.json',
+    buildProjectObjectKey({ projectName: 'Project/Name', fileMime: 'application/json', resourceId: 'index 1', extension: '.json' }),
+    'objects/Project_Name/application_json/index_1.json',
   )
 })
 
@@ -61,18 +61,20 @@ test('asset subtype replaces old tag semantics', () => {
 test('asset resource fields merge primary and sprite index resources into assets', () => {
   const image = createAssetResourceFields({
     projectId: 'p1',
+    projectName: '默认项目',
     fileName: 'hero.png',
     mimeType: 'image/png',
     sizeBytes: 128,
     resourceId: 'r1',
   })
   assert.equal(image.primary_resource_id, 'r1')
-  assert.equal(image.primary_object_key, 'objects/p1/image/r1.png')
+  assert.equal(image.primary_object_key, 'objects/默认项目/image_png/r1.png')
   assert.equal(image.primary_mime_group, 'image')
   assert.equal(image.sprite_index_resource_id, null)
 
   const sprite = createAssetResourceFields({
     projectId: 'p1',
+    projectName: '默认项目',
     fileName: 'sprite.png',
     mimeType: 'image/png',
     sizeBytes: 256,
@@ -84,9 +86,9 @@ test('asset resource fields merge primary and sprite index resources into assets
       resourceId: 'r3',
     },
   })
-  assert.equal(sprite.primary_object_key, 'objects/p1/image/r2.png')
+  assert.equal(sprite.primary_object_key, 'objects/默认项目/image_png/r2.png')
   assert.equal(sprite.sprite_index_resource_id, 'r3')
-  assert.equal(sprite.sprite_index_object_key, 'objects/p1/application/r3.json')
+  assert.equal(sprite.sprite_index_object_key, 'objects/默认项目/application_json/r3.json')
 })
 
 test('storyboard voice entries store microsecond offsets', () => {
