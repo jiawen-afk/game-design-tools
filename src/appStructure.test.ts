@@ -254,6 +254,23 @@ test('desktop boundary exposes remote project profile storage and verification c
   assert.doesNotMatch(mainSource, /return .*secretKey/)
 })
 
+test('project settings exposes remote database and qiniu kodo configuration', () => {
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+
+  assert.match(panelSource, /远程数据库/)
+  assert.match(panelSource, /PostgreSQL/)
+  assert.match(panelSource, /MySQL/)
+  assert.match(panelSource, /七牛 Kodo/)
+  assert.match(panelSource, /测试连接/)
+  assert.match(panelSource, /初始化表结构/)
+  assert.match(panelSource, /验证 Kodo/)
+  assert.match(panelSource, /迁移到远程/)
+  assert.match(hookSource, /verifyProjectDatabaseProfile/)
+  assert.match(hookSource, /initializeProjectDatabaseSchema/)
+  assert.match(hookSource, /verifyProjectKodoProfile/)
+})
+
 test('site footer is app-only and does not load web telemetry or filing content', () => {
   const source = siteFooterSource()
   const html = indexHtmlSource()

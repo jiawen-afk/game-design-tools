@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Popconfirm, Select, Space, Tag } from 'antd'
+import { Alert, Button, Checkbox, Input, InputNumber, Popconfirm, Segmented, Select, Space, Switch, Tag } from 'antd'
 import {
   CheckCircleOutlined,
   DeleteOutlined,
@@ -10,6 +10,8 @@ import {
 } from '@ant-design/icons'
 
 import type { Project } from '../ProjectStorage'
+import type { ProjectConnectionProfileSummary, ProjectConnectionVerificationResult } from '../../desktopApi'
+import type { DatabaseProfileDraft, KodoProfileDraft } from './usePersonalSpaceSettingsWorkspace'
 import type { PersonalSpaceDirectoryHandle } from './personalSpaceFileStorage'
 
 type ProjectSelector = {
@@ -29,6 +31,24 @@ interface PersonalSettingsPanelProps {
   onCreateLocalProject: (name: string, description: string) => void | Promise<void>
   onRenameProject: (projectId: string, name: string, description: string) => void | Promise<void>
   onDeleteProject: (projectId: string) => void | Promise<void>
+  databaseProfiles: ProjectConnectionProfileSummary[]
+  kodoProfiles: ProjectConnectionProfileSummary[]
+  selectedDatabaseProfileId: string
+  selectedKodoProfileId: string
+  databaseProfileDraft: DatabaseProfileDraft
+  kodoProfileDraft: KodoProfileDraft
+  databaseVerification: ProjectConnectionVerificationResult | null
+  kodoVerification: ProjectConnectionVerificationResult | null
+  remoteReady: boolean
+  onSelectedDatabaseProfileChange: (profileId: string) => void
+  onSelectedKodoProfileChange: (profileId: string) => void
+  onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
+  onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
+  onSaveDatabaseProfile: () => void
+  onSaveKodoProfile: () => void
+  onVerifyDatabaseProfile: () => void
+  onInitializeDatabaseSchema: () => void
+  onVerifyKodoProfile: () => void
   onStorageDirectoryChange: (storageDirectory: string) => void
   onChooseStorageDirectory: () => void
   onOpenStorageDirectory: () => void
@@ -47,6 +67,24 @@ export function PersonalSettingsPanel({
   onCreateLocalProject,
   onRenameProject,
   onDeleteProject,
+  databaseProfiles,
+  kodoProfiles,
+  selectedDatabaseProfileId,
+  selectedKodoProfileId,
+  databaseProfileDraft,
+  kodoProfileDraft,
+  databaseVerification,
+  kodoVerification,
+  remoteReady,
+  onSelectedDatabaseProfileChange,
+  onSelectedKodoProfileChange,
+  onDatabaseProfileDraftChange,
+  onKodoProfileDraftChange,
+  onSaveDatabaseProfile,
+  onSaveKodoProfile,
+  onVerifyDatabaseProfile,
+  onInitializeDatabaseSchema,
+  onVerifyKodoProfile,
   onStorageDirectoryChange,
   onChooseStorageDirectory,
   onOpenStorageDirectory,
@@ -75,6 +113,14 @@ export function PersonalSettingsPanel({
     if (!activeProject || !projectNameDraft.trim()) return
     await onRenameProject(activeProject.id, projectNameDraft, projectDescriptionDraft)
   }
+  const databaseProfileOptions = databaseProfiles.map((profile) => ({
+    label: `${profile.displayName} (${profile.redactedSummary})`,
+    value: profile.id,
+  }))
+  const kodoProfileOptions = kodoProfiles.map((profile) => ({
+    label: `${profile.displayName} (${profile.redactedSummary})`,
+    value: profile.id,
+  }))
 
   return (
     <section className="space-panel">
@@ -158,6 +204,176 @@ export function PersonalSettingsPanel({
                 删除项目
               </Button>
             </Popconfirm>
+          </div>
+        </section>
+
+        <section className="remote-settings-grid" aria-label="远程项目配置">
+          <div className="remote-settings-panel">
+            <div className="remote-settings-head">
+              <span className="field-label">远程数据库</span>
+              <Tag color={databaseVerification?.ok ? 'success' : selectedDatabaseProfileId ? 'processing' : undefined}>
+                {databaseVerification?.ok ? '已验证' : selectedDatabaseProfileId ? '已选择' : '未配置'}
+              </Tag>
+            </div>
+            <div className="remote-form-grid">
+              <label className="form-field">
+                <span className="field-label">数据库类型</span>
+                <Segmented
+                  value={databaseProfileDraft.provider}
+                  options={[
+                    { label: 'PostgreSQL', value: 'postgresql' },
+                    { label: 'MySQL', value: 'mysql' },
+                  ]}
+                  onChange={(provider) => onDatabaseProfileDraftChange({
+                    ...databaseProfileDraft,
+                    provider: provider as DatabaseProfileDraft['provider'],
+                    port: provider === 'mysql' ? 3306 : 5432,
+                  })}
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">主机</span>
+                <Input
+                  value={databaseProfileDraft.host}
+                  onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, host: event.target.value })}
+                  placeholder="db.example.com"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">端口</span>
+                <InputNumber
+                  min={1}
+                  max={65535}
+                  value={databaseProfileDraft.port}
+                  onChange={(value) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, port: Number(value || 0) })}
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">数据库名</span>
+                <Input
+                  value={databaseProfileDraft.database}
+                  onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, database: event.target.value })}
+                  placeholder="game_assets"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">用户名</span>
+                <Input
+                  value={databaseProfileDraft.username}
+                  onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, username: event.target.value })}
+                  placeholder="asset_user"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">密码</span>
+                <Input.Password
+                  value={databaseProfileDraft.password}
+                  onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, password: event.target.value })}
+                />
+              </label>
+              <label className="form-field remote-switch-field">
+                <span className="field-label">SSL</span>
+                <Switch
+                  checked={databaseProfileDraft.ssl}
+                  onChange={(ssl) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, ssl })}
+                />
+              </label>
+            </div>
+            <Space wrap>
+              <Select
+                className="remote-profile-select"
+                value={selectedDatabaseProfileId || undefined}
+                options={databaseProfileOptions}
+                placeholder="选择远程数据库配置"
+                onChange={onSelectedDatabaseProfileChange}
+              />
+              <Button icon={<SaveOutlined />} onClick={onSaveDatabaseProfile}>保存数据库配置</Button>
+              <Button onClick={onVerifyDatabaseProfile} disabled={!selectedDatabaseProfileId}>测试连接</Button>
+              <Button onClick={onInitializeDatabaseSchema} disabled={!selectedDatabaseProfileId}>初始化表结构</Button>
+            </Space>
+            {databaseVerification && (
+              <Alert
+                type={databaseVerification.ok ? 'success' : 'warning'}
+                showIcon
+                title={databaseVerification.message}
+              />
+            )}
+          </div>
+
+          <div className="remote-settings-panel">
+            <div className="remote-settings-head">
+              <span className="field-label">七牛 Kodo</span>
+              <Tag color={kodoVerification?.ok ? 'success' : selectedKodoProfileId ? 'processing' : undefined}>
+                {kodoVerification?.ok ? '已验证' : selectedKodoProfileId ? '已选择' : '未配置'}
+              </Tag>
+            </div>
+            <div className="remote-form-grid">
+              <label className="form-field">
+                <span className="field-label">Access Key</span>
+                <Input
+                  value={kodoProfileDraft.accessKey}
+                  onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, accessKey: event.target.value })}
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Secret Key</span>
+                <Input.Password
+                  value={kodoProfileDraft.secretKey}
+                  onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, secretKey: event.target.value })}
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Bucket</span>
+                <Input
+                  value={kodoProfileDraft.bucket}
+                  onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, bucket: event.target.value })}
+                  placeholder="asset-bucket"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">Region</span>
+                <Input
+                  value={kodoProfileDraft.region}
+                  onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, region: event.target.value })}
+                  placeholder="z0"
+                />
+              </label>
+              <label className="form-field">
+                <span className="field-label">绑定域名</span>
+                <Input
+                  value={kodoProfileDraft.domain}
+                  onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, domain: event.target.value })}
+                  placeholder="https://cdn.example.com"
+                />
+              </label>
+            </div>
+            <Space wrap>
+              <Select
+                className="remote-profile-select"
+                value={selectedKodoProfileId || undefined}
+                options={kodoProfileOptions}
+                placeholder="选择七牛 Kodo 配置"
+                onChange={onSelectedKodoProfileChange}
+              />
+              <Button icon={<SaveOutlined />} onClick={onSaveKodoProfile}>保存 Kodo 配置</Button>
+              <Button onClick={onVerifyKodoProfile} disabled={!selectedKodoProfileId || !activeProject}>验证 Kodo</Button>
+            </Space>
+            {kodoVerification && (
+              <Alert
+                type={kodoVerification.ok ? 'success' : 'warning'}
+                showIcon
+                title={kodoVerification.message}
+              />
+            )}
+          </div>
+
+          <div className="remote-migration-row">
+            <Button type="primary" disabled={!remoteReady}>
+              迁移到远程
+            </Button>
+            <Tag color={remoteReady ? 'success' : undefined}>
+              {remoteReady ? '远程 DB + 七牛 Kodo 已就绪' : '必须同时配置远程 DB + 远程对象存储'}
+            </Tag>
           </div>
         </section>
 

@@ -142,6 +142,53 @@
   align-items: end;
 }
 
+.remote-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.remote-settings-panel {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 76%, white);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.remote-settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.remote-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.remote-switch-field {
+  align-content: end;
+}
+
+.remote-profile-select {
+  min-width: min(100%, 260px);
+}
+
+.remote-migration-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .space-record {
   display: grid;
   gap: 12px;
@@ -1178,6 +1225,11 @@ button.asset-preview {
     grid-template-columns: 1fr;
   }
 
+  .remote-settings-grid,
+  .remote-form-grid {
+    grid-template-columns: 1fr;
+  }
+
   .personal-stat {
     border-top: 1px solid var(--color-line);
   }
@@ -1256,6 +1308,10 @@ button.asset-preview {
 
   .project-settings-head .project-selector {
     width: 100%;
+  }
+
+  .remote-migration-row {
+    justify-content: flex-start;
   }
 
   .personal-overview {

@@ -201,6 +201,24 @@ export default function PersonalSpaceWorkspace() {
                 onCreateLocalProject={workspace.createLocalProject}
                 onRenameProject={workspace.renameProject}
                 onDeleteProject={workspace.deleteProject}
+                databaseProfiles={workspace.databaseProfiles}
+                kodoProfiles={workspace.kodoProfiles}
+                selectedDatabaseProfileId={workspace.selectedDatabaseProfileId}
+                selectedKodoProfileId={workspace.selectedKodoProfileId}
+                databaseProfileDraft={workspace.databaseProfileDraft}
+                kodoProfileDraft={workspace.kodoProfileDraft}
+                databaseVerification={workspace.databaseVerification}
+                kodoVerification={workspace.kodoVerification}
+                remoteReady={workspace.remoteReady}
+                onSelectedDatabaseProfileChange={workspace.setSelectedDatabaseProfileId}
+                onSelectedKodoProfileChange={workspace.setSelectedKodoProfileId}
+                onDatabaseProfileDraftChange={workspace.setDatabaseProfileDraft}
+                onKodoProfileDraftChange={workspace.setKodoProfileDraft}
+                onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
+                onSaveKodoProfile={() => void workspace.saveKodoProfile()}
+                onVerifyDatabaseProfile={() => void workspace.verifyDatabaseProfile()}
+                onInitializeDatabaseSchema={() => void workspace.initializeDatabaseSchema()}
+                onVerifyKodoProfile={() => void workspace.verifyKodoProfile(workspace.activeProject?.id ?? '')}
                 onStorageDirectoryChange={workspace.setDraftStorageDirectory}
                 onChooseStorageDirectory={() => void workspace.chooseStorageDirectory()}
                 onOpenStorageDirectory={workspace.openStorageDirectory}
