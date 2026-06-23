@@ -56,7 +56,7 @@ export function deleteCharacterProfile(state: PersonalSpaceState, id: string): P
 }
 
 function normalizeAssetLinks(links: CharacterAssetLink[]): CharacterAssetLink[] {
-  return links.map((link, index) => ({ ...link, tags: [...link.tags], noteName: link.noteName, order: index }))
+  return links.map((link, index) => ({ assetId: link.assetId, order: index }))
 }
 
 function assetColumnKey(column: 'portrait' | 'sprite' | 'voice'): 'portraitAssets' | 'spriteAssets' | 'voiceAssets' {
@@ -65,13 +65,13 @@ function assetColumnKey(column: 'portrait' | 'sprite' | 'voice'): 'portraitAsset
   return 'voiceAssets'
 }
 
-export function assignAssetToCharacterColumn(state: PersonalSpaceState, characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice', tags: string[] = []): PersonalSpaceState {
+export function assignAssetToCharacterColumn(state: PersonalSpaceState, characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice'): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   const key = assetColumnKey(column)
   next.characters = next.characters.map((character) => {
     if (character.id !== characterId) return character
     const existing = character[key].filter((link) => link.assetId !== assetId)
-    const links = normalizeAssetLinks([...existing, { assetId, tags, order: existing.length }])
+    const links = normalizeAssetLinks([...existing, { assetId, order: existing.length }])
     return {
       ...character,
       [key]: links,
@@ -157,27 +157,6 @@ export function reorderCharacterProfile(state: PersonalSpaceState, id: string, d
   characters[index] = characters[targetIndex]!
   characters[targetIndex] = current
   next.characters = normalizeCharacterOrder(characters)
-  return next
-}
-
-export function updateCharacterAssetNote(
-  state: PersonalSpaceState,
-  characterId: string,
-  assetId: string,
-  column: 'portrait' | 'sprite' | 'voice',
-  noteName: string,
-): PersonalSpaceState {
-  const next = clonePersonalSpaceState(state)
-  const key = assetColumnKey(column)
-  next.characters = next.characters.map((character) => {
-    if (character.id !== characterId) return character
-    return {
-      ...character,
-      [key]: normalizeAssetLinks(character[key].map((link) => (
-        link.assetId === assetId ? { ...link, noteName: noteName.trim() || undefined } : link
-      ))),
-    }
-  })
   return next
 }
 

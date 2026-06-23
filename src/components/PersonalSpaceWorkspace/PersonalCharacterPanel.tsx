@@ -1,6 +1,6 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Empty, Input, Popconfirm, Space, Upload } from 'antd'
+import { Button, Empty, Popconfirm, Space, Upload } from 'antd'
 import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
@@ -30,18 +30,11 @@ interface PersonalCharacterPanelProps {
     characterId: string,
     assetId: string,
     column: 'portrait' | 'sprite' | 'voice',
-    tags: string[],
   ) => void
   onUnassignAsset: (
     characterId: string,
     assetId: string,
     column: 'portrait' | 'sprite' | 'voice',
-  ) => void
-  onUpdateAssetNote: (
-    characterId: string,
-    assetId: string,
-    column: 'portrait' | 'sprite' | 'voice',
-    noteName: string,
   ) => void
   onMoveCharacterVoice: (characterId: string, draggedAssetId: string, targetAssetId: string) => void
 }
@@ -65,7 +58,6 @@ export function PersonalCharacterPanel({
   onDeleteCharacter,
   onAssignAsset,
   onUnassignAsset,
-  onUpdateAssetNote,
   onMoveCharacterVoice,
 }: PersonalCharacterPanelProps) {
   const [creatingCharacter, setCreatingCharacter] = useState(false)
@@ -204,7 +196,7 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的公共图片"
                       emptyThumb="图"
                       detailForAsset={() => '公共图片'}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'portrait', ['肖像'])}
+                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'portrait')}
                     />
                   </div>
                   {item.portraitAssets.map((link) => {
@@ -214,21 +206,13 @@ export function PersonalCharacterPanel({
                         {asset && <PersonalAssetPreview asset={asset} />}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '肖像'}</strong>
-                          <div className="linked-asset-note-row">
-                            <Input
-                              addonBefore="关联备注"
-                              value={link.noteName ?? ''}
-                              aria-label="角色肖像关联备注"
-                              onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'portrait', event.target.value)}
-                            />
-                            <Button
-                              size="small"
-                              danger
-                              icon={<DisconnectOutlined />}
-                              aria-label="取消关联角色肖像"
-                              onClick={() => onUnassignAsset(item.id, link.assetId, 'portrait')}
-                            />
-                          </div>
+                          <Button
+                            size="small"
+                            danger
+                            icon={<DisconnectOutlined />}
+                            aria-label="取消关联角色肖像"
+                            onClick={() => onUnassignAsset(item.id, link.assetId, 'portrait')}
+                          />
                         </div>
                       </div>
                     )
@@ -249,7 +233,7 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的精灵图"
                       emptyThumb="精灵"
                       detailForAsset={() => '精灵图'}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'sprite', ['角色精灵图'])}
+                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'sprite')}
                     />
                   </div>
                   <span className="field-note">一次选择 png 和 index.json，会自动加入角色精灵图。</span>
@@ -260,21 +244,13 @@ export function PersonalCharacterPanel({
                         {asset && <PersonalAssetPreview asset={asset} />}
                         <div className="form-stack linked-asset-main">
                           <strong>{asset?.name ?? '精灵图'}</strong>
-                          <div className="linked-asset-note-row">
-                            <Input
-                              addonBefore="关联备注"
-                              value={link.noteName ?? ''}
-                              aria-label="角色精灵图关联备注"
-                              onChange={(event) => onUpdateAssetNote(item.id, link.assetId, 'sprite', event.target.value)}
-                            />
-                            <Button
-                              size="small"
-                              danger
-                              icon={<DisconnectOutlined />}
-                              aria-label="取消关联角色精灵图"
-                              onClick={() => onUnassignAsset(item.id, link.assetId, 'sprite')}
-                            />
-                          </div>
+                          <Button
+                            size="small"
+                            danger
+                            icon={<DisconnectOutlined />}
+                            aria-label="取消关联角色精灵图"
+                            onClick={() => onUnassignAsset(item.id, link.assetId, 'sprite')}
+                          />
                         </div>
                       </div>
                     )
@@ -295,7 +271,7 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的配音"
                       emptyThumb="音"
                       detailForAsset={(asset) => asset.dialogueText || '未填写对白文本'}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'voice', ['角色配音'])}
+                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'voice')}
                     />
                   </div>
                   {item.voiceAssets.map((link) => {

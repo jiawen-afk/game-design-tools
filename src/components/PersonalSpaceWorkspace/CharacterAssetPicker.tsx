@@ -29,7 +29,7 @@ export function CharacterAssetPicker({
   const [expanded, setExpanded] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
-  const filteredAssets = assets.filter((asset) => includesKeyword([asset.name, asset.dialogueText, asset.tags.join('、')], search))
+  const filteredAssets = assets.filter((asset) => includesKeyword([asset.name, asset.dialogueText], search))
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId)
 
   const confirmAsset = () => {

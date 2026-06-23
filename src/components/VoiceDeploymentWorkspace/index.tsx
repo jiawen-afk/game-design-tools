@@ -88,7 +88,7 @@ export default function VoiceDeploymentWorkspace() {
   const selectedVoiceCharacterName = personalSpaceSnapshot.characters.find((character) => character.id === selectedVoiceCharacterId)?.name ?? ''
   const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
   const effectLinkOptions = personalSpaceSnapshot.assets
-    .filter((asset) => asset.kind === 'effect')
+    .filter((asset) => asset.assetSubtype === 'effect')
     .map((asset) => ({ label: asset.name, value: asset.id }))
   const storyboardLinkOptions = personalSpaceSnapshot.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))
 

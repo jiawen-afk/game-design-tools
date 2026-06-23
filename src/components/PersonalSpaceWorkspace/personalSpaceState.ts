@@ -1,4 +1,4 @@
-import type { AssetGroupKind, CommonAssetKind, PersonalSpaceAsset, PersonalSpaceState } from './personalSpaceModel'
+import type { AssetGroupKind, CommonAssetKind, PersonalAssetSubtype, PersonalSpaceAsset, PersonalSpaceState } from './personalSpaceModel'
 
 export const personalSpaceStorageKey = 'game-design-tools.personal-space.v1'
 const fallbackAssetGroups: Record<AssetGroupKind, string[]> = {
@@ -30,22 +30,38 @@ function assetGroupKindForKind(kind: CommonAssetKind): AssetGroupKind {
   return 'image'
 }
 
+function legacySubtypeFromAsset(asset: PersonalSpaceAsset): PersonalAssetSubtype {
+  const legacy = asset as unknown as { tags?: string[]; groupName?: string; kind?: string }
+  const tags = new Set(legacy.tags ?? [])
+  if (legacy.kind === 'map' || tags.has('地图') || legacy.groupName?.includes('地图')) return 'map'
+  if (legacy.kind === 'effect' || tags.has('特效') || legacy.groupName?.includes('特效')) return 'effect'
+  if (tags.has('肖像') || legacy.groupName?.includes('肖像')) return 'portrait'
+  if (legacy.kind === 'sprite' && (tags.has('特效精灵图') || legacy.groupName?.includes('特效'))) return 'effect_sprite'
+  if (legacy.kind === 'sprite') return 'character_sprite'
+  if (legacy.kind === 'voice') return 'character_voice'
+  return 'generic'
+}
+
 function migrateAssetKind(asset: PersonalSpaceAsset): PersonalSpaceAsset {
-  if (asset.kind === 'map') {
+  const legacyKind = (asset as unknown as { kind?: string }).kind
+  if (legacyKind === 'map') {
     return {
       ...asset,
       kind: 'image',
-      tags: Array.from(new Set(['地图', ...asset.tags])),
+      assetSubtype: 'map',
     }
   }
-  if (asset.kind === 'effect') {
+  if (legacyKind === 'effect') {
     return {
       ...asset,
       kind: 'image',
-      tags: Array.from(new Set(['特效', ...asset.tags])),
+      assetSubtype: 'effect',
     }
   }
-  return asset
+  return {
+    ...asset,
+    assetSubtype: asset.assetSubtype ?? legacySubtypeFromAsset(asset),
+  }
 }
 
 function normalizeAssetGroups(state: PersonalSpaceState): Record<AssetGroupKind, string[]> {
@@ -66,10 +82,6 @@ function normalizeStarredAssetGroups(state: PersonalSpaceState, groups: Record<A
   }
 }
 
-function optionalNote(value: unknown) {
-  return typeof value === 'string' ? value : undefined
-}
-
 export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpaceState {
   const assetGroups = normalizeAssetGroups(state)
   return {
@@ -80,12 +92,12 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
       const legacyPortraitIds = item.portraitAssetIds ?? []
       const legacySpriteIds = item.spriteAssetIds ?? []
       const legacyVoiceIds = item.voiceAssetIds ?? []
-      const portraitLinks = item.portraitAssets?.length ? item.portraitAssets : legacyPortraitIds.map((assetId, order) => ({ assetId, tags: [], order }))
-      const spriteLinks = item.spriteAssets?.length ? item.spriteAssets : legacySpriteIds.map((assetId, order) => ({ assetId, tags: [], order }))
-      const voiceLinks = item.voiceAssets?.length ? item.voiceAssets : legacyVoiceIds.map((assetId, order) => ({ assetId, tags: [], order }))
-      const portraitAssets = portraitLinks.map((link) => ({ ...link, tags: [...link.tags], noteName: 'noteName' in link ? optionalNote(link.noteName) : undefined }))
-      const spriteAssets = spriteLinks.map((link) => ({ ...link, tags: [...link.tags], noteName: 'noteName' in link ? optionalNote(link.noteName) : undefined }))
-      const voiceAssets = voiceLinks.map((link) => ({ ...link, tags: [...link.tags], noteName: 'noteName' in link ? optionalNote(link.noteName) : undefined }))
+      const portraitLinks = item.portraitAssets?.length ? item.portraitAssets : legacyPortraitIds.map((assetId, order) => ({ assetId, order }))
+      const spriteLinks = item.spriteAssets?.length ? item.spriteAssets : legacySpriteIds.map((assetId, order) => ({ assetId, order }))
+      const voiceLinks = item.voiceAssets?.length ? item.voiceAssets : legacyVoiceIds.map((assetId, order) => ({ assetId, order }))
+      const portraitAssets = portraitLinks.map((link, order) => ({ assetId: link.assetId, order }))
+      const spriteAssets = spriteLinks.map((link, order) => ({ assetId: link.assetId, order }))
+      const voiceAssets = voiceLinks.map((link, order) => ({ assetId: link.assetId, order }))
       return {
         ...item,
         starred: Boolean(item.starred),
@@ -101,7 +113,8 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
       const asset = migrateAssetKind(item)
       return {
         ...asset,
-        tags: [...asset.tags],
+        kind: asset.kind,
+        assetSubtype: asset.assetSubtype,
         dialogueText: asset.dialogueText,
         resourcePaths: [...asset.resourcePaths],
         linkedCharacterIds: [...asset.linkedCharacterIds],
@@ -113,8 +126,13 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
     }),
     storyboardGroups: state.storyboardGroups.map((item) => {
       const legacyVoiceIds = item.voiceAssetIds ?? []
-      const sourceVoiceEntries = item.voiceEntries?.length ? item.voiceEntries : legacyVoiceIds.map((assetId, order) => ({ assetId, text: '', order }))
-      const voiceEntries = sourceVoiceEntries.map((entry) => ({ ...entry, noteName: 'noteName' in entry ? optionalNote(entry.noteName) : undefined }))
+      const sourceVoiceEntries = item.voiceEntries?.length ? item.voiceEntries : legacyVoiceIds.map((assetId, order) => ({ assetId, text: '', startOffsetUs: 0, order }))
+      const voiceEntries = sourceVoiceEntries.map((entry, order) => ({
+        assetId: entry.assetId,
+        text: entry.text,
+        startOffsetUs: entry.startOffsetUs ?? 0,
+        order,
+      }))
       return {
         ...item,
         starred: Boolean(item.starred),

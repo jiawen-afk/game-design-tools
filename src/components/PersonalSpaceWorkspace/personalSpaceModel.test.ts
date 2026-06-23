@@ -35,10 +35,8 @@ import {
   toggleCharacterStar,
   toggleStoryboardStar,
   updatePersonalSpaceAsset,
-  updateCharacterAssetNote,
   unassignAssetFromCharacterColumn,
   unassignVoiceFromStoryboardGroup,
-  updateStoryboardVoiceNote,
 } from './personalSpaceModel'
 import { spriteFrameModalStyle } from './personalSpacePreviewModel'
 
@@ -73,7 +71,8 @@ test('creates personal space voice asset from a generated voice record', () => {
   assert.equal(asset.name, '商人问候')
   assert.equal(asset.dialogueText, '欢迎来到我的商店。')
   assert.deepEqual(asset.resourcePaths, ['http://127.0.0.1/audio.wav'])
-  assert.deepEqual(asset.tags, ['配音'])
+  assert.equal(asset.assetSubtype, 'character_voice')
+  assert.equal('tags' in asset, false)
 })
 
 test('creates personal space sprite asset from exported sprite files', () => {
@@ -81,13 +80,13 @@ test('creates personal space sprite asset from exported sprite files', () => {
     name: '主角行走',
     spritePath: 'D:\\assets\\sprite.png',
     indexPath: 'D:\\assets\\index.json',
-    tags: ['角色精灵图', '行走'],
   })
 
   assert.equal(asset.kind, 'sprite')
   assert.equal(asset.name, '主角行走')
   assert.deepEqual(asset.resourcePaths, ['D:\\assets\\sprite.png', 'D:\\assets\\index.json'])
-  assert.deepEqual(asset.tags, ['角色精灵图', '行走'])
+  assert.equal(asset.assetSubtype, 'character_sprite')
+  assert.equal('tags' in asset, false)
 })
 
 test('sprite modal preview uses the original frame ratio instead of thumbnail scaling', () => {
@@ -110,14 +109,14 @@ test('creates portrait assets from uploaded character portraits', () => {
   const asset = createPortraitAssetFromUpload({
     name: 'hero-face.png',
     portraitPath: 'blob:portrait',
-    tags: ['正面', '笑脸'],
   })
 
   assert.equal(asset.kind, 'image')
   assert.equal(asset.name, 'hero-face.png')
   assert.equal(asset.groupName, '角色肖像')
   assert.deepEqual(asset.resourcePaths, ['blob:portrait'])
-  assert.deepEqual(asset.tags, ['肖像', '正面', '笑脸'])
+  assert.equal(asset.assetSubtype, 'portrait')
+  assert.equal('tags' in asset, false)
 })
 
 test('creates imported resource assets with original file names and unified kinds', () => {
@@ -130,7 +129,7 @@ test('creates imported resource assets with original file names and unified kind
     kind: 'sprite',
     name: 'fire.webm',
     resourcePath: 'blob:fire',
-    tags: ['特效精灵图'],
+    assetSubtype: 'effect_sprite',
   })
   const voice = createResourceAssetFromUpload({
     kind: 'voice',
@@ -147,9 +146,10 @@ test('creates imported resource assets with original file names and unified kind
   assert.equal(image.groupName, '默认分组')
   assert.equal(sprite.groupName, '默认分组')
   assert.equal(voice.groupName, '默认分组')
-  assert.deepEqual(image.tags, ['图片'])
-  assert.deepEqual(sprite.tags, ['精灵图', '特效精灵图'])
-  assert.deepEqual(voice.tags, ['配音'])
+  assert.equal(image.assetSubtype, 'generic')
+  assert.equal(sprite.assetSubtype, 'effect_sprite')
+  assert.equal(voice.assetSubtype, 'character_voice')
+  assert.equal('tags' in image, false)
 })
 
 test('personal space assets default to a named group', () => {
@@ -176,9 +176,9 @@ test('collecting the same source asset keeps only the latest asset and clears ol
   })
 
   state = collectPersonalSpaceAsset(state, first)
-  state = assignAssetToCharacterColumn(state, characterId, first.id, 'sprite', ['角色精灵图'])
+  state = assignAssetToCharacterColumn(state, characterId, first.id, 'sprite')
   state = collectPersonalSpaceAsset(state, second)
-  state = assignAssetToCharacterColumn(state, characterId, second.id, 'sprite', ['角色精灵图'])
+  state = assignAssetToCharacterColumn(state, characterId, second.id, 'sprite')
 
   assert.deepEqual(state.assets.map((asset) => asset.id), [second.id])
   assert.deepEqual(state.assets[0]!.resourcePaths, ['new-sprite.png', 'new-index.json'])
@@ -261,19 +261,19 @@ test('common assets can be updated and deleted while removing links from charact
       order: 0,
       portraitAssets: [],
       spriteAssets: [],
-      voiceAssets: [{ assetId: voice.id, tags: [], order: 0 }],
+      voiceAssets: [{ assetId: voice.id, order: 0 }],
       portraitAssetIds: [],
       spriteAssetIds: [],
       voiceAssetIds: [voice.id],
     }],
     assets: [voice],
-    storyboardGroups: [{ id: 's1', name: '开场', voiceEntries: [{ assetId: voice.id, text: '', order: 0 }], characterIds: ['c1'], voiceAssetIds: [voice.id] }],
+    storyboardGroups: [{ id: 's1', name: '开场', voiceEntries: [{ assetId: voice.id, text: '', startOffsetUs: 0, order: 0 }], characterIds: ['c1'], voiceAssetIds: [voice.id] }],
   }
 
-  const updated = updatePersonalSpaceAsset(state, voice.id, { groupName: 'NPC 配音', tags: ['商人', '欢迎'] })
+  const updated = updatePersonalSpaceAsset(state, voice.id, { groupName: 'NPC 配音', assetSubtype: 'narration' })
   const deleted = deletePersonalSpaceAsset(updated, voice.id)
 
-  assert.deepEqual(updated.assets[0]!.tags, ['商人', '欢迎'])
+  assert.equal(updated.assets[0]!.assetSubtype, 'narration')
   assert.equal(updated.assets[0]!.groupName, 'NPC 配音')
   assert.deepEqual(deleted.assets, [])
   assert.deepEqual(deleted.characters[0]!.voiceAssetIds, [])
@@ -309,7 +309,7 @@ test('storyboard groups can be created and exported with linked character and vo
   state = {
     ...state,
     assets: [voice],
-    storyboardGroups: [{ ...group, voiceEntries: [{ assetId: voice.id, text: '', order: 0 }], characterIds: [character.id], voiceAssetIds: [voice.id] }],
+    storyboardGroups: [{ ...group, voiceEntries: [{ assetId: voice.id, text: '', startOffsetUs: 0, order: 0 }], characterIds: [character.id], voiceAssetIds: [voice.id] }],
   }
 
   const exported = exportStoryboardReference(state, group.id)
@@ -345,7 +345,7 @@ test('storyboard reference file names are sanitized and stable', () => {
   assert.equal(storyboardReferenceFileName('  '), 'storyboard-未命名剧情组.json')
 })
 
-test('character columns keep tagged portrait, sprite, and voice asset order', () => {
+test('character columns keep portrait, sprite, and voice asset order without link metadata', () => {
   const portrait = createPersonalSpaceAsset({ kind: 'map', name: '肖像' })
   const sprite = createPersonalSpaceAsset({ kind: 'sprite', name: '行走图' })
   const hello = createPersonalSpaceAsset({ kind: 'voice', name: '问候' })
@@ -353,15 +353,16 @@ test('character columns keep tagged portrait, sprite, and voice asset order', ()
   let state = addCharacterProfile({ ...defaultPersonalSpaceState, assets: [portrait, sprite, hello, attack] }, '主角')
   const characterId = state.characters[0]!.id
 
-  state = assignAssetToCharacterColumn(state, characterId, portrait.id, 'portrait', ['头像', '正面'])
-  state = assignAssetToCharacterColumn(state, characterId, sprite.id, 'sprite', ['下走', '奔跑'])
-  state = assignAssetToCharacterColumn(state, characterId, hello.id, 'voice', ['问候'])
-  state = assignAssetToCharacterColumn(state, characterId, attack.id, 'voice', ['攻击'])
+  state = assignAssetToCharacterColumn(state, characterId, portrait.id, 'portrait')
+  state = assignAssetToCharacterColumn(state, characterId, sprite.id, 'sprite')
+  state = assignAssetToCharacterColumn(state, characterId, hello.id, 'voice')
+  state = assignAssetToCharacterColumn(state, characterId, attack.id, 'voice')
   state = reorderCharacterVoice(state, characterId, attack.id, 'up')
 
-  assert.deepEqual(state.characters[0]!.portraitAssets.map((item) => item.tags), [['头像', '正面']])
-  assert.deepEqual(state.characters[0]!.spriteAssets.map((item) => item.tags), [['下走', '奔跑']])
+  assert.deepEqual(state.characters[0]!.portraitAssets, [{ assetId: portrait.id, order: 0 }])
+  assert.deepEqual(state.characters[0]!.spriteAssets, [{ assetId: sprite.id, order: 0 }])
   assert.deepEqual(state.characters[0]!.voiceAssets.map((item) => item.assetId), [attack.id, hello.id])
+  assert.equal('noteName' in state.characters[0]!.voiceAssets[0]!, false)
   assert.deepEqual(state.assets.find((item) => item.id === sprite.id)!.linkedCharacterIds, [characterId])
 })
 
@@ -372,9 +373,9 @@ test('character asset links can be removed and voice links can be drag-sorted', 
   let state = addCharacterProfile({ ...defaultPersonalSpaceState, assets: [portrait, hello, attack] }, '主角')
   const characterId = state.characters[0]!.id
 
-  state = assignAssetToCharacterColumn(state, characterId, portrait.id, 'portrait', ['肖像'])
-  state = assignAssetToCharacterColumn(state, characterId, hello.id, 'voice', ['问候'])
-  state = assignAssetToCharacterColumn(state, characterId, attack.id, 'voice', ['攻击'])
+  state = assignAssetToCharacterColumn(state, characterId, portrait.id, 'portrait')
+  state = assignAssetToCharacterColumn(state, characterId, hello.id, 'voice')
+  state = assignAssetToCharacterColumn(state, characterId, attack.id, 'voice')
   state = moveCharacterVoice(state, characterId, hello.id, attack.id)
   state = unassignAssetFromCharacterColumn(state, characterId, portrait.id, 'portrait')
 
@@ -384,7 +385,7 @@ test('character asset links can be removed and voice links can be drag-sorted', 
 })
 
 test('image effect assets can link voice assets, and storyboard voice entries export dialogue order', () => {
-  const effect = createPersonalSpaceAsset({ kind: 'image', name: '火球', tags: ['特效'] })
+  const effect = createPersonalSpaceAsset({ kind: 'image', assetSubtype: 'effect', name: '火球' })
   const voice = createPersonalSpaceAsset({ kind: 'voice', name: '施法台词' })
   let state = addStoryboardGroup({ ...defaultPersonalSpaceState, assets: [effect, voice] }, '战斗开场')
   const groupId = state.storyboardGroups[0]!.id
@@ -399,21 +400,29 @@ test('image effect assets can link voice assets, and storyboard voice entries ex
   assert.equal(exported.dialogue[0]!.voiceAsset.name, '施法台词')
 })
 
-test('character and storyboard asset links keep independent note names for the same asset', () => {
+test('character and storyboard asset links do not store note names', () => {
   const voice = createPersonalSpaceAsset({ kind: 'voice', name: 'line.wav' })
   let state = addCharacterProfile({ ...defaultPersonalSpaceState, assets: [voice] }, '商人')
   state = addStoryboardGroup(state, '开场')
   const characterId = state.characters[0]!.id
   const storyboardId = state.storyboardGroups[0]!.id
 
-  state = assignAssetToCharacterColumn(state, characterId, voice.id, 'voice', [])
+  state = assignAssetToCharacterColumn(state, characterId, voice.id, 'voice')
   state = assignVoiceToStoryboardGroup(state, storyboardId, voice.id, '')
-  state = updateCharacterAssetNote(state, characterId, voice.id, 'voice', '商人问候')
-  state = updateStoryboardVoiceNote(state, storyboardId, voice.id, '开场第一句')
 
   assert.equal(state.assets[0]!.name, 'line.wav')
-  assert.equal(state.characters[0]!.voiceAssets[0]!.noteName, '商人问候')
-  assert.equal(state.storyboardGroups[0]!.voiceEntries[0]!.noteName, '开场第一句')
+  assert.equal('noteName' in state.characters[0]!.voiceAssets[0]!, false)
+  assert.equal('noteName' in state.storyboardGroups[0]!.voiceEntries[0]!, false)
+})
+
+test('storyboard voice entries can store microsecond start offsets', () => {
+  const voice = createPersonalSpaceAsset({ kind: 'voice', name: '提前播放' })
+  let state = addStoryboardGroup({ ...defaultPersonalSpaceState, assets: [voice] }, '开场')
+  const groupId = state.storyboardGroups[0]!.id
+
+  state = assignVoiceToStoryboardGroup(state, groupId, voice.id, '提前', -200000)
+
+  assert.equal(state.storyboardGroups[0]!.voiceEntries[0]!.startOffsetUs, -200000)
 })
 
 test('storyboard voice entries can be reordered inside a group', () => {

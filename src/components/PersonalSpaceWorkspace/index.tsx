@@ -26,7 +26,6 @@ export default function PersonalSpaceWorkspace() {
       getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
       onRenameAsset={workspace.renameAsset}
       onChangeGroupName={workspace.changeAssetGroupName}
-      onChangeTags={workspace.changeAssetTags}
       onChangeDialogueText={workspace.changeVoiceDialogueText}
       onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
       onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
@@ -109,7 +108,6 @@ export default function PersonalSpaceWorkspace() {
                 onDeleteCharacter={workspace.deleteCharacter}
                 onAssignAsset={workspace.assignAsset}
                 onUnassignAsset={workspace.unassignAsset}
-                onUpdateAssetNote={workspace.updateCharacterAssetNote}
                 onMoveCharacterVoice={workspace.moveCharacterVoice}
               />
             ),

@@ -19,7 +19,7 @@ export function collectPersonalSpaceAsset(state: PersonalSpaceState, asset: Pers
   })
 }
 
-export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'tags' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
+export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'assetSubtype' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   next.assets = next.assets.map((asset) => {
     if (asset.id !== id) return asset
@@ -27,7 +27,7 @@ export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
       ...asset,
       name: patch.name?.trim() || asset.name,
       groupName: patch.groupName?.trim() || asset.groupName,
-      tags: patch.tags ? [...patch.tags] : asset.tags,
+      assetSubtype: patch.assetSubtype ?? asset.assetSubtype,
       dialogueText: patch.dialogueText !== undefined ? (patch.dialogueText.trim() || undefined) : asset.dialogueText,
       linkedCharacterIds: patch.linkedCharacterIds ? [...patch.linkedCharacterIds] : asset.linkedCharacterIds,
       linkedStoryboardIds: patch.linkedStoryboardIds ? [...patch.linkedStoryboardIds] : asset.linkedStoryboardIds,

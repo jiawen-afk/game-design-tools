@@ -117,7 +117,7 @@ function extensionForResource(asset: PersonalSpaceAsset, resource: PersonalSpace
   if (ext) return ext.toLowerCase()
   if (asset.kind === 'sprite') return index === 0 ? '.png' : '.json'
   if (asset.kind === 'voice') return '.wav'
-  if (asset.groupName === '角色肖像' || asset.tags.includes('肖像')) return '.png'
+  if (asset.assetSubtype === 'portrait') return '.png'
   return ''
 }
 

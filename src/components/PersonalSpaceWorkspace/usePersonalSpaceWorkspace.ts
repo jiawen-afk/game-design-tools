@@ -27,11 +27,9 @@ import {
   toggleAssetGroupStar,
   toggleCharacterStar,
   toggleStoryboardStar,
-  updateCharacterAssetNote,
   unassignAssetFromCharacterColumn,
   unassignVoiceFromStoryboardGroup,
   updatePersonalSpaceAsset,
-  updateStoryboardVoiceNote,
   updateStoryboardVoiceText,
   writePersonalSpaceState,
 } from './personalSpaceModel'
@@ -183,7 +181,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       const storedAsset = await createPortraitAssetForUpload(space, file, settingsWorkspace.directoryHandle)
       setSpace((current) => {
         const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
-        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'portrait', ['肖像'])
+        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'portrait')
       })
       void messageApi.success('已上传角色肖像')
     } catch (error) {
@@ -196,7 +194,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       const storedAsset = await createSpriteAssetForUpload(space, files, settingsWorkspace.directoryHandle)
       setSpace((current) => {
         const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
-        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'sprite', ['角色精灵图'])
+        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'sprite')
       })
       void messageApi.success('已上传角色精灵图')
     } catch (error) {
@@ -209,7 +207,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       const storedAsset = await createVoiceAssetForUpload(space, file, settingsWorkspace.directoryHandle)
       setSpace((current) => {
         const withAsset = { ...current, assets: [storedAsset, ...current.assets] }
-        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'voice', ['角色配音'])
+        return assignAssetToCharacterColumn(withAsset, characterId, storedAsset.id, 'voice')
       })
       void messageApi.success('已上传角色配音')
     } catch (error) {
@@ -348,7 +346,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     },
   })
 
-  const imageAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.groupName !== '角色肖像' && !asset.tags.includes('肖像'))
+  const imageAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.assetSubtype !== 'portrait')
   const portraitAssets = imageAssets
   const spriteAssets = space.assets.filter((asset) => asset.kind === 'sprite')
   const voiceAssets = space.assets.filter((asset) => asset.kind === 'voice')
@@ -433,14 +431,11 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     toggleCharacterStar: (characterId: string) => setSpace((current) => toggleCharacterStar(current, characterId)),
     reorderCharacter: (characterId: string, direction: 'up' | 'down') => setSpace((current) => reorderCharacterProfile(current, characterId, direction)),
     deleteCharacter: (characterId: string) => setSpace((current) => deleteCharacterProfile(current, characterId)),
-    assignAsset: (characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice', tags: string[]) => {
-      setSpace((current) => assignAssetToCharacterColumn(current, characterId, assetId, column, tags))
+    assignAsset: (characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice') => {
+      setSpace((current) => assignAssetToCharacterColumn(current, characterId, assetId, column))
     },
     unassignAsset: (characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice') => {
       setSpace((current) => unassignAssetFromCharacterColumn(current, characterId, assetId, column))
-    },
-    updateCharacterAssetNote: (characterId: string, assetId: string, column: 'portrait' | 'sprite' | 'voice', noteName: string) => {
-      setSpace((current) => updateCharacterAssetNote(current, characterId, assetId, column, noteName))
     },
     reorderCharacterVoice: (characterId: string, assetId: string, direction: 'up' | 'down') => {
       setSpace((current) => reorderCharacterVoice(current, characterId, assetId, direction))
@@ -472,9 +467,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     updateStoryboardVoice: (groupId: string, assetId: string, text: string) => {
       setSpace((current) => updateStoryboardVoiceText(current, groupId, assetId, text))
     },
-    updateStoryboardVoiceNote: (groupId: string, assetId: string, noteName: string) => {
-      setSpace((current) => updateStoryboardVoiceNote(current, groupId, assetId, noteName))
-    },
     reorderStoryboardVoice: (groupId: string, assetId: string, direction: 'up' | 'down') => {
       setSpace((current) => reorderStoryboardVoice(current, groupId, assetId, direction))
     },
@@ -485,7 +477,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     changeAssetGroupName: (assetId: string, groupName: string) => {
       setSpace((current) => updatePersonalSpaceAsset(current, assetId, { groupName }))
     },
-    changeAssetTags: (assetId: string, tags: string[]) => setSpace((current) => updatePersonalSpaceAsset(current, assetId, { tags })),
     changeVoiceDialogueText: (assetId: string, dialogueText: string) => {
       setSpace((current) => updatePersonalSpaceAsset(current, assetId, { dialogueText }))
     },

@@ -64,14 +64,17 @@ export function setStoryboardCharacters(state: PersonalSpaceState, groupId: stri
   return next
 }
 
-export function assignVoiceToStoryboardGroup(state: PersonalSpaceState, groupId: string, assetId: string, text = ''): PersonalSpaceState {
+export function assignVoiceToStoryboardGroup(state: PersonalSpaceState, groupId: string, assetId: string, text = '', startOffsetUs = 0): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   const voiceAsset = next.assets.find((asset) => asset.id === assetId && asset.kind === 'voice')
   const dialogueText = text.trim() || voiceAsset?.dialogueText || ''
   next.storyboardGroups = next.storyboardGroups.map((group) => {
     if (group.id !== groupId) return group
     const existing = group.voiceEntries.filter((entry) => entry.assetId !== assetId)
-    const voiceEntries = [...existing, { assetId, text: dialogueText, order: existing.length }].map((entry, index) => ({ ...entry, order: index }))
+    const voiceEntries = [
+      ...existing,
+      { assetId, text: dialogueText, startOffsetUs: Math.trunc(startOffsetUs), order: existing.length },
+    ].map((entry, index) => ({ ...entry, startOffsetUs: entry.startOffsetUs ?? 0, order: index }))
     return { ...group, voiceEntries, voiceAssetIds: voiceEntries.map((entry) => entry.assetId) }
   })
   next.assets = next.assets.map((asset) => (
@@ -117,20 +120,6 @@ export function updateStoryboardVoiceText(state: PersonalSpaceState, groupId: st
   next.storyboardGroups = next.storyboardGroups.map((group) => {
     if (group.id !== groupId) return group
     return { ...group, voiceEntries: group.voiceEntries.map((entry) => (entry.assetId === assetId ? { ...entry, text } : entry)) }
-  })
-  return next
-}
-
-export function updateStoryboardVoiceNote(state: PersonalSpaceState, groupId: string, assetId: string, noteName: string): PersonalSpaceState {
-  const next = clonePersonalSpaceState(state)
-  next.storyboardGroups = next.storyboardGroups.map((group) => {
-    if (group.id !== groupId) return group
-    return {
-      ...group,
-      voiceEntries: group.voiceEntries.map((entry) => (
-        entry.assetId === assetId ? { ...entry, noteName: noteName.trim() || undefined } : entry
-      )),
-    }
   })
   return next
 }

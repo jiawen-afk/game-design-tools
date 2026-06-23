@@ -956,7 +956,7 @@ button.asset-preview {
   white-space: nowrap;
 }
 
-.linked-asset-note-row {
+.linked-asset-main {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

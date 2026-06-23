@@ -177,7 +177,7 @@ export function useSpriteExport({
       ])
       let nextSpace = collectPersonalSpaceAsset(space, asset)
       if (characterId) {
-        nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite', ['角色精灵图'])
+        nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite')
       }
       writePersonalSpaceState(nextSpace)
       message.success(characterId ? '已收藏到 个人空间-素材-精灵图，并关联角色' : '已收藏到 个人空间-素材-精灵图')

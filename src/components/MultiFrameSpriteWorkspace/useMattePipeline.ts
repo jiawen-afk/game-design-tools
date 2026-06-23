@@ -384,9 +384,10 @@ export function useMattePipeline({
         const previewUrl = URL.createObjectURL(blob)
         const baseAsset = createResourceAssetFromUpload({
           kind: 'image',
+          assetSubtype: 'effect',
           name: item.sourceName,
           resourcePath: previewUrl,
-          tags: ['抠图', item.matteGroupName],
+          groupName: item.matteGroupName,
         })
         const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
         assets.push(asset)

@@ -88,7 +88,7 @@ export async function collectVoiceRecordToPersonalSpace(
 
   let nextSpace: PersonalSpaceState = collectPersonalSpaceAsset(space, asset)
   if (link?.target === 'character') {
-    nextSpace = assignAssetToCharacterColumn(nextSpace, link.targetId, asset.id, 'voice', ['角色配音'])
+    nextSpace = assignAssetToCharacterColumn(nextSpace, link.targetId, asset.id, 'voice')
   }
   if (link?.target === 'effect') {
     nextSpace = linkEffectAssetToVoice(nextSpace, link.targetId, asset.id)

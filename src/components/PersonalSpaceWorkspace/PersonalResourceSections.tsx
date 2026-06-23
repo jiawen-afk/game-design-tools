@@ -31,7 +31,6 @@ interface PersonalResourceSectionProps {
   getStoryboardVoiceRefs: (assetId: string) => string[]
   onRenameAsset: (assetId: string, name: string) => void
   onChangeGroupName: (assetId: string, groupName: string) => void
-  onChangeTags: (assetId: string, tags: string[]) => void
   onChangeDialogueText: (assetId: string, dialogueText: string) => void
   onChangeEffectVoiceLinks: (assetId: string, voiceIds: string[]) => void
   onChangeVoiceCharacterLinks: (assetId: string, characterIds: string[]) => void
@@ -190,7 +189,6 @@ export function PersonalResourceSection({
   getStoryboardVoiceRefs,
   onRenameAsset,
   onChangeGroupName,
-  onChangeTags,
   onChangeDialogueText,
   onChangeEffectVoiceLinks,
   onChangeVoiceCharacterLinks,
@@ -269,7 +267,7 @@ export function PersonalResourceSection({
         </Popconfirm>
       </div>
       <div className={`form-stack asset-record-fields${item.kind === 'voice' ? ' voice-record-fields' : ''}`}>
-        {item.kind === 'image' && item.tags.includes('特效') && (
+        {item.kind === 'image' && item.assetSubtype === 'effect' && (
           <label className="form-field">
             <span className="field-label">关联配音素材</span>
             <Select

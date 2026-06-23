@@ -19,7 +19,7 @@ export function StoryboardVoicePicker({
   const [search, setSearch] = useState('')
   const [selectedVoiceAssetIds, setSelectedVoiceAssetIds] = useState<string[]>([])
   const [lastSelectedVoiceAssetId, setLastSelectedVoiceAssetId] = useState<string | null>(null)
-  const filteredVoiceAssets = voiceAssets.filter((asset) => includesKeyword([asset.name, asset.dialogueText, asset.tags.join('、')], search))
+  const filteredVoiceAssets = voiceAssets.filter((asset) => includesKeyword([asset.name, asset.dialogueText], search))
   const selectedVoiceAssetIdSet = useMemo(() => new Set(selectedVoiceAssetIds), [selectedVoiceAssetIds])
   const selectedVoiceAssets = selectedVoiceAssetIds
     .map((assetId) => voiceAssets.find((asset) => asset.id === assetId))
@@ -92,7 +92,7 @@ export function StoryboardVoicePicker({
                 onClick={(event) => selectVoiceAsset(asset.id, event)}
               >
                 <strong>{asset.name}</strong>
-                <span>{asset.dialogueText || asset.tags.join('、') || '未填写台词'}</span>
+                <span>{asset.dialogueText || '未填写台词'}</span>
               </button>
             ))}
           </div>

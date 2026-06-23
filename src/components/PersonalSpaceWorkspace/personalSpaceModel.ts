@@ -1,6 +1,17 @@
 export type PersonalSpaceModule = 'characters' | 'storyboards' | 'assets' | 'settings'
 export type CommonAssetKind = 'map' | 'image' | 'effect' | 'voice' | 'sprite'
+export type StoredAssetKind = 'image' | 'sprite' | 'voice'
 export type AssetGroupKind = 'image' | 'sprite' | 'voice'
+export type PersonalAssetSubtype =
+  | 'generic'
+  | 'portrait'
+  | 'map'
+  | 'effect'
+  | 'character_sprite'
+  | 'effect_sprite'
+  | 'character_voice'
+  | 'narration'
+  | 'sound_effect'
 
 export interface PersonalSpaceSettings {
   storageDirectory: string
@@ -9,10 +20,10 @@ export interface PersonalSpaceSettings {
 
 export interface PersonalSpaceAsset {
   id: string
-  kind: CommonAssetKind
+  kind: StoredAssetKind
+  assetSubtype: PersonalAssetSubtype
   name: string
   groupName: string
-  tags: string[]
   dialogueText?: string
   resourcePaths: string[]
   createdAt: string
@@ -25,16 +36,14 @@ export interface PersonalSpaceAsset {
 
 export interface CharacterAssetLink {
   assetId: string
-  tags: string[]
   order: number
-  noteName?: string
 }
 
 export interface StoryboardVoiceEntry {
   assetId: string
   text: string
+  startOffsetUs: number
   order: number
-  noteName?: string
 }
 
 export interface CharacterProfile {
@@ -96,14 +105,13 @@ export interface SpriteExportAssetInput {
   spritePath: string
   indexPath: string
   groupName?: string
-  tags?: string[]
+  assetSubtype?: PersonalAssetSubtype
   sourceKey?: string
 }
 
 export interface PortraitUploadAssetInput {
   name: string
   portraitPath: string
-  tags?: string[]
 }
 
 export interface ResourceUploadAssetInput {
@@ -111,7 +119,7 @@ export interface ResourceUploadAssetInput {
   name: string
   resourcePath: string
   groupName?: string
-  tags?: string[]
+  assetSubtype?: PersonalAssetSubtype
 }
 
 export {
@@ -160,7 +168,6 @@ export {
   storyboardReferenceFileName,
   toggleStoryboardStar,
   unassignVoiceFromStoryboardGroup,
-  updateStoryboardVoiceNote,
   updateStoryboardVoiceText,
 } from './personalSpaceStoryboards'
 
@@ -174,7 +181,6 @@ export {
   reorderCharacterVoice,
   toggleCharacterStar,
   unassignAssetFromCharacterColumn,
-  updateCharacterAssetNote,
 } from './personalSpaceCharacters'
 
 export {

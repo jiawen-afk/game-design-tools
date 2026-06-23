@@ -801,6 +801,13 @@ test('voice deployment workspace delegates collect-link dialog state', () => {
   assert.match(hookSource, /confirmCollectLink/)
 })
 
+test('voice deployment links generated voices to effect assets by subtype', () => {
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+
+  assert.match(source, /asset\.assetSubtype === 'effect'/)
+  assert.doesNotMatch(source, /asset\.kind === 'effect'/)
+})
+
 test('voice deployment workspace delegates generation request workflow', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
   const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
@@ -1115,7 +1122,8 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(panelSource, /角色精灵图标签/)
   assert.doesNotMatch(panelSource, /未设置标签/)
   assert.match(panelSource, /PersonalAssetPreview/)
-  assert.match(panelSource, /关联备注/)
+  assert.doesNotMatch(panelSource, /关联备注/)
+  assert.doesNotMatch(panelSource, /noteName/)
   assert.match(panelSource, /取消关联/)
   assert.match(panelSource, /DisconnectOutlined/)
   assert.match(panelSource, /onUnassignAsset/)
