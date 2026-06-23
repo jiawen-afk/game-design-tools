@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
 
+import { createMemoryProjectRepository, createProjectWorkspaceBootstrapper, type Project } from '../ProjectStorage'
 import {
   addAssetGroup,
   addCharacterProfile,
@@ -56,6 +57,9 @@ interface PersonalSpaceMessageApi {
 
 type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
 
+const projectRepository = createMemoryProjectRepository()
+const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
+
 function assetKindLabel(kind: string) {
   if (kind === 'sprite') return '精灵图'
   if (kind === 'voice') return '配音'
@@ -64,6 +68,8 @@ function assetKindLabel(kind: string) {
 
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())
+  const [projects, setProjects] = useState<Project[]>([])
+  const [activeProjectId, setActiveProjectId] = useState('')
   const [newCharacterName, setNewCharacterName] = useState('')
   const [newStoryboardName, setNewStoryboardName] = useState('')
   const [activeModule, setActiveModule] = useState<PersonalSpaceActiveModule>('characters')
@@ -75,6 +81,27 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
     messageApi,
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    const initializeProjects = async () => {
+      const nextProjects = await projectBootstrapper.listProjects(space.settings.storageDirectory || '')
+      if (cancelled) return
+      setProjects(nextProjects)
+      setActiveProjectId((current) => (
+        current && nextProjects.some((project) => project.id === current)
+          ? current
+          : nextProjects[0]?.id ?? ''
+      ))
+    }
+
+    void initializeProjects()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     writePersonalSpaceState(space)
@@ -94,6 +121,45 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       return
     }
     setActiveModule(nextModule)
+  }
+
+  const createLocalProject = async (name: string, description: string) => {
+    const created = await projectRepository.createProject({
+      name,
+      description,
+      localObjectRoot: settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || '',
+      now: new Date().toISOString(),
+    })
+    setProjects(await projectRepository.listProjects())
+    setActiveProjectId(created.project.id)
+    void messageApi.success('已创建本地项目')
+  }
+
+  const renameProject = async (projectId: string, name: string, description: string) => {
+    const updated = await projectRepository.updateProject(projectId, {
+      name,
+      description,
+      updatedAt: new Date().toISOString(),
+    })
+    if (!updated) {
+      void messageApi.warning('项目不存在，无法编辑')
+      return
+    }
+    setProjects(await projectRepository.listProjects())
+    setActiveProjectId(projectId)
+    void messageApi.success('已编辑项目')
+  }
+
+  const deleteProject = async (projectId: string) => {
+    await projectRepository.deleteProject(projectId)
+    const nextProjects = await projectRepository.listProjects()
+    setProjects(nextProjects)
+    setActiveProjectId((current) => (
+      current === projectId
+        ? nextProjects[0]?.id ?? ''
+        : current
+    ))
+    void messageApi.success('已删除项目')
   }
 
   const createCharacter = () => {
@@ -389,6 +455,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     sprite: spriteAssets.length,
     voice: voiceAssets.length,
   }
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  const projectSelector = {
+    value: activeProject?.id ?? '',
+    options: projects.map((project) => ({ label: project.name, value: project.id })),
+    onChange: setActiveProjectId,
+  }
 
   const storyboardVoiceRefs = (assetId: string) => space.storyboardGroups
     .flatMap((group) => group.voiceEntries
@@ -398,6 +470,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   return {
     space,
     ...settingsWorkspace,
+    projects,
+    activeProject,
+    projectSelector,
     activeModule,
     newCharacterName,
     newStoryboardName,
@@ -411,6 +486,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setNewCharacterName,
     setNewStoryboardName,
     changeActiveModule,
+    createLocalProject,
+    renameProject,
+    deleteProject,
     createCharacter,
     createStoryboard,
     exportStoryboardAsset,

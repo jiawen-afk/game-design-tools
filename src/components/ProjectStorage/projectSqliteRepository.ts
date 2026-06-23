@@ -10,6 +10,12 @@ export interface CreateLocalProjectInput {
   now: string
 }
 
+export interface UpdateProjectInput {
+  name: string
+  description: string
+  updatedAt: string
+}
+
 export interface ProjectWithSettings {
   project: Project
   settings: ProjectSettings
@@ -18,6 +24,7 @@ export interface ProjectWithSettings {
 export interface ProjectRepository {
   initializeSchema(): Promise<void>
   createProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings>
+  updateProject(projectId: string, input: UpdateProjectInput): Promise<ProjectWithSettings | null>
   listProjects(): Promise<Project[]>
   getProject(projectId: string): Promise<ProjectWithSettings | null>
   importProjectRows(rows: LegacyProjectRows): Promise<void>
@@ -64,6 +71,20 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.settings.set(id, settings)
     this.assets.set(id, [])
     return { project, settings }
+  }
+
+  async updateProject(projectId: string, input: UpdateProjectInput) {
+    const project = this.projects.get(projectId)
+    const settings = this.settings.get(projectId)
+    if (!project || !settings) return null
+    const updated: Project = {
+      ...project,
+      name: input.name.trim() || '未命名项目',
+      description: input.description.trim(),
+      updated_at: input.updatedAt,
+    }
+    this.projects.set(projectId, updated)
+    return { project: updated, settings }
   }
 
   async listProjects() {

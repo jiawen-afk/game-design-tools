@@ -51,3 +51,24 @@ test('local project repository imports migrated rows and hard deletes project ro
   assert.equal(await repository.getProject('p1'), null)
   assert.deepEqual(await repository.listAssets('p1'), [])
 })
+
+test('local project repository updates project name and description', async () => {
+  const repository = createMemoryProjectRepository()
+  const created = await repository.createProject({
+    name: '旧项目',
+    description: '',
+    localObjectRoot: 'D:\\GameAssets',
+    now: '2026-06-23T00:00:00.000Z',
+  })
+
+  await repository.updateProject(created.project.id, {
+    name: '新项目',
+    description: '项目说明',
+    updatedAt: '2026-06-24T00:00:00.000Z',
+  })
+
+  const updated = await repository.getProject(created.project.id)
+  assert.equal(updated!.project.name, '新项目')
+  assert.equal(updated!.project.description, '项目说明')
+  assert.equal(updated!.project.updated_at, '2026-06-24T00:00:00.000Z')
+})

@@ -1,4 +1,4 @@
-import { message, Tabs, Tag } from 'antd'
+import { message, Select, Tabs, Tag } from 'antd'
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { PersonalResourceSection } from './PersonalResourceSections'
 import { PersonalSettingsPanel } from './PersonalSettingsPanel'
@@ -44,11 +44,23 @@ export default function PersonalSpaceWorkspace() {
       {contextHolder}
       <div className="personal-hero">
         <div>
-          <p className="kicker">个人空间</p>
-          <h2 id="personal-space-title">素材与编排管理</h2>
-          <p>承接精灵图工作台和配音工作台产出的资源，把角色、素材、剧情组和本地目录串成同一个资产关系表。</p>
+          <p className="kicker">项目空间</p>
+          <h2 id="personal-space-title">项目资产与编排管理</h2>
+          <p>按项目管理角色、素材、剧情组和本地资源目录，为后续远程数据库与对象存储迁移保留同一套资产边界。</p>
         </div>
         <div className="storage-status">
+          <Select
+            className="project-selector"
+            aria-label="选择项目"
+            value={workspace.projectSelector.value}
+            options={workspace.projectSelector.options}
+            placeholder="选择项目"
+            disabled={workspace.projectSelector.options.length === 0}
+            onChange={workspace.projectSelector.onChange}
+          />
+          <Tag color={workspace.activeProject?.mode === 'local' ? 'processing' : workspace.activeProject?.mode === 'remote' ? 'success' : undefined}>
+            {workspace.activeProject?.mode === 'local' ? '本地模式' : workspace.activeProject?.mode === 'remote' ? '远程模式' : '未选择项目'}
+          </Tag>
           <Tag color={workspace.directoryHandle ? 'success' : undefined}>
             {workspace.directoryHandle ? '已授权目录' : workspace.directoryHandleChecked ? '需要授权目录' : '检查授权目录'}
           </Tag>
@@ -56,7 +68,11 @@ export default function PersonalSpaceWorkspace() {
         </div>
       </div>
 
-      <section className="personal-overview" aria-label="个人空间总览">
+      <section className="personal-overview" aria-label="项目空间总览">
+        <div className="personal-stat">
+          <span>项目</span>
+          <strong>{workspace.projects.length}</strong>
+        </div>
         <div className="personal-stat">
           <span>角色</span>
           <strong>{workspace.space.characters.length}</strong>
@@ -175,10 +191,16 @@ export default function PersonalSpaceWorkspace() {
             label: '设置',
             children: (
               <PersonalSettingsPanel
+                projects={workspace.projects}
+                activeProject={workspace.activeProject}
+                projectSelector={workspace.projectSelector}
                 storageDirectory={workspace.draftStorageDirectory}
                 deleteResourcesWithContent={workspace.space.settings.deleteResourcesWithContent}
                 savedSettings={workspace.savedSettings}
                 directoryHandle={workspace.directoryHandle}
+                onCreateLocalProject={workspace.createLocalProject}
+                onRenameProject={workspace.renameProject}
+                onDeleteProject={workspace.deleteProject}
                 onStorageDirectoryChange={workspace.setDraftStorageDirectory}
                 onChooseStorageDirectory={() => void workspace.chooseStorageDirectory()}
                 onOpenStorageDirectory={workspace.openStorageDirectory}

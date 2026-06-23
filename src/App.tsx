@@ -100,8 +100,8 @@ export default function App() {
         : activeSurface === 'voice-deployment'
           ? <VoiceDeploymentWorkspace />
           : <PersonalSpaceWorkspace />
-    const surfaceTitle = activeSurface === 'personal-space' ? '个人空间' : activeToolMeta?.name
-    const surfaceKicker = activeSurface === 'personal-space' ? '全局空间' : '工作台'
+    const surfaceTitle = activeSurface === 'personal-space' ? '项目空间' : activeToolMeta?.name
+    const surfaceKicker = activeSurface === 'personal-space' ? '项目管理' : '工作台'
 
     return (
       <div className="app-shell">
@@ -115,7 +115,7 @@ export default function App() {
           </div>
           {activeSurface !== 'personal-space' && (
             <Button className="topbar-space" icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
-              打开个人空间
+              打开项目空间
             </Button>
           )}
         </header>
@@ -147,10 +147,10 @@ export default function App() {
             <kbd>3</kbd>
             <span>配音</span>
             <kbd>{personalSpaceShortcut}</kbd>
-            <span>个人空间</span>
+            <span>项目空间</span>
           </div>
           <Button icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
-            打开个人空间
+            打开项目空间
           </Button>
         </div>
       </header>

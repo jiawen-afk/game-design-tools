@@ -203,11 +203,27 @@ test('personal space is global navigation instead of a tool list item', () => {
   assert.match(source, /type ToolId = 'multi-frame-sprite' \| 'image-processing' \| 'voice-deployment'/)
   assert.match(source, /type ActiveSurface = ToolId \| 'personal-space'/)
   assert.doesNotMatch(source, /id: 'personal-space'/)
-  assert.match(source, /打开个人空间/)
-  assert.match(source, /全局空间/)
+  assert.match(source, /打开项目空间/)
+  assert.match(source, /项目管理/)
   assert.match(source, /personalSpaceShortcut/)
   assert.match(source, /event\.key === personalSpaceShortcut/)
   assert.match(source, /<kbd>\{personalSpaceShortcut\}<\/kbd>/)
+})
+
+test('app shell exposes project space instead of personal space copy', () => {
+  const source = appSource()
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const settingsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8')
+
+  assert.match(source, /项目空间/)
+  assert.match(source, /打开项目空间/)
+  assert.doesNotMatch(source, /打开个人空间/)
+  assert.match(workspaceSource, /项目空间/)
+  assert.match(workspaceSource, /projectSelector/)
+  assert.match(settingsSource, /创建项目/)
+  assert.match(settingsSource, /编辑项目/)
+  assert.match(settingsSource, /删除项目/)
+  assert.match(settingsSource, /本地模式/)
 })
 
 test('site footer is app-only and does not load web telemetry or filing content', () => {
