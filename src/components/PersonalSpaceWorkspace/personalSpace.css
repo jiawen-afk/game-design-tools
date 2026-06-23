@@ -229,6 +229,19 @@
   gap: 12px;
 }
 
+.remote-settings-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.remote-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .remote-settings-panel {
   min-width: 0;
   display: grid;

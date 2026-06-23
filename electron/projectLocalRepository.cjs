@@ -400,6 +400,25 @@ class LocalProjectRepository {
           projectId,
         ],
       )
+      if (input.databaseProvider || input.databaseProfileId || input.storageProfileId) {
+        database.run(
+          [
+            'UPDATE project_settings SET',
+            'database_provider = COALESCE(?, database_provider),',
+            'remote_database_profile_id = COALESCE(?, remote_database_profile_id),',
+            'remote_storage_profile_id = COALESCE(?, remote_storage_profile_id),',
+            'updated_at = ?',
+            'WHERE project_id = ?',
+          ].join(' '),
+          [
+            input.databaseProvider || null,
+            input.databaseProfileId || null,
+            input.storageProfileId || null,
+            input.updatedAt,
+            projectId,
+          ],
+        )
+      }
     })
     return this.getProject(projectId)
   }

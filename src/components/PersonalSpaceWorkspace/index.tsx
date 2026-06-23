@@ -72,6 +72,7 @@ export default function PersonalSpaceWorkspace() {
           onCreateLocalProject={workspace.createLocalProject}
           onCreateRemoteProject={workspace.createRemoteProject}
           onRenameProject={workspace.renameProject}
+          onUpdateRemoteProjectLinks={workspace.updateRemoteProjectLinks}
           onDeleteProject={workspace.deleteProject}
           onEnableProject={workspace.enableProject}
           onDisableProject={workspace.disableActiveProject}

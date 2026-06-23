@@ -34,6 +34,7 @@ interface ProjectManagementPanelProps {
   onCreateLocalProject: (name: string, description: string) => void | Promise<void>
   onCreateRemoteProject: (projectId: string, name: string, description: string) => void | Promise<void>
   onRenameProject: (projectId: string, name: string, description: string) => void | Promise<void>
+  onUpdateRemoteProjectLinks: (projectId: string) => void | Promise<void>
   onDeleteProject: (projectId: string) => void | Promise<void>
   onEnableProject: (projectId: string) => void
   onDisableProject: () => void
@@ -73,6 +74,7 @@ export function ProjectManagementPanel({
   onCreateLocalProject,
   onCreateRemoteProject,
   onRenameProject,
+  onUpdateRemoteProjectLinks,
   onDeleteProject,
   onEnableProject,
   onDisableProject,
@@ -206,6 +208,8 @@ export function ProjectManagementPanel({
           databaseProfileOptions={databaseProfileOptions}
           kodoProfileOptions={kodoProfileOptions}
           selectedVerificationProjectId={selectedRemoteVerificationProjectId}
+          linkTargetProjectId=""
+          linkReady={false}
           onSelectedDatabaseProfileChange={onSelectedDatabaseProfileChange}
           onSelectedKodoProfileChange={onSelectedKodoProfileChange}
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
@@ -217,6 +221,7 @@ export function ProjectManagementPanel({
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
+          onUpdateRemoteProjectLinks={onUpdateRemoteProjectLinks}
         />
       )}
     </div>
@@ -293,7 +298,7 @@ export function ProjectManagementPanel({
         </Space>
       </section>
 
-      {selectedProject.mode === 'local' && (
+      {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && (
         <RemoteProjectSettings
           databaseProfiles={databaseProfiles}
           kodoProfiles={kodoProfiles}
@@ -308,6 +313,8 @@ export function ProjectManagementPanel({
           databaseProfileOptions={databaseProfileOptions}
           kodoProfileOptions={kodoProfileOptions}
           selectedVerificationProjectId={selectedProject.id}
+          linkTargetProjectId={selectedProject.mode === 'remote' ? selectedProject.id : ''}
+          linkReady={selectedProject.mode === 'remote' && remoteReadyForSelectedProject}
           onSelectedDatabaseProfileChange={onSelectedDatabaseProfileChange}
           onSelectedKodoProfileChange={onSelectedKodoProfileChange}
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
@@ -319,6 +326,7 @@ export function ProjectManagementPanel({
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
+          onUpdateRemoteProjectLinks={onUpdateRemoteProjectLinks}
         />
       )}
     </div>
@@ -373,6 +381,8 @@ interface RemoteProjectSettingsProps {
   databaseProfileOptions: Array<{ label: string; value: string }>
   kodoProfileOptions: Array<{ label: string; value: string }>
   selectedVerificationProjectId: string
+  linkTargetProjectId: string
+  linkReady: boolean
   onSelectedDatabaseProfileChange: (profileId: string) => void
   onSelectedKodoProfileChange: (profileId: string) => void
   onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
@@ -384,6 +394,7 @@ interface RemoteProjectSettingsProps {
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
   onVerifyKodoProfile: (projectId: string) => void
+  onUpdateRemoteProjectLinks: (projectId: string) => void | Promise<void>
 }
 
 function RemoteProjectSettings({
@@ -400,6 +411,8 @@ function RemoteProjectSettings({
   databaseProfileOptions,
   kodoProfileOptions,
   selectedVerificationProjectId,
+  linkTargetProjectId,
+  linkReady,
   onSelectedDatabaseProfileChange,
   onSelectedKodoProfileChange,
   onDatabaseProfileDraftChange,
@@ -411,9 +424,11 @@ function RemoteProjectSettings({
   onVerifyDatabaseProfile,
   onInitializeDatabaseSchema,
   onVerifyKodoProfile,
+  onUpdateRemoteProjectLinks,
 }: RemoteProjectSettingsProps) {
   return (
-    <section className="remote-settings-grid" aria-label="远程项目配置">
+    <section className="remote-settings-stack" aria-label="远程项目配置">
+      <div className="remote-settings-grid">
       <div className="remote-settings-panel">
         <div className="remote-settings-head">
           <span className="field-label">远程数据库</span>
@@ -599,8 +614,24 @@ function RemoteProjectSettings({
             showIcon
             title={kodoVerification.message}
           />
-        )}
+          )}
+        </div>
       </div>
+      {linkTargetProjectId && (
+        <div className="remote-settings-actions">
+          <Tag color={linkReady ? 'success' : undefined}>
+            {linkReady ? '当前项目连接已验证' : '保存前需完成 DB 初始化和当前项目 Kodo 验证'}
+          </Tag>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            disabled={!linkReady}
+            onClick={() => void onUpdateRemoteProjectLinks(linkTargetProjectId)}
+          >
+            保存远程连接
+          </Button>
+        </div>
+      )}
     </section>
   )
 }

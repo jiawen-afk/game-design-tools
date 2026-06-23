@@ -463,6 +463,22 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
   }, [settingsWorkspace.directoryHandleChecked, settingsWorkspace.directoryHandle])
 
+  useEffect(() => {
+    const selectedProjectId = selectedManagementProjectId
+    const project = findProject(selectedProjectId)
+    if (!selectedProjectId || project?.mode !== 'remote') return
+    void ensureRemoteProjectSettings(selectedProjectId).then(() => {
+      const settings = remoteProjectSettingsByIdRef.current[selectedProjectId]
+      if (!settings) return
+      if (settings.remote_database_profile_id) {
+        settingsWorkspace.setSelectedDatabaseProfileId(settings.remote_database_profile_id)
+      }
+      if (settings.remote_storage_profile_id) {
+        settingsWorkspace.setSelectedKodoProfileId(settings.remote_storage_profile_id)
+      }
+    })
+  }, [selectedManagementProjectId, projects])
+
   const changeActiveModule = (key: string) => {
     const nextModule = key as PersonalSpaceActiveModule
     if (!activeProjectIdRef.current && nextModule !== 'settings') {
@@ -560,6 +576,44 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
     await refreshProjectList(projectId)
     void messageApi.success('已编辑项目')
+  }
+
+  const updateRemoteProjectLinks = async (projectId: string) => {
+    const project = findProject(projectId)
+    if (!project || project.mode !== 'remote') {
+      void messageApi.warning('请选择远程项目')
+      return
+    }
+    if (
+      !settingsWorkspace.remoteReady ||
+      settingsWorkspace.kodoVerificationProjectId !== projectId ||
+      !settingsWorkspace.selectedDatabaseProfileId ||
+      !settingsWorkspace.selectedKodoProfileId
+    ) {
+      void messageApi.warning('请先完成远程数据库验证、表结构初始化和当前项目 Kodo 验证')
+      return
+    }
+
+    const input = {
+      name: project.name,
+      description: project.description,
+      updatedAt: new Date().toISOString(),
+      databaseProvider: settingsWorkspace.databaseProfileDraft.provider,
+      databaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
+      storageProfileId: settingsWorkspace.selectedKodoProfileId,
+    }
+    const updated = await remoteProjectRepository.updateProject(projectId, input)
+    if (!updated) {
+      void messageApi.warning('远程项目不存在，无法保存连接')
+      return
+    }
+    rememberRemoteProjectSettings(updated.project, updated.settings)
+    const localSnapshot = await projectRepository.getProject(projectId)
+    if (localSnapshot?.project.mode === 'remote') {
+      await projectRepository.updateProject(projectId, input)
+    }
+    await refreshProjectList(projectId)
+    void messageApi.success('已保存远程项目连接')
   }
 
   const deleteProject = async (projectId: string) => {
@@ -1004,6 +1058,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     createLocalProject,
     createRemoteProject,
     renameProject,
+    updateRemoteProjectLinks,
     deleteProject,
     migrateActiveProjectToRemote,
     syncActiveProjectNow,

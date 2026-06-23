@@ -372,6 +372,23 @@ class RemoteProjectRepository {
         input.updatedAt,
         projectId,
       ])
+      if (input.databaseProvider || input.databaseProfileId || input.storageProfileId) {
+        const settingsStatement = [
+          'UPDATE project_settings SET',
+          `database_provider = COALESCE(${parameter(runner.dialect, 1)}, database_provider),`,
+          `remote_database_profile_id = COALESCE(${parameter(runner.dialect, 2)}, remote_database_profile_id),`,
+          `remote_storage_profile_id = COALESCE(${parameter(runner.dialect, 3)}, remote_storage_profile_id),`,
+          `updated_at = ${parameter(runner.dialect, 4)}`,
+          `WHERE project_id = ${parameter(runner.dialect, 5)}`,
+        ].join(' ')
+        await runner.execute(settingsStatement, [
+          input.databaseProvider || null,
+          input.databaseProfileId || null,
+          input.storageProfileId || null,
+          input.updatedAt,
+          projectId,
+        ])
+      }
     })
     return this.getProject(projectId)
   }

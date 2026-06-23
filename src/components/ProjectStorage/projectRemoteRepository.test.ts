@@ -35,6 +35,14 @@ interface RemoteProjectRepository {
     storageProfileId: string
     now: string
   }): Promise<{ project: { id: string; mode: string }; settings: { remote_database_profile_id: string } }>
+  updateProject(projectId: string, input: {
+    name: string
+    description: string
+    updatedAt: string
+    databaseProvider?: 'postgresql' | 'mysql'
+    databaseProfileId?: string
+    storageProfileId?: string
+  }): Promise<unknown>
   importProjectRows(rows: ReturnType<typeof migratePersonalSpaceStateToProjectRows>): Promise<void>
   listAssets(projectId: string): Promise<Array<{ id: string; primary_object_key: string }>>
   deleteProject(projectId: string): Promise<void>
@@ -101,6 +109,39 @@ test('remote project repository creates project rows in a PostgreSQL transaction
   assert.equal(queries[1]!.params[5], 'objects/远程项目')
   assert.match(queries[2]!.statement, /INSERT INTO project_settings/)
   assert.deepEqual(queries[2]!.params.slice(4, 7), ['db1', 'kodo1', '2026-06-23T00:00:00.000Z'])
+})
+
+test('remote project repository updates project connection links with project metadata', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        if (/FROM projects/i.test(statement)) {
+          return { rows: [{ id: 'p1', name: '远程项目', description: '团队资产', mode: 'remote' }] }
+        }
+        if (/FROM project_settings/i.test(statement)) {
+          return { rows: [{ project_id: 'p1', database_provider: 'mysql', remote_database_profile_id: 'db2', remote_storage_profile_id: 'kodo2' }] }
+        }
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+
+  await repository.updateProject('p1', {
+    name: '远程项目',
+    description: '团队资产',
+    updatedAt: '2026-06-24T00:00:00.000Z',
+    databaseProvider: 'mysql',
+    databaseProfileId: 'db2',
+    storageProfileId: 'kodo2',
+  })
+
+  assert.match(queries[0]!.statement, /UPDATE projects SET/)
+  assert.match(queries[1]!.statement, /UPDATE project_settings SET/)
+  assert.deepEqual(queries[1]!.params, ['mysql', 'db2', 'kodo2', '2026-06-24T00:00:00.000Z', 'p1'])
 })
 
 test('remote project repository imports every project table with MySQL upserts', async () => {

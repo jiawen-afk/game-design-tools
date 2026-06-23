@@ -11,6 +11,7 @@ import type {
   CreateLocalProjectInput,
   ProjectWithSettings,
   ProjectRepository,
+  CreateRemoteProjectInput,
 } from './projectSqliteRepository'
 
 const require = createRequire(import.meta.url)
@@ -70,3 +71,37 @@ test('local sqlite repository persists project rows across repository instances'
   }
 })
 
+test('local sqlite repository persists updated remote project connection links', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
+  try {
+    const databasePath = path.join(tempDir, 'projects.sqlite')
+    const repository = createLocalProjectRepository(databasePath)
+    const created = await repository.createRemoteProject({
+      id: 'remote-p1',
+      name: '远程项目',
+      description: '团队资产',
+      databaseProvider: 'postgresql',
+      databaseProfileId: 'db1',
+      storageProfileId: 'kodo1',
+      now: '2026-06-23T00:00:00.000Z',
+    } satisfies CreateRemoteProjectInput)
+
+    await repository.updateProject(created.project.id, {
+      name: '远程项目',
+      description: '团队资产',
+      updatedAt: '2026-06-24T00:00:00.000Z',
+      databaseProvider: 'mysql',
+      databaseProfileId: 'db2',
+      storageProfileId: 'kodo2',
+    })
+
+    const reopened = createLocalProjectRepository(databasePath)
+    const updated = await reopened.getProject(created.project.id)
+    assert.equal(updated?.settings.database_provider, 'mysql')
+    assert.equal(updated?.settings.remote_database_profile_id, 'db2')
+    assert.equal(updated?.settings.remote_storage_profile_id, 'kodo2')
+    assert.equal(updated?.settings.updated_at, '2026-06-24T00:00:00.000Z')
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})

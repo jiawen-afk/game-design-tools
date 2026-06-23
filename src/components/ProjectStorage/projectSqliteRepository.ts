@@ -36,6 +36,9 @@ export interface UpdateProjectInput {
   name: string
   description: string
   updatedAt: string
+  databaseProvider?: Extract<ProjectDatabaseProvider, 'postgresql' | 'mysql'>
+  databaseProfileId?: string
+  storageProfileId?: string
 }
 
 export interface ProjectWithSettings {
@@ -157,8 +160,16 @@ export class MemoryProjectRepository implements ProjectRepository {
       description: input.description.trim(),
       updated_at: input.updatedAt,
     }
+    const updatedSettings: ProjectSettings = {
+      ...settings,
+      database_provider: input.databaseProvider ?? settings.database_provider,
+      remote_database_profile_id: input.databaseProfileId ?? settings.remote_database_profile_id,
+      remote_storage_profile_id: input.storageProfileId ?? settings.remote_storage_profile_id,
+      updated_at: input.updatedAt,
+    }
     this.projects.set(projectId, updated)
-    return { project: updated, settings }
+    this.settings.set(projectId, updatedSettings)
+    return { project: updated, settings: updatedSettings }
   }
 
   async listProjects() {

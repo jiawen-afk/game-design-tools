@@ -415,6 +415,7 @@ test('qiniu kodo verification performs remote object operations before succeedin
 test('project management exposes remote database and qiniu kodo configuration', () => {
   const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const indexSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
 
   assert.match(panelSource, /远程数据库/)
@@ -428,6 +429,12 @@ test('project management exposes remote database and qiniu kodo configuration', 
   assert.match(panelSource, /验证 Kodo/)
   assert.match(panelSource, /创建远程项目/)
   assert.match(panelSource, /迁移到远程/)
+  assert.match(panelSource, /保存远程连接/)
+  assert.match(panelSource, /selectedProject\.mode === 'remote'/)
+  assert.match(indexSource, /onUpdateRemoteProjectLinks=\{workspace\.updateRemoteProjectLinks\}/)
+  assert.match(workspaceSource, /const updateRemoteProjectLinks = async \(projectId: string/)
+  assert.match(workspaceSource, /databaseProfileId: settingsWorkspace\.selectedDatabaseProfileId/)
+  assert.match(workspaceSource, /storageProfileId: settingsWorkspace\.selectedKodoProfileId/)
   assert.match(hookSource, /verifyProjectDatabaseProfile/)
   assert.match(hookSource, /initializeProjectDatabaseSchema/)
   assert.match(hookSource, /deleteProjectConnectionProfile/)
