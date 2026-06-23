@@ -2,6 +2,7 @@ import { Avatar, Button, Input, Select, Space } from 'antd'
 import { DisconnectOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardVoiceEntry } from './personalSpaceModel'
+import type { ProjectObjectStorage } from '../ProjectStorage'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { StoryboardCharacterAvatar } from './StoryboardCharacterAvatar'
 import type { StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
@@ -27,6 +28,7 @@ export function StoryboardVoiceRow({
   isCurrentPlayback,
   onPlayFrom,
   onStopPlayback,
+  projectObjectStorage,
 }: {
   entry: StoryboardVoiceEntry
   groupId: string
@@ -46,6 +48,7 @@ export function StoryboardVoiceRow({
   isCurrentPlayback: boolean
   onPlayFrom: (groupId: string, assetId: string) => void
   onStopPlayback: () => void
+  projectObjectStorage?: ProjectObjectStorage
 }) {
   return (
     <article
@@ -74,7 +77,7 @@ export function StoryboardVoiceRow({
       </div>
       <div className="storyboard-voice-main">
         <div className="storyboard-voice-meta">
-          <PersonalAssetPreview asset={voiceAsset} />
+          <PersonalAssetPreview asset={voiceAsset} projectObjectStorage={projectObjectStorage} />
           <strong>{voiceAsset.name}</strong>
           {speaker && <span>{speaker.name}</span>}
         </div>

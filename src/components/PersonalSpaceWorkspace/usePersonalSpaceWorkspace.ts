@@ -673,7 +673,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardAsset = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-legacy-${id}`,
-      () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle),
+      () => exportStoryboardAssetToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
       '已导出剧情编排 ZIP',
       '已保存剧情编排 ZIP',
       '导出剧情编排资产失败',
@@ -683,7 +683,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardVoiceAssets = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-voices-${id}`,
-      () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
+      () => exportStoryboardVoiceAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
       '已导出分组配音资产 ZIP',
       '已保存分组配音资产 ZIP',
       '导出分组配音资产失败',
@@ -693,7 +693,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportStoryboardCharacterAssets = async (id: string) => {
     await exportStoryboardWithStatus(
       `group-characters-${id}`,
-      () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle),
+      () => exportStoryboardCharacterAssetsToTarget(space, id, settingsWorkspace.directoryHandle, projectObjectStorage),
       '已导出分组关联角色资产 ZIP',
       '已保存分组关联角色资产 ZIP',
       '导出分组关联角色资产失败',
@@ -703,7 +703,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportAllStoryboardVoiceAssets = async () => {
     await exportStoryboardWithStatus(
       'all-voices',
-      () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle),
+      () => exportAllStoryboardVoiceAssetsToTarget(space, settingsWorkspace.directoryHandle, projectObjectStorage),
       '已导出所有分组配音资产 ZIP',
       '已保存所有分组配音资产 ZIP',
       '导出所有分组配音资产失败',
@@ -713,7 +713,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const exportAllStoryboardCharacterAssets = async () => {
     await exportStoryboardWithStatus(
       'all-characters',
-      () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle),
+      () => exportAllStoryboardCharacterAssetsToTarget(space, settingsWorkspace.directoryHandle, projectObjectStorage),
       '已导出所有分组关联角色资产 ZIP',
       '已保存所有分组关联角色资产 ZIP',
       '导出所有分组关联角色资产失败',
@@ -934,6 +934,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     voice: voiceAssets.length,
   }
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
+  const activeProjectObjectStorage = activeProject?.mode === 'remote'
+    ? remoteProjectObjectStorage
+    : projectObjectStorage
 
   const storyboardVoiceRefs = (assetId: string) => space.storyboardGroups
     .flatMap((group) => group.voiceEntries
@@ -946,6 +949,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     projects,
     activeProject,
     enabledProjectId: activeProjectId,
+    projectObjectStorage: activeProjectObjectStorage,
     workspacePage,
     openProjectManagement,
     closeProjectManagement,

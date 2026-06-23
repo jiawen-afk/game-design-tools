@@ -13,6 +13,7 @@ import {
   type PersonalSpaceState,
   type StoryboardReferenceExport,
 } from './personalSpaceModel'
+import type { ProjectObjectStorage } from '../ProjectStorage'
 import {
   createNativePersonalSpaceDirectoryHandle,
   deleteStoredResourceFiles,
@@ -22,6 +23,7 @@ import {
   writeBlobFileToDirectory,
 } from './personalSpaceFileStorage'
 import { getDesktopApi } from '../../desktopApi'
+import { readProjectAssetResourceBlob } from './projectAssetResourceResolver'
 
 export interface StoryboardExportResult {
   kind: 'directory' | 'file'
@@ -50,33 +52,17 @@ function resourceExtension(path: string, fallback: string) {
   return path.match(/\.[^.\\/]+$/)?.[0] ?? fallback
 }
 
-async function readAssetResourceBlob(path: string) {
-  const response = await fetch(path)
-  if (!response.ok) throw new Error(`读取资源失败：${response.status}`)
-  return response.blob()
-}
-
 async function readExportAssetResourceBlob(
   asset: PersonalSpaceAsset,
   index: number,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ) {
   const storedPath = asset.storageResourcePaths[index]
   const resourcePath = asset.resourcePaths[index]
-  if (directoryHandle && storedPath) {
-    try {
-      return {
-        blob: await readStoredResourceBlob(directoryHandle, storedPath),
-        resourcePath: storedPath,
-      }
-    } catch (error) {
-      if (!resourcePath) throw error
-    }
-  }
-  if (!resourcePath) throw new Error('资源路径不存在')
   return {
-    blob: await readAssetResourceBlob(resourcePath),
-    resourcePath,
+    blob: await readProjectAssetResourceBlob(storedPath, resourcePath, { directoryHandle, projectObjectStorage }),
+    resourcePath: storedPath ?? resourcePath ?? '',
   }
 }
 
@@ -84,6 +70,7 @@ async function buildStoryboardZip(
   state: PersonalSpaceState,
   storyboardId: string,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ) {
   const exported = exportStoryboardReference(state, storyboardId)
   const { default: JSZip } = await import('jszip')
@@ -104,7 +91,7 @@ async function buildStoryboardZip(
       const exportPath = asset.storageResourcePaths[index] ?? asset.resourcePaths[index] ?? ''
       const zipPath = `assets/${sanitizeZipPart(asset.kind)}/${sanitizeZipPart(asset.id)}-${index + 1}-${sanitizeZipPart(asset.name)}${resourceExtension(exportPath, '')}`
       try {
-        const resource = await readExportAssetResourceBlob(asset, index, directoryHandle)
+        const resource = await readExportAssetResourceBlob(asset, index, directoryHandle, projectObjectStorage)
         zip.file(zipPath, await resource.blob.arrayBuffer())
         manifest.push({ assetId: asset.id, name: asset.name, resourcePath: resource.resourcePath, zipPath })
       } catch (error) {
@@ -152,6 +139,7 @@ async function addAssetsToZip(
   assets: PersonalSpaceAsset[],
   folderName: string,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ) {
   const manifest: Array<{ assetId: string; name: string; resourcePath: string; zipPath?: string; error?: string }> = []
   for (const asset of assets) {
@@ -160,7 +148,7 @@ async function addAssetsToZip(
       const exportPath = asset.storageResourcePaths[index] ?? asset.resourcePaths[index] ?? ''
       const zipPath = `${folderName}/${sanitizeZipPart(asset.kind)}/${sanitizeZipPart(asset.id)}-${index + 1}-${sanitizeZipPart(asset.name)}${resourceExtension(exportPath, '')}`
       try {
-        const resource = await readExportAssetResourceBlob(asset, index, directoryHandle)
+        const resource = await readExportAssetResourceBlob(asset, index, directoryHandle, projectObjectStorage)
         zip.file(zipPath, await resource.blob.arrayBuffer())
         manifest.push({ assetId: asset.id, name: asset.name, resourcePath: resource.resourcePath, zipPath })
       } catch (error) {
@@ -175,6 +163,7 @@ async function buildStoryboardVoiceAssetsZip(
   state: PersonalSpaceState,
   storyboardIds: string[],
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ) {
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
@@ -183,7 +172,7 @@ async function buildStoryboardVoiceAssetsZip(
   if (exports.length === 1) {
     const exported = exports[0]!
     zip.file('storyboard.json', JSON.stringify(exported, null, 2))
-    manifest.push(...await addAssetsToZip(zip, collectStoryboardVoiceAssets(state, exported), 'voices', directoryHandle))
+    manifest.push(...await addAssetsToZip(zip, collectStoryboardVoiceAssets(state, exported), 'voices', directoryHandle, projectObjectStorage))
     zip.file('asset-manifest.json', JSON.stringify(manifest, null, 2))
     return {
       fileName: `${storyboardZipBaseName(exported.group.name)}-配音资产.zip`,
@@ -195,7 +184,7 @@ async function buildStoryboardVoiceAssetsZip(
   for (const exported of exports) {
     const folderName = `storyboards/${sanitizeZipPart(exported.group.name)}-${sanitizeZipPart(exported.group.id)}`
     zip.file(`${folderName}/storyboard.json`, JSON.stringify(exported, null, 2))
-    manifest.push(...await addAssetsToZip(zip, collectStoryboardVoiceAssets(state, exported), `${folderName}/voices`, directoryHandle))
+    manifest.push(...await addAssetsToZip(zip, collectStoryboardVoiceAssets(state, exported), `${folderName}/voices`, directoryHandle, projectObjectStorage))
   }
   zip.file('asset-manifest.json', JSON.stringify(manifest, null, 2))
   return {
@@ -208,6 +197,7 @@ async function buildStoryboardCharacterAssetsZip(
   state: PersonalSpaceState,
   storyboardIds: string[],
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ) {
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
@@ -224,7 +214,7 @@ async function buildStoryboardCharacterAssetsZip(
   if (groupCharacterExports.length === 1) {
     const exported = groupCharacterExports[0]!
     zip.file('characters.json', JSON.stringify(exported, null, 2))
-    manifest.push(...await addAssetsToZip(zip, collectStoryboardCharacterPortraitAssets(state, exported.characters), 'portraits', directoryHandle))
+    manifest.push(...await addAssetsToZip(zip, collectStoryboardCharacterPortraitAssets(state, exported.characters), 'portraits', directoryHandle, projectObjectStorage))
     zip.file('asset-manifest.json', JSON.stringify(manifest, null, 2))
     return {
       fileName: `${storyboardZipBaseName(exported.group.name)}-关联角色资产.zip`,
@@ -236,7 +226,7 @@ async function buildStoryboardCharacterAssetsZip(
   for (const exported of groupCharacterExports) {
     const folderName = `storyboards/${sanitizeZipPart(exported.group.name)}-${sanitizeZipPart(exported.group.id)}`
     zip.file(`${folderName}/characters.json`, JSON.stringify(exported, null, 2))
-    manifest.push(...await addAssetsToZip(zip, collectStoryboardCharacterPortraitAssets(state, exported.characters), `${folderName}/portraits`, directoryHandle))
+    manifest.push(...await addAssetsToZip(zip, collectStoryboardCharacterPortraitAssets(state, exported.characters), `${folderName}/portraits`, directoryHandle, projectObjectStorage))
   }
   zip.file('asset-manifest.json', JSON.stringify(manifest, null, 2))
   return {
@@ -268,38 +258,43 @@ export async function exportStoryboardAssetToTarget(
   state: PersonalSpaceState,
   storyboardId: string,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ): Promise<StoryboardExportResult> {
-  return exportZipToTarget(await buildStoryboardZip(state, storyboardId, directoryHandle), directoryHandle)
+  return exportZipToTarget(await buildStoryboardZip(state, storyboardId, directoryHandle, projectObjectStorage), directoryHandle)
 }
 
 export async function exportStoryboardVoiceAssetsToTarget(
   state: PersonalSpaceState,
   storyboardId: string,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ): Promise<StoryboardExportResult> {
-  return exportZipToTarget(await buildStoryboardVoiceAssetsZip(state, [storyboardId], directoryHandle), directoryHandle)
+  return exportZipToTarget(await buildStoryboardVoiceAssetsZip(state, [storyboardId], directoryHandle, projectObjectStorage), directoryHandle)
 }
 
 export async function exportStoryboardCharacterAssetsToTarget(
   state: PersonalSpaceState,
   storyboardId: string,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ): Promise<StoryboardExportResult> {
-  return exportZipToTarget(await buildStoryboardCharacterAssetsZip(state, [storyboardId], directoryHandle), directoryHandle)
+  return exportZipToTarget(await buildStoryboardCharacterAssetsZip(state, [storyboardId], directoryHandle, projectObjectStorage), directoryHandle)
 }
 
 export async function exportAllStoryboardVoiceAssetsToTarget(
   state: PersonalSpaceState,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ): Promise<StoryboardExportResult> {
-  return exportZipToTarget(await buildStoryboardVoiceAssetsZip(state, state.storyboardGroups.map((group) => group.id), directoryHandle), directoryHandle)
+  return exportZipToTarget(await buildStoryboardVoiceAssetsZip(state, state.storyboardGroups.map((group) => group.id), directoryHandle, projectObjectStorage), directoryHandle)
 }
 
 export async function exportAllStoryboardCharacterAssetsToTarget(
   state: PersonalSpaceState,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  projectObjectStorage?: ProjectObjectStorage | null,
 ): Promise<StoryboardExportResult> {
-  return exportZipToTarget(await buildStoryboardCharacterAssetsZip(state, state.storyboardGroups.map((group) => group.id), directoryHandle), directoryHandle)
+  return exportZipToTarget(await buildStoryboardCharacterAssetsZip(state, state.storyboardGroups.map((group) => group.id), directoryHandle, projectObjectStorage), directoryHandle)
 }
 
 export async function createPortraitAssetForUpload(

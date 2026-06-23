@@ -57,5 +57,6 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   listRemoteProjectAssets: (projectId, databaseProfileId) => invoke('project-remote-repository:list-assets', projectId, databaseProfileId),
   deleteRemoteProject: (projectId, databaseProfileId) => invoke('project-remote-repository:delete-project', projectId, databaseProfileId),
   putProjectKodoObject: (profileId, objectKey, data, mimeType) => invoke('project-kodo-object:put', profileId, objectKey, data, mimeType),
+  getProjectKodoObject: (profileId, objectKey) => invoke('project-kodo-object:get', profileId, objectKey),
   deleteProjectKodoObject: (profileId, objectKey) => invoke('project-kodo-object:delete', profileId, objectKey),
 })

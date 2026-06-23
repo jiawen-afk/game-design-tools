@@ -92,6 +92,10 @@ test('desktop kodo object storage resolves the profile per object operation', as
         events.push(`put:${profileId}:${objectKey}:${Buffer.from(data).toString('utf8')}:${mimeType}`)
         return true
       },
+      getProjectKodoObject: async (profileId: string, objectKey: string) => {
+        events.push(`get:${profileId}:${objectKey}`)
+        return { data: Buffer.from('voice-a'), mimeType: 'audio/wav' }
+      },
       deleteProjectKodoObject: async (profileId: string, objectKey: string) => {
         events.push(`delete:${profileId}:${objectKey}`)
         return true
@@ -111,11 +115,15 @@ test('desktop kodo object storage resolves the profile per object operation', as
 
     await storage.putObject('objects/项目A/audio_wav/r1.wav', new Blob(['voice-a'], { type: 'audio/wav' }))
     await storage.putObject('objects/项目B/image_png/r2.png', new Blob(['image-b'], { type: 'image/png' }))
+    const read = await storage.getObject('objects/项目A/audio_wav/r1.wav')
     await storage.deleteObject('objects/项目A/audio_wav/r1.wav')
 
+    assert.equal(read.type, 'audio/wav')
+    assert.equal(await read.text(), 'voice-a')
     assert.deepEqual(events, [
       'put:kodo-a:objects/项目A/audio_wav/r1.wav:voice-a:audio/wav',
       'put:kodo-b:objects/项目B/image_png/r2.png:image-b:image/png',
+      'get:kodo-a:objects/项目A/audio_wav/r1.wav',
       'delete:kodo-a:objects/项目A/audio_wav/r1.wav',
     ])
   } finally {

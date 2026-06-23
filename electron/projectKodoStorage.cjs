@@ -1,3 +1,5 @@
+const https = require('node:https')
+
 function parseJsonText(text) {
   if (!text) return null
   return JSON.parse(text.replace(/^\uFEFF/, ''))
@@ -71,6 +73,34 @@ function unwrapQiniuResponse(response, operation) {
   return response
 }
 
+function normalizeDownloadDomain(domain) {
+  const normalized = String(domain || '').trim().replace(/\/+$/, '')
+  if (!normalized) throw new Error('缺少 Kodo 访问域名，无法读取对象。')
+  return normalized
+}
+
+function downloadBuffer(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (response) => {
+      const statusCode = Number(response.statusCode || 0)
+      if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
+        response.resume()
+        downloadBuffer(response.headers.location).then(resolve, reject)
+        return
+      }
+      if (statusCode >= 400) {
+        response.resume()
+        reject(new Error(`读取 Kodo 对象失败，HTTP ${statusCode}`))
+        return
+      }
+      const chunks = []
+      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      response.on('error', reject)
+      response.on('end', () => resolve(Buffer.concat(chunks)))
+    }).on('error', reject)
+  })
+}
+
 async function createQiniuKodoClient(payload) {
   const qiniu = requireNodeModule('qiniu', '七牛 Node.js SDK qiniu')
   const mac = new qiniu.auth.digest.Mac(payload.accessKey, payload.secretKey)
@@ -92,6 +122,13 @@ async function createQiniuKodoClient(payload) {
     async statObject(objectKey) {
       const response = await bucketManager.stat(payload.bucket, objectKey)
       unwrapQiniuResponse(response, '查询验证对象')
+      return response?.data || {}
+    },
+    async getObject(objectKey) {
+      const encodedKey = String(objectKey || '').split('/').map(encodeURIComponent).join('/')
+      const deadline = Math.floor(Date.now() / 1000) + 600
+      const url = bucketManager.privateDownloadUrl(normalizeDownloadDomain(payload.domain), encodedKey, deadline)
+      return downloadBuffer(url)
     },
     async deleteObject(objectKey) {
       const response = await bucketManager.delete(payload.bucket, objectKey)
@@ -137,6 +174,18 @@ async function putKodoObject(profile, objectKey, data, options = {}) {
   return true
 }
 
+async function getKodoObject(profile, objectKey, options = {}) {
+  const payload = normalizeKodoPayload(profile)
+  const client = await (options.createClient || createQiniuKodoClient)(payload)
+  const key = String(objectKey || '')
+  const stat = await client.statObject(key).catch(() => ({}))
+  const data = await client.getObject(key)
+  return {
+    data: Buffer.from(data),
+    mimeType: String(stat.mimeType || stat.mime_type || options.mimeType || 'application/octet-stream'),
+  }
+}
+
 async function deleteKodoObject(profile, objectKey, options = {}) {
   const payload = normalizeKodoPayload(profile)
   const client = await (options.createClient || createQiniuKodoClient)(payload)
@@ -147,6 +196,7 @@ async function deleteKodoObject(profile, objectKey, options = {}) {
 module.exports = {
   createQiniuKodoClient,
   deleteKodoObject,
+  getKodoObject,
   normalizeKodoPayload,
   normalizeProjectPrefix,
   putKodoObject,

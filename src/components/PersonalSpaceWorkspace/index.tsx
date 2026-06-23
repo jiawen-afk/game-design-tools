@@ -40,6 +40,7 @@ export default function PersonalSpaceWorkspace() {
       onTransferGroup={workspace.transferAssetGroup}
       onDeleteGroup={workspace.deleteAssetGroup}
       onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
+      projectObjectStorage={workspace.projectObjectStorage}
     />
   )
 
@@ -181,6 +182,7 @@ export default function PersonalSpaceWorkspace() {
                 onAssignAsset={workspace.assignAsset}
                 onUnassignAsset={workspace.unassignAsset}
                 onMoveCharacterVoice={workspace.moveCharacterVoice}
+                projectObjectStorage={workspace.projectObjectStorage}
               />
             ),
           },
@@ -212,6 +214,7 @@ export default function PersonalSpaceWorkspace() {
                 onAssignStoryboardVoiceCharacter={workspace.assignStoryboardVoiceCharacter}
                 onUpdateStoryboardVoiceText={workspace.updateStoryboardVoice}
                 onMoveStoryboardVoice={workspace.moveStoryboardVoice}
+                projectObjectStorage={workspace.projectObjectStorage}
               />
             ),
           },

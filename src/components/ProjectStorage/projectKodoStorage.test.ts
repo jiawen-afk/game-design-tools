@@ -4,9 +4,11 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const {
+  getKodoObject,
   normalizeKodoPayload,
   verifyKodoProfile,
 } = require('../../../electron/projectKodoStorage.cjs') as {
+  getKodoObject: (profile: unknown, objectKey: string, options: KodoObjectOptions) => Promise<{ data: Buffer; mimeType: string }>
   normalizeKodoPayload: (profile: unknown) => KodoPayload
   verifyKodoProfile: (profile: unknown, options: KodoVerifyOptions) => Promise<KodoVerifyResult>
 }
@@ -34,6 +36,13 @@ interface KodoVerifyOptions {
     putObject: (objectKey: string, body: Buffer, mimeType: string) => Promise<void>
     statObject: (objectKey: string) => Promise<void>
     deleteObject: (objectKey: string) => Promise<void>
+  }>
+}
+
+interface KodoObjectOptions {
+  createClient?: (payload: KodoPayload) => Promise<{
+    statObject: (objectKey: string) => Promise<{ mimeType?: string }>
+    getObject: (objectKey: string) => Promise<Buffer>
   }>
 }
 
@@ -148,5 +157,29 @@ test('kodo verification deletes probe object when stat fails', async () => {
     'put:objects/p1/verification/probe_2.txt',
     'stat:objects/p1/verification/probe_2.txt',
     'delete:objects/p1/verification/probe_2.txt',
+  ])
+})
+
+test('kodo object reads return object bytes and mime type', async () => {
+  const events: string[] = []
+
+  const result = await getKodoObject(kodoProfile(validPayload), 'objects/默认项目/audio_wav/r1.wav', {
+    createClient: async () => ({
+      statObject: async (objectKey) => {
+        events.push(`stat:${objectKey}`)
+        return { mimeType: 'audio/wav' }
+      },
+      getObject: async (objectKey) => {
+        events.push(`get:${objectKey}`)
+        return Buffer.from('voice')
+      },
+    }),
+  })
+
+  assert.equal(result.mimeType, 'audio/wav')
+  assert.equal(result.data.toString('utf8'), 'voice')
+  assert.deepEqual(events, [
+    'stat:objects/默认项目/audio_wav/r1.wav',
+    'get:objects/默认项目/audio_wav/r1.wav',
   ])
 })

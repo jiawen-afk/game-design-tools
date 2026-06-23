@@ -21,6 +21,7 @@ const {
 } = require('./projectLocalObjectStorage.cjs')
 const {
   deleteKodoObject,
+  getKodoObject,
   putKodoObject,
   verifyKodoProfile,
 } = require('./projectKodoStorage.cjs')
@@ -750,6 +751,12 @@ ipcMain.handle('project-kodo-object:put', async (_event, profileId, objectKey, d
   const profile = await getProjectConnectionProfile(String(profileId || ''))
   if (!profile || profile.type !== 'qiniu_kodo') throw new Error('七牛 Kodo 配置不存在。')
   return putKodoObject(profile, String(objectKey || ''), Buffer.from(data), { mimeType })
+})
+
+ipcMain.handle('project-kodo-object:get', async (_event, profileId, objectKey) => {
+  const profile = await getProjectConnectionProfile(String(profileId || ''))
+  if (!profile || profile.type !== 'qiniu_kodo') throw new Error('七牛 Kodo 配置不存在。')
+  return getKodoObject(profile, String(objectKey || ''))
 })
 
 ipcMain.handle('project-kodo-object:delete', async (_event, profileId, objectKey) => {

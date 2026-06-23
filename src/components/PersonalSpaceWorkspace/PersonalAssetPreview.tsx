@@ -2,14 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Modal } from 'antd'
 import { PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
 
+import type { ProjectObjectStorage } from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
-import {
-  getPersonalSpaceDirectoryHandle,
-  loadPersistedPersonalSpaceDirectoryHandle,
-  readStoredResourceBlob,
-  setPersonalSpaceDirectoryHandle,
-} from './personalSpaceFileStorage'
 import { spriteFrameModalStyle } from './personalSpacePreviewModel'
+import { resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
 
 function assetPreviewSource(asset: PersonalSpaceAsset) {
   return asset.resourcePaths[0] ?? ''
@@ -19,25 +15,27 @@ function canCreateObjectUrl() {
   return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
 }
 
-function useStoredResourcePreviewSource(asset: PersonalSpaceAsset, resourceIndex: number, fallbackSource: string) {
+function useStoredResourcePreviewSource(
+  asset: PersonalSpaceAsset,
+  resourceIndex: number,
+  fallbackSource: string,
+  projectObjectStorage?: ProjectObjectStorage,
+) {
   const storedPath = asset.storageResourcePaths[resourceIndex] ?? ''
   const [storedSource, setStoredSource] = useState('')
 
   useEffect(() => {
-    if (!storedPath || !canCreateObjectUrl()) {
+    if ((!storedPath && !fallbackSource) || !canCreateObjectUrl()) {
       setStoredSource('')
       return undefined
     }
     let alive = true
     let objectUrl = ''
     void (async () => {
-      const directoryHandle = getPersonalSpaceDirectoryHandle() ?? await loadPersistedPersonalSpaceDirectoryHandle()
-      if (!directoryHandle) return
-      setPersonalSpaceDirectoryHandle(directoryHandle)
-      const blob = await readStoredResourceBlob(directoryHandle, storedPath)
-      objectUrl = URL.createObjectURL(blob)
-      if (alive) setStoredSource(objectUrl)
-      else URL.revokeObjectURL(objectUrl)
+      const resolved = await resolveProjectAssetResourceSource(storedPath, fallbackSource, { projectObjectStorage })
+      objectUrl = resolved?.objectUrl ?? ''
+      if (alive) setStoredSource(resolved?.source ?? '')
+      else if (objectUrl) URL.revokeObjectURL(objectUrl)
     })().catch(() => {
       if (alive) setStoredSource('')
     })
@@ -45,7 +43,7 @@ function useStoredResourcePreviewSource(asset: PersonalSpaceAsset, resourceIndex
       alive = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [storedPath])
+  }, [fallbackSource, projectObjectStorage, storedPath])
 
   return storedSource || fallbackSource
 }
@@ -63,9 +61,9 @@ interface SpritePreviewIndex {
   frames?: SpritePreviewFrame[]
 }
 
-function useSpritePreviewIndex(asset: PersonalSpaceAsset) {
+function useSpritePreviewIndex(asset: PersonalSpaceAsset, projectObjectStorage?: ProjectObjectStorage) {
   const [index, setIndex] = useState<SpritePreviewIndex | null>(null)
-  const indexSource = useStoredResourcePreviewSource(asset, 1, asset.resourcePaths[1] ?? '')
+  const indexSource = useStoredResourcePreviewSource(asset, 1, asset.resourcePaths[1] ?? '', projectObjectStorage)
 
   useEffect(() => {
     if (asset.kind !== 'sprite' || !indexSource) {
@@ -89,15 +87,21 @@ function useSpritePreviewIndex(asset: PersonalSpaceAsset) {
   return index
 }
 
-export function PersonalAssetPreview({ asset }: { asset: PersonalSpaceAsset }) {
+export function PersonalAssetPreview({
+  asset,
+  projectObjectStorage,
+}: {
+  asset: PersonalSpaceAsset
+  projectObjectStorage?: ProjectObjectStorage
+}) {
   const [imageOpen, setImageOpen] = useState(false)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const [spriteOpen, setSpriteOpen] = useState(false)
   const [spritePlaying, setSpritePlaying] = useState(false)
   const [spriteFrameIndex, setSpriteFrameIndex] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const source = useStoredResourcePreviewSource(asset, 0, assetPreviewSource(asset))
-  const spriteIndex = useSpritePreviewIndex(asset)
+  const source = useStoredResourcePreviewSource(asset, 0, assetPreviewSource(asset), projectObjectStorage)
+  const spriteIndex = useSpritePreviewIndex(asset, projectObjectStorage)
   const spriteFrames = spriteIndex?.frames ?? []
   const spriteFrame = spriteFrames[spriteFrameIndex % Math.max(1, spriteFrames.length)]
 

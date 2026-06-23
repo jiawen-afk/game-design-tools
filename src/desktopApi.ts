@@ -189,6 +189,7 @@ export interface GameDesignToolsDesktopApi {
   listRemoteProjectAssets(projectId: string, databaseProfileId?: string): Promise<Asset[]>
   deleteRemoteProject(projectId: string, databaseProfileId?: string): Promise<boolean>
   putProjectKodoObject(profileId: string, objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
+  getProjectKodoObject(profileId: string, objectKey: string): Promise<DesktopProjectObjectReadResult>
   deleteProjectKodoObject(profileId: string, objectKey: string): Promise<boolean>
 }
 

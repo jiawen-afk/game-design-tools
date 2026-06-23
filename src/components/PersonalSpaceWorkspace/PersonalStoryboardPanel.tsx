@@ -28,7 +28,7 @@ import {
   resolveStoryboardVoicePlaybackSource,
   revokeObjectUrls,
 } from './storyboardPlaybackSources'
-import { scheduleStoryboardVoiceStarts } from '../ProjectStorage'
+import { scheduleStoryboardVoiceStarts, type ProjectObjectStorage } from '../ProjectStorage'
 
 type StoryboardPlaybackStep = {
   groupId: string
@@ -61,6 +61,7 @@ interface PersonalStoryboardPanelProps {
   onAssignStoryboardVoiceCharacter: (groupId: string, assetId: string, characterId: string) => void
   onUpdateStoryboardVoiceText: (groupId: string, assetId: string, text: string) => void
   onMoveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string, placement?: StoryboardVoiceDropPlacement) => void
+  projectObjectStorage?: ProjectObjectStorage
 }
 
 export function PersonalStoryboardPanel({
@@ -86,6 +87,7 @@ export function PersonalStoryboardPanel({
   onAssignStoryboardVoiceCharacter,
   onUpdateStoryboardVoiceText,
   onMoveStoryboardVoice,
+  projectObjectStorage,
 }: PersonalStoryboardPanelProps) {
   const characterById = useMemo(() => new Map(characters.map((character) => [character.id, character])), [characters])
   const voiceById = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, asset])), [voiceAssets])
@@ -198,7 +200,7 @@ export function PersonalStoryboardPanel({
     if (startIndex < 0) return
     const playbackSources = await Promise.all(orderedEntries.slice(startIndex).map(async (entry) => {
       const asset = voiceById.get(entry.assetId)
-      const playbackSource = asset ? await resolveStoryboardVoicePlaybackSource(asset) : null
+      const playbackSource = asset ? await resolveStoryboardVoicePlaybackSource(asset, projectObjectStorage) : null
       if (!playbackSource) return null
       const durationUs = await loadStoryboardVoiceDurationUs(playbackSource.source)
       return { entry, playbackSource, durationUs }
@@ -492,6 +494,7 @@ export function PersonalStoryboardPanel({
                           isCurrentPlayback={currentPlayback?.groupId === item.id && currentPlayback.assetId === entry.assetId}
                           onPlayFrom={playStoryboardFrom}
                           onStopPlayback={stopStoryboardPlayback}
+                          projectObjectStorage={projectObjectStorage}
                         />
                       )
                     })}

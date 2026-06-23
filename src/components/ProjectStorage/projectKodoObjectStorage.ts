@@ -18,8 +18,13 @@ export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
     )
   }
 
-  async getObject(_objectKey: string): Promise<Blob> {
-    throw new Error('第一版远程对象存储不支持从 Kodo 读取对象。')
+  async getObject(objectKey: string): Promise<Blob> {
+    const desktopApi = this.requireDesktopApi()
+    const result = await desktopApi.getProjectKodoObject(this.requireProfileId(objectKey), objectKey)
+    const bytes = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
+    const data = new Uint8Array(bytes.byteLength)
+    data.set(bytes)
+    return new Blob([data.buffer], { type: result.mimeType || 'application/octet-stream' })
   }
 
   async deleteObject(objectKey: string) {

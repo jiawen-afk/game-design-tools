@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button, Checkbox, Dropdown, Empty, Input, Modal, Popconfirm, Select, Space, Tag, Upload } from 'antd'
 import { DeleteOutlined, DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
 
+import type { ProjectObjectStorage } from '../ProjectStorage'
 import type { AssetGroupKind, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
@@ -41,6 +42,7 @@ interface PersonalResourceSectionProps {
   onTransferGroup: (kind: AssetGroupKind, fromName: string, toName: string) => void
   onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
   onDeleteAsset: (assetId: string) => void
+  projectObjectStorage?: ProjectObjectStorage
 }
 
 function EmptyBlock({ description }: { description: string }) {
@@ -198,6 +200,7 @@ export function PersonalResourceSection({
   onToggleGroupStar,
   onDeleteGroup,
   onDeleteAsset,
+  projectObjectStorage,
 }: PersonalResourceSectionProps) {
   const [selectedGroup, setSelectedGroup] = useState('全部分组')
   const [onlyStarredGroups, setOnlyStarredGroups] = useState(false)
@@ -250,7 +253,7 @@ export function PersonalResourceSection({
           aria-label={`选择${item.name}`}
           onChange={(event) => toggleAssetSelected(item, event.target.checked)}
         />
-        <PersonalAssetPreview asset={item} />
+        <PersonalAssetPreview asset={item} projectObjectStorage={projectObjectStorage} />
         <div className="asset-record-main">
           <div className="asset-record-heading">
             <Input
