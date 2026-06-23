@@ -101,7 +101,7 @@ export default function App() {
           ? <VoiceDeploymentWorkspace />
           : <PersonalSpaceWorkspace />
     const surfaceTitle = activeSurface === 'personal-space' ? '项目空间' : activeToolMeta?.name
-    const surfaceKicker = activeSurface === 'personal-space' ? '项目管理' : '工作台'
+    const surfaceKicker = activeSurface === 'personal-space' ? '项目工作台' : '工作台'
 
     return (
       <div className="app-shell">
