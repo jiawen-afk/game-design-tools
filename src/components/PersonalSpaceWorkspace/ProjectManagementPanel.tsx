@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Input, Modal, Popconfirm, Space, Switch, Tabs, Tag } from 'antd'
+import { Alert, Button, Modal, Tabs } from 'antd'
 import {
   ArrowLeftOutlined,
-  DeleteOutlined,
-  EditOutlined,
   PlusOutlined,
-  SwapOutlined,
 } from '@ant-design/icons'
 
 import { createProjectId, type Project } from '../ProjectStorage'
@@ -20,6 +17,7 @@ import {
   type ProjectManagementDirtySource,
 } from './projectManagementDirtyModel'
 import { ProjectCreateCard } from './ProjectCreateCard'
+import { ProjectDetailsCard } from './ProjectDetailsCard'
 import { RemoteProjectSettings } from './ProjectRemoteSettingsPanel'
 
 interface ProjectManagementPanelProps {
@@ -341,80 +339,27 @@ export function ProjectManagementPanel({
 
   const projectTabContent = selectedProject ? (
     <div className="project-create-grid">
-      <section className="project-card" aria-label="编辑项目">
-        <div className="project-card-head">
-          <div>
-            <span className="field-label">编辑项目</span>
-            <h3>{selectedProject.name}</h3>
-          </div>
-          <Space wrap>
-            <Tag color={selectedProject.mode === 'local' ? 'processing' : 'success'}>
-              {selectedProject.mode === 'local' ? '本地模式' : '远程模式'}
-            </Tag>
-            <Switch
-              checkedChildren="启用"
-              unCheckedChildren="停用"
-              checked={enabledProjectId === selectedProject.id}
-              disabled={selectedProjectMigrating}
-              onChange={(checked) => {
-                if (checked) onEnableProject(selectedProject.id)
-                else onDisableProject()
-              }}
-            />
-          </Space>
-        </div>
-        <div className="remote-form-grid">
-          <label className="form-field">
-            <span className="field-label">项目名称</span>
-            <Input
-              value={projectNameDraft}
-              onChange={(event) => {
-                setProjectNameDraft(event.target.value)
-                markDirty('projectDetails')
-              }}
-              onPressEnter={() => void editProject()}
-              placeholder="项目名称"
-            />
-          </label>
-          <label className="form-field">
-            <span className="field-label">项目说明</span>
-            <Input
-              value={projectDescriptionDraft}
-              onChange={(event) => {
-                setProjectDescriptionDraft(event.target.value)
-                markDirty('projectDetails')
-              }}
-              placeholder="项目说明"
-            />
-          </label>
-        </div>
-        <Space wrap>
-          <Button icon={<EditOutlined />} disabled={selectedProjectMigrating || !projectNameDraft.trim()} onClick={() => void editProject()}>
-            编辑项目
-          </Button>
-          {selectedProject.mode === 'local' && (
-            <Button
-              type="primary"
-              icon={<SwapOutlined />}
-              loading={selectedProjectMigrating}
-              disabled={selectedProjectMigrating || enabledProjectId !== selectedProject.id || !remoteReadyForSelectedProject}
-              onClick={onMigrateToRemote}
-            >
-              {selectedProjectMigrating ? '迁移中' : '迁移到远程'}
-            </Button>
-          )}
-          <Popconfirm
-            title="删除项目"
-            description="将硬删除项目记录和项目内资产数据。"
-            okText="删除项目"
-            cancelText="取消"
-            disabled={selectedProjectMigrating}
-            onConfirm={() => void onDeleteProject(selectedProject.id)}
-          >
-            <Button danger icon={<DeleteOutlined />} disabled={selectedProjectMigrating}>删除项目</Button>
-          </Popconfirm>
-        </Space>
-      </section>
+      <ProjectDetailsCard
+        project={selectedProject}
+        enabledProjectId={enabledProjectId}
+        projectNameDraft={projectNameDraft}
+        projectDescriptionDraft={projectDescriptionDraft}
+        migrating={selectedProjectMigrating}
+        remoteReadyForSelectedProject={remoteReadyForSelectedProject}
+        onProjectNameDraftChange={(name) => {
+          setProjectNameDraft(name)
+          markDirty('projectDetails')
+        }}
+        onProjectDescriptionDraftChange={(description) => {
+          setProjectDescriptionDraft(description)
+          markDirty('projectDetails')
+        }}
+        onEditProject={() => void editProject()}
+        onEnableProject={onEnableProject}
+        onDisableProject={onDisableProject}
+        onMigrateToRemote={onMigrateToRemote}
+        onDeleteProject={(projectId) => void onDeleteProject(projectId)}
+      />
 
       {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && (
         <RemoteProjectSettings
