@@ -1964,6 +1964,19 @@ test('personal space model delegates state persistence and cloning', () => {
   assert.match(stateSource, /export function createPersonalSpaceId/)
 })
 
+test('personal space workspace delegates empty project state construction', () => {
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const projectStateSource = readFileSync('src/components/PersonalSpaceWorkspace/projectSpaceState.ts', 'utf8')
+  const projectStateTestSource = readFileSync('src/components/PersonalSpaceWorkspace/projectSpaceState.test.ts', 'utf8')
+
+  assert.match(hookSource, /createEmptyProjectSpaceState/)
+  assert.match(hookSource, /from '\.\/projectSpaceState'/)
+  assert.doesNotMatch(hookSource, /function createEmptyProjectSpaceState/)
+  assert.doesNotMatch(hookSource, /defaultPersonalSpaceState/)
+  assert.match(projectStateSource, /export function createEmptyProjectSpaceState/)
+  assert.match(projectStateTestSource, /empty project space state clones defaults/)
+})
+
 test('personal space model delegates character operations', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
   const characterSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceCharacters.ts', 'utf8')

@@ -31,6 +31,30 @@ function writeStoredProjectStates(states: StoredProjectStates, storage: Storage)
   storage.setItem(projectSpaceStatesStorageKey, JSON.stringify(states))
 }
 
+export function createEmptyProjectSpaceState(storageDirectory = ''): PersonalSpaceState {
+  return {
+    ...defaultPersonalSpaceState,
+    settings: {
+      ...defaultPersonalSpaceState.settings,
+      storageDirectory,
+    },
+    assetGroups: {
+      image: [...defaultPersonalSpaceState.assetGroups.image],
+      sprite: [...defaultPersonalSpaceState.assetGroups.sprite],
+      voice: [...defaultPersonalSpaceState.assetGroups.voice],
+    },
+    starredAssetGroups: {
+      image: [],
+      sprite: [],
+      voice: [],
+    },
+    characters: [],
+    assets: [],
+    storyboardGroups: [],
+    pendingDeletedResourcePaths: [],
+  }
+}
+
 export function hasProjectSpaceState(projectId: string, storage: Storage = localStorage) {
   return Boolean(projectId && readStoredProjectStates(storage)[projectId])
 }

@@ -33,7 +33,6 @@ import {
   linkEffectAssetToVoice,
   moveCharacterVoice,
   moveStoryboardVoice,
-  defaultPersonalSpaceState,
   readPersonalSpaceState,
   renameAssetGroup,
   renameCharacterProfile,
@@ -54,6 +53,7 @@ import {
   updateStoryboardVoiceText,
 } from './personalSpaceModel'
 import {
+  createEmptyProjectSpaceState,
   deleteProjectSpaceState,
   hasProjectSpaceState,
   readCachedProjectSpaceState,
@@ -98,30 +98,6 @@ function assetKindLabel(kind: string) {
   if (kind === 'sprite') return '精灵图'
   if (kind === 'voice') return '配音'
   return '图片'
-}
-
-function createEmptyProjectSpaceState(storageDirectory = ''): PersonalSpaceState {
-  return {
-    ...defaultPersonalSpaceState,
-    settings: {
-      ...defaultPersonalSpaceState.settings,
-      storageDirectory,
-    },
-    assetGroups: {
-      image: [...defaultPersonalSpaceState.assetGroups.image],
-      sprite: [...defaultPersonalSpaceState.assetGroups.sprite],
-      voice: [...defaultPersonalSpaceState.assetGroups.voice],
-    },
-    starredAssetGroups: {
-      image: [],
-      sprite: [],
-      voice: [],
-    },
-    characters: [],
-    assets: [],
-    storyboardGroups: [],
-    pendingDeletedResourcePaths: [],
-  }
 }
 
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
