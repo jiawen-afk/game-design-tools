@@ -1,5 +1,4 @@
 import type { UploadProps } from 'antd'
-import type { DragEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { Button, Empty } from 'antd'
 import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
@@ -9,12 +8,8 @@ import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
-import {
-  getStoryboardVoiceListDropTarget,
-  moveAssetIdAroundTarget,
-  type DraggedStoryboardVoice,
-  type StoryboardVoiceDropPlacement,
-} from './storyboardVoiceDrag'
+import { type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
+import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
 import { useStoryboardVoicePlayback } from './useStoryboardVoicePlayback'
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 
@@ -90,9 +85,19 @@ export function PersonalStoryboardPanel({
     projectId,
     projectMode,
   })
-  const [draggedStoryboardVoice, setDraggedStoryboardVoice] = useState<DraggedStoryboardVoice>(null)
-  const [dropTargetStoryboardVoice, setDropTargetStoryboardVoice] = useState<DraggedStoryboardVoice>(null)
-  const [previewStoryboardVoiceOrders, setPreviewStoryboardVoiceOrders] = useState<Record<string, string[]>>({})
+  const {
+    draggedStoryboardVoice,
+    dropTargetStoryboardVoice,
+    previewStoryboardVoiceOrders,
+    startStoryboardVoiceDrag,
+    endStoryboardVoiceDrag,
+    previewStoryboardVoiceListDrop,
+    cancelStoryboardVoiceListDrop,
+    dropStoryboardVoiceOnList,
+  } = useStoryboardVoiceDragDrop({
+    storyboardGroups,
+    onMoveStoryboardVoice,
+  })
   const [creatingStoryboard, setCreatingStoryboard] = useState(false)
   const [renamingStoryboardId, setRenamingStoryboardId] = useState('')
   const [storyboardNameDrafts, setStoryboardNameDrafts] = useState<Record<string, string>>({})
@@ -112,61 +117,6 @@ export function PersonalStoryboardPanel({
     getName: (group) => group.name,
     getStarred: (group) => group.starred,
   })
-
-  const startStoryboardVoiceDrag = (groupId: string, assetId: string) => {
-    const group = storyboardGroups.find((item) => item.id === groupId)
-    const assetIds = group ? [...group.voiceEntries].sort((a, b) => a.order - b.order).map((entry) => entry.assetId) : []
-    setDraggedStoryboardVoice({ groupId, assetId })
-    setDropTargetStoryboardVoice(null)
-    setPreviewStoryboardVoiceOrders((orders) => ({ ...orders, [groupId]: assetIds }))
-  }
-
-  const previewStoryboardVoiceDrop = (groupId: string, targetAssetId: string, placement: StoryboardVoiceDropPlacement) => {
-    if (!draggedStoryboardVoice || draggedStoryboardVoice.groupId !== groupId) return
-    setDropTargetStoryboardVoice({ groupId, assetId: targetAssetId, placement })
-    setPreviewStoryboardVoiceOrders((orders) => {
-      const group = storyboardGroups.find((item) => item.id === groupId)
-      const baseOrder = orders[groupId]
-        ?? (group ? [...group.voiceEntries].sort((a, b) => a.order - b.order).map((entry) => entry.assetId) : [])
-      return {
-        ...orders,
-        [groupId]: moveAssetIdAroundTarget(baseOrder, draggedStoryboardVoice.assetId, targetAssetId, placement),
-      }
-    })
-  }
-
-  const previewStoryboardVoiceListDrop = (event: DragEvent<HTMLElement>, groupId: string, draggedAssetId: string) => {
-    const target = getStoryboardVoiceListDropTarget(event, draggedAssetId)
-    if (!target) return
-    previewStoryboardVoiceDrop(groupId, target.assetId, target.placement)
-  }
-
-  const dropStoryboardVoiceOnList = (event: DragEvent<HTMLElement>, groupId: string) => {
-    event.preventDefault()
-    const draggedAssetId = event.dataTransfer.getData('text/plain')
-    if (draggedAssetId) {
-      const target = getStoryboardVoiceListDropTarget(event, draggedAssetId)
-      if (target) onMoveStoryboardVoice(groupId, draggedAssetId, target.assetId, target.placement)
-    }
-    endStoryboardVoiceDrag()
-  }
-
-  function cancelStoryboardVoiceListDrop(event: DragEvent<HTMLElement>, groupId: string) {
-    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
-    setDropTargetStoryboardVoice((target) => (target?.groupId === groupId ? null : target))
-    setPreviewStoryboardVoiceOrders((orders) => {
-      if (!orders[groupId]) return orders
-      const next = { ...orders }
-      delete next[groupId]
-      return next
-    })
-  }
-
-  const endStoryboardVoiceDrag = () => {
-    setDraggedStoryboardVoice(null)
-    setDropTargetStoryboardVoice(null)
-    setPreviewStoryboardVoiceOrders({})
-  }
 
   const confirmCreateStoryboard = () => {
     if (!newStoryboardName.trim()) return
