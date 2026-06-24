@@ -254,6 +254,74 @@ export function ProjectManagementPanel({
     if (saved !== false) clearDirtySource('remoteProjectBinding')
   }
 
+  const renderRemoteProjectSettings = ({
+    selectedVerificationProjectId,
+    linkTargetProjectId,
+    linkReady,
+    bindingDirtySource,
+  }: {
+    selectedVerificationProjectId: string
+    linkTargetProjectId: string
+    linkReady: boolean
+    bindingDirtySource: ProjectManagementDirtySource
+  }) => (
+    <RemoteProjectSettings
+      databaseProfiles={databaseProfiles}
+      kodoProfiles={kodoProfiles}
+      selectedDatabaseProfileId={selectedDatabaseProfileId}
+      selectedKodoProfileId={selectedKodoProfileId}
+      databaseProfileMode={databaseProfileMode}
+      kodoProfileMode={kodoProfileMode}
+      databaseDraftTestState={databaseDraftTestState}
+      kodoDraftTestState={kodoDraftTestState}
+      databaseDraftTested={databaseDraftTested}
+      kodoDraftTested={kodoDraftTested}
+      databaseProfileDraft={databaseProfileDraft}
+      kodoProfileDraft={kodoProfileDraft}
+      databaseVerification={databaseVerification}
+      kodoVerification={kodoVerification}
+      kodoVerificationProjectId={kodoVerificationProjectId}
+      databaseSchemaReady={databaseSchemaReady}
+      databaseProfileOptions={databaseProfileOptions}
+      kodoProfileOptions={kodoProfileOptions}
+      selectedVerificationProjectId={selectedVerificationProjectId}
+      linkTargetProjectId={linkTargetProjectId}
+      linkReady={linkReady}
+      onSelectedDatabaseProfileChange={(profileId) => {
+        onSelectedDatabaseProfileChange(profileId)
+        markDirty(bindingDirtySource)
+      }}
+      onSelectedKodoProfileChange={(profileId) => {
+        onSelectedKodoProfileChange(profileId)
+        markDirty(bindingDirtySource)
+      }}
+      onDatabaseProfileDraftChange={(draft) => {
+        onDatabaseProfileDraftChange(draft)
+        markDirty('databaseProfileDraft')
+      }}
+      onKodoProfileDraftChange={(draft) => {
+        onKodoProfileDraftChange(draft)
+        markDirty('kodoProfileDraft')
+      }}
+      onAddDatabaseProfile={() => {
+        onAddDatabaseProfile()
+        markDirty('databaseProfileDraft')
+      }}
+      onAddKodoProfile={() => {
+        onAddKodoProfile()
+        markDirty('kodoProfileDraft')
+      }}
+      onSaveDatabaseProfile={saveDatabaseProfile}
+      onDeleteDatabaseProfile={onDeleteDatabaseProfile}
+      onSaveKodoProfile={saveKodoProfile}
+      onDeleteKodoProfile={onDeleteKodoProfile}
+      onVerifyDatabaseProfile={onVerifyDatabaseProfile}
+      onInitializeDatabaseSchema={onInitializeDatabaseSchema}
+      onVerifyKodoProfile={onVerifyKodoProfile}
+      onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
+    />
+  )
+
   const createTab = (
     <div className="project-create-grid">
       <ProjectCreateCard
@@ -277,63 +345,12 @@ export function ProjectManagementPanel({
         onCreateProject={() => void createProject()}
       />
 
-      {createMode === 'remote' && (
-        <RemoteProjectSettings
-          databaseProfiles={databaseProfiles}
-          kodoProfiles={kodoProfiles}
-          selectedDatabaseProfileId={selectedDatabaseProfileId}
-          selectedKodoProfileId={selectedKodoProfileId}
-          databaseProfileMode={databaseProfileMode}
-          kodoProfileMode={kodoProfileMode}
-          databaseDraftTestState={databaseDraftTestState}
-          kodoDraftTestState={kodoDraftTestState}
-          databaseDraftTested={databaseDraftTested}
-          kodoDraftTested={kodoDraftTested}
-          databaseProfileDraft={databaseProfileDraft}
-          kodoProfileDraft={kodoProfileDraft}
-          databaseVerification={databaseVerification}
-          kodoVerification={kodoVerification}
-          kodoVerificationProjectId={kodoVerificationProjectId}
-          databaseSchemaReady={databaseSchemaReady}
-          databaseProfileOptions={databaseProfileOptions}
-          kodoProfileOptions={kodoProfileOptions}
-          selectedVerificationProjectId={selectedRemoteVerificationProjectId}
-          linkTargetProjectId=""
-          linkReady={false}
-          onSelectedDatabaseProfileChange={(profileId) => {
-            onSelectedDatabaseProfileChange(profileId)
-            markDirty('databaseProfileDraft')
-          }}
-          onSelectedKodoProfileChange={(profileId) => {
-            onSelectedKodoProfileChange(profileId)
-            markDirty('kodoProfileDraft')
-          }}
-          onDatabaseProfileDraftChange={(draft) => {
-            onDatabaseProfileDraftChange(draft)
-            markDirty('databaseProfileDraft')
-          }}
-          onKodoProfileDraftChange={(draft) => {
-            onKodoProfileDraftChange(draft)
-            markDirty('kodoProfileDraft')
-          }}
-          onAddDatabaseProfile={() => {
-            onAddDatabaseProfile()
-            markDirty('databaseProfileDraft')
-          }}
-          onAddKodoProfile={() => {
-            onAddKodoProfile()
-            markDirty('kodoProfileDraft')
-          }}
-          onSaveDatabaseProfile={saveDatabaseProfile}
-          onDeleteDatabaseProfile={onDeleteDatabaseProfile}
-          onSaveKodoProfile={saveKodoProfile}
-          onDeleteKodoProfile={onDeleteKodoProfile}
-          onVerifyDatabaseProfile={onVerifyDatabaseProfile}
-          onInitializeDatabaseSchema={onInitializeDatabaseSchema}
-          onVerifyKodoProfile={onVerifyKodoProfile}
-          onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
-        />
-      )}
+      {createMode === 'remote' && renderRemoteProjectSettings({
+        selectedVerificationProjectId: selectedRemoteVerificationProjectId,
+        linkTargetProjectId: '',
+        linkReady: false,
+        bindingDirtySource: 'databaseProfileDraft',
+      })}
     </div>
   )
 
@@ -361,63 +378,12 @@ export function ProjectManagementPanel({
         onDeleteProject={(projectId) => void onDeleteProject(projectId)}
       />
 
-      {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && (
-        <RemoteProjectSettings
-          databaseProfiles={databaseProfiles}
-          kodoProfiles={kodoProfiles}
-          selectedDatabaseProfileId={selectedDatabaseProfileId}
-          selectedKodoProfileId={selectedKodoProfileId}
-          databaseProfileMode={databaseProfileMode}
-          kodoProfileMode={kodoProfileMode}
-          databaseDraftTestState={databaseDraftTestState}
-          kodoDraftTestState={kodoDraftTestState}
-          databaseDraftTested={databaseDraftTested}
-          kodoDraftTested={kodoDraftTested}
-          databaseProfileDraft={databaseProfileDraft}
-          kodoProfileDraft={kodoProfileDraft}
-          databaseVerification={databaseVerification}
-          kodoVerification={kodoVerification}
-          kodoVerificationProjectId={kodoVerificationProjectId}
-          databaseSchemaReady={databaseSchemaReady}
-          databaseProfileOptions={databaseProfileOptions}
-          kodoProfileOptions={kodoProfileOptions}
-          selectedVerificationProjectId={selectedProject.id}
-          linkTargetProjectId={selectedProject.mode === 'remote' ? selectedProject.id : ''}
-          linkReady={selectedProject.mode === 'remote' && remoteReadyForSelectedProject}
-          onSelectedDatabaseProfileChange={(profileId) => {
-            onSelectedDatabaseProfileChange(profileId)
-            markDirty('remoteProjectBinding')
-          }}
-          onSelectedKodoProfileChange={(profileId) => {
-            onSelectedKodoProfileChange(profileId)
-            markDirty('remoteProjectBinding')
-          }}
-          onDatabaseProfileDraftChange={(draft) => {
-            onDatabaseProfileDraftChange(draft)
-            markDirty('databaseProfileDraft')
-          }}
-          onKodoProfileDraftChange={(draft) => {
-            onKodoProfileDraftChange(draft)
-            markDirty('kodoProfileDraft')
-          }}
-          onAddDatabaseProfile={() => {
-            onAddDatabaseProfile()
-            markDirty('databaseProfileDraft')
-          }}
-          onAddKodoProfile={() => {
-            onAddKodoProfile()
-            markDirty('kodoProfileDraft')
-          }}
-          onSaveDatabaseProfile={saveDatabaseProfile}
-          onDeleteDatabaseProfile={onDeleteDatabaseProfile}
-          onSaveKodoProfile={saveKodoProfile}
-          onDeleteKodoProfile={onDeleteKodoProfile}
-          onVerifyDatabaseProfile={onVerifyDatabaseProfile}
-          onInitializeDatabaseSchema={onInitializeDatabaseSchema}
-          onVerifyKodoProfile={onVerifyKodoProfile}
-          onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
-        />
-      )}
+      {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && renderRemoteProjectSettings({
+        selectedVerificationProjectId: selectedProject.id,
+        linkTargetProjectId: selectedProject.mode === 'remote' ? selectedProject.id : '',
+        linkReady: selectedProject.mode === 'remote' && remoteReadyForSelectedProject,
+        bindingDirtySource: 'remoteProjectBinding',
+      })}
     </div>
   ) : (
     <Alert type="info" showIcon title="请选择一个项目，或使用左侧 + 创建项目。" />
