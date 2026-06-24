@@ -32,7 +32,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async updateProject(projectId: string, input: UpdateProjectInput) {
     const desktopApi = this.requireDesktopApi()
-    return desktopApi.updateRemoteProject(projectId, input, this.getDatabaseProfileId(projectId))
+    return desktopApi.updateRemoteProject(projectId, input, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async listProjects() {
@@ -49,7 +49,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
     try {
-      return await desktopApi.getRemoteProject(projectId, this.getDatabaseProfileId(projectId))
+      return await desktopApi.getRemoteProject(projectId, this.requireProjectDatabaseProfileId(projectId))
     } catch {
       return null
     }
@@ -57,14 +57,14 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async importProjectRows(rows: LegacyProjectRows) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.importRemoteProjectRows(rows, this.getDatabaseProfileId(rows.project.id))
+    await desktopApi.importRemoteProjectRows(rows, this.requireProjectDatabaseProfileId(rows.project.id))
   }
 
   async exportProjectRows(projectId: string) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
     try {
-      return await desktopApi.exportRemoteProjectRows(projectId, this.getDatabaseProfileId(projectId))
+      return await desktopApi.exportRemoteProjectRows(projectId, this.requireProjectDatabaseProfileId(projectId))
     } catch {
       return null
     }
@@ -74,7 +74,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
     try {
-      return await desktopApi.listRemoteProjectAssets(projectId, this.getDatabaseProfileId(projectId))
+      return await desktopApi.listRemoteProjectAssets(projectId, this.requireProjectDatabaseProfileId(projectId))
     } catch {
       return []
     }
@@ -82,7 +82,15 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async deleteProject(projectId: string) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.deleteRemoteProject(projectId, this.getDatabaseProfileId(projectId))
+    await desktopApi.deleteRemoteProject(projectId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  private requireProjectDatabaseProfileId(projectId: string) {
+    const databaseProfileId = this.getDatabaseProfileId(projectId)
+    if (!databaseProfileId) {
+      throw new Error(`项目 ${projectId} 缺少远程数据库配置，请在项目管理中重新保存远程数据库连接。`)
+    }
+    return databaseProfileId
   }
 
   private requireDesktopApi() {

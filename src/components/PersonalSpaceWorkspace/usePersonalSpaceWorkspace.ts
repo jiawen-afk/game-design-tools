@@ -555,6 +555,24 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       storageProfileId: settingsWorkspace.selectedKodoProfileId,
       now: new Date().toISOString(),
     })
+    if (
+      created.settings.database_provider !== 'postgresql' &&
+      created.settings.database_provider !== 'mysql'
+    ) {
+      throw new Error('远程项目数据库类型无效。')
+    }
+    if (!created.settings.remote_database_profile_id || !created.settings.remote_storage_profile_id) {
+      throw new Error('远程项目缺少数据库或对象存储配置。')
+    }
+    await projectRepository.createRemoteProject({
+      id: created.project.id,
+      name: created.project.name,
+      description: created.project.description,
+      databaseProvider: created.settings.database_provider,
+      databaseProfileId: created.settings.remote_database_profile_id,
+      storageProfileId: created.settings.remote_storage_profile_id,
+      now: created.project.created_at,
+    })
     rememberRemoteProjectSettings(created.project, created.settings)
     writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || ''))
     const nextProjects = await refreshProjectList(created.project.id)

@@ -44,6 +44,25 @@ Preserve this repository as a set of focused workspaces with explicit boundaries
 - Changing voice workflows: test payload/default/history behavior in `voiceDeploymentModel.test.ts`; keep fetch and Gradio event parsing in the service layer; keep "收藏到个人空间" and association flows connected through the collector/link dialog.
 - Changing sprite/video/matte/layout workflows: keep UI panels thin, keep math and transformation rules in pure models, and test model-level behavior before wiring UI.
 - Changing deployment scripts: preserve Windows and macOS/Linux paths, Python/VoxCPM checks, service-manager behavior, and the Vite build copy to `/scripts`.
+- Publishing a Windows release: prefer the GitHub Actions workflow over local `electron-builder`. Bump `package.json` and `package-lock.json`, run `npm test`, `npm run build`, and `git diff --check`, then commit, push `master`, create/push the version tag, and let `.github/workflows/windows-release.yml` build online. The `master` push updates the stable updater release `windows-x64-latest`; a plain `vX.Y.Z` tag does not auto-trigger the workflow because the tag trigger only matches `v*-windows-x64*`. To create the versioned Release, dispatch the workflow explicitly:
+
+```powershell
+git push origin master
+git tag -a vX.Y.Z -m "Release X.Y.Z"
+git push origin vX.Y.Z
+gh workflow run windows-release.yml --repo jiawen-afk/game-design-tools --ref master -f tag=vX.Y.Z
+gh run watch <run-id> --repo jiawen-afk/game-design-tools --exit-status
+```
+
+After the workflow succeeds, verify both release targets before claiming the release is available:
+
+```powershell
+gh release view vX.Y.Z --repo jiawen-afk/game-design-tools
+gh release view windows-x64-latest --repo jiawen-afk/game-design-tools
+(Invoke-RestMethod "https://github.com/jiawen-afk/game-design-tools/releases/download/windows-x64-latest/latest.yml") -split "`n" | Select-Object -First 12
+```
+
+`latest.yml` must show the new `version:` and hyphenated asset names such as `Game-Design-Tools-X.Y.Z-x64-setup.exe`. Local `npm run desktop:build:win` is only a fallback diagnostic; do not manually publish stale local artifacts when the workflow can build and upload the Release.
 
 ## Verification
 

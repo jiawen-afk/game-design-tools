@@ -303,7 +303,8 @@ test('remote project repository uses electron database bridge instead of rendere
   assert.match(proxySource, /importRemoteProjectRows/)
   assert.match(proxySource, /listRemoteProjectAssets/)
   assert.match(proxySource, /getDatabaseProfileId\(projectId\)/)
-  assert.match(proxySource, /getDatabaseProfileId\(rows\.project\.id\)/)
+  assert.match(proxySource, /requireProjectDatabaseProfileId\(rows\.project\.id\)/)
+  assert.match(proxySource, /缺少远程数据库配置/)
   assert.match(repositorySource, /buildUpsertSql/)
   assert.match(repositorySource, /projects:\s*\{/)
   assert.match(repositorySource, /assets:\s*\{/)
@@ -563,6 +564,15 @@ test('local to remote migration persists the remote project snapshot for restart
   assert.match(migrationServiceSource, /await input\.localRepository\.deleteProject\(input\.projectId\)/)
   assert.match(migrationTestSource, /persists remote mode back to the local project snapshot/)
   assert.match(migrationTestSource, /can also remove the migrated local snapshot/)
+})
+
+test('remote project creation persists a local connection snapshot for restart', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+
+  assert.match(workspaceSource, /const created = await remoteProjectRepository\.createRemoteProject/)
+  assert.match(workspaceSource, /await projectRepository\.createRemoteProject\(\{\s*id: created\.project\.id/)
+  assert.match(workspaceSource, /databaseProfileId: created\.settings\.remote_database_profile_id/)
+  assert.match(workspaceSource, /storageProfileId: created\.settings\.remote_storage_profile_id/)
 })
 
 test('project workspace exposes manual sync status and blocks repeated sync clicks', () => {
