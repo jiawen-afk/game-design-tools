@@ -905,6 +905,7 @@ test('personal space page covers required management modules', () => {
   const source = [
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceAssetRecord.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceGroupBlock.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
@@ -1680,10 +1681,12 @@ test('personal space workspace delegates character management panel', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
   const panelSource = [
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8'),
   ].join('\n')
   const characterPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
+  const characterProfileCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const linkedAssetColumnSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
@@ -1692,8 +1695,11 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(source, /from '\.\/PersonalCharacterPanel'/)
   assert.match(source, /<PersonalCharacterPanel/)
   assert.match(panelSource, /from '\.\/CharacterAssetPicker'/)
-  assert.match(characterPanelSource, /from '\.\/CharacterLinkedAssetColumn'/)
-  assert.match(characterPanelSource, /<CharacterLinkedAssetColumn/)
+  assert.match(characterPanelSource, /from '\.\/CharacterProfileCard'/)
+  assert.match(characterPanelSource, /<CharacterProfileCard/)
+  assert.match(characterProfileCardSource, /export function CharacterProfileCard/)
+  assert.match(characterProfileCardSource, /from '\.\/CharacterLinkedAssetColumn'/)
+  assert.match(characterProfileCardSource, /<CharacterLinkedAssetColumn/)
   assert.match(linkedAssetColumnSource, /function CharacterLinkedAssetColumn/)
   assert.doesNotMatch(source, /角色列表/)
   assert.doesNotMatch(source, /<strong>角色肖像<\/strong>/)
@@ -1714,17 +1720,17 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(panelSource, /filterOption/)
   assert.match(panelSource, /renamingCharacterId/)
   assert.match(panelSource, /characterNameDrafts/)
-  assert.match(panelSource, /EditOutlined/)
-  assert.match(panelSource, /角色名称/)
+  assert.match(characterProfileCardSource, /EditOutlined/)
+  assert.match(characterProfileCardSource, /角色名称/)
   assert.doesNotMatch(panelSource, /content=\{\(\s*<div className="voice-group-rename-popover character-create-popover/)
   assert.doesNotMatch(panelSource, /content=\{\(\s*<div className="voice-group-rename-popover character-name-rename-popover/)
   assert.doesNotMatch(panelSource, /className="character-name-input"[\s\S]*onChange=\{\(event\) => onRenameCharacter/)
   assert.doesNotMatch(panelSource, /<strong>角色列表<\/strong>/)
   assert.doesNotMatch(panelSource, /<span className="section-caption">角色列表<\/span>/)
-  assert.match(panelSource, /角色肖像/)
-  assert.match(panelSource, /角色精灵图/)
-  assert.match(panelSource, /角色配音/)
-  assert.match(panelSource, /上传肖像/)
+  assert.match(characterProfileCardSource, /角色肖像/)
+  assert.match(characterProfileCardSource, /角色精灵图/)
+  assert.match(characterProfileCardSource, /角色配音/)
+  assert.match(characterProfileCardSource, /上传肖像/)
   assert.match(hookSource, /createPersonalSpaceDerivedState/)
   assert.match(derivedSource, /const portraitAssets = imageAssets/)
   assert.match(panelSource, /function CharacterAssetPicker/)
@@ -1753,6 +1759,8 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(characterPanelSource, /PersonalAssetPreview/)
   assert.doesNotMatch(characterPanelSource, /DisconnectOutlined/)
   assert.doesNotMatch(characterPanelSource, /draggable/)
+  assert.doesNotMatch(characterPanelSource, /character-record-header/)
+  assert.doesNotMatch(characterPanelSource, /<CharacterLinkedAssetColumn/)
   assert.match(linkedAssetColumnSource, /PersonalAssetPreview/)
   assert.match(linkedAssetColumnSource, /DisconnectOutlined/)
   assert.match(linkedAssetColumnSource, /draggable/)
@@ -1760,9 +1768,9 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(panelSource, /角色配音标签/)
   assert.doesNotMatch(panelSource, /角色配音关联备注/)
   assert.match(linkedAssetColumnSource, /asset\?\.dialogueText/)
-  assert.match(characterPanelSource, /unlinkAriaLabel="取消关联角色肖像"/)
-  assert.match(characterPanelSource, /unlinkAriaLabel="取消关联角色精灵图"/)
-  assert.match(characterPanelSource, /unlinkAriaLabel="取消关联角色配音"/)
+  assert.match(characterProfileCardSource, /unlinkAriaLabel="取消关联角色肖像"/)
+  assert.match(characterProfileCardSource, /unlinkAriaLabel="取消关联角色精灵图"/)
+  assert.match(characterProfileCardSource, /unlinkAriaLabel="取消关联角色配音"/)
   assert.match(linkedAssetColumnSource, /aria-label=\{unlinkAriaLabel\}/)
   assert.match(personalSpaceCssSource, /\.character-panel-toolbar\s*\{[^}]*display: flex;/)
   assert.match(personalSpaceCssSource, /\.character-filter-control,\s*\.storyboard-filter-control\s*\{[^}]*display: flex;/)

@@ -1,11 +1,11 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Empty, Popconfirm, Space } from 'antd'
-import { DeleteOutlined, DownOutlined, EditOutlined, PlusOutlined, StarFilled, StarOutlined, UpOutlined } from '@ant-design/icons'
+import { Button, Empty } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
-import { CharacterLinkedAssetColumn } from './CharacterLinkedAssetColumn'
+import { CharacterProfileCard } from './CharacterProfileCard'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 
@@ -139,137 +139,44 @@ export function PersonalCharacterPanel({
       ) : (
         <div className="form-stack">
           {visibleCharacters.map((item) => (
-            <article className="space-record" key={item.id}>
-              <div className="character-record-header">
-                <div className="record-name-view character-name-view">
-                  <span className="field-label">角色名称</span>
-                  <Button
-                    size="small"
-                    type="text"
-                    className="star-toggle-button"
-                    icon={item.starred ? <StarFilled /> : <StarOutlined />}
-                    aria-label={item.starred ? '取消星标角色' : '星标角色'}
-                    onClick={() => onToggleCharacterStar(item.id)}
-                  />
-                  <strong>{item.name}</strong>
-                  <PersonalSpaceTextPopover
-                    open={renamingCharacterId === item.id}
-                    onOpenChange={(open) => {
-                      setRenamingCharacterId(open ? item.id : '')
-                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: open ? (drafts[item.id] ?? item.name) : '' }))
-                    }}
-                    className="character-name-rename-popover"
-                    value={characterNameDrafts[item.id] ?? item.name}
-                    ariaLabel={`${item.name}角色名称`}
-                    placeholder="角色名称"
-                    confirmDisabled={!(characterNameDrafts[item.id] ?? '').trim()}
-                    onValueChange={(value) => setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: value }))}
-                    onConfirm={() => {
-                      onRenameCharacter(item.id, characterNameDrafts[item.id] ?? item.name)
-                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                      setRenamingCharacterId('')
-                    }}
-                    onCancel={() => {
-                      setCharacterNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                      setRenamingCharacterId('')
-                    }}
-                  >
-                    <Button size="small" icon={<EditOutlined />} aria-label="重命名角色" />
-                  </PersonalSpaceTextPopover>
-                </div>
-                <div className="character-record-tools">
-                  <span className="field-note character-asset-counts">肖像 {item.portraitAssetIds.length} · 精灵图 {item.spriteAssetIds.length} · 配音 {item.voiceAssetIds.length}</span>
-                  <Space className="character-record-actions">
-                    <Button size="small" icon={<UpOutlined />} onClick={() => onReorderCharacter(item.id, 'up')} />
-                    <Button size="small" icon={<DownOutlined />} onClick={() => onReorderCharacter(item.id, 'down')} />
-                    <Popconfirm title="删除角色" description="会移除该角色与素材、剧情组的关联。" onConfirm={() => onDeleteCharacter(item.id)}>
-                      <Button size="small" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  </Space>
-                </div>
-              </div>
-              <div className="space-columns">
-                <CharacterLinkedAssetColumn
-                  character={item}
-                  column="portrait"
-                  title="角色肖像"
-                  uploadLabel="上传肖像"
-                  uploadProps={getPortraitUploadProps(item.id)}
-                  pickerAssets={portraitAssets}
-                  allAssets={allAssets}
-                  actionLabel="关联肖像"
-                  confirmLabel="确认关联肖像"
-                  searchLabel="搜索公共图片肖像"
-                  searchPlaceholder="搜索公共图片"
-                  emptyDescription="没有匹配的公共图片"
-                  emptyThumb="图"
-                  fallbackName="肖像"
-                  unlinkAriaLabel="取消关联角色肖像"
-                  detailForAsset={() => '公共图片'}
-                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
-                  onAssignAsset={onAssignAsset}
-                  onUnassignAsset={onUnassignAsset}
-                  onMoveCharacterVoice={onMoveCharacterVoice}
-                  projectObjectStorage={projectObjectStorage}
-                  projectAssetManager={projectAssetManager}
-                  projectId={projectId}
-                  projectMode={projectMode}
-                />
-                <CharacterLinkedAssetColumn
-                  character={item}
-                  column="sprite"
-                  title="角色精灵图"
-                  uploadLabel="上传精灵图"
-                  uploadProps={getSpriteUploadProps(item.id)}
-                  pickerAssets={spriteAssets}
-                  allAssets={allAssets}
-                  actionLabel="关联精灵图"
-                  confirmLabel="确认关联精灵图"
-                  searchLabel="搜索精灵图"
-                  searchPlaceholder="搜索精灵图"
-                  emptyDescription="没有匹配的精灵图"
-                  emptyThumb="精灵"
-                  fallbackName="精灵图"
-                  unlinkAriaLabel="取消关联角色精灵图"
-                  helperNote="一次选择 png 和 index.json，会自动加入角色精灵图。"
-                  detailForAsset={() => '精灵图'}
-                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
-                  onAssignAsset={onAssignAsset}
-                  onUnassignAsset={onUnassignAsset}
-                  onMoveCharacterVoice={onMoveCharacterVoice}
-                  projectObjectStorage={projectObjectStorage}
-                  projectAssetManager={projectAssetManager}
-                  projectId={projectId}
-                  projectMode={projectMode}
-                />
-                <CharacterLinkedAssetColumn
-                  character={item}
-                  column="voice"
-                  title="角色配音"
-                  uploadLabel="上传配音"
-                  uploadProps={getVoiceUploadProps(item.id)}
-                  pickerAssets={voiceAssets}
-                  allAssets={allAssets}
-                  actionLabel="关联配音"
-                  confirmLabel="确认关联配音"
-                  searchLabel="搜索配音"
-                  searchPlaceholder="搜索配音"
-                  emptyDescription="没有匹配的配音"
-                  emptyThumb="音"
-                  fallbackName="配音"
-                  unlinkAriaLabel="取消关联角色配音"
-                  detailForAsset={(asset) => asset.dialogueText || '未填写对白文本'}
-                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
-                  onAssignAsset={onAssignAsset}
-                  onUnassignAsset={onUnassignAsset}
-                  onMoveCharacterVoice={onMoveCharacterVoice}
-                  projectObjectStorage={projectObjectStorage}
-                  projectAssetManager={projectAssetManager}
-                  projectId={projectId}
-                  projectMode={projectMode}
-                />
-              </div>
-            </article>
+            <CharacterProfileCard
+              key={item.id}
+              item={item}
+              portraitAssets={portraitAssets}
+              spriteAssets={spriteAssets}
+              voiceAssets={voiceAssets}
+              allAssets={allAssets}
+              getStoryboardVoiceRefs={getStoryboardVoiceRefs}
+              getPortraitUploadProps={getPortraitUploadProps}
+              getSpriteUploadProps={getSpriteUploadProps}
+              getVoiceUploadProps={getVoiceUploadProps}
+              isRenaming={renamingCharacterId === item.id}
+              characterNameDraft={characterNameDrafts[item.id] ?? item.name}
+              onRenameOpenChange={(character, open) => {
+                setRenamingCharacterId(open ? character.id : '')
+                setCharacterNameDrafts((drafts) => ({ ...drafts, [character.id]: open ? (drafts[character.id] ?? character.name) : '' }))
+              }}
+              onCharacterNameDraftChange={(characterId, value) => setCharacterNameDrafts((drafts) => ({ ...drafts, [characterId]: value }))}
+              onConfirmCharacterRename={(character) => {
+                onRenameCharacter(character.id, characterNameDrafts[character.id] ?? character.name)
+                setCharacterNameDrafts((drafts) => ({ ...drafts, [character.id]: '' }))
+                setRenamingCharacterId('')
+              }}
+              onCancelCharacterRename={(characterId) => {
+                setCharacterNameDrafts((drafts) => ({ ...drafts, [characterId]: '' }))
+                setRenamingCharacterId('')
+              }}
+              onToggleCharacterStar={onToggleCharacterStar}
+              onReorderCharacter={onReorderCharacter}
+              onDeleteCharacter={onDeleteCharacter}
+              onAssignAsset={onAssignAsset}
+              onUnassignAsset={onUnassignAsset}
+              onMoveCharacterVoice={onMoveCharacterVoice}
+              projectObjectStorage={projectObjectStorage}
+              projectAssetManager={projectAssetManager}
+              projectId={projectId}
+              projectMode={projectMode}
+            />
           ))}
         </div>
       )}
