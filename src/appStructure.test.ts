@@ -1703,9 +1703,11 @@ test('personal space workspace delegates character management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
   ].join('\n')
   const characterPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
+  const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
   const characterProfileCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const linkedAssetColumnSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8')
   const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
@@ -1731,6 +1733,12 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(panelSource, /from '\.\/PersonalSpaceTextPopover'/)
   assert.match(panelSource, /<PersonalSpaceFilterControl/)
   assert.match(panelSource, /<PersonalSpaceTextPopover/)
+  assert.match(createNamePopoverSource, /export function CreateNamePopoverButton/)
+  assert.match(createNamePopoverSource, /PersonalSpaceTextPopover/)
+  assert.match(createNamePopoverSource, /confirmDisabled=\{!value\.trim\(\)\}/)
+  assert.match(characterPanelSource, /from '\.\/CreateNamePopoverButton'/)
+  assert.match(characterPanelSource, /<CreateNamePopoverButton/)
+  assert.doesNotMatch(characterPanelSource, /<PersonalSpaceTextPopover/)
   assert.match(panelSource, /creatingCharacter/)
   assert.match(panelSource, /character-create-popover/)
   assert.match(characterPanelSource, /useRecentStarredFilter/)
@@ -1812,9 +1820,11 @@ test('personal space workspace delegates storyboard management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/StoryboardCharacterAvatar.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/storyboardPlaybackSources.ts', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
   ].join('\n')
   const storyboardPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
+  const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
   const storyboardGroupCardSource = readFileSync('src/components/PersonalSpaceWorkspace/StoryboardGroupCard.tsx', 'utf8')
   const playbackHookSource = readFileSync('src/components/PersonalSpaceWorkspace/useStoryboardVoicePlayback.ts', 'utf8')
   const storyboardVoiceDragSource = readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8')
@@ -1841,6 +1851,10 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.match(panelSource, /from '\.\/PersonalSpaceTextPopover'/)
   assert.match(panelSource, /<PersonalSpaceFilterControl/)
   assert.match(panelSource, /<PersonalSpaceTextPopover/)
+  assert.match(createNamePopoverSource, /export function CreateNamePopoverButton/)
+  assert.match(storyboardPanelSource, /from '\.\/CreateNamePopoverButton'/)
+  assert.match(storyboardPanelSource, /<CreateNamePopoverButton/)
+  assert.doesNotMatch(storyboardPanelSource, /<PersonalSpaceTextPopover/)
   assert.doesNotMatch(panelSource, /<strong>剧情分组<\/strong>/)
   assert.doesNotMatch(panelSource, /<span className="section-caption">剧情分组<\/span>/)
   assert.doesNotMatch(panelSource, /复制参考资产/)

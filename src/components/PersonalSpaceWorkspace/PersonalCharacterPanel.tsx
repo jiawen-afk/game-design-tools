@@ -1,13 +1,12 @@
 import type { UploadProps } from 'antd'
 import { useState } from 'react'
-import { Button, Empty } from 'antd'
-import { PlusOutlined } from '@ant-design/icons'
+import { Empty } from 'antd'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { CharacterProfileCard } from './CharacterProfileCard'
+import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
-import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
 
 interface PersonalCharacterPanelProps {
@@ -104,7 +103,7 @@ export function PersonalCharacterPanel({
     <section className="space-panel">
       <div className="character-panel-toolbar">
         <div className="character-toolbar-left">
-          <PersonalSpaceTextPopover
+          <CreateNamePopoverButton
             open={creatingCharacter}
             onOpenChange={(open) => {
               if (open) setCreatingCharacter(true)
@@ -114,14 +113,11 @@ export function PersonalCharacterPanel({
             value={newCharacterName}
             ariaLabel="新角色名称"
             placeholder="新角色名称"
-            confirmIcon={<PlusOutlined />}
-            confirmDisabled={!newCharacterName.trim()}
+            buttonText="创建角色"
             onValueChange={onNewCharacterNameChange}
             onConfirm={confirmCreateCharacter}
             onCancel={cancelCreateCharacter}
-          >
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingCharacter(true)}>创建角色</Button>
-          </PersonalSpaceTextPopover>
+          />
           <PersonalSpaceFilterControl
             className="character-filter-control"
             value={selectedCharacterFilter}

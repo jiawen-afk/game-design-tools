@@ -1,12 +1,12 @@
 import type { UploadProps } from 'antd'
 import { useMemo, useState } from 'react'
 import { Button, Empty } from 'antd'
-import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
+import { ExportOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './personalSpaceModel'
 import { StoryboardGroupCard } from './StoryboardGroupCard'
+import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
-import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
 import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
@@ -133,7 +133,7 @@ export function PersonalStoryboardPanel({
       <section className="space-panel">
       <div className="storyboard-panel-toolbar">
         <div className="storyboard-toolbar-left">
-          <PersonalSpaceTextPopover
+          <CreateNamePopoverButton
             open={creatingStoryboard}
             onOpenChange={(open) => {
               if (open) setCreatingStoryboard(true)
@@ -143,14 +143,11 @@ export function PersonalStoryboardPanel({
             value={newStoryboardName}
             ariaLabel="新剧情分组名称"
             placeholder="新剧情分组名称"
-            confirmIcon={<PlusOutlined />}
-            confirmDisabled={!newStoryboardName.trim()}
+            buttonText="创建剧情组"
             onValueChange={onNewStoryboardNameChange}
             onConfirm={confirmCreateStoryboard}
             onCancel={cancelCreateStoryboard}
-          >
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreatingStoryboard(true)}>创建剧情组</Button>
-          </PersonalSpaceTextPopover>
+          />
           <PersonalSpaceFilterControl
             className="storyboard-filter-control"
             value={selectedStoryboardFilter}
