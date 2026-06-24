@@ -160,6 +160,12 @@ export {
 } from './personalSpaceState'
 
 export {
+  assetOptions,
+  createPersonalSpaceDerivedState,
+  type PersonalResourceSectionConfig,
+} from './personalSpaceDerivedState'
+
+export {
   deleteProjectSpaceState,
   hasProjectSpaceState,
   projectSpaceStatesStorageKey,

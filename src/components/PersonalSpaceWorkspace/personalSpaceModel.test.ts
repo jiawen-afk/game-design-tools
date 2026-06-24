@@ -15,6 +15,7 @@ import {
   createResourceAssetFromUpload,
   createSpriteAssetFromExport,
   createVoiceAssetFromRecord,
+  createPersonalSpaceDerivedState,
   defaultPersonalSpaceState,
   deletePersonalSpaceAsset,
   deleteAssetGroup,
@@ -166,6 +167,39 @@ test('personal space asset kind labels are shared by workspace workflows', () =>
   assert.equal(assetKindLabel('effect'), '图片')
   assert.equal(assetKindLabel('sprite'), '精灵图')
   assert.equal(assetKindLabel('voice'), '配音')
+})
+
+test('personal space derived state groups assets and workspace options', () => {
+  const publicImage = createPersonalSpaceAsset({ kind: 'image', name: '森林', assetSubtype: 'map', groupName: '地图' })
+  const portrait = createPersonalSpaceAsset({ kind: 'image', name: '主角头像', assetSubtype: 'portrait', groupName: '角色肖像' })
+  const sprite = createPersonalSpaceAsset({ kind: 'sprite', name: '主角行走', groupName: '角色精灵' })
+  const voice = createPersonalSpaceAsset({ kind: 'voice', name: '开场对白', groupName: '对白' })
+  const space = addAssetGroup(
+    addAssetGroup(
+      addAssetGroup(
+        addCharacterProfile({
+          ...defaultPersonalSpaceState,
+          assets: [publicImage, portrait, sprite, voice],
+        }, '商人'),
+        'image',
+        '地图',
+      ),
+      'sprite',
+      '角色精灵',
+    ),
+    'voice',
+    '对白',
+  )
+  const derived = createPersonalSpaceDerivedState(toggleAssetGroupStar(space, 'voice', '对白'))
+
+  assert.deepEqual(derived.imageAssets.map((asset) => asset.name), ['森林'])
+  assert.deepEqual(derived.portraitAssets.map((asset) => asset.name), ['森林'])
+  assert.deepEqual(derived.spriteAssets.map((asset) => asset.name), ['主角行走'])
+  assert.deepEqual(derived.voiceAssets.map((asset) => asset.name), ['开场对白'])
+  assert.deepEqual(derived.characterOptions, [{ label: '商人', value: derived.characterOptions[0]!.value }])
+  assert.deepEqual(derived.assetCounts, { image: 1, sprite: 1, voice: 1 })
+  assert.deepEqual(derived.resourceSections.map((section) => section.kind), ['image', 'sprite', 'voice'])
+  assert.deepEqual(derived.resourceSections.find((section) => section.kind === 'voice')?.starredGroupNames, ['对白'])
 })
 
 test('collecting the same source asset keeps only the latest asset and clears old links', () => {

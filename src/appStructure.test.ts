@@ -908,6 +908,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceTextPopover.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalSettingsPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8'),
   ].join('\n')
 
@@ -1511,21 +1512,23 @@ test('personal space workspace delegates settings and directory authorization to
 test('personal space resource kinds are first-level tabs instead of a common resource tab', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
   const sectionsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8')
   const previewSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetPreview.tsx', 'utf8')
   const filterSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceFilterControl.tsx', 'utf8')
   const textPopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceTextPopover.tsx', 'utf8')
 
-  assert.match(hookSource, /const resourceSections/)
-  assert.match(hookSource, /title: '公共图片'/)
-  assert.match(hookSource, /title: '精灵图'/)
-  assert.match(hookSource, /title: '配音'/)
-  assert.doesNotMatch(hookSource, /title: '地图素材'/)
-  assert.doesNotMatch(hookSource, /title: '特效素材'/)
-  assert.match(hookSource, /assets: imageAssets/)
-  assert.match(hookSource, /assets: spriteAssets/)
-  assert.match(hookSource, /assets: voiceAssets/)
+  assert.match(hookSource, /createPersonalSpaceDerivedState/)
+  assert.match(derivedSource, /const resourceSections/)
+  assert.match(derivedSource, /title: '公共图片'/)
+  assert.match(derivedSource, /title: '精灵图'/)
+  assert.match(derivedSource, /title: '配音'/)
+  assert.doesNotMatch(derivedSource, /title: '地图素材'/)
+  assert.doesNotMatch(derivedSource, /title: '特效素材'/)
+  assert.match(derivedSource, /assets: imageAssets/)
+  assert.match(derivedSource, /assets: spriteAssets/)
+  assert.match(derivedSource, /assets: voiceAssets/)
   assert.match(source, /label: '素材'/)
   assert.match(source, /label: '公共图片'/)
   assert.match(source, /label: '精灵图'/)
@@ -1656,6 +1659,7 @@ test('personal space workspace delegates character management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8'),
   ].join('\n')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
 
   assert.match(source, /from '\.\/PersonalCharacterPanel'/)
@@ -1691,7 +1695,8 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(panelSource, /角色精灵图/)
   assert.match(panelSource, /角色配音/)
   assert.match(panelSource, /上传肖像/)
-  assert.match(hookSource, /const portraitAssets = imageAssets/)
+  assert.match(hookSource, /createPersonalSpaceDerivedState/)
+  assert.match(derivedSource, /const portraitAssets = imageAssets/)
   assert.match(panelSource, /function CharacterAssetPicker/)
   assert.match(panelSource, /character-link-actions/)
   assert.match(panelSource, /关联肖像/)
@@ -1888,6 +1893,8 @@ test('personal space workspace delegates resource IO and filesystem side effects
 test('personal space workspace delegates page state and resource workflow', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const modelSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceModel.ts', 'utf8')
+  const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
 
   assert.match(source, /from '\.\/usePersonalSpaceWorkspace'/)
   assert.match(source, /usePersonalSpaceWorkspace/)
@@ -1914,7 +1921,11 @@ test('personal space workspace delegates page state and resource workflow', () =
   assert.match(hookSource, /uploadCharacterPortrait/)
   assert.match(hookSource, /uploadCommonResource/)
   assert.match(hookSource, /deleteAsset/)
-  assert.match(hookSource, /resourceSections/)
+  assert.match(hookSource, /createPersonalSpaceDerivedState/)
+  assert.doesNotMatch(hookSource, /const resourceSections = \[/)
+  assert.match(modelSource, /from '\.\/personalSpaceDerivedState'/)
+  assert.match(derivedSource, /export function createPersonalSpaceDerivedState/)
+  assert.match(derivedSource, /resourceSections/)
 })
 
 test('personal space model delegates asset factories and storage paths', () => {
