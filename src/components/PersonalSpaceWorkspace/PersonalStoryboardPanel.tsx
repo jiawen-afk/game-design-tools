@@ -1,21 +1,11 @@
 import type { UploadProps } from 'antd'
 import type { DragEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Empty, Popconfirm, Upload } from 'antd'
-import {
-  DeleteOutlined,
-  EditOutlined,
-  ExportOutlined,
-  PlusOutlined,
-  StarFilled,
-  StarOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
+import { Button, Empty } from 'antd'
+import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './personalSpaceModel'
-import { StoryboardCharacterAvatar } from './StoryboardCharacterAvatar'
-import { StoryboardVoicePicker } from './StoryboardVoicePicker'
-import { StoryboardVoiceRow } from './StoryboardVoiceRow'
+import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 import {
@@ -246,163 +236,64 @@ export function PersonalStoryboardPanel({
       ) : (
         <div className="form-stack">
           {visibleStoryboardGroups.map((item) => {
-            const linkedCharacterIds = getStoryboardLinkedCharacterIds(item.id)
             const orderedVoiceEntries = [...item.voiceEntries].sort((a, b) => a.order - b.order)
             const previewVoiceAssetIds = previewStoryboardVoiceOrders[item.id]
             const visibleVoiceEntries = previewVoiceAssetIds
               ? previewVoiceAssetIds.flatMap((assetId) => orderedVoiceEntries.find((entry) => entry.assetId === assetId) ?? [])
               : orderedVoiceEntries
             return (
-            <article className="space-record" key={item.id}>
-              <div className="command-row storyboard-command-row">
-                <div className="record-name-view storyboard-name-view">
-                  <span className="field-label">分组名称</span>
-                  <Button
-                    size="small"
-                    type="text"
-                    className="star-toggle-button"
-                    icon={item.starred ? <StarFilled /> : <StarOutlined />}
-                    aria-label={item.starred ? '取消星标剧情分组' : '星标剧情分组'}
-                    onClick={() => onToggleStoryboardStar(item.id)}
-                  />
-                  <strong>{item.name}</strong>
-                  <PersonalSpaceTextPopover
-                    open={renamingStoryboardId === item.id}
-                    onOpenChange={(open) => {
-                      setRenamingStoryboardId(open ? item.id : '')
-                      setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: open ? (drafts[item.id] ?? item.name) : '' }))
-                    }}
-                    className="storyboard-name-rename-popover"
-                    value={storyboardNameDrafts[item.id] ?? item.name}
-                    ariaLabel={`${item.name}分组名称`}
-                    placeholder="分组名称"
-                    confirmDisabled={!(storyboardNameDrafts[item.id] ?? '').trim()}
-                    onValueChange={(value) => setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: value }))}
-                    onConfirm={() => {
-                      onRenameStoryboard(item.id, storyboardNameDrafts[item.id] ?? item.name)
-                      setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                      setRenamingStoryboardId('')
-                    }}
-                    onCancel={() => {
-                      setStoryboardNameDrafts((drafts) => ({ ...drafts, [item.id]: '' }))
-                      setRenamingStoryboardId('')
-                    }}
-                  >
-                    <Button size="small" icon={<EditOutlined />} aria-label="重命名剧情分组" />
-                  </PersonalSpaceTextPopover>
-                </div>
-                <div className="storyboard-header-actions">
-                  <Upload {...getStoryboardVoiceUploadProps(item.id)}>
-                    <Button size="small" icon={<UploadOutlined />}>导入配音</Button>
-                  </Upload>
-                  <StoryboardVoicePicker
-                    groupId={item.id}
-                    voiceAssets={voiceAssets}
-                    onAssignVoiceToStoryboard={onAssignVoiceToStoryboard}
-                  />
-                  <Button
-                    size="small"
-                    icon={<ExportOutlined />}
-                    loading={storyboardExportingKey === `group-voices-${item.id}`}
-                    disabled={isExportingStoryboard}
-                    onClick={() => onExportStoryboardVoiceAssets(item.id)}
-                  >
-                    导出分组配音资产
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<ExportOutlined />}
-                    loading={storyboardExportingKey === `group-characters-${item.id}`}
-                    disabled={isExportingStoryboard}
-                    onClick={() => onExportStoryboardCharacterAssets(item.id)}
-                  >
-                    导出分组关联角色资产
-                  </Button>
-                  <Popconfirm title="删除剧情组" description="会移除素材中关联到该剧情组的关系。" onConfirm={() => onDeleteStoryboard(item.id)}>
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </div>
-              </div>
-              <span className="field-note">关联角色 {linkedCharacterIds.length} · 配音 {item.voiceAssetIds.length}</span>
-              <div className="storyboard-arranger">
-                <aside className="storyboard-character-pane" aria-label="关联角色">
-                  <span className="field-label">关联角色</span>
-                  <div className="storyboard-character-list">
-                    {linkedCharacterIds
-                      .map((characterId) => characterById.get(characterId))
-                      .filter((character): character is CharacterProfile => Boolean(character))
-                      .map((character) => (
-                        <div className="storyboard-character-item" key={character.id}>
-                          <StoryboardCharacterAvatar
-                            character={character}
-                            allAssets={allAssets}
-                            projectObjectStorage={projectObjectStorage}
-                            projectAssetManager={projectAssetManager}
-                            projectId={projectId}
-                            projectMode={projectMode}
-                          />
-                          <span>{character.name}</span>
-                        </div>
-                      ))}
-                    {linkedCharacterIds.length === 0 && (
-                      <span className="field-note">导入的配音关联角色后会显示在这里。</span>
-                    )}
-                  </div>
-                </aside>
-                <div
-                  className="storyboard-voice-pane"
-                  onDragOver={(event) => {
-                    const draggedAssetId = event.dataTransfer.getData('text/plain') || draggedStoryboardVoice?.assetId
-                    if (!draggedAssetId || draggedStoryboardVoice?.groupId !== item.id) return
-                    event.preventDefault()
-                    event.dataTransfer.dropEffect = 'move'
-                    previewStoryboardVoiceListDrop(event, item.id, draggedAssetId)
-                  }}
-                  onDragLeave={(event) => cancelStoryboardVoiceListDrop(event, item.id)}
-                  onDrop={(event) => dropStoryboardVoiceOnList(event, item.id)}
-                >
-                  <div className="storyboard-voice-list">
-                    {visibleVoiceEntries.map((entry) => {
-                      const voiceAsset = voiceById.get(entry.assetId)
-                      if (!voiceAsset) return null
-                      const speaker = voiceAsset.linkedCharacterIds
-                        .map((characterId) => characterById.get(characterId))
-                        .find((character): character is CharacterProfile => Boolean(character))
-                      return (
-                        <StoryboardVoiceRow
-                          key={entry.assetId}
-                          entry={entry}
-                          groupId={item.id}
-                          voiceAsset={voiceAsset}
-                          speaker={speaker}
-                          characterOptions={characterOptions}
-                          allAssets={allAssets}
-                          onUnassignStoryboardVoice={onUnassignStoryboardVoice}
-                          onAssignStoryboardVoiceCharacter={onAssignStoryboardVoiceCharacter}
-                          onUpdateStoryboardVoiceText={onUpdateStoryboardVoiceText}
-                          onDragStartStoryboardVoice={startStoryboardVoiceDrag}
-                          onDragEndStoryboardVoice={endStoryboardVoiceDrag}
-                          isDragging={draggedStoryboardVoice?.groupId === item.id && draggedStoryboardVoice.assetId === entry.assetId}
-                          isDropTarget={dropTargetStoryboardVoice?.groupId === item.id && dropTargetStoryboardVoice.assetId === entry.assetId}
-                          dropPlacement={dropTargetStoryboardVoice?.groupId === item.id && dropTargetStoryboardVoice.assetId === entry.assetId ? dropTargetStoryboardVoice.placement : undefined}
-                          isTimelinePlaying={currentPlayback?.groupId === item.id}
-                          isCurrentPlayback={currentPlayback?.groupId === item.id && currentPlayback.assetId === entry.assetId}
-                          onPlayFrom={playStoryboardFrom}
-                          onStopPlayback={stopStoryboardPlayback}
-                          projectObjectStorage={projectObjectStorage}
-                          projectAssetManager={projectAssetManager}
-                          projectId={projectId}
-                          projectMode={projectMode}
-                        />
-                      )
-                    })}
-                  </div>
-                  {item.voiceEntries.length === 0 && (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有导入配音。选择配音素材后即可编排多名角色对白。" />
-                  )}
-                </div>
-              </div>
-            </article>
+              <StoryboardGroupCard
+                key={item.id}
+                item={item}
+                linkedCharacterIds={getStoryboardLinkedCharacterIds(item.id)}
+                visibleVoiceEntries={visibleVoiceEntries}
+                characterById={characterById}
+                voiceById={voiceById}
+                characterOptions={characterOptions}
+                voiceAssets={voiceAssets}
+                allAssets={allAssets}
+                getStoryboardVoiceUploadProps={getStoryboardVoiceUploadProps}
+                isRenaming={renamingStoryboardId === item.id}
+                storyboardNameDraft={storyboardNameDrafts[item.id] ?? item.name}
+                isExportingStoryboard={isExportingStoryboard}
+                storyboardExportingKey={storyboardExportingKey}
+                draggedStoryboardVoice={draggedStoryboardVoice}
+                dropTargetStoryboardVoice={dropTargetStoryboardVoice}
+                currentPlayback={currentPlayback}
+                onRenameOpenChange={(group, open) => {
+                  setRenamingStoryboardId(open ? group.id : '')
+                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [group.id]: open ? (drafts[group.id] ?? group.name) : '' }))
+                }}
+                onStoryboardNameDraftChange={(groupId, value) => setStoryboardNameDrafts((drafts) => ({ ...drafts, [groupId]: value }))}
+                onConfirmStoryboardRename={(group) => {
+                  onRenameStoryboard(group.id, storyboardNameDrafts[group.id] ?? group.name)
+                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [group.id]: '' }))
+                  setRenamingStoryboardId('')
+                }}
+                onCancelStoryboardRename={(groupId) => {
+                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [groupId]: '' }))
+                  setRenamingStoryboardId('')
+                }}
+                onToggleStoryboardStar={onToggleStoryboardStar}
+                onExportStoryboardVoiceAssets={onExportStoryboardVoiceAssets}
+                onExportStoryboardCharacterAssets={onExportStoryboardCharacterAssets}
+                onDeleteStoryboard={onDeleteStoryboard}
+                onAssignVoiceToStoryboard={onAssignVoiceToStoryboard}
+                onUnassignStoryboardVoice={onUnassignStoryboardVoice}
+                onAssignStoryboardVoiceCharacter={onAssignStoryboardVoiceCharacter}
+                onUpdateStoryboardVoiceText={onUpdateStoryboardVoiceText}
+                onDragStartStoryboardVoice={startStoryboardVoiceDrag}
+                onDragEndStoryboardVoice={endStoryboardVoiceDrag}
+                previewStoryboardVoiceListDrop={previewStoryboardVoiceListDrop}
+                cancelStoryboardVoiceListDrop={cancelStoryboardVoiceListDrop}
+                dropStoryboardVoiceOnList={dropStoryboardVoiceOnList}
+                onPlayStoryboardFrom={playStoryboardFrom}
+                onStopStoryboardPlayback={stopStoryboardPlayback}
+                projectObjectStorage={projectObjectStorage}
+                projectAssetManager={projectAssetManager}
+                projectId={projectId}
+                projectMode={projectMode}
+              />
             )
           })}
         </div>
