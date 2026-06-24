@@ -37,7 +37,6 @@ export default function PersonalSpaceWorkspace() {
       onAddGroup={workspace.addAssetGroup}
       onRenameGroup={workspace.renameAssetGroup}
       onToggleGroupStar={workspace.toggleAssetGroupStar}
-      onTransferGroup={workspace.transferAssetGroup}
       onDeleteGroup={workspace.deleteAssetGroup}
       onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
       projectObjectStorage={workspace.projectObjectStorage}

@@ -1,3 +1,4 @@
+const http = require('node:http')
 const https = require('node:https')
 
 function parseJsonText(text) {
@@ -82,7 +83,9 @@ function normalizeDownloadDomain(domain) {
 
 function downloadBuffer(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (response) => {
+    const requestUrl = new URL(url)
+    const transport = requestUrl.protocol === 'http:' ? http : https
+    transport.get(requestUrl, (response) => {
       const statusCode = Number(response.statusCode || 0)
       if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
         response.resume()
@@ -198,6 +201,7 @@ async function deleteKodoObject(profile, objectKey, options = {}) {
 module.exports = {
   createQiniuKodoClient,
   deleteKodoObject,
+  downloadBuffer,
   getKodoObject,
   normalizeDownloadDomain,
   normalizeKodoPayload,

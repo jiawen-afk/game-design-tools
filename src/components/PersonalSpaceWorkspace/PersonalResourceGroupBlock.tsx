@@ -1,0 +1,243 @@
+import { useState, type ReactNode } from 'react'
+import type { UploadProps } from 'antd'
+import { Button, Dropdown, Empty, Modal, Popconfirm, Select, Space, Tag, Upload } from 'antd'
+import { DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
+
+import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
+import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+
+interface PersonalResourceGroupBlockProps {
+  section: PersonalResourceSectionConfig
+  groupName: string
+  assets: PersonalSpaceAsset[]
+  selectedAssetIds: string[]
+  allGroupAssetsSelected: boolean
+  canDeleteGroup: boolean
+  renameTo: string
+  renamingGroupName: string
+  commonResourceUploadProps: (kind: AssetGroupKind, groupName?: string) => UploadProps
+  spriteResourceUploadProps: (groupName?: string) => UploadProps
+  renderAssetRecord: (item: PersonalSpaceAsset) => ReactNode
+  onChangeGroupName: (assetId: string, groupName: string) => void
+  onRenameGroup: (kind: AssetGroupKind, fromName: string, toName: string) => void
+  onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
+  onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
+  onDeleteAsset: (assetId: string) => void
+  onToggleGroupSelected: (groupName: string, assets: PersonalSpaceAsset[]) => void
+  onRenameDraftChange: (groupName: string, value: string) => void
+  onRenameDraftSet: (groupName: string, value: string) => void
+  onRenamingGroupNameChange: (groupName: string) => void
+  onClearSelectedAssetIds: (groupName: string) => void
+}
+
+function EmptyBlock({ description }: { description: string }) {
+  return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description} />
+}
+
+function VoiceGroupTransferControl({
+  kind,
+  groupName,
+  groupNames,
+  selectedAssetIds,
+  allGroupAssetsSelected,
+  onChangeGroupName,
+  onDeleteGroup,
+}: {
+  kind: AssetGroupKind
+  groupName: string
+  groupNames: string[]
+  selectedAssetIds: string[]
+  allGroupAssetsSelected: boolean
+  onChangeGroupName: (assetId: string, groupName: string) => void
+  onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
+}) {
+  const [transferTo, setTransferTo] = useState('')
+  const transferOptions = groupNames.filter((group) => group !== groupName).map((group) => ({ label: group, value: group }))
+  const confirmTransferAndDeleteGroup = () => {
+    Modal.confirm({
+      title: '转移资产并删除分组',
+      content: '会先将资产转移到目标分组，然后删除当前分组。',
+      okText: '确认',
+      cancelText: '取消',
+      onOk: () => {
+        onDeleteGroup(kind, groupName, { transferToGroup: transferTo })
+        setTransferTo('')
+      },
+    })
+  }
+
+  return (
+    <Space.Compact className="voice-group-transfer-actions">
+      <Select
+        size="small"
+        value={transferTo || undefined}
+        options={transferOptions}
+        placeholder="转移到"
+        aria-label={`${groupName}转移资产目标分组`}
+        onChange={setTransferTo}
+      />
+      <Button
+        size="small"
+        disabled={!transferTo || selectedAssetIds.length === 0}
+        onClick={() => {
+          selectedAssetIds.forEach((assetId) => onChangeGroupName(assetId, transferTo))
+          setTransferTo('')
+        }}
+      >
+        转移资产
+      </Button>
+      <Dropdown
+        trigger={['click']}
+        menu={{
+          items: [
+            {
+              key: 'transfer-and-delete',
+              label: '转移并删除该分组',
+              disabled: !transferTo || selectedAssetIds.length === 0 || !allGroupAssetsSelected,
+              danger: true,
+            },
+          ],
+          onClick: ({ key }) => {
+            if (key === 'transfer-and-delete') confirmTransferAndDeleteGroup()
+          },
+        }}
+      >
+        <Button
+          size="small"
+          disabled={!transferTo || selectedAssetIds.length === 0 || !allGroupAssetsSelected}
+          icon={<DownOutlined />}
+          aria-label="展开转移资产更多操作"
+        />
+      </Dropdown>
+    </Space.Compact>
+  )
+}
+
+export function PersonalResourceGroupBlock({
+  section,
+  groupName,
+  assets,
+  selectedAssetIds,
+  allGroupAssetsSelected,
+  canDeleteGroup,
+  renameTo,
+  renamingGroupName,
+  commonResourceUploadProps,
+  spriteResourceUploadProps,
+  renderAssetRecord,
+  onChangeGroupName,
+  onRenameGroup,
+  onToggleGroupStar,
+  onDeleteGroup,
+  onDeleteAsset,
+  onToggleGroupSelected,
+  onRenameDraftChange,
+  onRenameDraftSet,
+  onRenamingGroupNameChange,
+  onClearSelectedAssetIds,
+}: PersonalResourceGroupBlockProps) {
+  return (
+    <section className="asset-group-block voice-group-block" aria-label={`${section.title}-${groupName}`}>
+      <div className="asset-group-title voice-group-header">
+        <div className="voice-group-actions">
+          <div className="voice-group-left-actions">
+            <Button
+              size="small"
+              type="text"
+              className="star-toggle-button"
+              icon={section.starredGroupNames.includes(groupName) ? <StarFilled /> : <StarOutlined />}
+              aria-label={section.starredGroupNames.includes(groupName) ? '取消星标分组' : '星标分组'}
+              onClick={() => onToggleGroupStar(section.kind, groupName)}
+            />
+            <Button
+              size="small"
+              type={allGroupAssetsSelected ? 'primary' : 'default'}
+              disabled={assets.length === 0}
+              onClick={() => onToggleGroupSelected(groupName, assets)}
+            >
+              {allGroupAssetsSelected ? '取消全选' : '全选'}
+            </Button>
+            <strong>{groupName}</strong>
+            <div className="voice-group-admin-actions">
+              <PersonalSpaceTextPopover
+                open={renamingGroupName === groupName}
+                onOpenChange={(open) => {
+                  onRenamingGroupNameChange(open ? groupName : '')
+                  onRenameDraftSet(groupName, open ? (renameTo || groupName) : '')
+                }}
+                className="group-name-rename-popover"
+                value={renameTo}
+                ariaLabel={`${groupName}重命名分组`}
+                placeholder="新分组名"
+                confirmDisabled={!renameTo.trim()}
+                onValueChange={(value) => onRenameDraftChange(groupName, value)}
+                onConfirm={() => {
+                  onRenameGroup(section.kind, groupName, renameTo)
+                  onRenameDraftSet(groupName, '')
+                  onRenamingGroupNameChange('')
+                }}
+                onCancel={() => {
+                  onRenameDraftSet(groupName, '')
+                  onRenamingGroupNameChange('')
+                }}
+              >
+                <Button
+                  size="small"
+                  onClick={() => {
+                    onRenamingGroupNameChange(groupName)
+                    onRenameDraftSet(groupName, renameTo || groupName)
+                  }}
+                >
+                  重命名分组
+                </Button>
+              </PersonalSpaceTextPopover>
+            </div>
+            <Tag>{assets.length} 个</Tag>
+          </div>
+          <div className="voice-group-right-actions">
+            <Upload {...(section.kind === 'sprite' ? spriteResourceUploadProps(groupName) : commonResourceUploadProps(section.kind, groupName))}>
+              <Button size="small" icon={<UploadOutlined />}>上传到分组</Button>
+            </Upload>
+            <VoiceGroupTransferControl
+              kind={section.kind}
+              groupName={groupName}
+              groupNames={section.groupNames}
+              selectedAssetIds={selectedAssetIds}
+              allGroupAssetsSelected={allGroupAssetsSelected}
+              onChangeGroupName={onChangeGroupName}
+              onDeleteGroup={onDeleteGroup}
+            />
+            <Popconfirm
+              title="删除选中资产"
+              description={`将删除已选中的 ${selectedAssetIds.length} 个资产，并移除角色和剧情中的关联。`}
+              okText="删除选中资产"
+              cancelText="取消"
+              onConfirm={() => {
+                selectedAssetIds.forEach((assetId) => onDeleteAsset(assetId))
+                onClearSelectedAssetIds(groupName)
+              }}
+            >
+              <Button size="small" danger disabled={selectedAssetIds.length === 0}>删除选中资产</Button>
+            </Popconfirm>
+            <Popconfirm
+              title="删除分组"
+              description={canDeleteGroup ? '删除分组会同时删除分组下的资产。' : '至少保留一个分组。'}
+              okText="删除分组"
+              cancelText="取消"
+              onConfirm={() => onDeleteGroup(section.kind, groupName, { deleteAssets: true })}
+            >
+              <Button size="small" danger disabled={!canDeleteGroup}>删除分组</Button>
+            </Popconfirm>
+          </div>
+        </div>
+      </div>
+      {assets.length === 0 ? (
+        <EmptyBlock description="当前分组还没有资源。" />
+      ) : (
+        <div className="asset-group-records resource-asset-grid">
+          {assets.map(renderAssetRecord)}
+        </div>
+      )}
+    </section>
+  )
+}
