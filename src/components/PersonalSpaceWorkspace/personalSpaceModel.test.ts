@@ -193,7 +193,7 @@ test('personal space derived state groups assets and workspace options', () => {
   const derived = createPersonalSpaceDerivedState(toggleAssetGroupStar(space, 'voice', '对白'))
 
   assert.deepEqual(derived.imageAssets.map((asset) => asset.name), ['森林'])
-  assert.deepEqual(derived.portraitAssets.map((asset) => asset.name), ['森林'])
+  assert.deepEqual(derived.portraitAssets.map((asset) => asset.name), ['主角头像'])
   assert.deepEqual(derived.spriteAssets.map((asset) => asset.name), ['主角行走'])
   assert.deepEqual(derived.voiceAssets.map((asset) => asset.name), ['开场对白'])
   assert.deepEqual(derived.characterOptions, [{ label: '商人', value: derived.characterOptions[0]!.value }])

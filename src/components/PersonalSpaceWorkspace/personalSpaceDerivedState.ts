@@ -17,7 +17,7 @@ export function assetOptions(assets: PersonalSpaceAsset[]) {
 
 export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
   const imageAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.assetSubtype !== 'portrait')
-  const portraitAssets = imageAssets
+  const portraitAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.assetSubtype === 'portrait')
   const spriteAssets = space.assets.filter((asset) => asset.kind === 'sprite')
   const voiceAssets = space.assets.filter((asset) => asset.kind === 'voice')
   const characterOptions = space.characters.map((character) => ({ label: character.name, value: character.id }))

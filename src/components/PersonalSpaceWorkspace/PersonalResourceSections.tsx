@@ -1,13 +1,14 @@
 import type { UploadProps } from 'antd'
-import { useEffect, useState } from 'react'
-import { Button, Empty, Input, Tag } from 'antd'
+import { useState } from 'react'
+import { Empty, Input, Tag } from 'antd'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalResourceAssetRecord } from './PersonalResourceAssetRecord'
 import { PersonalResourceGroupBlock } from './PersonalResourceGroupBlock'
+import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
-import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { useRenameDrafts } from './useRenameDrafts'
 
 interface PersonalResourceSectionProps {
@@ -65,7 +66,7 @@ function PersonalAssetGroupControls({
 
   return (
     <div className="asset-group-controls">
-      <PersonalSpaceTextPopover
+      <CreateNamePopoverButton
         open={creatingGroup}
         onOpenChange={(open) => {
           if (open) setCreatingGroup(true)
@@ -75,13 +76,11 @@ function PersonalAssetGroupControls({
         value={newGroupName}
         ariaLabel="新分组名称"
         placeholder="新分组名称"
-        confirmDisabled={!newGroupName.trim()}
+        buttonText="创建分组"
         onValueChange={setNewGroupName}
         onConfirm={confirmCreateGroup}
         onCancel={cancelCreateGroup}
-      >
-        <Button onClick={() => setCreatingGroup(true)}>创建分组</Button>
-      </PersonalSpaceTextPopover>
+      />
     </div>
   )
 }
@@ -112,29 +111,37 @@ export function PersonalResourceSection({
   projectId,
   projectMode,
 }: PersonalResourceSectionProps) {
-  const [selectedGroup, setSelectedGroup] = useState('全部分组')
-  const [onlyStarredGroups, setOnlyStarredGroups] = useState(false)
   const [selectedAssetIdsByGroup, setSelectedAssetIdsByGroup] = useState<Record<string, string[]>>({})
   const groupRename = useRenameDrafts<{ id: string; name: string }>((fromName, toName) => {
     onRenameGroup(section.kind, fromName, toName)
   })
-  const groupOptions = section.groupNames.map((group) => ({ label: group, value: group }))
   const isVoiceSection = section.kind === 'voice'
   const isGroupedResourceSection = section.kind === 'image' || section.kind === 'sprite' || isVoiceSection
+  const defaultGroupFilter = '全部分组'
+  const resourceGroups = section.groupNames.map((groupName) => ({
+    id: groupName,
+    name: groupName,
+    groupName,
+    assets: section.assets.filter((item) => item.groupName === groupName),
+    starred: section.starredGroupNames.includes(groupName),
+  }))
+  const {
+    selectedFilter: selectedGroup,
+    setSelectedFilter: setSelectedGroup,
+    onlyStarred: onlyStarredResourceGroups,
+    setOnlyStarred: setOnlyStarredResourceGroups,
+    filterOptions: resourceGroupOptions,
+    visibleItems: visibleResourceGroups,
+  } = useRecentStarredFilter({
+    items: resourceGroups,
+    defaultValue: defaultGroupFilter,
+    defaultLabel: '最近创建的20个分组',
+    getId: (group) => group.id,
+    getName: (group) => group.name,
+    getStarred: (group) => group.starred,
+  })
   const groupAssets = section.assets.filter((item) => item.groupName === selectedGroup)
   const canDeleteGroup = section.groupNames.length > 1
-  const voiceGroupNames = section.groupNames
-    .map((groupName) => ({
-      groupName,
-      assets: section.assets.filter((item) => item.groupName === groupName),
-    }))
-  const starFilteredGroupNames = onlyStarredGroups
-    ? voiceGroupNames.filter((group) => section.starredGroupNames.includes(group.groupName))
-    : voiceGroupNames
-  const recentVoiceGroupNames = starFilteredGroupNames.slice(-20).reverse()
-  const visibleVoiceGroupNames = (selectedGroup === '全部分组'
-    ? recentVoiceGroupNames
-    : starFilteredGroupNames.filter((group) => group.groupName === selectedGroup))
 
   const groupSelectionKey = (groupName: string) => `${section.kind}:${groupName}`
   const selectedAssetIdsForGroup = (groupName: string) => selectedAssetIdsByGroup[groupSelectionKey(groupName)] ?? []
@@ -181,13 +188,6 @@ export function PersonalResourceSection({
     />
   )
 
-  useEffect(() => {
-    if (isGroupedResourceSection && selectedGroup === '全部分组') return
-    if (!section.groupNames.includes(selectedGroup)) {
-      setSelectedGroup('全部分组')
-    }
-  }, [isGroupedResourceSection, section.groupNames, selectedGroup])
-
   return (
     <section className={`space-panel${isGroupedResourceSection ? ' voice-resource-panel' : ''}`}>
       <section className={`resource-section${isGroupedResourceSection ? ' resource-section--voice' : ''}`} aria-label={section.title}>
@@ -204,14 +204,11 @@ export function PersonalResourceSection({
             <PersonalSpaceFilterControl
               className="voice-group-filter"
               value={selectedGroup}
-              defaultValue="全部分组"
-              options={[
-                { label: '最近创建的20个分组', value: '全部分组' },
-                ...groupOptions,
-              ]}
-              onlyStarred={onlyStarredGroups}
+              defaultValue={defaultGroupFilter}
+              options={resourceGroupOptions}
+              onlyStarred={onlyStarredResourceGroups}
               onChange={setSelectedGroup}
-              onOnlyStarredChange={setOnlyStarredGroups}
+              onOnlyStarredChange={setOnlyStarredResourceGroups}
             />
             <PersonalAssetGroupControls
               kind={section.kind}
@@ -227,7 +224,7 @@ export function PersonalResourceSection({
 
         {isGroupedResourceSection ? (
           <div className="voice-resource-list voice-group-list">
-            {visibleVoiceGroupNames.map(({ groupName, assets }) => {
+            {visibleResourceGroups.map(({ groupName, assets }) => {
               const groupRenameItem = { id: groupName, name: groupName }
               const renameTo = groupRename.draftFor(groupRenameItem)
               const selectedAssetIds = selectedAssetIdsForGroup(groupName).filter((assetId) => assets.some((asset) => asset.id === assetId))
