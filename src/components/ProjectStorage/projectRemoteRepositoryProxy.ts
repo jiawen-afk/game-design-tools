@@ -46,6 +46,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
     const databaseProfileId = this.getDatabaseProfileId()
+    if (!databaseProfileId) throw new Error('缺少远程数据库配置，请在项目管理中选择远程数据库连接。')
     const projects = await desktopApi.listRemoteProjects(databaseProfileId)
     if (databaseProfileId) {
       for (const project of projects) {

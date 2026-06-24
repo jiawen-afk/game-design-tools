@@ -113,11 +113,13 @@ export async function resolveProjectAssetResourceSource(
   resourcePath: string | undefined,
   options: ProjectAssetResourceResolverOptions = {},
 ): Promise<ResolvedProjectAssetResource | null> {
+  const hasProjectObjectKey = isProjectObjectKey(storedPath) || isProjectObjectKey(resourcePath)
   try {
     const blob = await readProjectAssetResourceBlob(storedPath, resourcePath, options)
     const blobSource = createBlobSource(blob)
     if (blobSource.source) return blobSource
   } catch {
+    if (hasProjectObjectKey) return null
     // Fall back to a directly playable URL/path below when object or directory reads fail.
   }
 

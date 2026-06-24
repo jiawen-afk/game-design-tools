@@ -51,6 +51,25 @@ test('project asset resource sources create playable object URLs from object sto
   }
 })
 
+test('project asset resource sources do not fall back to provider object keys', async () => {
+  const resolved = await resolveProjectAssetResourceSource(
+    'objects/远程项目/audio_wav/missing.wav',
+    'objects/远程项目/audio_wav/missing.wav',
+    {
+      projectObjectStorage: {
+        putObject: async () => {},
+        getObject: async () => {
+          throw new Error('对象不存在')
+        },
+        deleteObject: async () => {},
+        deleteObjects: async () => ({ deletedKeys: [], failed: [] }),
+      },
+    },
+  )
+
+  assert.equal(resolved, null)
+})
+
 test('project asset resources can be read through the asset manager', async () => {
   const ref = buildProjectAssetResourceRef({
     asset: {

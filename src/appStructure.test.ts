@@ -321,6 +321,8 @@ test('remote project repository uses electron database bridge instead of rendere
   assert.match(proxySource, /getDatabaseProfileId\(projectId\)/)
   assert.match(proxySource, /requireProjectDatabaseProfileId\(rows\.project\.id,\s*rows\.project\.name\)/)
   assert.match(proxySource, /缺少远程数据库配置/)
+  assert.match(mainSource, /if \(!String\(profileId \|\| ''\)\.trim\(\)\) throw new Error\('远程数据库配置不存在。'\)/)
+  assert.doesNotMatch(mainSource, /:\s*databaseProfiles\.find\(\(item\) => item\.lastVerifiedAt\) \|\| databaseProfiles\[0\]/)
   assert.doesNotMatch(mainSource, /rows\?\.settings\?\.remote_database_profile_id/)
   assert.match(repositorySource, /buildUpsertSql/)
   assert.match(repositorySource, /projects:\s*\{/)

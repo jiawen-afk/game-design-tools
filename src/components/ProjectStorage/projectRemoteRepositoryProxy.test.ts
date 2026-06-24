@@ -245,6 +245,31 @@ test('desktop remote project repository keeps listed database profile across rep
   }
 })
 
+test('desktop remote project repository does not list projects without an explicit database profile', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window
+  const events: string[] = []
+  ;(globalThis as { window?: unknown }).window = {
+    gameDesignToolsDesktop: {
+      listRemoteProjects: async (databaseProfileId: string) => {
+        events.push(`list:${databaseProfileId}`)
+        return []
+      },
+    },
+  }
+
+  try {
+    const repository = new DesktopRemoteProjectRepository(() => '')
+
+    await assert.rejects(
+      () => repository.listProjects(),
+      /缺少远程数据库配置/,
+    )
+    assert.deepEqual(events, [])
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})
+
 test('desktop remote project repository rejects project writes without a project database profile', async () => {
   const previousWindow = (globalThis as { window?: unknown }).window
   const events: string[] = []

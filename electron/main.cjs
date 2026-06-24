@@ -140,11 +140,10 @@ async function getProjectConnectionProfile(profileId) {
 }
 
 async function getRemoteDatabaseRepository(profileId) {
+  if (!String(profileId || '').trim()) throw new Error('远程数据库配置不存在。')
   const profiles = await getProjectConnectionProfileStore().readRawProfiles()
   const databaseProfiles = profiles.filter((profile) => profile.type === 'database')
-  const profile = profileId
-    ? databaseProfiles.find((item) => item.id === profileId)
-    : databaseProfiles.find((item) => item.lastVerifiedAt) || databaseProfiles[0]
+  const profile = databaseProfiles.find((item) => item.id === profileId)
   if (!profile) throw new Error('远程数据库配置不存在。')
   return createRemoteProjectRepository(profile)
 }
