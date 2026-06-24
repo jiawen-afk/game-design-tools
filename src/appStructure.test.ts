@@ -672,7 +672,9 @@ test('remote project activation restores workspace state from remote project row
 
   assert.match(workspaceSource, /restoreProjectRowsToPersonalSpaceState/)
   assert.match(workspaceSource, /ensureRemoteProjectSettings\(projectId\)/)
-  assert.match(workspaceSource, /rememberRemoteProjectSettings\(remoteRows\.project, remoteRows\.settings\)/)
+  assert.match(workspaceSource, /rememberRemoteProjectSettings\(\s*remoteRows\.project,\s*remoteRows\.settings,\s*remoteRows\.assets\.flatMap/s)
+  assert.match(workspaceSource, /asset\.primary_object_key/)
+  assert.match(workspaceSource, /asset\.sprite_index_object_key/)
   assert.match(workspaceSource, /const remoteRows = await remoteProjectRepository\.exportProjectRows\(projectId\)/)
   assert.match(workspaceSource, /await projectRepository\.importProjectRows\(remoteRows\)/)
   assert.match(workspaceSource, /const nextSpace = remoteRows\s*\?\s*restoreProjectRowsToPersonalSpaceState\(remoteRows\)/)

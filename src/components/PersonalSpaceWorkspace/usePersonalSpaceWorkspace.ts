@@ -137,11 +137,15 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     })
   }
   const remoteDeviceBindingResolver = remoteDeviceBindingResolverRef.current
-  const rememberRemoteProjectSettings = (project: Project, settings: ProjectSettings) => {
+  const rememberRemoteProjectSettings = (
+    project: Project,
+    settings: ProjectSettings,
+    assetObjectKeys: string[] = [],
+  ) => {
     remoteProjectSettingsByIdRef.current[project.id] = {
       database_provider: settings.database_provider,
     }
-    remoteDeviceBindingResolver.rememberRemoteProject(project)
+    remoteDeviceBindingResolver.rememberRemoteProject({ ...project, assetObjectKeys })
   }
   const selectedRemoteSettingsSnapshot = (): RemoteProjectSettingsSnapshot => ({
     database_provider: settingsWorkspace.databaseProfileDraft.provider,
@@ -241,7 +245,14 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         await ensureRemoteProjectSettings(projectId)
         const remoteRows = await remoteProjectRepository.exportProjectRows(projectId)
         if (remoteRows) {
-          rememberRemoteProjectSettings(remoteRows.project, remoteRows.settings)
+          rememberRemoteProjectSettings(
+            remoteRows.project,
+            remoteRows.settings,
+            remoteRows.assets.flatMap((asset) => [
+              asset.primary_object_key,
+              asset.sprite_index_object_key,
+            ]).filter((objectKey): objectKey is string => Boolean(objectKey)),
+          )
           await projectRepository.importProjectRows(remoteRows)
         }
         const nextSpace = remoteRows

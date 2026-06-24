@@ -5,6 +5,10 @@ import {
   type Project,
 } from '../ProjectStorage'
 
+type RemoteProjectForDeviceBinding = Pick<Project, 'id' | 'name' | 'object_key_prefix'> & {
+  assetObjectKeys?: string[]
+}
+
 export interface ProjectRemoteDeviceBindingResolverOptions {
   storage?: Storage
   projectIdByObjectProjectName?: Record<string, string>
@@ -47,10 +51,12 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
     writeProjectDeviceBinding(projectId, { databaseProfileId, storageProfileId }, options.storage)
   }
 
-  const rememberRemoteProject = (project: Pick<Project, 'id' | 'name' | 'object_key_prefix'>) => {
+  const rememberRemoteProject = (project: RemoteProjectForDeviceBinding) => {
     projectIdByObjectProjectName[sanitizeObjectKeyPart(project.name)] = project.id
-    const objectProjectName = objectProjectNameFromPrefix(project.object_key_prefix)
-    if (objectProjectName) projectIdByObjectProjectName[objectProjectName] = project.id
+    for (const objectKey of [project.object_key_prefix, ...(project.assetObjectKeys ?? [])]) {
+      const objectProjectName = objectProjectNameFromPrefix(objectKey)
+      if (objectProjectName) projectIdByObjectProjectName[objectProjectName] = project.id
+    }
   }
 
   const getRemoteDatabaseProfileId = (projectId?: string) => (
@@ -60,13 +66,11 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
   )
 
   const getRemoteStorageProfileId = (objectKey?: string) => {
-    const objectProjectName = objectKey?.split('/')[1] ?? ''
+    if (!objectKey) return options.getSelectedStorageProfileId()
+    const objectProjectName = objectProjectNameFromPrefix(objectKey)
+    if (!objectProjectName) return options.getSelectedStorageProfileId()
     const projectId = objectProjectName ? projectIdByObjectProjectName[objectProjectName] : ''
-    return (
-      projectId
-        ? storageProfileIdForProject(projectId)
-        : options.getSelectedStorageProfileId()
-    )
+    return projectId ? storageProfileIdForProject(projectId) : ''
   }
 
   return {

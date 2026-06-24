@@ -91,3 +91,43 @@ test('remote device binding resolver resolves database and storage bindings inde
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业/image_png/r1.png'), '')
   assert.equal(resolver.currentDeviceBindingForProject('project-a'), null)
 })
+
+test('remote device binding resolver does not fallback to selected storage profile for project object keys', () => {
+  const resolver = createProjectRemoteDeviceBindingResolver({
+    getDatabaseProfileIds: () => ['db-current'],
+    getStorageProfileIds: () => ['kodo-current'],
+    getSelectedDatabaseProfileId: () => 'db-selected',
+    getSelectedStorageProfileId: () => 'kodo-selected',
+  })
+
+  assert.equal(resolver.getRemoteStorageProfileId(), 'kodo-selected')
+  assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业/audio_wav/r1.wav'), '')
+})
+
+test('remote device binding resolver remembers historical asset object key prefixes for renamed projects', () => {
+  const storage = createMemoryStorage()
+  const resolver = createProjectRemoteDeviceBindingResolver({
+    storage,
+    getDatabaseProfileIds: () => ['db-current'],
+    getStorageProfileIds: () => ['kodo-current'],
+    getSelectedDatabaseProfileId: () => '',
+    getSelectedStorageProfileId: () => '',
+  })
+
+  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
+  resolver.rememberRemoteProject({
+    id: 'project-a',
+    name: '山海再就业 新名',
+    object_key_prefix: 'objects/山海再就业_新名',
+    assetObjectKeys: [
+      'objects/山海再就业/audio_wav/voice-1.wav',
+      'objects/山海再就业_旧名/image_png/sprite-1.png',
+      '',
+      'local/path/ignored.png',
+    ],
+  })
+
+  assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业/audio_wav/voice-1.wav'), 'kodo-current')
+  assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_旧名/image_png/sprite-1.png'), 'kodo-current')
+  assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_新名/image_png/sprite-2.png'), 'kodo-current')
+})
