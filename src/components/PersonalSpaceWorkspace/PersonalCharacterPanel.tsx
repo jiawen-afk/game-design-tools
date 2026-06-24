@@ -1,5 +1,5 @@
 import type { UploadProps } from 'antd'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, Empty } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 
@@ -8,6 +8,7 @@ import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { CharacterProfileCard } from './CharacterProfileCard'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+import { useRecentStarredFilter } from './useRecentStarredFilter'
 
 interface PersonalCharacterPanelProps {
   characters: CharacterProfile[]
@@ -69,20 +70,24 @@ export function PersonalCharacterPanel({
   projectMode,
 }: PersonalCharacterPanelProps) {
   const [creatingCharacter, setCreatingCharacter] = useState(false)
-  const [selectedCharacterFilter, setSelectedCharacterFilter] = useState('全部角色')
-  const [onlyStarredCharacters, setOnlyStarredCharacters] = useState(false)
   const [renamingCharacterId, setRenamingCharacterId] = useState('')
   const [characterNameDrafts, setCharacterNameDrafts] = useState<Record<string, string>>({})
   const orderedCharacters = [...characters].sort((a, b) => a.order - b.order)
-  const starFilteredCharacters = onlyStarredCharacters ? orderedCharacters.filter((character) => character.starred) : orderedCharacters
-  const recentCharacterOptions = starFilteredCharacters.slice(-20).reverse()
-  const characterFilterOptions = [
-    { label: '最近创建的20个角色', value: '全部角色' },
-    ...orderedCharacters.map((character) => ({ label: character.name, value: character.id })),
-  ]
-  const visibleCharacters = selectedCharacterFilter === '全部角色'
-    ? recentCharacterOptions
-    : starFilteredCharacters.filter((character) => character.id === selectedCharacterFilter)
+  const {
+    selectedFilter: selectedCharacterFilter,
+    setSelectedFilter: setSelectedCharacterFilter,
+    onlyStarred: onlyStarredCharacters,
+    setOnlyStarred: setOnlyStarredCharacters,
+    filterOptions: characterFilterOptions,
+    visibleItems: visibleCharacters,
+  } = useRecentStarredFilter({
+    items: orderedCharacters,
+    defaultValue: '全部角色',
+    defaultLabel: '最近创建的20个角色',
+    getId: (character) => character.id,
+    getName: (character) => character.name,
+    getStarred: (character) => character.starred,
+  })
 
   const confirmCreateCharacter = () => {
     if (!newCharacterName.trim()) return
@@ -94,12 +99,6 @@ export function PersonalCharacterPanel({
     onNewCharacterNameChange('')
     setCreatingCharacter(false)
   }
-
-  useEffect(() => {
-    if (selectedCharacterFilter !== '全部角色' && !characters.some((character) => character.id === selectedCharacterFilter)) {
-      setSelectedCharacterFilter('全部角色')
-    }
-  }, [characters, selectedCharacterFilter])
 
   return (
     <section className="space-panel">

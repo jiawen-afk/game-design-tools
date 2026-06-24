@@ -1,6 +1,6 @@
 import type { UploadProps } from 'antd'
 import type { DragEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button, Empty } from 'antd'
 import { ExportOutlined, PlusOutlined } from '@ant-design/icons'
 
@@ -8,6 +8,7 @@ import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './pe
 import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+import { useRecentStarredFilter } from './useRecentStarredFilter'
 import {
   getStoryboardVoiceListDropTarget,
   moveAssetIdAroundTarget,
@@ -93,20 +94,24 @@ export function PersonalStoryboardPanel({
   const [dropTargetStoryboardVoice, setDropTargetStoryboardVoice] = useState<DraggedStoryboardVoice>(null)
   const [previewStoryboardVoiceOrders, setPreviewStoryboardVoiceOrders] = useState<Record<string, string[]>>({})
   const [creatingStoryboard, setCreatingStoryboard] = useState(false)
-  const [selectedStoryboardFilter, setSelectedStoryboardFilter] = useState('全部剧情组')
-  const [onlyStarredStoryboards, setOnlyStarredStoryboards] = useState(false)
   const [renamingStoryboardId, setRenamingStoryboardId] = useState('')
   const [storyboardNameDrafts, setStoryboardNameDrafts] = useState<Record<string, string>>({})
   const isExportingStoryboard = Boolean(storyboardExportingKey)
-  const starFilteredStoryboardGroups = onlyStarredStoryboards ? storyboardGroups.filter((group) => group.starred) : storyboardGroups
-  const recentStoryboardOptions = starFilteredStoryboardGroups.slice(-20).reverse()
-  const storyboardFilterOptions = [
-    { label: '最近创建的20个剧情组', value: '全部剧情组' },
-    ...storyboardGroups.map((group) => ({ label: group.name, value: group.id })),
-  ]
-  const visibleStoryboardGroups = selectedStoryboardFilter === '全部剧情组'
-    ? recentStoryboardOptions
-    : starFilteredStoryboardGroups.filter((group) => group.id === selectedStoryboardFilter)
+  const {
+    selectedFilter: selectedStoryboardFilter,
+    setSelectedFilter: setSelectedStoryboardFilter,
+    onlyStarred: onlyStarredStoryboards,
+    setOnlyStarred: setOnlyStarredStoryboards,
+    filterOptions: storyboardFilterOptions,
+    visibleItems: visibleStoryboardGroups,
+  } = useRecentStarredFilter({
+    items: storyboardGroups,
+    defaultValue: '全部剧情组',
+    defaultLabel: '最近创建的20个剧情组',
+    getId: (group) => group.id,
+    getName: (group) => group.name,
+    getStarred: (group) => group.starred,
+  })
 
   const startStoryboardVoiceDrag = (groupId: string, assetId: string) => {
     const group = storyboardGroups.find((item) => item.id === groupId)
@@ -162,12 +167,6 @@ export function PersonalStoryboardPanel({
     setDropTargetStoryboardVoice(null)
     setPreviewStoryboardVoiceOrders({})
   }
-
-  useEffect(() => {
-    if (selectedStoryboardFilter !== '全部剧情组' && !storyboardGroups.some((group) => group.id === selectedStoryboardFilter)) {
-      setSelectedStoryboardFilter('全部剧情组')
-    }
-  }, [selectedStoryboardFilter, storyboardGroups])
 
   const confirmCreateStoryboard = () => {
     if (!newStoryboardName.trim()) return

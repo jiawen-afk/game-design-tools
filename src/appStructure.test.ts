@@ -1684,10 +1684,12 @@ test('personal space workspace delegates character management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
   ].join('\n')
   const characterPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
   const characterProfileCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const linkedAssetColumnSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8')
+  const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
@@ -1712,12 +1714,17 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(panelSource, /<PersonalSpaceTextPopover/)
   assert.match(panelSource, /creatingCharacter/)
   assert.match(panelSource, /character-create-popover/)
-  assert.match(panelSource, /selectedCharacterFilter/)
-  assert.match(panelSource, /recentCharacterOptions/)
+  assert.match(characterPanelSource, /useRecentStarredFilter/)
+  assert.match(characterPanelSource, /selectedCharacterFilter/)
+  assert.match(characterPanelSource, /visibleCharacters/)
+  assert.match(recentStarredFilterSource, /recentFilterOptions/)
+  assert.match(recentStarredFilterSource, /slice\(-20\)\.reverse\(\)/)
   assert.match(panelSource, /character-panel-toolbar/)
   assert.match(panelSource, /character-filter-control/)
   assert.match(panelSource, /最近创建的\d+个角色/)
-  assert.doesNotMatch(panelSource, /filterOption/)
+  assert.doesNotMatch(characterPanelSource, /slice\(-20\)\.reverse\(\)/)
+  assert.doesNotMatch(characterPanelSource, /setSelectedCharacterFilter\('全部角色'\)/)
+  assert.doesNotMatch(characterPanelSource, /filterOption\s*=/)
   assert.match(panelSource, /renamingCharacterId/)
   assert.match(panelSource, /characterNameDrafts/)
   assert.match(characterProfileCardSource, /EditOutlined/)
@@ -1786,10 +1793,12 @@ test('personal space workspace delegates storyboard management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/StoryboardCharacterAvatar.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/storyboardPlaybackSources.ts', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
   ].join('\n')
   const storyboardPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
   const storyboardGroupCardSource = readFileSync('src/components/PersonalSpaceWorkspace/StoryboardGroupCard.tsx', 'utf8')
   const playbackHookSource = readFileSync('src/components/PersonalSpaceWorkspace/useStoryboardVoicePlayback.ts', 'utf8')
+  const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
 
   assert.match(source, /from '\.\/PersonalStoryboardPanel'/)
@@ -1820,12 +1829,17 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.match(panelSource, /导出所有分组关联角色资产/)
   assert.match(panelSource, /storyboardExportingKey/)
   assert.match(panelSource, /creatingStoryboard/)
-  assert.match(panelSource, /selectedStoryboardFilter/)
-  assert.match(panelSource, /recentStoryboardOptions/)
+  assert.match(storyboardPanelSource, /useRecentStarredFilter/)
+  assert.match(storyboardPanelSource, /selectedStoryboardFilter/)
+  assert.match(storyboardPanelSource, /visibleStoryboardGroups/)
+  assert.match(recentStarredFilterSource, /recentFilterOptions/)
+  assert.match(recentStarredFilterSource, /slice\(-20\)\.reverse\(\)/)
   assert.match(panelSource, /storyboard-filter-control/)
   assert.match(panelSource, /最近创建的\d+个剧情组/)
   assert.match(panelSource, /visibleStoryboardGroups/)
-  assert.doesNotMatch(panelSource, /filterOption/)
+  assert.doesNotMatch(storyboardPanelSource, /slice\(-20\)\.reverse\(\)/)
+  assert.doesNotMatch(storyboardPanelSource, /setSelectedStoryboardFilter\('全部剧情组'\)/)
+  assert.doesNotMatch(storyboardPanelSource, /filterOption\s*=/)
   assert.match(panelSource, /renamingStoryboardId/)
   assert.match(panelSource, /storyboardNameDrafts/)
   assert.match(storyboardGroupCardSource, /EditOutlined/)
