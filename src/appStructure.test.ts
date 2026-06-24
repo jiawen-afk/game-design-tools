@@ -1710,12 +1710,14 @@ test('personal space workspace delegates character management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/useRenameDrafts.ts', 'utf8'),
   ].join('\n')
   const characterPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
   const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
   const characterProfileCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const linkedAssetColumnSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8')
   const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
+  const renameDraftsSource = readFileSync('src/components/PersonalSpaceWorkspace/useRenameDrafts.ts', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
@@ -1757,8 +1759,12 @@ test('personal space workspace delegates character management panel', () => {
   assert.doesNotMatch(characterPanelSource, /slice\(-20\)\.reverse\(\)/)
   assert.doesNotMatch(characterPanelSource, /setSelectedCharacterFilter\('全部角色'\)/)
   assert.doesNotMatch(characterPanelSource, /filterOption\s*=/)
-  assert.match(panelSource, /renamingCharacterId/)
-  assert.match(panelSource, /characterNameDrafts/)
+  assert.match(renameDraftsSource, /export function useRenameDrafts/)
+  assert.match(renameDraftsSource, /setRenamingId/)
+  assert.match(renameDraftsSource, /draft\.trim\(\)/)
+  assert.match(characterPanelSource, /useRenameDrafts/)
+  assert.doesNotMatch(characterPanelSource, /setRenamingCharacterId/)
+  assert.doesNotMatch(characterPanelSource, /setCharacterNameDrafts/)
   assert.match(characterProfileCardSource, /EditOutlined/)
   assert.match(characterProfileCardSource, /角色名称/)
   assert.doesNotMatch(panelSource, /content=\{\(\s*<div className="voice-group-rename-popover character-create-popover/)
@@ -1827,6 +1833,7 @@ test('personal space workspace delegates storyboard management panel', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/useRenameDrafts.ts', 'utf8'),
   ].join('\n')
   const storyboardPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
   const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
@@ -1836,6 +1843,7 @@ test('personal space workspace delegates storyboard management panel', () => {
   const dragDropHookPath = 'src/components/PersonalSpaceWorkspace/useStoryboardVoiceDragDrop.ts'
   const dragDropHookSource = existsSync(dragDropHookPath) ? readFileSync(dragDropHookPath, 'utf8') : ''
   const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
+  const renameDraftsSource = readFileSync('src/components/PersonalSpaceWorkspace/useRenameDrafts.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
 
   assert.match(source, /from '\.\/PersonalStoryboardPanel'/)
@@ -1881,8 +1889,12 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.doesNotMatch(storyboardPanelSource, /slice\(-20\)\.reverse\(\)/)
   assert.doesNotMatch(storyboardPanelSource, /setSelectedStoryboardFilter\('全部剧情组'\)/)
   assert.doesNotMatch(storyboardPanelSource, /filterOption\s*=/)
-  assert.match(panelSource, /renamingStoryboardId/)
-  assert.match(panelSource, /storyboardNameDrafts/)
+  assert.match(renameDraftsSource, /export function useRenameDrafts/)
+  assert.match(renameDraftsSource, /setRenamingId/)
+  assert.match(renameDraftsSource, /draft\.trim\(\)/)
+  assert.match(storyboardPanelSource, /useRenameDrafts/)
+  assert.doesNotMatch(storyboardPanelSource, /setRenamingStoryboardId/)
+  assert.doesNotMatch(storyboardPanelSource, /setStoryboardNameDrafts/)
   assert.match(storyboardGroupCardSource, /EditOutlined/)
   assert.match(storyboardGroupCardSource, /分组名称/)
   assert.doesNotMatch(panelSource, /className="storyboard-name-input"[\s\S]*onChange=\{\(event\) => onRenameStoryboard/)

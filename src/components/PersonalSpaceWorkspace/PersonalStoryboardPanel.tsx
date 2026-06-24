@@ -11,6 +11,7 @@ import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
 import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
 import { useStoryboardVoicePlayback } from './useStoryboardVoicePlayback'
+import { useRenameDrafts } from './useRenameDrafts'
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 
 interface PersonalStoryboardPanelProps {
@@ -99,8 +100,7 @@ export function PersonalStoryboardPanel({
     onMoveStoryboardVoice,
   })
   const [creatingStoryboard, setCreatingStoryboard] = useState(false)
-  const [renamingStoryboardId, setRenamingStoryboardId] = useState('')
-  const [storyboardNameDrafts, setStoryboardNameDrafts] = useState<Record<string, string>>({})
+  const storyboardRename = useRenameDrafts(onRenameStoryboard)
   const isExportingStoryboard = Boolean(storyboardExportingKey)
   const {
     selectedFilter: selectedStoryboardFilter,
@@ -199,27 +199,17 @@ export function PersonalStoryboardPanel({
                 voiceAssets={voiceAssets}
                 allAssets={allAssets}
                 getStoryboardVoiceUploadProps={getStoryboardVoiceUploadProps}
-                isRenaming={renamingStoryboardId === item.id}
-                storyboardNameDraft={storyboardNameDrafts[item.id] ?? item.name}
+                isRenaming={storyboardRename.isRenaming(item.id)}
+                storyboardNameDraft={storyboardRename.draftFor(item)}
                 isExportingStoryboard={isExportingStoryboard}
                 storyboardExportingKey={storyboardExportingKey}
                 draggedStoryboardVoice={draggedStoryboardVoice}
                 dropTargetStoryboardVoice={dropTargetStoryboardVoice}
                 currentPlayback={currentPlayback}
-                onRenameOpenChange={(group, open) => {
-                  setRenamingStoryboardId(open ? group.id : '')
-                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [group.id]: open ? (drafts[group.id] ?? group.name) : '' }))
-                }}
-                onStoryboardNameDraftChange={(groupId, value) => setStoryboardNameDrafts((drafts) => ({ ...drafts, [groupId]: value }))}
-                onConfirmStoryboardRename={(group) => {
-                  onRenameStoryboard(group.id, storyboardNameDrafts[group.id] ?? group.name)
-                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [group.id]: '' }))
-                  setRenamingStoryboardId('')
-                }}
-                onCancelStoryboardRename={(groupId) => {
-                  setStoryboardNameDrafts((drafts) => ({ ...drafts, [groupId]: '' }))
-                  setRenamingStoryboardId('')
-                }}
+                onRenameOpenChange={storyboardRename.openRename}
+                onStoryboardNameDraftChange={storyboardRename.changeDraft}
+                onConfirmStoryboardRename={storyboardRename.confirmRename}
+                onCancelStoryboardRename={storyboardRename.cancelRename}
                 onToggleStoryboardStar={onToggleStoryboardStar}
                 onExportStoryboardVoiceAssets={onExportStoryboardVoiceAssets}
                 onExportStoryboardCharacterAssets={onExportStoryboardCharacterAssets}

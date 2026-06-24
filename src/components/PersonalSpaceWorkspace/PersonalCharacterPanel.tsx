@@ -8,6 +8,7 @@ import { CharacterProfileCard } from './CharacterProfileCard'
 import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
+import { useRenameDrafts } from './useRenameDrafts'
 
 interface PersonalCharacterPanelProps {
   characters: CharacterProfile[]
@@ -69,8 +70,7 @@ export function PersonalCharacterPanel({
   projectMode,
 }: PersonalCharacterPanelProps) {
   const [creatingCharacter, setCreatingCharacter] = useState(false)
-  const [renamingCharacterId, setRenamingCharacterId] = useState('')
-  const [characterNameDrafts, setCharacterNameDrafts] = useState<Record<string, string>>({})
+  const characterRename = useRenameDrafts(onRenameCharacter)
   const orderedCharacters = [...characters].sort((a, b) => a.order - b.order)
   const {
     selectedFilter: selectedCharacterFilter,
@@ -145,22 +145,12 @@ export function PersonalCharacterPanel({
               getPortraitUploadProps={getPortraitUploadProps}
               getSpriteUploadProps={getSpriteUploadProps}
               getVoiceUploadProps={getVoiceUploadProps}
-              isRenaming={renamingCharacterId === item.id}
-              characterNameDraft={characterNameDrafts[item.id] ?? item.name}
-              onRenameOpenChange={(character, open) => {
-                setRenamingCharacterId(open ? character.id : '')
-                setCharacterNameDrafts((drafts) => ({ ...drafts, [character.id]: open ? (drafts[character.id] ?? character.name) : '' }))
-              }}
-              onCharacterNameDraftChange={(characterId, value) => setCharacterNameDrafts((drafts) => ({ ...drafts, [characterId]: value }))}
-              onConfirmCharacterRename={(character) => {
-                onRenameCharacter(character.id, characterNameDrafts[character.id] ?? character.name)
-                setCharacterNameDrafts((drafts) => ({ ...drafts, [character.id]: '' }))
-                setRenamingCharacterId('')
-              }}
-              onCancelCharacterRename={(characterId) => {
-                setCharacterNameDrafts((drafts) => ({ ...drafts, [characterId]: '' }))
-                setRenamingCharacterId('')
-              }}
+              isRenaming={characterRename.isRenaming(item.id)}
+              characterNameDraft={characterRename.draftFor(item)}
+              onRenameOpenChange={characterRename.openRename}
+              onCharacterNameDraftChange={characterRename.changeDraft}
+              onConfirmCharacterRename={characterRename.confirmRename}
+              onCancelCharacterRename={characterRename.cancelRename}
               onToggleCharacterStar={onToggleCharacterStar}
               onReorderCharacter={onReorderCharacter}
               onDeleteCharacter={onDeleteCharacter}
