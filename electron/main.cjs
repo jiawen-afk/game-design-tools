@@ -28,6 +28,11 @@ const {
   putKodoObject,
   verifyKodoProfile,
 } = require('./projectKodoStorage.cjs')
+const {
+  editableProjectProfile,
+  mergeProjectProfilePayload,
+  projectProfileSummary,
+} = require('./projectConnectionProfiles.cjs')
 
 const allowedPersonalSpaceRoots = new Set()
 const projectConnectionProfileFileName = 'project-connection-profiles.json'
@@ -174,16 +179,6 @@ function redactProjectProfileInput(input) {
     }
   }
   throw new Error('项目连接配置类型无效。')
-}
-
-function projectProfileSummary(profile) {
-  return {
-    id: profile.id,
-    type: profile.type,
-    displayName: profile.displayName,
-    redactedSummary: profile.redactedSummary,
-    lastVerifiedAt: profile.lastVerifiedAt || null,
-  }
 }
 
 async function getProjectConnectionProfile(profileId) {
@@ -579,11 +574,17 @@ ipcMain.handle('project-profile:list', async (_event, type) => {
     .map(projectProfileSummary)
 })
 
+ipcMain.handle('project-profile:get', async (_event, profileId) => (
+  editableProjectProfile(await getProjectConnectionProfile(String(profileId || '')))
+))
+
 ipcMain.handle('project-profile:save', async (_event, input = {}) => {
   const profiles = await readProjectConnectionProfiles()
-  const redacted = redactProjectProfileInput(input)
-  const now = new Date().toISOString()
   const id = String(input.id || createProfileId())
+  const existingProfile = profiles.find((profile) => profile.id === id) || null
+  const payload = mergeProjectProfilePayload(input, existingProfile)
+  const redacted = redactProjectProfileInput({ ...input, payload })
+  const now = new Date().toISOString()
   const nextProfile = {
     id,
     type: redacted.type,
@@ -591,7 +592,7 @@ ipcMain.handle('project-profile:save', async (_event, input = {}) => {
     redactedSummary: redacted.redactedSummary,
     encryptedPayload: {
       algorithm: 'placeholder-local-json',
-      payload: Buffer.from(JSON.stringify(input.payload || {}), 'utf8').toString('base64'),
+      payload: Buffer.from(JSON.stringify(payload), 'utf8').toString('base64'),
     },
     createdAt: profiles.find((profile) => profile.id === id)?.createdAt || now,
     updatedAt: now,
@@ -627,6 +628,20 @@ ipcMain.handle('project-profile:verify-database', async (_event, profileId) => {
   return result
 })
 
+ipcMain.handle('project-profile:verify-database-draft', async (_event, input = {}, profileId = '') => {
+  const existingProfile = profileId ? await getProjectConnectionProfile(String(profileId || '')) : null
+  const payload = mergeProjectProfilePayload({ type: 'database', payload: input }, existingProfile)
+  const profile = {
+    id: 'draft',
+    type: 'database',
+    lastVerifiedAt: null,
+    encryptedPayload: {
+      payload: Buffer.from(JSON.stringify(payload || {}), 'utf8').toString('base64'),
+    },
+  }
+  return verifyRemoteDatabaseProfile(profile)
+})
+
 ipcMain.handle('project-profile:initialize-database-schema', async (_event, profileId, dialect) => {
   const profile = await getProjectConnectionProfile(String(profileId || ''))
   if (!profile || profile.type !== 'database') {
@@ -652,6 +667,20 @@ ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectI
     )))
   }
   return result
+})
+
+ipcMain.handle('project-profile:verify-kodo-draft', async (_event, input = {}, projectId, profileId = '') => {
+  const existingProfile = profileId ? await getProjectConnectionProfile(String(profileId || '')) : null
+  const payload = mergeProjectProfilePayload({ type: 'qiniu_kodo', payload: input }, existingProfile)
+  const profile = {
+    id: 'draft',
+    type: 'qiniu_kodo',
+    lastVerifiedAt: null,
+    encryptedPayload: {
+      payload: Buffer.from(JSON.stringify(payload || {}), 'utf8').toString('base64'),
+    },
+  }
+  return verifyKodoProfile(profile, { projectId })
 })
 
 ipcMain.handle('project-local-repository:initialize', async () => {

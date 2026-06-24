@@ -24,6 +24,12 @@ interface ProjectManagementPanelProps {
   kodoProfiles: ProjectConnectionProfileSummary[]
   selectedDatabaseProfileId: string
   selectedKodoProfileId: string
+  databaseProfileMode: 'create' | 'edit'
+  kodoProfileMode: 'create' | 'edit'
+  databaseDraftTestState: 'untested' | 'passed' | 'failed'
+  kodoDraftTestState: 'untested' | 'passed' | 'failed'
+  databaseDraftTested: boolean
+  kodoDraftTested: boolean
   databaseProfileDraft: DatabaseProfileDraft
   kodoProfileDraft: KodoProfileDraft
   databaseVerification: ProjectConnectionVerificationResult | null
@@ -43,6 +49,8 @@ interface ProjectManagementPanelProps {
   onSelectedKodoProfileChange: (profileId: string) => void
   onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
+  onAddDatabaseProfile: () => void
+  onAddKodoProfile: () => void
   onSaveDatabaseProfile: () => void
   onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
@@ -64,6 +72,12 @@ export function ProjectManagementPanel({
   kodoProfiles,
   selectedDatabaseProfileId,
   selectedKodoProfileId,
+  databaseProfileMode,
+  kodoProfileMode,
+  databaseDraftTestState,
+  kodoDraftTestState,
+  databaseDraftTested,
+  kodoDraftTested,
   databaseProfileDraft,
   kodoProfileDraft,
   databaseVerification,
@@ -83,6 +97,8 @@ export function ProjectManagementPanel({
   onSelectedKodoProfileChange,
   onDatabaseProfileDraftChange,
   onKodoProfileDraftChange,
+  onAddDatabaseProfile,
+  onAddKodoProfile,
   onSaveDatabaseProfile,
   onDeleteDatabaseProfile,
   onSaveKodoProfile,
@@ -199,6 +215,12 @@ export function ProjectManagementPanel({
           kodoProfiles={kodoProfiles}
           selectedDatabaseProfileId={selectedDatabaseProfileId}
           selectedKodoProfileId={selectedKodoProfileId}
+          databaseProfileMode={databaseProfileMode}
+          kodoProfileMode={kodoProfileMode}
+          databaseDraftTestState={databaseDraftTestState}
+          kodoDraftTestState={kodoDraftTestState}
+          databaseDraftTested={databaseDraftTested}
+          kodoDraftTested={kodoDraftTested}
           databaseProfileDraft={databaseProfileDraft}
           kodoProfileDraft={kodoProfileDraft}
           databaseVerification={databaseVerification}
@@ -214,6 +236,8 @@ export function ProjectManagementPanel({
           onSelectedKodoProfileChange={onSelectedKodoProfileChange}
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
           onKodoProfileDraftChange={onKodoProfileDraftChange}
+          onAddDatabaseProfile={onAddDatabaseProfile}
+          onAddKodoProfile={onAddKodoProfile}
           onSaveDatabaseProfile={onSaveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
@@ -304,6 +328,12 @@ export function ProjectManagementPanel({
           kodoProfiles={kodoProfiles}
           selectedDatabaseProfileId={selectedDatabaseProfileId}
           selectedKodoProfileId={selectedKodoProfileId}
+          databaseProfileMode={databaseProfileMode}
+          kodoProfileMode={kodoProfileMode}
+          databaseDraftTestState={databaseDraftTestState}
+          kodoDraftTestState={kodoDraftTestState}
+          databaseDraftTested={databaseDraftTested}
+          kodoDraftTested={kodoDraftTested}
           databaseProfileDraft={databaseProfileDraft}
           kodoProfileDraft={kodoProfileDraft}
           databaseVerification={databaseVerification}
@@ -319,6 +349,8 @@ export function ProjectManagementPanel({
           onSelectedKodoProfileChange={onSelectedKodoProfileChange}
           onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
           onKodoProfileDraftChange={onKodoProfileDraftChange}
+          onAddDatabaseProfile={onAddDatabaseProfile}
+          onAddKodoProfile={onAddKodoProfile}
           onSaveDatabaseProfile={onSaveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
           onSaveKodoProfile={onSaveKodoProfile}
@@ -372,6 +404,12 @@ interface RemoteProjectSettingsProps {
   kodoProfiles: ProjectConnectionProfileSummary[]
   selectedDatabaseProfileId: string
   selectedKodoProfileId: string
+  databaseProfileMode: 'create' | 'edit'
+  kodoProfileMode: 'create' | 'edit'
+  databaseDraftTestState: 'untested' | 'passed' | 'failed'
+  kodoDraftTestState: 'untested' | 'passed' | 'failed'
+  databaseDraftTested: boolean
+  kodoDraftTested: boolean
   databaseProfileDraft: DatabaseProfileDraft
   kodoProfileDraft: KodoProfileDraft
   databaseVerification: ProjectConnectionVerificationResult | null
@@ -387,6 +425,8 @@ interface RemoteProjectSettingsProps {
   onSelectedKodoProfileChange: (profileId: string) => void
   onDatabaseProfileDraftChange: (draft: DatabaseProfileDraft) => void
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
+  onAddDatabaseProfile: () => void
+  onAddKodoProfile: () => void
   onSaveDatabaseProfile: () => void
   onDeleteDatabaseProfile: () => void
   onSaveKodoProfile: () => void
@@ -402,6 +442,12 @@ function RemoteProjectSettings({
   kodoProfiles,
   selectedDatabaseProfileId,
   selectedKodoProfileId,
+  databaseProfileMode,
+  kodoProfileMode,
+  databaseDraftTestState,
+  kodoDraftTestState,
+  databaseDraftTested,
+  kodoDraftTested,
   databaseProfileDraft,
   kodoProfileDraft,
   databaseVerification,
@@ -417,6 +463,8 @@ function RemoteProjectSettings({
   onSelectedKodoProfileChange,
   onDatabaseProfileDraftChange,
   onKodoProfileDraftChange,
+  onAddDatabaseProfile,
+  onAddKodoProfile,
   onSaveDatabaseProfile,
   onDeleteDatabaseProfile,
   onSaveKodoProfile,
@@ -495,7 +543,9 @@ function RemoteProjectSettings({
             <Input.Password
               value={databaseProfileDraft.password}
               onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, password: event.target.value })}
+              placeholder={databaseProfileMode === 'edit' ? '留空表示不修改密码' : '数据库密码'}
             />
+            {databaseProfileMode === 'edit' && <span className="field-hint">留空表示不修改密码</span>}
           </label>
           <label className="form-field remote-switch-field">
             <span className="field-label">SSL</span>
@@ -513,7 +563,24 @@ function RemoteProjectSettings({
             placeholder={databaseProfiles.length > 0 ? '选择远程数据库配置' : '暂无数据库配置'}
             onChange={onSelectedDatabaseProfileChange}
           />
-          <Button icon={<SaveOutlined />} onClick={onSaveDatabaseProfile}>保存数据库配置</Button>
+          <Button icon={<PlusOutlined />} onClick={onAddDatabaseProfile}>添加数据库配置</Button>
+          {databaseDraftTestState === 'failed' ? (
+            <Popconfirm
+              title="测试失败，仍然保存？"
+              description="保存后项目仍可能无法连接此数据库。"
+              okText="仍然保存"
+              cancelText="取消"
+              onConfirm={onSaveDatabaseProfile}
+            >
+              <Button icon={<SaveOutlined />} disabled={!databaseDraftTested}>
+                保存当前数据库配置
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button icon={<SaveOutlined />} disabled={!databaseDraftTested} onClick={onSaveDatabaseProfile}>
+              保存当前数据库配置
+            </Button>
+          )}
           <Popconfirm
             title="删除数据库配置"
             description="只删除本机保存的连接配置，不会删除远程数据库或表数据。"
@@ -525,7 +592,7 @@ function RemoteProjectSettings({
               删除数据库配置
             </Button>
           </Popconfirm>
-          <Button onClick={onVerifyDatabaseProfile} disabled={!selectedDatabaseProfileId}>测试连接</Button>
+          <Button onClick={onVerifyDatabaseProfile}>测试连接</Button>
           <Button onClick={onInitializeDatabaseSchema} disabled={!selectedDatabaseProfileId}>初始化表结构</Button>
         </Space>
         {databaseVerification && (
@@ -557,7 +624,9 @@ function RemoteProjectSettings({
             <Input.Password
               value={kodoProfileDraft.secretKey}
               onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, secretKey: event.target.value })}
+              placeholder={kodoProfileMode === 'edit' ? '留空表示不修改 Secret Key' : 'Secret Key'}
             />
+            {kodoProfileMode === 'edit' && <span className="field-hint">留空表示不修改 Secret Key</span>}
           </label>
           <label className="form-field">
             <span className="field-label">Bucket</span>
@@ -592,7 +661,24 @@ function RemoteProjectSettings({
             placeholder={kodoProfiles.length > 0 ? '选择七牛 Kodo 配置' : '暂无 Kodo 配置'}
             onChange={onSelectedKodoProfileChange}
           />
-          <Button icon={<SaveOutlined />} onClick={onSaveKodoProfile}>保存 Kodo 配置</Button>
+          <Button icon={<PlusOutlined />} onClick={onAddKodoProfile}>添加 Kodo 配置</Button>
+          {kodoDraftTestState === 'failed' ? (
+            <Popconfirm
+              title="测试失败，仍然保存？"
+              description="保存后项目仍可能无法访问此对象存储。"
+              okText="仍然保存"
+              cancelText="取消"
+              onConfirm={onSaveKodoProfile}
+            >
+              <Button icon={<SaveOutlined />} disabled={!kodoDraftTested}>
+                保存当前 Kodo 配置
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button icon={<SaveOutlined />} disabled={!kodoDraftTested} onClick={onSaveKodoProfile}>
+              保存当前 Kodo 配置
+            </Button>
+          )}
           <Popconfirm
             title="删除 Kodo 配置"
             description="只删除本机保存的对象存储配置，不会删除七牛 Kodo 中的对象。"
@@ -604,7 +690,7 @@ function RemoteProjectSettings({
               删除 Kodo 配置
             </Button>
           </Popconfirm>
-          <Button onClick={() => onVerifyKodoProfile(selectedVerificationProjectId)} disabled={!selectedKodoProfileId || !selectedVerificationProjectId}>
+          <Button onClick={() => onVerifyKodoProfile(selectedVerificationProjectId)} disabled={!selectedVerificationProjectId}>
             验证 Kodo
           </Button>
         </Space>

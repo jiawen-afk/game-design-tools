@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 
 import type { PersonalSpaceState } from './personalSpaceModel'
@@ -14,7 +14,12 @@ import {
   type ProjectConnectionProfileSummary,
   type ProjectConnectionVerificationResult,
 } from '../../desktopApi'
-import { validateDatabaseProfileInput, validateKodoProfileInput } from '../ProjectStorage'
+import {
+  createEditableDatabaseProfileDraft,
+  createEditableKodoProfileDraft,
+  validateDatabaseProfileInput,
+  validateKodoProfileInput,
+} from '../ProjectStorage'
 
 interface PersonalSpaceMessageApi {
   success: (content: string) => void
@@ -41,6 +46,27 @@ export interface KodoProfileDraft {
   domain: string
 }
 
+const initialDatabaseProfileDraft: DatabaseProfileDraft = {
+  provider: 'postgresql',
+  host: '',
+  port: 5432,
+  database: '',
+  username: '',
+  password: '',
+  ssl: true,
+}
+
+const initialKodoProfileDraft: KodoProfileDraft = {
+  accessKey: '',
+  secretKey: '',
+  bucket: '',
+  region: '',
+  domain: '',
+}
+
+type ProfileEditMode = 'create' | 'edit'
+type DraftTestState = 'untested' | 'passed' | 'failed'
+
 interface UsePersonalSpaceSettingsWorkspaceParams {
   storageDirectory: string
   setSpace: Dispatch<SetStateAction<PersonalSpaceState>>
@@ -60,26 +86,18 @@ export function usePersonalSpaceSettingsWorkspace({
   const [kodoProfiles, setKodoProfiles] = useState<ProjectConnectionProfileSummary[]>([])
   const [selectedDatabaseProfileId, setSelectedDatabaseProfileId] = useState('')
   const [selectedKodoProfileId, setSelectedKodoProfileId] = useState('')
+  const [databaseProfileMode, setDatabaseProfileMode] = useState<ProfileEditMode>('create')
+  const [kodoProfileMode, setKodoProfileMode] = useState<ProfileEditMode>('create')
+  const [databaseDraftTestState, setDatabaseDraftTestState] = useState<DraftTestState>('untested')
+  const [kodoDraftTestState, setKodoDraftTestState] = useState<DraftTestState>('untested')
   const [databaseVerification, setDatabaseVerification] = useState<ProjectConnectionVerificationResult | null>(null)
   const [kodoVerification, setKodoVerification] = useState<ProjectConnectionVerificationResult | null>(null)
   const [kodoVerificationProjectId, setKodoVerificationProjectId] = useState('')
   const [databaseSchemaReady, setDatabaseSchemaReady] = useState(false)
-  const [databaseProfileDraft, setDatabaseProfileDraft] = useState<DatabaseProfileDraft>({
-    provider: 'postgresql',
-    host: '',
-    port: 5432,
-    database: '',
-    username: '',
-    password: '',
-    ssl: true,
-  })
-  const [kodoProfileDraft, setKodoProfileDraft] = useState<KodoProfileDraft>({
-    accessKey: '',
-    secretKey: '',
-    bucket: '',
-    region: '',
-    domain: '',
-  })
+  const [databaseProfileDraft, setDatabaseProfileDraftState] = useState<DatabaseProfileDraft>(initialDatabaseProfileDraft)
+  const [kodoProfileDraft, setKodoProfileDraftState] = useState<KodoProfileDraft>(initialKodoProfileDraft)
+  const skipNextDatabaseProfileLoadRef = useRef(false)
+  const skipNextKodoProfileLoadRef = useRef(false)
 
   useEffect(() => {
     let mounted = true
@@ -126,14 +144,50 @@ export function usePersonalSpaceSettingsWorkspace({
   }, [messageApi])
 
   useEffect(() => {
-    setDatabaseVerification(null)
-    setDatabaseSchemaReady(false)
-  }, [selectedDatabaseProfileId])
+    let mounted = true
+    const desktopApi = getDesktopApi()
+    if (!desktopApi || !selectedDatabaseProfileId) return () => { mounted = false }
+    if (skipNextDatabaseProfileLoadRef.current) {
+      skipNextDatabaseProfileLoadRef.current = false
+      return () => { mounted = false }
+    }
+    void desktopApi.getProjectConnectionProfile(selectedDatabaseProfileId)
+      .then((profile) => {
+        if (!mounted || profile?.type !== 'database') return
+        setDatabaseProfileDraftState(createEditableDatabaseProfileDraft(profile.payload as DatabaseProfileDraft))
+        setDatabaseProfileMode('edit')
+        setDatabaseVerification(null)
+        setDatabaseSchemaReady(false)
+        setDatabaseDraftTestState('untested')
+      })
+      .catch(() => {
+        if (mounted) void messageApi.warning('无法读取远程数据库配置详情')
+      })
+    return () => { mounted = false }
+  }, [messageApi, selectedDatabaseProfileId])
 
   useEffect(() => {
-    setKodoVerification(null)
-    setKodoVerificationProjectId('')
-  }, [selectedKodoProfileId])
+    let mounted = true
+    const desktopApi = getDesktopApi()
+    if (!desktopApi || !selectedKodoProfileId) return () => { mounted = false }
+    if (skipNextKodoProfileLoadRef.current) {
+      skipNextKodoProfileLoadRef.current = false
+      return () => { mounted = false }
+    }
+    void desktopApi.getProjectConnectionProfile(selectedKodoProfileId)
+      .then((profile) => {
+        if (!mounted || profile?.type !== 'qiniu_kodo') return
+        setKodoProfileDraftState(createEditableKodoProfileDraft(profile.payload as KodoProfileDraft))
+        setKodoProfileMode('edit')
+        setKodoVerification(null)
+        setKodoVerificationProjectId('')
+        setKodoDraftTestState('untested')
+      })
+      .catch(() => {
+        if (mounted) void messageApi.warning('无法读取七牛 Kodo 配置详情')
+      })
+    return () => { mounted = false }
+  }, [messageApi, selectedKodoProfileId])
 
   const saveSettings = () => {
     setSpace((current) => ({
@@ -188,6 +242,38 @@ export function usePersonalSpaceSettingsWorkspace({
     void messageApi.warning('当前桌面运行时不可用，无法打开资源目录。')
   }
 
+  const setDatabaseProfileDraft = (draft: DatabaseProfileDraft) => {
+    setDatabaseProfileDraftState(draft)
+    setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
+    setDatabaseDraftTestState('untested')
+  }
+
+  const setKodoProfileDraft = (draft: KodoProfileDraft) => {
+    setKodoProfileDraftState(draft)
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+    setKodoDraftTestState('untested')
+  }
+
+  const addDatabaseProfile = () => {
+    setSelectedDatabaseProfileId('')
+    setDatabaseProfileMode('create')
+    setDatabaseProfileDraftState(initialDatabaseProfileDraft)
+    setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
+    setDatabaseDraftTestState('untested')
+  }
+
+  const addKodoProfile = () => {
+    setSelectedKodoProfileId('')
+    setKodoProfileMode('create')
+    setKodoProfileDraftState(initialKodoProfileDraft)
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+    setKodoDraftTestState('untested')
+  }
+
   const refreshProjectConnectionProfiles = async () => {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return { databaseProfiles: [], kodoProfiles: [] }
@@ -201,9 +287,14 @@ export function usePersonalSpaceSettingsWorkspace({
   }
 
   const saveDatabaseProfile = async () => {
-    const errors = validateDatabaseProfileInput(databaseProfileDraft)
+    const isExisting = databaseProfileMode === 'edit' && Boolean(selectedDatabaseProfileId)
+    const errors = validateDatabaseProfileInput(databaseProfileDraft, { existing: isExisting })
     if (errors.length > 0) {
       void messageApi.warning(errors[0]!)
+      return
+    }
+    if (databaseDraftTestState === 'untested') {
+      void messageApi.warning('请先测试远程数据库配置')
       return
     }
     const desktopApi = getDesktopApi()
@@ -212,21 +303,24 @@ export function usePersonalSpaceSettingsWorkspace({
       return
     }
     const summary = await desktopApi.saveProjectConnectionProfile({
+      id: databaseProfileMode === 'edit' ? selectedDatabaseProfileId : undefined,
       type: 'database',
       displayName: `${databaseProfileDraft.provider} ${databaseProfileDraft.database || databaseProfileDraft.host}`.trim(),
       payload: databaseProfileDraft,
     })
     setDatabaseProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
+    skipNextDatabaseProfileLoadRef.current = databaseProfileMode === 'create'
     setSelectedDatabaseProfileId(summary.id)
-    setDatabaseVerification(null)
-    setDatabaseSchemaReady(false)
+    setDatabaseProfileMode('edit')
     void messageApi.success('已保存远程数据库配置')
   }
 
   const selectDatabaseProfile = (profileId: string) => {
     setSelectedDatabaseProfileId(profileId)
+    setDatabaseProfileMode(profileId ? 'edit' : 'create')
     setDatabaseVerification(null)
     setDatabaseSchemaReady(false)
+    setDatabaseDraftTestState('untested')
   }
 
   const deleteDatabaseProfile = async () => {
@@ -251,9 +345,14 @@ export function usePersonalSpaceSettingsWorkspace({
   }
 
   const saveKodoProfile = async () => {
-    const errors = validateKodoProfileInput(kodoProfileDraft)
+    const isExisting = kodoProfileMode === 'edit' && Boolean(selectedKodoProfileId)
+    const errors = validateKodoProfileInput(kodoProfileDraft, { existing: isExisting })
     if (errors.length > 0) {
       void messageApi.warning(errors[0]!)
+      return
+    }
+    if (kodoDraftTestState === 'untested') {
+      void messageApi.warning('请先验证七牛 Kodo 配置')
       return
     }
     const desktopApi = getDesktopApi()
@@ -262,21 +361,24 @@ export function usePersonalSpaceSettingsWorkspace({
       return
     }
     const summary = await desktopApi.saveProjectConnectionProfile({
+      id: kodoProfileMode === 'edit' ? selectedKodoProfileId : undefined,
       type: 'qiniu_kodo',
       displayName: `Kodo ${kodoProfileDraft.bucket}`.trim(),
       payload: kodoProfileDraft,
     })
     setKodoProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
+    skipNextKodoProfileLoadRef.current = kodoProfileMode === 'create'
     setSelectedKodoProfileId(summary.id)
-    setKodoVerification(null)
-    setKodoVerificationProjectId('')
+    setKodoProfileMode('edit')
     void messageApi.success('已保存七牛 Kodo 配置')
   }
 
   const selectKodoProfile = (profileId: string) => {
     setSelectedKodoProfileId(profileId)
+    setKodoProfileMode(profileId ? 'edit' : 'create')
     setKodoVerification(null)
     setKodoVerificationProjectId('')
+    setKodoDraftTestState('untested')
   }
 
   const deleteKodoProfile = async () => {
@@ -302,12 +404,22 @@ export function usePersonalSpaceSettingsWorkspace({
 
   const verifyDatabaseProfile = async () => {
     const desktopApi = getDesktopApi()
-    if (!desktopApi || !selectedDatabaseProfileId) {
-      void messageApi.warning('请先保存并选择远程数据库配置')
+    const isExisting = databaseProfileMode === 'edit' && Boolean(selectedDatabaseProfileId)
+    const errors = validateDatabaseProfileInput(databaseProfileDraft, { existing: isExisting })
+    if (errors.length > 0) {
+      void messageApi.warning(errors[0]!)
       return
     }
-    const result = await desktopApi.verifyProjectDatabaseProfile(selectedDatabaseProfileId)
+    if (!desktopApi) {
+      void messageApi.warning('当前桌面运行时不可用，无法测试远程数据库配置')
+      return
+    }
+    const result = await desktopApi.verifyProjectDatabaseProfileDraft(
+      databaseProfileDraft,
+      isExisting ? selectedDatabaseProfileId : undefined,
+    )
     setDatabaseVerification(result)
+    setDatabaseDraftTestState(result.ok ? 'passed' : 'failed')
     if (!result.ok) setDatabaseSchemaReady(false)
     await refreshProjectConnectionProfiles()
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
@@ -326,12 +438,23 @@ export function usePersonalSpaceSettingsWorkspace({
 
   const verifyKodoProfile = async (projectId: string) => {
     const desktopApi = getDesktopApi()
-    if (!desktopApi || !selectedKodoProfileId) {
-      void messageApi.warning('请先保存并选择七牛 Kodo 配置')
+    const isExisting = kodoProfileMode === 'edit' && Boolean(selectedKodoProfileId)
+    const errors = validateKodoProfileInput(kodoProfileDraft, { existing: isExisting })
+    if (errors.length > 0) {
+      void messageApi.warning(errors[0]!)
       return
     }
-    const result = await desktopApi.verifyProjectKodoProfile(selectedKodoProfileId, projectId)
+    if (!desktopApi) {
+      void messageApi.warning('当前桌面运行时不可用，无法验证七牛 Kodo 配置')
+      return
+    }
+    const result = await desktopApi.verifyProjectKodoProfileDraft(
+      kodoProfileDraft,
+      projectId,
+      isExisting ? selectedKodoProfileId : undefined,
+    )
     setKodoVerification(result)
+    setKodoDraftTestState(result.ok ? 'passed' : 'failed')
     setKodoVerificationProjectId(result.ok ? projectId : '')
     await refreshProjectConnectionProfiles()
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
@@ -342,6 +465,8 @@ export function usePersonalSpaceSettingsWorkspace({
   const databaseReady = Boolean(selectedDatabaseProfileId && (databaseVerification?.ok || selectedDatabaseProfile?.lastVerifiedAt))
   const kodoReady = Boolean(selectedKodoProfileId && kodoVerification?.ok && kodoVerificationProjectId)
   const remoteReady = databaseReady && databaseSchemaReady && kodoReady
+  const databaseDraftTested = databaseDraftTestState !== 'untested'
+  const kodoDraftTested = kodoDraftTestState !== 'untested'
 
   return {
     draftStorageDirectory,
@@ -356,6 +481,12 @@ export function usePersonalSpaceSettingsWorkspace({
     kodoProfiles,
     selectedDatabaseProfileId,
     selectedKodoProfileId,
+    databaseProfileMode,
+    kodoProfileMode,
+    databaseDraftTestState,
+    kodoDraftTestState,
+    databaseDraftTested,
+    kodoDraftTested,
     databaseProfileDraft,
     kodoProfileDraft,
     databaseVerification,
@@ -367,6 +498,8 @@ export function usePersonalSpaceSettingsWorkspace({
     setSelectedKodoProfileId: selectKodoProfile,
     setDatabaseProfileDraft,
     setKodoProfileDraft,
+    addDatabaseProfile,
+    addKodoProfile,
     saveDatabaseProfile,
     deleteDatabaseProfile,
     saveKodoProfile,

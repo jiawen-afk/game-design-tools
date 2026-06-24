@@ -448,6 +448,31 @@ test('project management exposes remote database and qiniu kodo configuration', 
   assert.match(indexSource, /onDeleteKodoProfile=\{\(\) => void workspace\.deleteKodoProfile\(\)\}/)
 })
 
+test('remote profile editing requires tested drafts and preserves blank secrets', () => {
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+  const desktopSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+
+  assert.match(panelSource, /添加数据库配置/)
+  assert.match(panelSource, /添加 Kodo 配置/)
+  assert.match(panelSource, /留空表示不修改密码/)
+  assert.match(panelSource, /留空表示不修改 Secret Key/)
+  assert.match(panelSource, /测试失败，仍然保存/)
+  assert.match(panelSource, /disabled=\{!databaseDraftTested\}/)
+  assert.match(panelSource, /disabled=\{!kodoDraftTested\}/)
+  assert.match(hookSource, /databaseProfileMode/)
+  assert.match(hookSource, /kodoProfileMode/)
+  assert.match(hookSource, /getProjectConnectionProfile/)
+  assert.match(hookSource, /id: databaseProfileMode === 'edit' \? selectedDatabaseProfileId : undefined/)
+  assert.match(hookSource, /id: kodoProfileMode === 'edit' \? selectedKodoProfileId : undefined/)
+  assert.match(desktopSource, /getProjectConnectionProfile\(profileId: string\)/)
+  assert.match(preloadSource, /getProjectConnectionProfile: \(profileId\) => invoke\('project-profile:get', profileId\)/)
+  assert.match(mainSource, /ipcMain\.handle\('project-profile:get'/)
+  assert.match(mainSource, /mergeProjectProfilePayload/)
+})
+
 test('project workspace routes remote migration and hard delete through project storage services', () => {
   const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')

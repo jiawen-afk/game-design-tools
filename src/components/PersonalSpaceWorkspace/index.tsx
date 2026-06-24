@@ -62,6 +62,12 @@ export default function PersonalSpaceWorkspace() {
           kodoProfiles={workspace.kodoProfiles}
           selectedDatabaseProfileId={workspace.selectedDatabaseProfileId}
           selectedKodoProfileId={workspace.selectedKodoProfileId}
+          databaseProfileMode={workspace.databaseProfileMode}
+          kodoProfileMode={workspace.kodoProfileMode}
+          databaseDraftTestState={workspace.databaseDraftTestState}
+          kodoDraftTestState={workspace.kodoDraftTestState}
+          databaseDraftTested={workspace.databaseDraftTested}
+          kodoDraftTested={workspace.kodoDraftTested}
           databaseProfileDraft={workspace.databaseProfileDraft}
           kodoProfileDraft={workspace.kodoProfileDraft}
           databaseVerification={workspace.databaseVerification}
@@ -81,6 +87,8 @@ export default function PersonalSpaceWorkspace() {
           onSelectedKodoProfileChange={workspace.setSelectedKodoProfileId}
           onDatabaseProfileDraftChange={workspace.setDatabaseProfileDraft}
           onKodoProfileDraftChange={workspace.setKodoProfileDraft}
+          onAddDatabaseProfile={workspace.addDatabaseProfile}
+          onAddKodoProfile={workspace.addKodoProfile}
           onSaveDatabaseProfile={() => void workspace.saveDatabaseProfile()}
           onDeleteDatabaseProfile={() => void workspace.deleteDatabaseProfile()}
           onSaveKodoProfile={() => void workspace.saveKodoProfile()}

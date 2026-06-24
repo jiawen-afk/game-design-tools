@@ -121,6 +121,10 @@ export interface ProjectConnectionProfileSummary {
   lastVerifiedAt: string | null
 }
 
+export interface ProjectConnectionProfileDetail extends ProjectConnectionProfileSummary {
+  payload: unknown
+}
+
 export interface ProjectConnectionVerificationResult {
   ok: boolean
   message: string
@@ -155,11 +159,14 @@ export interface GameDesignToolsDesktopApi {
   upscaleImage(options: DesktopUpscaleImageOptions): Promise<DesktopUpscaleImageResult>
   onUpscaleInstallProgress(listener: (progress: DesktopUpscaleInstallProgress) => void): () => void
   listProjectConnectionProfiles(type?: 'database' | 'qiniu_kodo'): Promise<ProjectConnectionProfileSummary[]>
+  getProjectConnectionProfile(profileId: string): Promise<ProjectConnectionProfileDetail | null>
   saveProjectConnectionProfile(input: unknown): Promise<ProjectConnectionProfileSummary>
   deleteProjectConnectionProfile(profileId: string): Promise<boolean>
   verifyProjectDatabaseProfile(profileId: string): Promise<ProjectConnectionVerificationResult>
+  verifyProjectDatabaseProfileDraft(input: unknown, profileId?: string): Promise<ProjectConnectionVerificationResult>
   initializeProjectDatabaseSchema(profileId: string, dialect: 'postgresql' | 'mysql'): Promise<ProjectConnectionVerificationResult>
   verifyProjectKodoProfile(profileId: string, projectId: string): Promise<ProjectConnectionVerificationResult>
+  verifyProjectKodoProfileDraft(input: unknown, projectId: string, profileId?: string): Promise<ProjectConnectionVerificationResult>
   initializeLocalProjectRepository(): Promise<boolean>
   createLocalProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings>
   createLocalRemoteProject(input: CreateRemoteProjectInput): Promise<ProjectWithSettings>
