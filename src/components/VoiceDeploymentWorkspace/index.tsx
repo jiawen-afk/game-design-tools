@@ -21,8 +21,8 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   readCurrentProjectSpaceState,
-  writeCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
+import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
 import { useAppToast } from '../AppToastProvider'
 import {
   personalSpaceDirectoryRequiredMessage,
@@ -107,10 +107,13 @@ export default function VoiceDeploymentWorkspace() {
     setLastGeneratedId(null)
   }
 
-  const createVoiceCharacter = useCallback((name: string) => {
+  const createVoiceCharacter = useCallback(async (name: string) => {
     const nextSpace = addCharacterProfile(personalSpaceSnapshot, name)
     const createdCharacter = nextSpace.characters[nextSpace.characters.length - 1]
-    writeCurrentProjectSpaceState(nextSpace)
+    const persistence = await persistCurrentProjectSpaceState(nextSpace)
+    if (persistence.syncError) {
+      void messageApi.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+    }
     setPersonalSpaceSnapshot(nextSpace)
     setSelectedVoiceCharacterId(createdCharacter?.id ?? null)
     void messageApi.success(`已创建角色：${createdCharacter?.name ?? name.trim()}`)
@@ -121,7 +124,11 @@ export default function VoiceDeploymentWorkspace() {
     link?: { target: VoiceCollectLinkTarget; targetId: string },
   ) => {
     try {
-      const nextSpace = await collectVoiceRecordToPersonalSpace(record, link)
+      const nextSpace = await collectVoiceRecordToPersonalSpace(record, link, {
+        onSyncError: (error) => {
+          void messageApi.warning(`已保存到本地项目缓存，但同步项目存储失败：${error instanceof Error ? error.message : String(error)}`)
+        },
+      })
       setPersonalSpaceSnapshot(nextSpace)
       const linkLabel = link?.target === 'character' ? '并关联角色'
         : link?.target === 'effect' ? '并关联特效'

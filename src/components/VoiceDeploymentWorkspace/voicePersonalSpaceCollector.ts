@@ -9,8 +9,8 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   readCurrentProjectSpaceState,
-  writeCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
+import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
 import {
   getPersonalSpaceDirectoryHandle,
   loadPersistedPersonalSpaceDirectoryHandle,
@@ -29,6 +29,7 @@ export interface VoiceCollectLink {
 
 export interface CollectVoiceRecordOptions {
   directoryHandleStore?: PersonalSpaceDirectoryHandleStore | null
+  onSyncError?: (error: unknown) => void
 }
 
 function voiceResourceFileName(record: VoiceGenerationRecord) {
@@ -99,6 +100,11 @@ export async function collectVoiceRecordToPersonalSpace(
     nextSpace = assignVoiceToStoryboardGroup(nextSpace, link.targetId, asset.id, record.params.text)
   }
 
-  writeCurrentProjectSpaceState(nextSpace)
+  const persistence = await persistCurrentProjectSpaceState(nextSpace, {
+    getDirectoryHandle: () => directoryHandle,
+  })
+  if (persistence.syncError) {
+    options?.onSyncError?.(persistence.syncError)
+  }
   return nextSpace
 }

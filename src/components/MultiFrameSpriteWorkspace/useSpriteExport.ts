@@ -14,8 +14,8 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   readCurrentProjectSpaceState,
-  writeCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
+import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -181,7 +181,12 @@ export function useSpriteExport({
       if (characterId) {
         nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite')
       }
-      writeCurrentProjectSpaceState(nextSpace)
+      const persistence = await persistCurrentProjectSpaceState(nextSpace, {
+        getDirectoryHandle: () => directoryHandle,
+      })
+      if (persistence.syncError) {
+        message.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+      }
       message.success(characterId ? '已收藏到 项目空间-素材-精灵图，并关联角色' : '已收藏到 项目空间-素材-精灵图')
     } catch (e) {
       message.error(`收藏到项目空间失败：${String(e)}`)

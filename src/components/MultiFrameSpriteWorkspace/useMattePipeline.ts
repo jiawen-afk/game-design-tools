@@ -19,8 +19,8 @@ import {
 } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import {
   readCurrentProjectSpaceState,
-  writeCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
+import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -394,10 +394,16 @@ export function useMattePipeline({
         const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
         assets.push(asset)
       }
-      writeCurrentProjectSpaceState({
+      const nextSpace = {
         ...space,
         assets: [...assets, ...space.assets],
+      }
+      const persistence = await persistCurrentProjectSpaceState(nextSpace, {
+        getDirectoryHandle: () => directoryHandle,
       })
+      if (persistence.syncError) {
+        message.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+      }
       message.success(`已成功导入 ${assets.length} 张抠图到 项目空间-素材-公共图片`)
     } catch (error) {
       message.error(`收藏到项目空间失败：${String(error)}`)

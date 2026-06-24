@@ -13,7 +13,11 @@ import {
   writeCurrentProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
+import { persistCurrentProjectSpaceState } from './currentProjectSpacePersistence'
+import { createMemoryDirectoryHandle } from './personalSpaceFileStorage'
 import { activeProjectStorageKey } from '../ProjectStorage/projectActiveProject'
+import { createMemoryProjectObjectStorage } from '../ProjectStorage/projectLocalObjectStorage'
+import { createMemoryProjectRepository } from '../ProjectStorage/projectSqliteRepository'
 import { personalSpaceStorageKey } from './personalSpaceState'
 
 function createMemoryStorage(seed: Record<string, string> = {}): Storage {
@@ -118,4 +122,108 @@ test('current project space helpers write external workspace changes into the en
   assert.deepEqual(readCurrentProjectSpaceState(storage).assets.map((asset) => asset.name), ['walk.png'])
   assert.deepEqual(readProjectSpaceState('p1', { storage }).assets.map((asset) => asset.name), ['walk.png'])
   assert.deepEqual(JSON.parse(storage.getItem(personalSpaceStorageKey)!).assets.map((asset: { name: string }) => asset.name), ['legacy.wav'])
+})
+
+test('current project persistence syncs external workspace changes to local project storage', async () => {
+  const storage = createMemoryStorage({ [activeProjectStorageKey]: 'p1' })
+  const repository = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await repository.initializeSchema()
+  await repository.createProject({
+    name: '本地项目',
+    description: '',
+    localObjectRoot: 'D:\\GameAssets',
+    now: '2026-06-25T00:00:00.000Z',
+  })
+  const createdProject = (await repository.listProjects())[0]!
+  await repository.updateProject(createdProject.id, {
+    name: '本地项目',
+    description: '',
+    updatedAt: '2026-06-25T00:00:00.000Z',
+  })
+  storage.setItem(activeProjectStorageKey, createdProject.id)
+  await directory.writeText('配音/2026-06-25/welcome.wav', 'voice-bytes')
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      resourcePaths: ['blob:voice'],
+    }),
+    createdAt: '2026-06-25T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-25/welcome.wav'],
+  }
+
+  const result = await persistCurrentProjectSpaceState({
+    ...defaultPersonalSpaceState,
+    assets: [voice],
+  }, {
+    storage,
+    localRepository: repository,
+    localObjectStorage: localObjects,
+    getDirectoryHandle: async () => directory,
+    now: () => '2026-06-25T01:00:00.000Z',
+  })
+
+  assert.equal(result.synced, true)
+  assert.equal(result.projectId, createdProject.id)
+  assert.deepEqual(readCurrentProjectSpaceState(storage).assets.map((asset) => asset.name), ['欢迎'])
+  const rows = await repository.exportProjectRows(createdProject.id)
+  assert.ok(rows)
+  assert.equal(rows.assets.length, 1)
+  assert.equal(await (await localObjects.getObject(rows.assets[0]!.primary_object_key)).text(), 'voice-bytes')
+})
+
+test('current project persistence syncs external workspace changes to remote project storage', async () => {
+  const storage = createMemoryStorage({ [activeProjectStorageKey]: 'p1' })
+  const localRepository = createMemoryProjectRepository()
+  const remoteRepository = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const remoteObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await localRepository.initializeSchema()
+  await remoteRepository.initializeSchema()
+  await remoteRepository.createRemoteProject({
+    id: 'p1',
+    name: '远程项目',
+    description: '',
+    databaseProvider: 'postgresql',
+    databaseProfileId: 'db-current',
+    storageProfileId: 'kodo-current',
+    now: '2026-06-25T00:00:00.000Z',
+  })
+  await directory.writeText('配音/2026-06-25/welcome.wav', 'voice-bytes')
+  const voice = {
+    ...createPersonalSpaceAsset({
+      kind: 'voice',
+      assetSubtype: 'character_voice',
+      name: '欢迎',
+      resourcePaths: ['blob:voice'],
+    }),
+    createdAt: '2026-06-25T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/配音/2026-06-25/welcome.wav'],
+  }
+
+  const result = await persistCurrentProjectSpaceState({
+    ...defaultPersonalSpaceState,
+    assets: [voice],
+  }, {
+    storage,
+    localRepository,
+    remoteRepository,
+    localObjectStorage: localObjects,
+    remoteObjectStorage: remoteObjects,
+    getDirectoryHandle: async () => directory,
+    now: () => '2026-06-25T01:00:00.000Z',
+  })
+
+  assert.equal(result.synced, true)
+  assert.equal(result.projectId, 'p1')
+  assert.deepEqual(readCurrentProjectSpaceState(storage).assets.map((asset) => asset.name), ['欢迎'])
+  const rows = await remoteRepository.exportProjectRows('p1')
+  assert.ok(rows)
+  assert.equal(rows.project.mode, 'remote')
+  assert.equal(rows.assets.length, 1)
+  assert.equal(await (await remoteObjects.getObject(rows.assets[0]!.primary_object_key)).text(), 'voice-bytes')
 })
