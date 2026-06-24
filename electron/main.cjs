@@ -379,8 +379,8 @@ function parseJsonText(text) {
 function getInitialWindowBounds() {
   const workAreaSize = screen.getPrimaryDisplay().workAreaSize
   return {
-    width: Math.max(980, Math.min(1280, workAreaSize.width - 48)),
-    height: Math.max(640, Math.min(860, workAreaSize.height - 48)),
+    width: Math.max(1600, Math.min(1600, workAreaSize.width - 48)),
+    height: Math.max(1000, Math.min(1000, workAreaSize.height - 48)),
   }
 }
 
@@ -389,8 +389,6 @@ function createWindow() {
   const win = new BrowserWindow({
     width: bounds.width,
     height: bounds.height,
-    minWidth: 980,
-    minHeight: 640,
     title: 'Game Design Tools',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

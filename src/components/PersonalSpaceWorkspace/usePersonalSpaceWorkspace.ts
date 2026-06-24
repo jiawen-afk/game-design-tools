@@ -62,6 +62,7 @@ import {
   readProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
+import { formatRemoteProjectReadError } from './remoteProjectMessages'
 import {
   applyAssetDeleteResult,
   createCommonResourceAssetForUpload,
@@ -280,10 +281,11 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         return nextSpace
       } catch (error) {
         const cachedSpace = readCachedProjectSpaceState(projectId)
+        const errorMessage = formatRemoteProjectReadError(error, project)
         void messageApi.warning(
           cachedSpace
-            ? `远程项目数据读取失败，已使用本地项目缓存：${String(error)}`
-            : `远程项目数据读取失败，且当前设备没有可用的项目缓存：${String(error)}`,
+            ? `远程项目数据读取失败，已使用本地项目缓存：${errorMessage}`
+            : `远程项目数据读取失败，且当前设备没有可用的项目缓存：${errorMessage}`,
         )
         return cachedSpace
       }
