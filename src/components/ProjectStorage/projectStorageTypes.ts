@@ -142,3 +142,14 @@ export interface AssetRelation {
   relation_type: 'effect_voice' | 'derived_from' | string
   created_at: string
 }
+
+export interface ProjectCleanupTask {
+  id: string
+  project_id: string
+  storage_provider: ProjectStorageProvider
+  object_key: string
+  status: CleanupTaskStatus
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}

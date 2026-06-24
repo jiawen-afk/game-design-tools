@@ -456,7 +456,14 @@ export function PersonalStoryboardPanel({
                       .filter((character): character is CharacterProfile => Boolean(character))
                       .map((character) => (
                         <div className="storyboard-character-item" key={character.id}>
-                          <StoryboardCharacterAvatar character={character} allAssets={allAssets} />
+                          <StoryboardCharacterAvatar
+                            character={character}
+                            allAssets={allAssets}
+                            projectObjectStorage={projectObjectStorage}
+                            projectAssetManager={projectAssetManager}
+                            projectId={projectId}
+                            projectMode={projectMode}
+                          />
                           <span>{character.name}</span>
                         </div>
                       ))}

@@ -125,8 +125,6 @@ export function validateRemoteProjectSettings(settings: ProjectSettings): string
   if (settings.database_provider !== 'postgresql' && settings.database_provider !== 'mysql') {
     errors.push('远程项目必须使用 PostgreSQL 或 MySQL')
   }
-  if (!settings.remote_database_profile_id) errors.push('缺少远程数据库配置')
-  if (!settings.remote_storage_profile_id) errors.push('缺少远程对象存储配置')
   return errors
 }
 

@@ -139,6 +139,19 @@ const tableDefinitions = {
       'created_at',
     ],
   },
+  deleted_project_cleanup_tasks: {
+    conflictColumns: ['id'],
+    columns: [
+      'id',
+      'project_id',
+      'storage_provider',
+      'object_key',
+      'status',
+      'error_message',
+      'created_at',
+      'updated_at',
+    ],
+  },
 }
 
 const rowSetTables = [
@@ -323,8 +336,8 @@ function createRemoteProjectRows(input) {
     storage_provider: 'qiniu_kodo',
     database_provider: input.databaseProvider,
     local_object_root: null,
-    remote_database_profile_id: input.databaseProfileId,
-    remote_storage_profile_id: input.storageProfileId,
+    remote_database_profile_id: null,
+    remote_storage_profile_id: null,
     last_verified_at: input.now,
     updated_at: input.now,
   }
@@ -372,23 +385,19 @@ class RemoteProjectRepository {
         input.updatedAt,
         projectId,
       ])
-      if (input.databaseProvider || input.databaseProfileId || input.storageProfileId) {
-        const settingsStatement = [
-          'UPDATE project_settings SET',
-          `database_provider = COALESCE(${parameter(runner.dialect, 1)}, database_provider),`,
-          `remote_database_profile_id = COALESCE(${parameter(runner.dialect, 2)}, remote_database_profile_id),`,
-          `remote_storage_profile_id = COALESCE(${parameter(runner.dialect, 3)}, remote_storage_profile_id),`,
-          `updated_at = ${parameter(runner.dialect, 4)}`,
-          `WHERE project_id = ${parameter(runner.dialect, 5)}`,
-        ].join(' ')
-        await runner.execute(settingsStatement, [
-          input.databaseProvider || null,
-          input.databaseProfileId || null,
-          input.storageProfileId || null,
-          input.updatedAt,
-          projectId,
-        ])
-      }
+      const settingsStatement = [
+        'UPDATE project_settings SET',
+        `database_provider = COALESCE(${parameter(runner.dialect, 1)}, database_provider),`,
+        'remote_database_profile_id = NULL,',
+        'remote_storage_profile_id = NULL,',
+        `updated_at = ${parameter(runner.dialect, 2)}`,
+        `WHERE project_id = ${parameter(runner.dialect, 3)}`,
+      ].join(' ')
+      await runner.execute(settingsStatement, [
+        input.databaseProvider || null,
+        input.updatedAt,
+        projectId,
+      ])
     })
     return this.getProject(projectId)
   }
@@ -439,6 +448,19 @@ class RemoteProjectRepository {
   async listAssets(projectId) {
     return withRunner(this.profile, this.options, async (runner) => (
       runner.queryRows(selectSql(runner.dialect, 'assets', 'project_id'), [projectId])
+    ))
+  }
+
+  async addCleanupTasks(tasks) {
+    if (!Array.isArray(tasks) || tasks.length === 0) return
+    await withTransaction(this.profile, this.options, async (runner) => {
+      await upsertRows(runner, 'deleted_project_cleanup_tasks', tasks)
+    })
+  }
+
+  async listCleanupTasks(projectId) {
+    return withRunner(this.profile, this.options, async (runner) => (
+      runner.queryRows(selectSql(runner.dialect, 'deleted_project_cleanup_tasks', 'project_id'), [projectId])
     ))
   }
 

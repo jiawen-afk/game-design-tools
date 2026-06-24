@@ -131,17 +131,36 @@ test('local manager bypasses cache and uses local object storage', async () => {
 
 test('manager deletes resource cache entries', async () => {
   const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const remoteObjectStorage = createMemoryProjectObjectStorage()
   const manager = createProjectAssetManager({
     localObjectStorage: createMemoryProjectObjectStorage(),
-    remoteObjectStorage: createMemoryProjectObjectStorage(),
+    remoteObjectStorage,
     cacheStorage,
   })
   const ref = remoteRef()
+  await remoteObjectStorage.putObject(ref.objectKey, new Blob(['remote-object']))
   await cacheStorage.putCachedResource(ref, createProjectAssetFingerprint(ref), new Blob(['cache']))
 
   await manager.deleteResources([ref])
 
   assert.equal(await cacheStorage.getCachedResource(ref, createProjectAssetFingerprint(ref)), null)
+  await assert.rejects(() => remoteObjectStorage.getObject(ref.objectKey), /对象不存在/)
+})
+
+test('manager deletes local object resources for local projects', async () => {
+  const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const localObjectStorage = createMemoryProjectObjectStorage()
+  const manager = createProjectAssetManager({
+    localObjectStorage,
+    remoteObjectStorage: createMemoryProjectObjectStorage(),
+    cacheStorage,
+  })
+  const ref = remoteRef({ projectMode: 'local', objectKey: 'objects/本地项目/audio_wav/r1.wav' })
+  await localObjectStorage.putObject(ref.objectKey, new Blob(['local-object']))
+
+  await manager.deleteResources([ref])
+
+  await assert.rejects(() => localObjectStorage.getObject(ref.objectKey), /对象不存在/)
 })
 
 test('manager deletes all cache entries for a project', async () => {

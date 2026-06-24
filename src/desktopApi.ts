@@ -5,6 +5,7 @@ import type {
   CreateRemoteProjectInput,
   LegacyProjectRows,
   Project,
+  ProjectCleanupTask,
   ProjectDatabaseProvider,
   ProjectAssetResourceRef,
   ProjectWithSettings,
@@ -119,6 +120,7 @@ export interface ProjectConnectionProfileSummary {
   displayName: string
   redactedSummary: string
   lastVerifiedAt: string | null
+  schemaInitializedAt: string | null
 }
 
 export interface ProjectConnectionProfileDetail extends ProjectConnectionProfileSummary {
@@ -176,6 +178,8 @@ export interface GameDesignToolsDesktopApi {
   importLocalProjectRows(rows: LegacyProjectRows): Promise<boolean>
   exportLocalProjectRows(projectId: string): Promise<LegacyProjectRows | null>
   listLocalProjectAssets(projectId: string): Promise<Asset[]>
+  addLocalProjectCleanupTasks(tasks: ProjectCleanupTask[]): Promise<boolean>
+  listLocalProjectCleanupTasks(projectId: string): Promise<ProjectCleanupTask[]>
   deleteLocalProject(projectId: string): Promise<boolean>
   putLocalProjectObject(objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
   getLocalProjectObject(objectKey: string): Promise<DesktopProjectObjectReadResult>
@@ -199,6 +203,8 @@ export interface GameDesignToolsDesktopApi {
   importRemoteProjectRows(rows: LegacyProjectRows, databaseProfileId?: string): Promise<boolean>
   exportRemoteProjectRows(projectId: string, databaseProfileId?: string): Promise<LegacyProjectRows | null>
   listRemoteProjectAssets(projectId: string, databaseProfileId?: string): Promise<Asset[]>
+  addRemoteProjectCleanupTasks(tasks: ProjectCleanupTask[], databaseProfileId?: string): Promise<boolean>
+  listRemoteProjectCleanupTasks(projectId: string, databaseProfileId?: string): Promise<ProjectCleanupTask[]>
   deleteRemoteProject(projectId: string, databaseProfileId?: string): Promise<boolean>
   putProjectKodoObject(profileId: string, objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
   getProjectKodoObject(profileId: string, objectKey: string): Promise<DesktopProjectObjectReadResult>

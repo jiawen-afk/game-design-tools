@@ -29,10 +29,11 @@ const {
   verifyKodoProfile,
 } = require('./projectKodoStorage.cjs')
 const {
-  editableProjectProfile,
   mergeProjectProfilePayload,
-  projectProfileSummary,
 } = require('./projectConnectionProfiles.cjs')
+const {
+  createProjectConnectionProfileStore,
+} = require('./projectConnectionProfileStore.cjs')
 
 const allowedPersonalSpaceRoots = new Set()
 const projectConnectionProfileFileName = 'project-connection-profiles.json'
@@ -130,64 +131,16 @@ function resolveProjectAssetCacheRootPath() {
   return path.join(app.getPath('userData'), 'project-asset-cache')
 }
 
-async function readProjectConnectionProfiles() {
-  try {
-    const parsed = parseJsonText(await fsp.readFile(resolveProjectConnectionProfilePath(), 'utf8'))
-    return Array.isArray(parsed?.profiles) ? parsed.profiles : []
-  } catch {
-    return []
-  }
-}
-
-async function writeProjectConnectionProfiles(profiles) {
-  const profilePath = resolveProjectConnectionProfilePath()
-  await fsp.mkdir(path.dirname(profilePath), { recursive: true })
-  await fsp.writeFile(profilePath, JSON.stringify({ profiles }, null, 2))
-}
-
-function createProfileId() {
-  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
-}
-
-function normalizeProjectConnectionType(value) {
-  return value === 'database' || value === 'qiniu_kodo' ? value : ''
-}
-
-function redactProjectProfileInput(input) {
-  if (input?.type === 'database') {
-    const payload = input.payload || {}
-    const provider = payload.provider === 'mysql' ? 'mysql' : 'postgresql'
-    const host = String(payload.host || '').trim()
-    const port = Number(payload.port || (provider === 'mysql' ? 3306 : 5432))
-    const database = String(payload.database || '').trim()
-    const username = String(payload.username || '').trim()
-    return {
-      type: 'database',
-      displayName: String(input.displayName || `${provider} ${database || host}`).trim() || '远程数据库',
-      redactedSummary: `${username}@${host}:${port}/${database}${payload.ssl ? ' (SSL)' : ''}`,
-    }
-  }
-  if (input?.type === 'qiniu_kodo') {
-    const payload = input.payload || {}
-    const bucket = String(payload.bucket || '').trim()
-    const region = String(payload.region || '').trim()
-    const domain = String(payload.domain || '').trim()
-    return {
-      type: 'qiniu_kodo',
-      displayName: String(input.displayName || `Kodo ${bucket}`).trim() || '七牛 Kodo',
-      redactedSummary: `${bucket}@${region}${domain ? ` ${domain}` : ''}`,
-    }
-  }
-  throw new Error('项目连接配置类型无效。')
+function getProjectConnectionProfileStore() {
+  return createProjectConnectionProfileStore(resolveProjectConnectionProfilePath())
 }
 
 async function getProjectConnectionProfile(profileId) {
-  const profiles = await readProjectConnectionProfiles()
-  return profiles.find((profile) => profile.id === profileId) || null
+  return getProjectConnectionProfileStore().get(profileId)
 }
 
 async function getRemoteDatabaseRepository(profileId) {
-  const profiles = await readProjectConnectionProfiles()
+  const profiles = await getProjectConnectionProfileStore().readRawProfiles()
   const databaseProfiles = profiles.filter((profile) => profile.type === 'database')
   const profile = profileId
     ? databaseProfiles.find((item) => item.id === profileId)
@@ -342,7 +295,7 @@ function assertAllowedPersonalSpacePath(targetPath) {
   for (const root of allowedPersonalSpaceRoots) {
     if (isInside(root, normalized)) return normalized
   }
-  throw new Error('路径未授权，请先在个人空间中选择资源目录。')
+  throw new Error('路径未授权，请先在项目空间中选择资源目录。')
 }
 
 function assertSafeChildName(name) {
@@ -503,7 +456,7 @@ async function checkForAppUpdates(options = {}) {
 
 ipcMain.handle('personal-space:select-directory', async () => {
   const result = await dialog.showOpenDialog({
-    title: '选择个人空间资源目录',
+    title: '选择项目空间资源目录',
     properties: ['openDirectory', 'createDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) return null
@@ -513,7 +466,7 @@ ipcMain.handle('personal-space:select-directory', async () => {
 
 ipcMain.handle('personal-space:register-directory', async (_event, rootPath) => {
   const selectedPath = normalizePath(rootPath)
-  if (!(await directoryExists(selectedPath))) throw new Error('个人空间资源目录不存在。')
+  if (!(await directoryExists(selectedPath))) throw new Error('项目空间资源目录不存在。')
   registerPersonalSpaceRoot(selectedPath)
   return { name: path.basename(selectedPath), path: selectedPath }
 })
@@ -565,49 +518,19 @@ ipcMain.handle('file:save', async (_event, fileName, data) => {
 })
 
 ipcMain.handle('project-profile:list', async (_event, type) => {
-  const normalizedType = normalizeProjectConnectionType(type)
-  const profiles = await readProjectConnectionProfiles()
-  return profiles
-    .filter((profile) => !normalizedType || profile.type === normalizedType)
-    .map(projectProfileSummary)
+  return getProjectConnectionProfileStore().list(type)
 })
 
 ipcMain.handle('project-profile:get', async (_event, profileId) => (
-  editableProjectProfile(await getProjectConnectionProfile(String(profileId || '')))
+  getProjectConnectionProfileStore().editable(String(profileId || ''))
 ))
 
 ipcMain.handle('project-profile:save', async (_event, input = {}) => {
-  const profiles = await readProjectConnectionProfiles()
-  const id = String(input.id || createProfileId())
-  const existingProfile = profiles.find((profile) => profile.id === id) || null
-  const payload = mergeProjectProfilePayload(input, existingProfile)
-  const redacted = redactProjectProfileInput({ ...input, payload })
-  const now = new Date().toISOString()
-  const nextProfile = {
-    id,
-    type: redacted.type,
-    displayName: redacted.displayName,
-    redactedSummary: redacted.redactedSummary,
-    encryptedPayload: {
-      algorithm: 'placeholder-local-json',
-      payload: Buffer.from(JSON.stringify(payload), 'utf8').toString('base64'),
-    },
-    createdAt: profiles.find((profile) => profile.id === id)?.createdAt || now,
-    updatedAt: now,
-    lastVerifiedAt: null,
-  }
-  const nextProfiles = profiles.filter((profile) => profile.id !== id)
-  nextProfiles.push(nextProfile)
-  await writeProjectConnectionProfiles(nextProfiles)
-  return projectProfileSummary(nextProfile)
+  return getProjectConnectionProfileStore().save(input)
 })
 
 ipcMain.handle('project-profile:delete', async (_event, profileId) => {
-  const id = String(profileId || '')
-  const profiles = await readProjectConnectionProfiles()
-  const nextProfiles = profiles.filter((profile) => profile.id !== id)
-  await writeProjectConnectionProfiles(nextProfiles)
-  return nextProfiles.length !== profiles.length
+  return getProjectConnectionProfileStore().delete(String(profileId || ''))
 })
 
 ipcMain.handle('project-profile:verify-database', async (_event, profileId) => {
@@ -618,10 +541,7 @@ ipcMain.handle('project-profile:verify-database', async (_event, profileId) => {
   const result = await verifyRemoteDatabaseProfile(profile)
   if (result.ok) {
     const now = result.lastVerifiedAt || new Date().toISOString()
-    const profiles = await readProjectConnectionProfiles()
-    await writeProjectConnectionProfiles(profiles.map((item) => (
-      item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
-    )))
+    await getProjectConnectionProfileStore().markVerified(profile.id, now)
   }
   return result
 })
@@ -648,7 +568,12 @@ ipcMain.handle('project-profile:initialize-database-schema', async (_event, prof
   if (dialect !== 'postgresql' && dialect !== 'mysql') {
     return { ok: false, message: '初始化表结构仅支持 PostgreSQL 或 MySQL。', lastVerifiedAt: profile.lastVerifiedAt || null }
   }
-  return initializeRemoteDatabaseSchema(profile)
+  const result = await initializeRemoteDatabaseSchema(profile)
+  if (result.ok) {
+    const now = result.lastVerifiedAt || new Date().toISOString()
+    await getProjectConnectionProfileStore().markSchemaInitialized(profile.id, now)
+  }
+  return result
 })
 
 ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectId) => {
@@ -659,10 +584,7 @@ ipcMain.handle('project-profile:verify-kodo', async (_event, profileId, projectI
   const result = await verifyKodoProfile(profile, { projectId })
   if (result.ok) {
     const now = result.lastVerifiedAt || new Date().toISOString()
-    const profiles = await readProjectConnectionProfiles()
-    await writeProjectConnectionProfiles(profiles.map((item) => (
-      item.id === profile.id ? { ...item, lastVerifiedAt: now, updatedAt: now } : item
-    )))
+    await getProjectConnectionProfileStore().markVerified(profile.id, now)
   }
   return result
 })
@@ -717,6 +639,15 @@ ipcMain.handle('project-local-repository:export-rows', async (_event, projectId)
 
 ipcMain.handle('project-local-repository:list-assets', async (_event, projectId) => (
   getLocalProjectRepository().listAssets(String(projectId || ''))
+))
+
+ipcMain.handle('project-local-repository:add-cleanup-tasks', async (_event, tasks = []) => {
+  await getLocalProjectRepository().addCleanupTasks(Array.isArray(tasks) ? tasks : [])
+  return true
+})
+
+ipcMain.handle('project-local-repository:list-cleanup-tasks', async (_event, projectId) => (
+  getLocalProjectRepository().listCleanupTasks(String(projectId || ''))
 ))
 
 ipcMain.handle('project-local-repository:delete-project', async (_event, projectId) => {
@@ -780,7 +711,7 @@ ipcMain.handle('project-remote-repository:get-project', async (_event, projectId
 })
 
 ipcMain.handle('project-remote-repository:import-rows', async (_event, rows, databaseProfileId) => {
-  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || rows?.settings?.remote_database_profile_id || ''))
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
   await repository.importProjectRows(rows)
   return true
 })
@@ -793,6 +724,18 @@ ipcMain.handle('project-remote-repository:export-rows', async (_event, projectId
 ipcMain.handle('project-remote-repository:list-assets', async (_event, projectId, databaseProfileId) => {
   const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
   return repository.listAssets(String(projectId || ''))
+})
+
+ipcMain.handle('project-remote-repository:add-cleanup-tasks', async (_event, tasks = [], databaseProfileId) => {
+  const normalizedTasks = Array.isArray(tasks) ? tasks : []
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  await repository.addCleanupTasks(normalizedTasks)
+  return true
+})
+
+ipcMain.handle('project-remote-repository:list-cleanup-tasks', async (_event, projectId, databaseProfileId) => {
+  const repository = await getRemoteDatabaseRepository(String(databaseProfileId || ''))
+  return repository.listCleanupTasks(String(projectId || ''))
 })
 
 ipcMain.handle('project-remote-repository:delete-project', async (_event, projectId, databaseProfileId) => {

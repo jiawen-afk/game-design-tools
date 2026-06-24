@@ -8,6 +8,7 @@ import type {
   ProjectRepository,
   UpdateProjectInput,
 } from './projectSqliteRepository'
+import type { ProjectCleanupTask } from './projectStorageTypes'
 
 const listedProjectDatabaseProfileIds = new Map<string, string>()
 
@@ -44,28 +45,20 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
   async listProjects() {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
-    try {
-      const databaseProfileId = this.getDatabaseProfileId()
-      const projects = await desktopApi.listRemoteProjects(databaseProfileId)
-      if (databaseProfileId) {
-        for (const project of projects) {
-          listedProjectDatabaseProfileIds.set(project.id, databaseProfileId)
-        }
+    const databaseProfileId = this.getDatabaseProfileId()
+    const projects = await desktopApi.listRemoteProjects(databaseProfileId)
+    if (databaseProfileId) {
+      for (const project of projects) {
+        listedProjectDatabaseProfileIds.set(project.id, databaseProfileId)
       }
-      return projects
-    } catch {
-      return []
     }
+    return projects
   }
 
   async getProject(projectId: string) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
-    try {
-      return await desktopApi.getRemoteProject(projectId, this.requireProjectDatabaseProfileId(projectId))
-    } catch {
-      return null
-    }
+    return desktopApi.getRemoteProject(projectId, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async importProjectRows(rows: LegacyProjectRows) {
@@ -82,11 +75,19 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
   async listAssets(projectId: string) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
-    try {
-      return await desktopApi.listRemoteProjectAssets(projectId, this.requireProjectDatabaseProfileId(projectId))
-    } catch {
-      return []
-    }
+    return desktopApi.listRemoteProjectAssets(projectId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async addCleanupTasks(tasks: ProjectCleanupTask[]) {
+    if (tasks.length === 0) return
+    const desktopApi = this.requireDesktopApi()
+    await desktopApi.addRemoteProjectCleanupTasks(tasks, this.requireProjectDatabaseProfileId(tasks[0]?.project_id || ''))
+  }
+
+  async listCleanupTasks(projectId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return []
+    return desktopApi.listRemoteProjectCleanupTasks(projectId, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async deleteProject(projectId: string) {

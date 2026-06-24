@@ -114,7 +114,11 @@ export class DefaultProjectAssetManager implements ProjectAssetManager {
   }
 
   async deleteResources(refs: ProjectAssetResourceRef[]) {
-    await Promise.all(refs.map((ref) => this.cacheStorage.deleteCachedResource(ref)))
+    await Promise.all(refs.map(async (ref) => {
+      const objectStorage = ref.projectMode === 'local' ? this.localObjectStorage : this.remoteObjectStorage
+      await objectStorage.deleteObject(ref.objectKey)
+      await this.cacheStorage.deleteCachedResource(ref)
+    }))
   }
 
   async deleteProjectCache(projectId: string) {

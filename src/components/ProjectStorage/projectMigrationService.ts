@@ -3,7 +3,7 @@ import { migratePersonalSpaceStateToProjectRows, type LegacyProjectRows } from '
 import type { ProjectAssetManager, ProjectAssetResourceRef } from './projectAssetManager'
 import type { ProjectObjectStorage } from './projectObjectStorage'
 import type { ProjectRepository } from './projectSqliteRepository'
-import type { Asset, CleanupTaskStatus, ProjectDatabaseProvider, ProjectStorageProvider } from './projectStorageTypes'
+import type { Asset, ProjectCleanupTask, ProjectDatabaseProvider, ProjectStorageProvider } from './projectStorageTypes'
 import { readStoredResourceBlob, type PersonalSpaceDirectoryHandle } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import type { PersonalSpaceAsset, PersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 
@@ -37,17 +37,6 @@ export interface ProjectSpaceStateSyncInput {
   remoteStorageProfileId?: string | null
   directoryHandle?: PersonalSpaceDirectoryHandle | null
   now: string
-}
-
-export interface ProjectCleanupTask {
-  id: string
-  project_id: string
-  storage_provider: ProjectStorageProvider
-  object_key: string
-  status: CleanupTaskStatus
-  error_message: string
-  created_at: string
-  updated_at: string
 }
 
 function listAssetObjectKeys(asset: Asset) {
@@ -203,12 +192,8 @@ export async function syncProjectSpaceStateToLocalProjectStorage(input: ProjectS
         ?? existing?.settings.database_provider
         ?? 'postgresql',
       local_object_root: null,
-      remote_database_profile_id: input.remoteDatabaseProfileId
-        ?? existing?.settings.remote_database_profile_id
-        ?? null,
-      remote_storage_profile_id: input.remoteStorageProfileId
-        ?? existing?.settings.remote_storage_profile_id
-        ?? null,
+      remote_database_profile_id: null,
+      remote_storage_profile_id: null,
       last_verified_at: existing?.settings.last_verified_at ?? input.now,
       updated_at: input.now,
     }
@@ -267,8 +252,8 @@ export async function migrateLocalProjectToRemote(input: LocalToRemoteMigrationI
         database_provider: input.remoteDatabaseProvider
           ?? (sourceRows.settings.database_provider === 'sqlite' ? 'postgresql' : sourceRows.settings.database_provider),
         local_object_root: null,
-        remote_database_profile_id: input.remoteDatabaseProfileId ?? sourceRows.settings.remote_database_profile_id,
-        remote_storage_profile_id: input.remoteStorageProfileId ?? sourceRows.settings.remote_storage_profile_id,
+        remote_database_profile_id: null,
+        remote_storage_profile_id: null,
         last_verified_at: input.now,
         updated_at: input.now,
       },
@@ -295,6 +280,17 @@ export async function hardDeleteProjectWithObjects(input: {
   const assets = await input.repository.listAssets(input.projectId)
   const objectKeys = assets.flatMap(listAssetObjectKeys)
   const deleteResult = await input.objectStorage.deleteObjects(objectKeys)
+  const cleanupTasks = deleteResult.failed.map((failure): ProjectCleanupTask => ({
+    id: createProjectStorageId(),
+    project_id: input.projectId,
+    storage_provider: input.storageProvider ?? 'local',
+    object_key: failure.objectKey,
+    status: 'pending',
+    error_message: failure.errorMessage,
+    created_at: input.now,
+    updated_at: input.now,
+  }))
+  if (cleanupTasks.length > 0) await input.repository.addCleanupTasks(cleanupTasks)
   await input.repository.deleteProject(input.projectId)
   if (input.localRepository && input.localRepository !== input.repository) {
     await input.localRepository.deleteProject(input.projectId)
@@ -303,15 +299,6 @@ export async function hardDeleteProjectWithObjects(input: {
 
   return {
     deletedProject: true,
-    cleanupTasks: deleteResult.failed.map((failure): ProjectCleanupTask => ({
-      id: createProjectStorageId(),
-      project_id: input.projectId,
-      storage_provider: input.storageProvider ?? 'local',
-      object_key: failure.objectKey,
-      status: 'pending',
-      error_message: failure.errorMessage,
-      created_at: input.now,
-      updated_at: input.now,
-    })),
+    cleanupTasks,
   }
 }

@@ -10,6 +10,7 @@ import type {
   CharacterAssetLink,
   Project,
   ProjectDatabaseProvider,
+  ProjectCleanupTask,
   ProjectSettings,
   StoryboardGroup,
   StoryboardVoiceEntry,
@@ -56,6 +57,8 @@ export interface ProjectRepository {
   importProjectRows(rows: LegacyProjectRows): Promise<void>
   exportProjectRows(projectId: string): Promise<LegacyProjectRows | null>
   listAssets(projectId: string): Promise<Asset[]>
+  addCleanupTasks(tasks: ProjectCleanupTask[]): Promise<void>
+  listCleanupTasks(projectId: string): Promise<ProjectCleanupTask[]>
   deleteProject(projectId: string): Promise<void>
 }
 
@@ -70,6 +73,7 @@ export class MemoryProjectRepository implements ProjectRepository {
   private storyboardGroups = new Map<string, StoryboardGroup[]>()
   private storyboardVoiceEntries = new Map<string, StoryboardVoiceEntry[]>()
   private assetRelations = new Map<string, AssetRelation[]>()
+  private cleanupTasks = new Map<string, ProjectCleanupTask[]>()
 
   async initializeSchema() {
     createProjectSchemaSql('sqlite')
@@ -133,8 +137,8 @@ export class MemoryProjectRepository implements ProjectRepository {
       storage_provider: 'qiniu_kodo',
       database_provider: input.databaseProvider,
       local_object_root: null,
-      remote_database_profile_id: input.databaseProfileId,
-      remote_storage_profile_id: input.storageProfileId,
+      remote_database_profile_id: null,
+      remote_storage_profile_id: null,
       last_verified_at: input.now,
       updated_at: input.now,
     }
@@ -163,8 +167,8 @@ export class MemoryProjectRepository implements ProjectRepository {
     const updatedSettings: ProjectSettings = {
       ...settings,
       database_provider: input.databaseProvider ?? settings.database_provider,
-      remote_database_profile_id: input.databaseProfileId ?? settings.remote_database_profile_id,
-      remote_storage_profile_id: input.storageProfileId ?? settings.remote_storage_profile_id,
+      remote_database_profile_id: null,
+      remote_storage_profile_id: null,
       updated_at: input.updatedAt,
     }
     this.projects.set(projectId, updated)
@@ -214,6 +218,17 @@ export class MemoryProjectRepository implements ProjectRepository {
 
   async listAssets(projectId: string) {
     return [...(this.assets.get(projectId) ?? [])]
+  }
+
+  async addCleanupTasks(tasks: ProjectCleanupTask[]) {
+    for (const task of tasks) {
+      const current = this.cleanupTasks.get(task.project_id) ?? []
+      this.cleanupTasks.set(task.project_id, [...current.filter((item) => item.id !== task.id), task])
+    }
+  }
+
+  async listCleanupTasks(projectId: string) {
+    return [...(this.cleanupTasks.get(projectId) ?? [])]
   }
 
   async deleteProject(projectId: string) {

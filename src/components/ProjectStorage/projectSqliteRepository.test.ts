@@ -123,11 +123,11 @@ test('local project repository creates remote projects only with remote settings
   assert.equal(created.settings.storage_provider, 'qiniu_kodo')
   assert.equal(created.settings.database_provider, 'mysql')
   assert.equal(created.settings.local_object_root, null)
-  assert.equal(created.settings.remote_database_profile_id, 'db1')
-  assert.equal(created.settings.remote_storage_profile_id, 'kodo1')
+  assert.equal(created.settings.remote_database_profile_id, null)
+  assert.equal(created.settings.remote_storage_profile_id, null)
 })
 
-test('local project repository updates remote project connection links', async () => {
+test('local project repository keeps device profile ids out of shared project settings', async () => {
   const repository = createMemoryProjectRepository()
   const created = await repository.createRemoteProject({
     id: 'remote-p1',
@@ -149,8 +149,44 @@ test('local project repository updates remote project connection links', async (
   })
 
   assert.equal(updated!.settings.database_provider, 'mysql')
-  assert.equal(updated!.settings.remote_database_profile_id, 'db2')
-  assert.equal(updated!.settings.remote_storage_profile_id, 'kodo2')
+  assert.equal(updated!.settings.remote_database_profile_id, null)
+  assert.equal(updated!.settings.remote_storage_profile_id, null)
   assert.equal(updated!.settings.updated_at, '2026-06-24T00:00:00.000Z')
-  assert.equal((await repository.getProject(created.project.id))!.settings.remote_storage_profile_id, 'kodo2')
+  assert.equal((await repository.getProject(created.project.id))!.settings.remote_storage_profile_id, null)
+})
+
+test('local project repository clears legacy shared device profile ids when renaming remote project', async () => {
+  const repository = createMemoryProjectRepository()
+  const rows = migratePersonalSpaceStateToProjectRows(defaultPersonalSpaceState, {
+    projectId: 'remote-p1',
+    projectName: '远程项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: '',
+  })
+  await repository.importProjectRows({
+    ...rows,
+    project: {
+      ...rows.project,
+      mode: 'remote',
+    },
+    settings: {
+      ...rows.settings,
+      storage_provider: 'qiniu_kodo',
+      database_provider: 'postgresql',
+      local_object_root: null,
+      remote_database_profile_id: 'old-device-db',
+      remote_storage_profile_id: 'old-device-kodo',
+    },
+  })
+
+  const updated = await repository.updateProject('remote-p1', {
+    name: '远程项目新名称',
+    description: '团队资产',
+    updatedAt: '2026-06-24T00:00:00.000Z',
+  })
+
+  assert.equal(updated!.settings.remote_database_profile_id, null)
+  assert.equal(updated!.settings.remote_storage_profile_id, null)
+  assert.equal((await repository.exportProjectRows('remote-p1'))!.settings.remote_database_profile_id, null)
+  assert.equal((await repository.exportProjectRows('remote-p1'))!.settings.remote_storage_profile_id, null)
 })

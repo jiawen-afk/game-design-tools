@@ -17,6 +17,7 @@ function projectProfileSummary(profile) {
     displayName: profile.displayName,
     redactedSummary: profile.redactedSummary,
     lastVerifiedAt: profile.lastVerifiedAt || null,
+    schemaInitializedAt: profile.schemaInitializedAt || null,
   }
 }
 

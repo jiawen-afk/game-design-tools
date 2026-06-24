@@ -34,7 +34,10 @@ interface RemoteProjectRepository {
     databaseProfileId: string
     storageProfileId: string
     now: string
-  }): Promise<{ project: { id: string; mode: string }; settings: { remote_database_profile_id: string } }>
+  }): Promise<{
+    project: { id: string; mode: string }
+    settings: { remote_database_profile_id: string | null; remote_storage_profile_id: string | null }
+  }>
   updateProject(projectId: string, input: {
     name: string
     description: string
@@ -99,7 +102,8 @@ test('remote project repository creates project rows in a PostgreSQL transaction
   })
 
   assert.equal(created.project.mode, 'remote')
-  assert.equal(created.settings.remote_database_profile_id, 'db1')
+  assert.equal(created.settings.remote_database_profile_id, null)
+  assert.equal(created.settings.remote_storage_profile_id, null)
   assert.equal(queries[0]!.statement, 'BEGIN')
   assert.equal(queries.at(-1)!.statement, 'COMMIT')
   assert.match(queries[1]!.statement, /INSERT INTO projects/)
@@ -108,10 +112,10 @@ test('remote project repository creates project rows in a PostgreSQL transaction
   assert.deepEqual(queries[1]!.params.slice(0, 4), ['p1', '远程项目', '团队资产', 'remote'])
   assert.equal(queries[1]!.params[5], 'objects/远程项目')
   assert.match(queries[2]!.statement, /INSERT INTO project_settings/)
-  assert.deepEqual(queries[2]!.params.slice(4, 7), ['db1', 'kodo1', '2026-06-23T00:00:00.000Z'])
+  assert.deepEqual(queries[2]!.params.slice(4, 7), [null, null, '2026-06-23T00:00:00.000Z'])
 })
 
-test('remote project repository updates project connection links with project metadata', async () => {
+test('remote project repository updates project provider without writing device profile ids', async () => {
   const queries: Array<{ statement: string; params: unknown[] }> = []
   const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
     createPostgresClient: () => ({
@@ -141,7 +145,9 @@ test('remote project repository updates project connection links with project me
 
   assert.match(queries[0]!.statement, /UPDATE projects SET/)
   assert.match(queries[1]!.statement, /UPDATE project_settings SET/)
-  assert.deepEqual(queries[1]!.params, ['mysql', 'db2', 'kodo2', '2026-06-24T00:00:00.000Z', 'p1'])
+  assert.doesNotMatch(queries[1]!.statement, /remote_database_profile_id = COALESCE/)
+  assert.doesNotMatch(queries[1]!.statement, /remote_storage_profile_id = COALESCE/)
+  assert.deepEqual(queries[1]!.params, ['mysql', '2026-06-24T00:00:00.000Z', 'p1'])
 })
 
 test('remote project repository imports every project table with MySQL upserts', async () => {
@@ -240,4 +246,22 @@ test('remote project repository lists assets and hard deletes projects through p
   assert.deepEqual(queries[0]!.params, ['p1'])
   assert.match(queries.at(-2)!.statement, /DELETE FROM projects WHERE id = \$1/i)
   assert.deepEqual(queries.at(-2)!.params, ['p1'])
+})
+
+test('remote project repository keeps deleted-object cleanup tasks after hard deleting project rows', async () => {
+  const queries: string[] = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push(`${statement} -- ${params.length}`)
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+
+  await repository.deleteProject('p1')
+
+  assert.doesNotMatch(queries.join('\n'), /DELETE FROM deleted_project_cleanup_tasks/i)
 })

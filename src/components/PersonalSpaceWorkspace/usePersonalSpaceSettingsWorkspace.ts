@@ -17,6 +17,7 @@ import {
 import {
   createEditableDatabaseProfileDraft,
   createEditableKodoProfileDraft,
+  shouldKeepDatabaseSchemaInitialization,
   validateDatabaseProfileInput,
   validateKodoProfileInput,
 } from '../ProjectStorage'
@@ -97,6 +98,7 @@ export function usePersonalSpaceSettingsWorkspace({
   const [databaseSchemaReady, setDatabaseSchemaReady] = useState(false)
   const [databaseProfileDraft, setDatabaseProfileDraftState] = useState<DatabaseProfileDraft>(initialDatabaseProfileDraft)
   const [kodoProfileDraft, setKodoProfileDraftState] = useState<KodoProfileDraft>(initialKodoProfileDraft)
+  const previousDatabaseProfileDraftRef = useRef<DatabaseProfileDraft | null>(null)
   const skipNextDatabaseProfileLoadRef = useRef(false)
   const skipNextKodoProfileLoadRef = useRef(false)
 
@@ -161,10 +163,12 @@ export function usePersonalSpaceSettingsWorkspace({
     void desktopApi.getProjectConnectionProfile(selectedDatabaseProfileId)
       .then((profile) => {
         if (!mounted || profile?.type !== 'database') return
-        setDatabaseProfileDraftState(createEditableDatabaseProfileDraft(profile.payload as DatabaseProfileDraft))
+        const editableDraft = createEditableDatabaseProfileDraft(profile.payload as DatabaseProfileDraft)
+        previousDatabaseProfileDraftRef.current = editableDraft
+        setDatabaseProfileDraftState(editableDraft)
         setDatabaseProfileMode('edit')
         setDatabaseVerification(null)
-        setDatabaseSchemaReady(false)
+        setDatabaseSchemaReady(Boolean(profile.schemaInitializedAt))
         setDatabaseDraftTestState('untested')
       })
       .catch(() => {
@@ -266,6 +270,7 @@ export function usePersonalSpaceSettingsWorkspace({
   const addDatabaseProfile = () => {
     setSelectedDatabaseProfileId('')
     setDatabaseProfileMode('create')
+    previousDatabaseProfileDraftRef.current = null
     setDatabaseProfileDraftState(initialDatabaseProfileDraft)
     setDatabaseVerification(null)
     setDatabaseSchemaReady(false)
@@ -314,11 +319,18 @@ export function usePersonalSpaceSettingsWorkspace({
       type: 'database',
       displayName: `${databaseProfileDraft.provider} ${databaseProfileDraft.database || databaseProfileDraft.host}`.trim(),
       payload: databaseProfileDraft,
+      lastVerifiedAt: databaseVerification?.ok ? databaseVerification.lastVerifiedAt : null,
+      schemaInitializedAt: shouldKeepDatabaseSchemaInitialization(
+        previousDatabaseProfileDraftRef.current,
+        databaseProfileDraft,
+      ) ? selectedDatabaseProfile?.schemaInitializedAt ?? null : null,
     })
+    previousDatabaseProfileDraftRef.current = createEditableDatabaseProfileDraft(databaseProfileDraft)
     setDatabaseProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
     skipNextDatabaseProfileLoadRef.current = databaseProfileMode === 'create'
     setSelectedDatabaseProfileId(summary.id)
     setDatabaseProfileMode('edit')
+    setDatabaseSchemaReady(Boolean(summary.schemaInitializedAt))
     void messageApi.success('已保存远程数据库配置')
     return true
   }
@@ -373,6 +385,7 @@ export function usePersonalSpaceSettingsWorkspace({
       type: 'qiniu_kodo',
       displayName: `Kodo ${kodoProfileDraft.bucket}`.trim(),
       payload: kodoProfileDraft,
+      lastVerifiedAt: kodoVerification?.ok ? kodoVerification.lastVerifiedAt : null,
     })
     setKodoProfiles((current) => [...current.filter((profile) => profile.id !== summary.id), summary])
     skipNextKodoProfileLoadRef.current = kodoProfileMode === 'create'
@@ -442,6 +455,7 @@ export function usePersonalSpaceSettingsWorkspace({
     }
     const result = await desktopApi.initializeProjectDatabaseSchema(selectedDatabaseProfileId, databaseProfileDraft.provider)
     setDatabaseSchemaReady(result.ok)
+    if (result.ok) await refreshProjectConnectionProfiles()
     void (result.ok ? messageApi.success(result.message) : messageApi.warning(result.message))
   }
 

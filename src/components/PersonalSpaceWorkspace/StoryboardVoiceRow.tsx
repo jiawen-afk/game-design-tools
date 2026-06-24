@@ -69,7 +69,16 @@ export function StoryboardVoiceRow({
       onDragEnd={onDragEndStoryboardVoice}
     >
       <div className="storyboard-voice-speaker">
-        {speaker ? <StoryboardCharacterAvatar character={speaker} allAssets={allAssets} /> : <Avatar size={34} className="storyboard-avatar">?</Avatar>}
+        {speaker ? (
+          <StoryboardCharacterAvatar
+            character={speaker}
+            allAssets={allAssets}
+            projectObjectStorage={projectObjectStorage}
+            projectAssetManager={projectAssetManager}
+            projectId={projectId}
+            projectMode={projectMode}
+          />
+        ) : <Avatar size={34} className="storyboard-avatar">?</Avatar>}
         <Select
           size="small"
           className="storyboard-speaker-select"

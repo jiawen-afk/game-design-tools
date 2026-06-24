@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 import {
   createEditableDatabaseProfileDraft,
@@ -14,14 +17,36 @@ import {
   validateDatabaseProfileInput,
   validateKodoProfileInput,
 } from './projectRemoteProfiles'
+import { shouldKeepDatabaseSchemaInitialization } from './projectProfileMetadata'
 
 const require = createRequire(import.meta.url)
 const {
   editableProjectProfile,
   mergeProjectProfilePayload: mergeStoredProjectProfilePayload,
+  projectProfileSummary,
 } = require('../../../electron/projectConnectionProfiles.cjs') as {
   editableProjectProfile: (profile: unknown) => { payload: unknown } | null
   mergeProjectProfilePayload: (input: unknown, existingProfile: unknown) => unknown
+  projectProfileSummary: (profile: unknown) => {
+    id: string
+    type: 'database' | 'qiniu_kodo'
+    displayName: string
+    redactedSummary: string
+    lastVerifiedAt: string | null
+    schemaInitializedAt?: string | null
+  }
+}
+const {
+  createProjectConnectionProfileStore,
+} = require('../../../electron/projectConnectionProfileStore.cjs') as {
+  createProjectConnectionProfileStore: (profilePath: string, options?: { now?: () => string; createProfileId?: () => string }) => {
+    list: (type?: 'database' | 'qiniu_kodo') => Promise<unknown[]>
+    get: (profileId: string) => Promise<unknown | null>
+    save: (input: unknown) => Promise<ReturnType<typeof projectProfileSummary>>
+    delete: (profileId: string) => Promise<boolean>
+    markVerified: (profileId: string, verifiedAt: string) => Promise<void>
+    markSchemaInitialized: (profileId: string, initializedAt: string) => Promise<void>
+  }
 }
 
 function storedProfile(id: string, type: 'database' | 'qiniu_kodo', payload: unknown) {
@@ -36,6 +61,31 @@ function storedProfile(id: string, type: 'database' | 'qiniu_kodo', payload: unk
     },
   }
 }
+
+test('profile summaries expose persisted database schema initialization time', () => {
+  const profile = {
+    ...storedProfile('db1', 'database', {
+      provider: 'postgresql',
+      host: 'db.example.com',
+      port: 5432,
+      database: 'assets',
+      username: 'asset_user',
+      password: 'secret',
+      ssl: true,
+    }),
+    lastVerifiedAt: '2026-06-24T01:00:00.000Z',
+    schemaInitializedAt: '2026-06-24T02:00:00.000Z',
+  }
+
+  assert.deepEqual(projectProfileSummary(profile), {
+    id: 'db1',
+    type: 'database',
+    displayName: 'profile',
+    redactedSummary: 'summary',
+    lastVerifiedAt: '2026-06-24T01:00:00.000Z',
+    schemaInitializedAt: '2026-06-24T02:00:00.000Z',
+  })
+})
 
 test('database profile validation requires postgresql or mysql connection fields', () => {
   assert.deepEqual(validateDatabaseProfileInput({
@@ -249,4 +299,100 @@ test('electron profile helpers return editable drafts and preserve stored secret
       domain: '',
     },
   }, kodoProfile) as KodoProfileInput).secretKey, 'stored-secret')
+})
+
+test('electron profile store persists verification and schema metadata', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-profile-store-'))
+  try {
+    const store = createProjectConnectionProfileStore(path.join(tempDir, 'profiles.json'), {
+      now: () => '2026-06-24T00:00:00.000Z',
+      createProfileId: () => 'db-generated',
+    })
+
+    const saved = await store.save({
+      type: 'database',
+      displayName: 'PG assets',
+      payload: {
+        provider: 'postgresql',
+        host: 'db.example.com',
+        port: 5432,
+        database: 'assets',
+        username: 'asset_user',
+        password: 'stored-password',
+        ssl: true,
+      },
+      lastVerifiedAt: '2026-06-24T01:00:00.000Z',
+      schemaInitializedAt: '2026-06-24T02:00:00.000Z',
+    })
+
+    assert.deepEqual(saved, {
+      id: 'db-generated',
+      type: 'database',
+      displayName: 'PG assets',
+      redactedSummary: 'asset_user@db.example.com:5432/assets (SSL)',
+      lastVerifiedAt: '2026-06-24T01:00:00.000Z',
+      schemaInitializedAt: '2026-06-24T02:00:00.000Z',
+    })
+
+    await store.save({
+      id: saved.id,
+      type: 'database',
+      displayName: 'PG assets renamed',
+      payload: {
+        provider: 'postgresql',
+        host: 'db2.example.com',
+        port: 5432,
+        database: 'assets',
+        username: 'asset_user',
+        password: '',
+        ssl: false,
+      },
+    })
+    await store.markVerified(saved.id, '2026-06-24T03:00:00.000Z')
+    await store.markSchemaInitialized(saved.id, '2026-06-24T04:00:00.000Z')
+
+    const editable = editableProjectProfile(await store.get(saved.id))
+    assert.equal((editable?.payload as DatabaseProfileInput).password, '')
+    const storedPayload = mergeStoredProjectProfilePayload({
+      type: 'database',
+      payload: {
+        provider: 'postgresql',
+        host: 'db2.example.com',
+        port: 5432,
+        database: 'assets',
+        username: 'asset_user',
+        password: '',
+        ssl: false,
+      },
+    }, await store.get(saved.id)) as DatabaseProfileInput
+    assert.equal(storedPayload.password, 'stored-password')
+    assert.deepEqual(await store.list('database'), [{
+      id: 'db-generated',
+      type: 'database',
+      displayName: 'PG assets renamed',
+      redactedSummary: 'asset_user@db2.example.com:5432/assets',
+      lastVerifiedAt: '2026-06-24T03:00:00.000Z',
+      schemaInitializedAt: '2026-06-24T04:00:00.000Z',
+    }])
+    assert.equal(await store.delete(saved.id), true)
+    assert.deepEqual(await store.list('database'), [])
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('database schema initialization metadata is kept only when connection target is unchanged', () => {
+  const previous = {
+    provider: 'postgresql' as const,
+    host: 'db.example.com',
+    port: 5432,
+    database: 'assets',
+    username: 'asset_user',
+    password: 'old-secret',
+    ssl: true,
+  }
+
+  assert.equal(shouldKeepDatabaseSchemaInitialization(previous, { ...previous, password: '' }), true)
+  assert.equal(shouldKeepDatabaseSchemaInitialization(previous, { ...previous, database: 'other_assets' }), false)
+  assert.equal(shouldKeepDatabaseSchemaInitialization(previous, { ...previous, host: 'db2.example.com' }), false)
 })

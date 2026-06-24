@@ -354,8 +354,8 @@ function createRemoteProjectRows(input) {
     storage_provider: 'qiniu_kodo',
     database_provider: input.databaseProvider,
     local_object_root: null,
-    remote_database_profile_id: input.databaseProfileId,
-    remote_storage_profile_id: input.storageProfileId,
+    remote_database_profile_id: null,
+    remote_storage_profile_id: null,
     last_verified_at: input.now,
     updated_at: input.now,
   }
@@ -400,25 +400,21 @@ class LocalProjectRepository {
           projectId,
         ],
       )
-      if (input.databaseProvider || input.databaseProfileId || input.storageProfileId) {
-        database.run(
-          [
-            'UPDATE project_settings SET',
-            'database_provider = COALESCE(?, database_provider),',
-            'remote_database_profile_id = COALESCE(?, remote_database_profile_id),',
-            'remote_storage_profile_id = COALESCE(?, remote_storage_profile_id),',
-            'updated_at = ?',
-            'WHERE project_id = ?',
-          ].join(' '),
-          [
-            input.databaseProvider || null,
-            input.databaseProfileId || null,
-            input.storageProfileId || null,
-            input.updatedAt,
-            projectId,
-          ],
-        )
-      }
+      database.run(
+        [
+          'UPDATE project_settings SET',
+          'database_provider = COALESCE(?, database_provider),',
+          'remote_database_profile_id = NULL,',
+          'remote_storage_profile_id = NULL,',
+          'updated_at = ?',
+          'WHERE project_id = ?',
+        ].join(' '),
+        [
+          input.databaseProvider || null,
+          input.updatedAt,
+          projectId,
+        ],
+      )
     })
     return this.getProject(projectId)
   }
@@ -471,6 +467,20 @@ class LocalProjectRepository {
     return withDatabase(this.databasePath, {}, async (database) => {
       initializeSchemaInDatabase(database)
       return allRows(database, `SELECT ${selectColumns('assets')} FROM assets WHERE project_id = ? ORDER BY rowid ASC`, [projectId])
+    })
+  }
+
+  async addCleanupTasks(tasks) {
+    if (!Array.isArray(tasks) || tasks.length === 0) return
+    await withWriteTransaction(this.databasePath, async (database) => {
+      upsertRows(database, 'deleted_project_cleanup_tasks', tasks)
+    })
+  }
+
+  async listCleanupTasks(projectId) {
+    return withDatabase(this.databasePath, {}, async (database) => {
+      initializeSchemaInDatabase(database)
+      return allRows(database, `SELECT ${selectColumns('deleted_project_cleanup_tasks')} FROM deleted_project_cleanup_tasks WHERE project_id = ? ORDER BY created_at ASC`, [projectId])
     })
   }
 

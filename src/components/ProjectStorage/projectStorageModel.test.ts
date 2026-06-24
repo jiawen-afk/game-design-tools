@@ -109,20 +109,19 @@ test('storyboard voice entries store microsecond offsets', () => {
   assert.equal(entry.text, '提前播放')
 })
 
-test('remote mode requires verified database and object storage profiles', () => {
+test('remote mode validates shared providers while device profiles stay local', () => {
   const base: ProjectSettings = {
     project_id: 'p1',
     storage_provider: 'qiniu_kodo',
     database_provider: 'postgresql',
     local_object_root: null,
-    remote_database_profile_id: 'db1',
-    remote_storage_profile_id: 'kodo1',
+    remote_database_profile_id: null,
+    remote_storage_profile_id: null,
     last_verified_at: '2026-06-23T00:00:00.000Z',
     updated_at: '2026-06-23T00:00:00.000Z',
   }
 
   assert.deepEqual(validateRemoteProjectSettings(base), [])
-  assert.deepEqual(validateRemoteProjectSettings({ ...base, remote_storage_profile_id: null }), ['缺少远程对象存储配置'])
   assert.deepEqual(validateRemoteProjectSettings({ ...base, database_provider: 'sqlite' }), ['远程项目必须使用 PostgreSQL 或 MySQL'])
   assert.deepEqual(validateRemoteProjectSettings({ ...base, storage_provider: 'local' }), ['远程项目必须使用七牛 Kodo 对象存储'])
 })

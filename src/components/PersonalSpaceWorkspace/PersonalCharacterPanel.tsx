@@ -205,6 +205,10 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的公共图片"
                       emptyThumb="图"
                       detailForAsset={() => '公共图片'}
+                      projectObjectStorage={projectObjectStorage}
+                      projectAssetManager={projectAssetManager}
+                      projectId={projectId}
+                      projectMode={projectMode}
                       onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'portrait')}
                     />
                   </div>
@@ -250,6 +254,10 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的精灵图"
                       emptyThumb="精灵"
                       detailForAsset={() => '精灵图'}
+                      projectObjectStorage={projectObjectStorage}
+                      projectAssetManager={projectAssetManager}
+                      projectId={projectId}
+                      projectMode={projectMode}
                       onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'sprite')}
                     />
                   </div>
@@ -296,6 +304,10 @@ export function PersonalCharacterPanel({
                       emptyDescription="没有匹配的配音"
                       emptyThumb="音"
                       detailForAsset={(asset) => asset.dialogueText || '未填写对白文本'}
+                      projectObjectStorage={projectObjectStorage}
+                      projectAssetManager={projectAssetManager}
+                      projectId={projectId}
+                      projectMode={projectMode}
                       onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'voice')}
                     />
                   </div>

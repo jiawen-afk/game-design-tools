@@ -71,7 +71,7 @@ test('local sqlite repository persists project rows across repository instances'
   }
 })
 
-test('local sqlite repository persists updated remote project connection links', async () => {
+test('local sqlite repository keeps updated device profile ids out of shared settings', async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
   try {
     const databasePath = path.join(tempDir, 'projects.sqlite')
@@ -98,9 +98,53 @@ test('local sqlite repository persists updated remote project connection links',
     const reopened = createLocalProjectRepository(databasePath)
     const updated = await reopened.getProject(created.project.id)
     assert.equal(updated?.settings.database_provider, 'mysql')
-    assert.equal(updated?.settings.remote_database_profile_id, 'db2')
-    assert.equal(updated?.settings.remote_storage_profile_id, 'kodo2')
+    assert.equal(updated?.settings.remote_database_profile_id, null)
+    assert.equal(updated?.settings.remote_storage_profile_id, null)
     assert.equal(updated?.settings.updated_at, '2026-06-24T00:00:00.000Z')
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('local sqlite repository clears legacy shared device profile ids when renaming remote project', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
+  try {
+    const databasePath = path.join(tempDir, 'projects.sqlite')
+    const repository = createLocalProjectRepository(databasePath)
+    const rows = migratePersonalSpaceStateToProjectRows(defaultPersonalSpaceState, {
+      projectId: 'remote-p1',
+      projectName: '远程项目',
+      now: '2026-06-23T00:00:00.000Z',
+      localObjectRoot: '',
+    })
+    await repository.importProjectRows({
+      ...rows,
+      project: {
+        ...rows.project,
+        mode: 'remote',
+      },
+      settings: {
+        ...rows.settings,
+        storage_provider: 'qiniu_kodo',
+        database_provider: 'postgresql',
+        local_object_root: null,
+        remote_database_profile_id: 'old-device-db',
+        remote_storage_profile_id: 'old-device-kodo',
+      },
+    })
+
+    await repository.updateProject('remote-p1', {
+      name: '远程项目新名称',
+      description: '团队资产',
+      updatedAt: '2026-06-24T00:00:00.000Z',
+    })
+
+    const reopened = createLocalProjectRepository(databasePath)
+    const updated = await reopened.getProject('remote-p1')
+    assert.equal(updated?.settings.remote_database_profile_id, null)
+    assert.equal(updated?.settings.remote_storage_profile_id, null)
+    assert.equal((await reopened.exportProjectRows('remote-p1'))?.settings.remote_database_profile_id, null)
+    assert.equal((await reopened.exportProjectRows('remote-p1'))?.settings.remote_storage_profile_id, null)
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }
