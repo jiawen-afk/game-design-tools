@@ -467,6 +467,7 @@ test('qiniu kodo verification performs remote object operations before succeedin
 
 test('project management exposes remote database and qiniu kodo configuration', () => {
   const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
+  const createCardSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectCreateCard.tsx', 'utf8')
   const remoteSettingsSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectRemoteSettingsPanel.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
@@ -477,6 +478,11 @@ test('project management exposes remote database and qiniu kodo configuration', 
   const indexSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
 
   assert.match(panelSource, /RemoteProjectSettings/)
+  assert.match(panelSource, /ProjectCreateCard/)
+  assert.match(createCardSource, /export function ProjectCreateCard/)
+  assert.match(createCardSource, /Segmented/)
+  assert.match(createCardSource, /创建远程项目/)
+  assert.doesNotMatch(panelSource, /<Segmented/)
   assert.match(remoteSettingsSource, /远程数据库/)
   assert.match(remoteSettingsSource, /PostgreSQL/)
   assert.match(remoteSettingsSource, /MySQL/)
@@ -486,7 +492,6 @@ test('project management exposes remote database and qiniu kodo configuration', 
   assert.match(remoteSettingsSource, /删除数据库配置/)
   assert.match(remoteSettingsSource, /删除 Kodo 配置/)
   assert.match(remoteSettingsSource, /验证 Kodo/)
-  assert.match(panelSource, /创建远程项目/)
   assert.match(panelSource, /迁移到远程/)
   assert.match(remoteSettingsSource, /保存项目绑定/)
   assert.match(panelSource, /selectedProject\.mode === 'remote'/)

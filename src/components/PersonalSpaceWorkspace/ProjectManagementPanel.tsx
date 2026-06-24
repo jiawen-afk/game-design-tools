@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Input, Modal, Popconfirm, Segmented, Space, Switch, Tabs, Tag } from 'antd'
+import { Alert, Button, Input, Modal, Popconfirm, Space, Switch, Tabs, Tag } from 'antd'
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
@@ -19,6 +19,7 @@ import {
   projectManagementDirtySignature,
   type ProjectManagementDirtySource,
 } from './projectManagementDirtyModel'
+import { ProjectCreateCard } from './ProjectCreateCard'
 import { RemoteProjectSettings } from './ProjectRemoteSettingsPanel'
 
 interface ProjectManagementPanelProps {
@@ -257,65 +258,26 @@ export function ProjectManagementPanel({
 
   const createTab = (
     <div className="project-create-grid">
-      <section className="project-card" aria-label="创建项目">
-        <div className="project-card-head">
-          <div>
-            <span className="field-label">创建项目</span>
-            <h3>新的项目空间</h3>
-          </div>
-          <Segmented
-            value={createMode}
-            options={[
-              { label: '本地项目', value: 'local' },
-              { label: '远程项目', value: 'remote' },
-            ]}
-            onChange={(value) => {
-              setCreateMode(value as 'local' | 'remote')
-              markDirty('projectCreation')
-            }}
-          />
-        </div>
-        <div className="remote-form-grid">
-          <label className="form-field">
-            <span className="field-label">项目名称</span>
-            <Input
-              value={newProjectName}
-              onChange={(event) => {
-                setNewProjectName(event.target.value)
-                markDirty('projectCreation')
-              }}
-              onPressEnter={() => void createProject()}
-              placeholder="例如：地下城怪物包"
-            />
-          </label>
-          <label className="form-field">
-            <span className="field-label">项目说明</span>
-            <Input
-              value={newProjectDescription}
-              onChange={(event) => {
-                setNewProjectDescription(event.target.value)
-                markDirty('projectCreation')
-              }}
-              placeholder="用途、版本或团队说明"
-            />
-          </label>
-        </div>
-        <Space wrap>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            disabled={!newProjectName.trim() || (createMode === 'remote' && !remoteReadyForCreation)}
-            onClick={() => void createProject()}
-          >
-            {createMode === 'remote' ? '创建远程项目' : '创建本地项目'}
-          </Button>
-          {createMode === 'remote' && (
-            <Tag color={remoteReadyForCreation ? 'success' : undefined}>
-              {remoteReadyForCreation ? '已验证当前新项目前缀' : remoteReadinessText}
-            </Tag>
-          )}
-        </Space>
-      </section>
+      <ProjectCreateCard
+        createMode={createMode}
+        projectName={newProjectName}
+        projectDescription={newProjectDescription}
+        remoteReadyForCreation={remoteReadyForCreation}
+        remoteReadinessText={remoteReadinessText}
+        onCreateModeChange={(mode) => {
+          setCreateMode(mode)
+          markDirty('projectCreation')
+        }}
+        onProjectNameChange={(name) => {
+          setNewProjectName(name)
+          markDirty('projectCreation')
+        }}
+        onProjectDescriptionChange={(description) => {
+          setNewProjectDescription(description)
+          markDirty('projectCreation')
+        }}
+        onCreateProject={() => void createProject()}
+      />
 
       {createMode === 'remote' && (
         <RemoteProjectSettings
