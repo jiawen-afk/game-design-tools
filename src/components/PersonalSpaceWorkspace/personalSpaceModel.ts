@@ -139,6 +139,7 @@ export {
 export {
   createPersonalSpaceAsset,
   archiveAssetForStorageDirectory,
+  assetKindLabel,
   createImportedAssetName,
   hashText,
   hashedResourceFileName,

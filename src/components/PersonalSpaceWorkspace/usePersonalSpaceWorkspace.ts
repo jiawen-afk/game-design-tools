@@ -24,6 +24,7 @@ import {
   addAssetGroup,
   addCharacterProfile,
   addStoryboardGroup,
+  assetKindLabel,
   assignAssetToCharacterColumn,
   assignVoiceToStoryboardGroup,
   deleteCharacterProfile,
@@ -93,12 +94,6 @@ const projectRepository = createDesktopLocalProjectRepository()
 const projectObjectStorage = createDesktopLocalProjectObjectStorage()
 const projectAssetCacheStorage = createDesktopProjectAssetCacheStorage()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
-
-function assetKindLabel(kind: string) {
-  if (kind === 'sprite') return '精灵图'
-  if (kind === 'voice') return '配音'
-  return '图片'
-}
 
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())

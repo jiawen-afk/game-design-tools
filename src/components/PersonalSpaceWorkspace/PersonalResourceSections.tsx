@@ -28,7 +28,7 @@ interface PersonalResourceSectionProps {
   commonResourceUploadProps: (kind: AssetGroupKind, groupName?: string) => UploadProps
   spriteResourceUploadProps: (groupName?: string) => UploadProps
   getAssetOptions: (assets: PersonalSpaceAsset[]) => Array<{ label: string; value: string }>
-  getAssetKindLabel: (kind: string) => string
+  getAssetKindLabel: (kind: AssetGroupKind) => string
   getStoryboardVoiceRefs: (assetId: string) => string[]
   onRenameAsset: (assetId: string, name: string) => void
   onChangeGroupName: (assetId: string, groupName: string) => void

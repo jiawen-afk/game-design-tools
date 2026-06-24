@@ -7,6 +7,7 @@ import {
   addAssetGroup,
   addStoryboardGroup,
   archiveAssetForStorageDirectory,
+  assetKindLabel,
   assignAssetToCharacterColumn,
   assignVoiceToStoryboardGroup,
   createPersonalSpaceAsset,
@@ -157,6 +158,14 @@ test('personal space assets default to a named group', () => {
 
   assert.equal(asset.groupName, '默认分组')
   assert.deepEqual(asset.linkedVoiceAssetIds, [])
+})
+
+test('personal space asset kind labels are shared by workspace workflows', () => {
+  assert.equal(assetKindLabel('image'), '图片')
+  assert.equal(assetKindLabel('map'), '图片')
+  assert.equal(assetKindLabel('effect'), '图片')
+  assert.equal(assetKindLabel('sprite'), '精灵图')
+  assert.equal(assetKindLabel('voice'), '配音')
 })
 
 test('collecting the same source asset keeps only the latest asset and clears old links', () => {

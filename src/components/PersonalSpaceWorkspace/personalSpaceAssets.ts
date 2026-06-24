@@ -89,6 +89,12 @@ export function createImportedAssetName(label: string) {
     : `${key}-${String(lastImportedAssetNameSequence).padStart(2, '0')}`
 }
 
+export function assetKindLabel(kind: CommonAssetKind | StoredAssetKind) {
+  if (kind === 'sprite') return '精灵图'
+  if (kind === 'voice') return '配音'
+  return '图片'
+}
+
 function sanitizePathPart(value: string): string {
   return (value.trim() || '未命名资源').replace(/[<>:"/\\|?*]+/g, '_')
 }
