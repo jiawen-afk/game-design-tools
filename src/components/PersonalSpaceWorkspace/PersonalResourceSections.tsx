@@ -8,6 +8,7 @@ import { PersonalResourceAssetRecord } from './PersonalResourceAssetRecord'
 import { PersonalResourceGroupBlock } from './PersonalResourceGroupBlock'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+import { useRenameDrafts } from './useRenameDrafts'
 
 interface PersonalResourceSectionProps {
   section: PersonalResourceSectionConfig
@@ -114,8 +115,9 @@ export function PersonalResourceSection({
   const [selectedGroup, setSelectedGroup] = useState('全部分组')
   const [onlyStarredGroups, setOnlyStarredGroups] = useState(false)
   const [selectedAssetIdsByGroup, setSelectedAssetIdsByGroup] = useState<Record<string, string[]>>({})
-  const [renameGroupDrafts, setRenameGroupDrafts] = useState<Record<string, string>>({})
-  const [renamingGroupName, setRenamingGroupName] = useState('')
+  const groupRename = useRenameDrafts<{ id: string; name: string }>((fromName, toName) => {
+    onRenameGroup(section.kind, fromName, toName)
+  })
   const groupOptions = section.groupNames.map((group) => ({ label: group, value: group }))
   const isVoiceSection = section.kind === 'voice'
   const isGroupedResourceSection = section.kind === 'image' || section.kind === 'sprite' || isVoiceSection
@@ -226,7 +228,8 @@ export function PersonalResourceSection({
         {isGroupedResourceSection ? (
           <div className="voice-resource-list voice-group-list">
             {visibleVoiceGroupNames.map(({ groupName, assets }) => {
-              const renameTo = renameGroupDrafts[groupName] ?? ''
+              const groupRenameItem = { id: groupName, name: groupName }
+              const renameTo = groupRename.draftFor(groupRenameItem)
               const selectedAssetIds = selectedAssetIdsForGroup(groupName).filter((assetId) => assets.some((asset) => asset.id === assetId))
               const allGroupAssetsSelected = assets.length > 0 && assets.every((asset) => selectedAssetIds.includes(asset.id))
               return (
@@ -239,19 +242,19 @@ export function PersonalResourceSection({
                   allGroupAssetsSelected={allGroupAssetsSelected}
                   canDeleteGroup={canDeleteGroup}
                   renameTo={renameTo}
-                  renamingGroupName={renamingGroupName}
+                  isRenamingGroup={groupRename.isRenaming(groupName)}
                   commonResourceUploadProps={commonResourceUploadProps}
                   spriteResourceUploadProps={spriteResourceUploadProps}
                   renderAssetRecord={renderAssetRecord}
                   onChangeGroupName={onChangeGroupName}
-                  onRenameGroup={onRenameGroup}
                   onToggleGroupStar={onToggleGroupStar}
                   onDeleteGroup={onDeleteGroup}
                   onDeleteAsset={onDeleteAsset}
                   onToggleGroupSelected={toggleGroupSelected}
-                  onRenameDraftChange={(draftGroupName, value) => setRenameGroupDrafts((drafts) => ({ ...drafts, [draftGroupName]: value }))}
-                  onRenameDraftSet={(draftGroupName, value) => setRenameGroupDrafts((drafts) => ({ ...drafts, [draftGroupName]: value }))}
-                  onRenamingGroupNameChange={setRenamingGroupName}
+                  onRenameOpenChange={(open) => groupRename.openRename(groupRenameItem, open)}
+                  onRenameDraftChange={(value) => groupRename.changeDraft(groupName, value)}
+                  onConfirmRename={() => groupRename.confirmRename(groupRenameItem)}
+                  onCancelRename={() => groupRename.cancelRename(groupName)}
                   onClearSelectedAssetIds={(draftGroupName) => updateSelectedAssetIdsForGroup(draftGroupName, [])}
                 />
               )

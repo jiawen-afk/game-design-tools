@@ -14,19 +14,19 @@ interface PersonalResourceGroupBlockProps {
   allGroupAssetsSelected: boolean
   canDeleteGroup: boolean
   renameTo: string
-  renamingGroupName: string
+  isRenamingGroup: boolean
   commonResourceUploadProps: (kind: AssetGroupKind, groupName?: string) => UploadProps
   spriteResourceUploadProps: (groupName?: string) => UploadProps
   renderAssetRecord: (item: PersonalSpaceAsset) => ReactNode
   onChangeGroupName: (assetId: string, groupName: string) => void
-  onRenameGroup: (kind: AssetGroupKind, fromName: string, toName: string) => void
   onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
   onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
   onDeleteAsset: (assetId: string) => void
   onToggleGroupSelected: (groupName: string, assets: PersonalSpaceAsset[]) => void
-  onRenameDraftChange: (groupName: string, value: string) => void
-  onRenameDraftSet: (groupName: string, value: string) => void
-  onRenamingGroupNameChange: (groupName: string) => void
+  onRenameOpenChange: (open: boolean) => void
+  onRenameDraftChange: (value: string) => void
+  onConfirmRename: () => void
+  onCancelRename: () => void
   onClearSelectedAssetIds: (groupName: string) => void
 }
 
@@ -121,19 +121,19 @@ export function PersonalResourceGroupBlock({
   allGroupAssetsSelected,
   canDeleteGroup,
   renameTo,
-  renamingGroupName,
+  isRenamingGroup,
   commonResourceUploadProps,
   spriteResourceUploadProps,
   renderAssetRecord,
   onChangeGroupName,
-  onRenameGroup,
   onToggleGroupStar,
   onDeleteGroup,
   onDeleteAsset,
   onToggleGroupSelected,
+  onRenameOpenChange,
   onRenameDraftChange,
-  onRenameDraftSet,
-  onRenamingGroupNameChange,
+  onConfirmRename,
+  onCancelRename,
   onClearSelectedAssetIds,
 }: PersonalResourceGroupBlockProps) {
   return (
@@ -160,34 +160,18 @@ export function PersonalResourceGroupBlock({
             <strong>{groupName}</strong>
             <div className="voice-group-admin-actions">
               <PersonalSpaceTextPopover
-                open={renamingGroupName === groupName}
-                onOpenChange={(open) => {
-                  onRenamingGroupNameChange(open ? groupName : '')
-                  onRenameDraftSet(groupName, open ? (renameTo || groupName) : '')
-                }}
+                open={isRenamingGroup}
+                onOpenChange={onRenameOpenChange}
                 className="group-name-rename-popover"
                 value={renameTo}
                 ariaLabel={`${groupName}重命名分组`}
                 placeholder="新分组名"
                 confirmDisabled={!renameTo.trim()}
-                onValueChange={(value) => onRenameDraftChange(groupName, value)}
-                onConfirm={() => {
-                  onRenameGroup(section.kind, groupName, renameTo)
-                  onRenameDraftSet(groupName, '')
-                  onRenamingGroupNameChange('')
-                }}
-                onCancel={() => {
-                  onRenameDraftSet(groupName, '')
-                  onRenamingGroupNameChange('')
-                }}
+                onValueChange={onRenameDraftChange}
+                onConfirm={onConfirmRename}
+                onCancel={onCancelRename}
               >
-                <Button
-                  size="small"
-                  onClick={() => {
-                    onRenamingGroupNameChange(groupName)
-                    onRenameDraftSet(groupName, renameTo || groupName)
-                  }}
-                >
+                <Button size="small" onClick={() => onRenameOpenChange(true)}>
                   重命名分组
                 </Button>
               </PersonalSpaceTextPopover>

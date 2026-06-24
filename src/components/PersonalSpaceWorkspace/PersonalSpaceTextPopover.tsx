@@ -30,6 +30,11 @@ export function PersonalSpaceTextPopover({
   onConfirm,
   onCancel,
 }: PersonalSpaceTextPopoverProps) {
+  const confirmIfEnabled = () => {
+    if (confirmDisabled) return
+    onConfirm()
+  }
+
   return (
     <Popover
       trigger="click"
@@ -43,10 +48,10 @@ export function PersonalSpaceTextPopover({
             aria-label={ariaLabel}
             placeholder={placeholder}
             onChange={(event) => onValueChange(event.target.value)}
-            onPressEnter={onConfirm}
+            onPressEnter={confirmIfEnabled}
           />
           <Space.Compact>
-            <Button size="small" type="primary" icon={confirmIcon} disabled={confirmDisabled} onClick={onConfirm}>
+            <Button size="small" type="primary" icon={confirmIcon} disabled={confirmDisabled} onClick={confirmIfEnabled}>
               确认
             </Button>
             <Button size="small" onClick={onCancel}>
