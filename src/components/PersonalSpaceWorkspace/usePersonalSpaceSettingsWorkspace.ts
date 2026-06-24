@@ -82,6 +82,7 @@ export function usePersonalSpaceSettingsWorkspace({
   const [directoryHandle, setDirectoryHandle] = useState<PersonalSpaceDirectoryHandle | null>(null)
   const [directoryHandleChecked, setDirectoryHandleChecked] = useState(false)
   const [savedSettings, setSavedSettings] = useState(false)
+  const [connectionProfilesLoaded, setConnectionProfilesLoaded] = useState(false)
   const [databaseProfiles, setDatabaseProfiles] = useState<ProjectConnectionProfileSummary[]>([])
   const [kodoProfiles, setKodoProfiles] = useState<ProjectConnectionProfileSummary[]>([])
   const [selectedDatabaseProfileId, setSelectedDatabaseProfileId] = useState('')
@@ -124,8 +125,12 @@ export function usePersonalSpaceSettingsWorkspace({
   useEffect(() => {
     let mounted = true
     const desktopApi = getDesktopApi()
-    if (!desktopApi) return () => { mounted = false }
+    if (!desktopApi) {
+      setConnectionProfilesLoaded(true)
+      return () => { mounted = false }
+    }
 
+    setConnectionProfilesLoaded(false)
     void (async () => {
       const [nextDatabaseProfiles, nextKodoProfiles] = await Promise.all([
         desktopApi.listProjectConnectionProfiles('database'),
@@ -138,6 +143,8 @@ export function usePersonalSpaceSettingsWorkspace({
       setSelectedKodoProfileId((current) => current || nextKodoProfiles[0]?.id || '')
     })().catch(() => {
       if (mounted) void messageApi.warning('无法读取远程项目连接配置')
+    }).finally(() => {
+      if (mounted) setConnectionProfilesLoaded(true)
     })
 
     return () => { mounted = false }
@@ -291,16 +298,16 @@ export function usePersonalSpaceSettingsWorkspace({
     const errors = validateDatabaseProfileInput(databaseProfileDraft, { existing: isExisting })
     if (errors.length > 0) {
       void messageApi.warning(errors[0]!)
-      return
+      return false
     }
     if (databaseDraftTestState === 'untested') {
       void messageApi.warning('请先测试远程数据库配置')
-      return
+      return false
     }
     const desktopApi = getDesktopApi()
     if (!desktopApi) {
       void messageApi.warning('当前桌面运行时不可用，无法保存远程数据库配置。')
-      return
+      return false
     }
     const summary = await desktopApi.saveProjectConnectionProfile({
       id: databaseProfileMode === 'edit' ? selectedDatabaseProfileId : undefined,
@@ -313,6 +320,7 @@ export function usePersonalSpaceSettingsWorkspace({
     setSelectedDatabaseProfileId(summary.id)
     setDatabaseProfileMode('edit')
     void messageApi.success('已保存远程数据库配置')
+    return true
   }
 
   const selectDatabaseProfile = (profileId: string) => {
@@ -349,16 +357,16 @@ export function usePersonalSpaceSettingsWorkspace({
     const errors = validateKodoProfileInput(kodoProfileDraft, { existing: isExisting })
     if (errors.length > 0) {
       void messageApi.warning(errors[0]!)
-      return
+      return false
     }
     if (kodoDraftTestState === 'untested') {
       void messageApi.warning('请先验证七牛 Kodo 配置')
-      return
+      return false
     }
     const desktopApi = getDesktopApi()
     if (!desktopApi) {
       void messageApi.warning('当前桌面运行时不可用，无法保存七牛 Kodo 配置。')
-      return
+      return false
     }
     const summary = await desktopApi.saveProjectConnectionProfile({
       id: kodoProfileMode === 'edit' ? selectedKodoProfileId : undefined,
@@ -371,6 +379,7 @@ export function usePersonalSpaceSettingsWorkspace({
     setSelectedKodoProfileId(summary.id)
     setKodoProfileMode('edit')
     void messageApi.success('已保存七牛 Kodo 配置')
+    return true
   }
 
   const selectKodoProfile = (profileId: string) => {
@@ -473,6 +482,7 @@ export function usePersonalSpaceSettingsWorkspace({
     directoryHandle,
     directoryHandleChecked,
     savedSettings,
+    connectionProfilesLoaded,
     setDraftStorageDirectory,
     saveSettings,
     chooseStorageDirectory,

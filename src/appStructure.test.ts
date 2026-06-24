@@ -430,7 +430,7 @@ test('project management exposes remote database and qiniu kodo configuration', 
   assert.match(panelSource, /验证 Kodo/)
   assert.match(panelSource, /创建远程项目/)
   assert.match(panelSource, /迁移到远程/)
-  assert.match(panelSource, /保存远程连接/)
+  assert.match(panelSource, /保存项目绑定/)
   assert.match(panelSource, /selectedProject\.mode === 'remote'/)
   assert.match(indexSource, /onUpdateRemoteProjectLinks=\{workspace\.updateRemoteProjectLinks\}/)
   assert.match(workspaceSource, /const updateRemoteProjectLinks = async \(projectId: string/)
@@ -447,6 +447,31 @@ test('project management exposes remote database and qiniu kodo configuration', 
   assert.match(hookSource, /const deleteKodoProfile = async \(\)/)
   assert.match(hookSource, /setKodoVerificationProjectId\(''\)/)
   assert.match(indexSource, /onDeleteKodoProfile=\{\(\) => void workspace\.deleteKodoProfile\(\)\}/)
+})
+
+test('project management warns before leaving with unsaved changes', () => {
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
+  const dirtyModelSource = readFileSync('src/components/PersonalSpaceWorkspace/projectManagementDirtyModel.ts', 'utf8')
+  const packageSource = packageJsonSource()
+
+  assert.match(packageSource, /projectManagementDirtyModel\.test\.ts/)
+  assert.match(dirtyModelSource, /ProjectManagementDirtySource/)
+  assert.match(dirtyModelSource, /hasProjectManagementUnsavedChanges/)
+  assert.match(dirtyModelSource, /projectManagementDirtySignature/)
+  assert.match(panelSource, /projectManagementDirtyModel/)
+  assert.match(panelSource, /const hasUnsavedChanges = hasProjectManagementUnsavedChanges/)
+  assert.match(panelSource, /const dirtySignature = projectManagementDirtySignature/)
+  assert.match(panelSource, /requestBackToWorkbench/)
+  assert.match(panelSource, /onClick=\{requestBackToWorkbench\}/)
+  assert.doesNotMatch(panelSource, /onClick=\{onBack\}>返回工作台/)
+  assert.match(panelSource, /window\.addEventListener\('beforeunload'/)
+  assert.match(panelSource, /window\.removeEventListener\('beforeunload'/)
+  assert.match(panelSource, /open=\{leaveConfirmOpen\}/)
+  assert.match(panelSource, /放弃更改/)
+  assert.match(panelSource, /继续编辑/)
+  assert.match(panelSource, /markDirty\('databaseProfileDraft'\)/)
+  assert.match(panelSource, /markDirty\('kodoProfileDraft'\)/)
+  assert.match(panelSource, /markDirty\('remoteProjectBinding'\)/)
 })
 
 test('remote profile editing requires tested drafts and preserves blank secrets', () => {
@@ -520,6 +545,18 @@ test('project workspace startup resolves migrated projects from the remote repos
   assert.match(activeProjectTestSource, /prefers migrated remote projects over local snapshots with the same id/)
 })
 
+test('project workspace waits for remote connection profiles before startup remote reads', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
+
+  assert.match(settingsHookSource, /connectionProfilesLoaded/)
+  assert.match(settingsHookSource, /setConnectionProfilesLoaded\(true\)/)
+  assert.match(workspaceSource, /if \(!settingsWorkspace\.connectionProfilesLoaded\) return/)
+  assert.match(workspaceSource, /\}, \[settingsWorkspace\.connectionProfilesLoaded\]\)/)
+  assert.match(workspaceSource, /const remoteProjects = await remoteProjectRepository\.listProjects\(\)/)
+  assert.match(workspaceSource, /void activateProjectStateFromStorage\(enabledProjectId, legacySpace, nextProjects\)/)
+})
+
 test('remote project activation restores workspace state from remote project rows', () => {
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
 
@@ -527,6 +564,7 @@ test('remote project activation restores workspace state from remote project row
   assert.match(workspaceSource, /ensureRemoteProjectSettings\(projectId\)/)
   assert.match(workspaceSource, /rememberRemoteProjectSettings\(remoteRows\.project, remoteRows\.settings\)/)
   assert.match(workspaceSource, /const remoteRows = await remoteProjectRepository\.exportProjectRows\(projectId\)/)
+  assert.match(workspaceSource, /await projectRepository\.importProjectRows\(remoteRows\)/)
   assert.match(workspaceSource, /const nextSpace = remoteRows\s*\?\s*restoreProjectRowsToPersonalSpaceState\(remoteRows\)/)
   assert.match(workspaceSource, /writeProjectSpaceState\(projectId, nextSpace\)/)
   assert.match(workspaceSource, /void activateProjectStateFromStorage\(enabledProjectId, legacySpace, nextProjects\)/)
@@ -573,6 +611,41 @@ test('remote project creation persists a local connection snapshot for restart',
   assert.match(workspaceSource, /await projectRepository\.createRemoteProject\(\{\s*id: created\.project\.id/)
   assert.match(workspaceSource, /databaseProfileId: created\.settings\.remote_database_profile_id/)
   assert.match(workspaceSource, /storageProfileId: created\.settings\.remote_storage_profile_id/)
+})
+
+test('remote project profile ids from shared settings must exist on the current device before use', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+
+  assert.match(workspaceSource, /const findAvailableDatabaseProfileId = \(profileId: string \| null\)/)
+  assert.match(workspaceSource, /settingsWorkspace\.databaseProfiles\.some\(\(profile\) => profile\.id === profileId\)/)
+  assert.match(workspaceSource, /const findAvailableStorageProfileId = \(profileId: string \| null\)/)
+  assert.match(workspaceSource, /settingsWorkspace\.kodoProfiles\.some\(\(profile\) => profile\.id === profileId\)/)
+  assert.match(workspaceSource, /currentDeviceBindingForProject\(projectId\)\?\.databaseProfileId/)
+  assert.match(workspaceSource, /findAvailableDatabaseProfileId\(remoteProjectSettingsByIdRef\.current\[projectId\]\?\.remote_database_profile_id \?\? null\)/)
+  assert.match(workspaceSource, /currentDeviceBindingForProject\(projectId\)\?\.storageProfileId/)
+  assert.match(workspaceSource, /findAvailableStorageProfileId\(remoteProjectSettingsByIdRef\.current\[projectId\]\?\.remote_storage_profile_id \?\? null\)/)
+  assert.doesNotMatch(workspaceSource, /remoteProjectSettingsByIdRef\.current\[projectId\]\?\.remote_database_profile_id \|\| settingsWorkspace\.selectedDatabaseProfileId/)
+  assert.doesNotMatch(workspaceSource, /remoteProjectSettingsByIdRef\.current\[projectId\]\?\.remote_storage_profile_id : ''\) \|\|\s*settingsWorkspace\.selectedKodoProfileId/)
+})
+
+test('remote project current-device bindings stay local to each installation', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const bindingsSource = readFileSync('src/components/ProjectStorage/projectDeviceBindings.ts', 'utf8')
+
+  assert.match(bindingsSource, /project-space\.device-bindings\.v1/)
+  assert.match(workspaceSource, /readProjectDeviceBinding\(projectId\)/)
+  assert.match(workspaceSource, /writeProjectDeviceBinding\(projectId, \{ databaseProfileId, storageProfileId \}\)/)
+  assert.match(workspaceSource, /bindRemoteProjectToCurrentDevice\(\s*projectId,\s*settingsWorkspace\.selectedDatabaseProfileId,\s*settingsWorkspace\.selectedKodoProfileId/s)
+  assert.match(workspaceSource, /clearProjectDeviceBinding\(projectId\)/)
+})
+
+test('remote project connection rebinding and sync errors use current device context', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+
+  assert.match(workspaceSource, /const updated = await remoteProjectRepository\.updateProject\(projectId, input\)/)
+  assert.match(workspaceSource, /const errorMessage = formatRemoteProjectReadError\(error, project\)/)
+  assert.match(workspaceSource, /messageApi\.warning\(`同步远程项目失败：\$\{errorMessage\}`\)/)
+  assert.doesNotMatch(workspaceSource, /messageApi\.warning\(`同步远程项目失败：\$\{String\(error\)\}`\)/)
 })
 
 test('project workspace exposes manual sync status and blocks repeated sync clicks', () => {

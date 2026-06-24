@@ -1,5 +1,6 @@
 export * from './projectStorageModel'
 export * from './projectActiveProject'
+export * from './projectDeviceBindings'
 export * from './projectLegacyMigration'
 export * from './projectSqliteRepository'
 export * from './projectLocalRepositoryProxy'

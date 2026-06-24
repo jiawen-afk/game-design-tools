@@ -9,6 +9,8 @@ import type {
   UpdateProjectInput,
 } from './projectSqliteRepository'
 
+const listedProjectDatabaseProfileIds = new Map<string, string>()
+
 export class DesktopRemoteProjectRepository implements ProjectRepository {
   private readonly getDatabaseProfileId: (projectId?: string) => string
 
@@ -32,14 +34,25 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async updateProject(projectId: string, input: UpdateProjectInput) {
     const desktopApi = this.requireDesktopApi()
-    return desktopApi.updateRemoteProject(projectId, input, this.requireProjectDatabaseProfileId(projectId))
+    return desktopApi.updateRemoteProject(
+      projectId,
+      input,
+      input.databaseProfileId || this.requireProjectDatabaseProfileId(projectId),
+    )
   }
 
   async listProjects() {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
     try {
-      return await desktopApi.listRemoteProjects(this.getDatabaseProfileId())
+      const databaseProfileId = this.getDatabaseProfileId()
+      const projects = await desktopApi.listRemoteProjects(databaseProfileId)
+      if (databaseProfileId) {
+        for (const project of projects) {
+          listedProjectDatabaseProfileIds.set(project.id, databaseProfileId)
+        }
+      }
+      return projects
     } catch {
       return []
     }
@@ -82,7 +95,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
   }
 
   private requireProjectDatabaseProfileId(projectId: string) {
-    const databaseProfileId = this.getDatabaseProfileId(projectId)
+    const databaseProfileId = this.getDatabaseProfileId(projectId) || listedProjectDatabaseProfileIds.get(projectId)
     if (!databaseProfileId) {
       throw new Error(`项目 ${projectId} 缺少远程数据库配置，请在项目管理中重新保存远程数据库连接。`)
     }

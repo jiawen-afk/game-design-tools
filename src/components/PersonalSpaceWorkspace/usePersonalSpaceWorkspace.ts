@@ -10,10 +10,12 @@ import {
   createDesktopKodoProjectObjectStorage,
   createProjectAssetManager,
   createProjectWorkspaceBootstrapper,
+  clearProjectDeviceBinding,
   hardDeleteProjectWithObjects,
   mergeProjectsRemoteFirst,
   migrateLocalProjectToRemote,
   readActiveProjectId,
+  readProjectDeviceBinding,
   resolveEnabledProjectId,
   restoreProjectRowsToPersonalSpaceState,
   sanitizeObjectKeyPart,
@@ -21,6 +23,7 @@ import {
   type Project,
   type ProjectSettings,
   writeActiveProjectId,
+  writeProjectDeviceBinding,
 } from '../ProjectStorage'
 import {
   addAssetGroup,
@@ -181,6 +184,22 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const remoteSettingsForProject = (projectId: string): RemoteProjectSettingsSnapshot => (
     remoteProjectSettingsByIdRef.current[projectId] ?? selectedRemoteSettingsSnapshot()
   )
+  const findAvailableDatabaseProfileId = (profileId: string | null) => (
+    profileId && settingsWorkspace.databaseProfiles.some((profile) => profile.id === profileId) ? profileId : ''
+  )
+  const findAvailableStorageProfileId = (profileId: string | null) => (
+    profileId && settingsWorkspace.kodoProfiles.some((profile) => profile.id === profileId) ? profileId : ''
+  )
+  const currentDeviceBindingForProject = (projectId: string) => {
+    const binding = readProjectDeviceBinding(projectId)
+    if (!binding) return null
+    const databaseProfileId = findAvailableDatabaseProfileId(binding.databaseProfileId)
+    const storageProfileId = findAvailableStorageProfileId(binding.storageProfileId)
+    return databaseProfileId && storageProfileId ? { databaseProfileId, storageProfileId } : null
+  }
+  const bindRemoteProjectToCurrentDevice = (projectId: string, databaseProfileId: string, storageProfileId: string) => {
+    writeProjectDeviceBinding(projectId, { databaseProfileId, storageProfileId })
+  }
   const ensureRemoteProjectSettings = async (projectId: string) => {
     if (remoteProjectSettingsByIdRef.current[projectId]) return
     const localSnapshot = await projectRepository.getProject(projectId)
@@ -190,15 +209,18 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   }
   const getRemoteDatabaseProfileId = (projectId?: string) => (
     projectId
-      ? remoteProjectSettingsByIdRef.current[projectId]?.remote_database_profile_id || settingsWorkspace.selectedDatabaseProfileId
+      ? currentDeviceBindingForProject(projectId)?.databaseProfileId
+        || findAvailableDatabaseProfileId(remoteProjectSettingsByIdRef.current[projectId]?.remote_database_profile_id ?? null)
       : settingsWorkspace.selectedDatabaseProfileId
   )
   const getRemoteStorageProfileId = (objectKey?: string) => {
     const objectProjectName = objectKey?.split('/')[1] ?? ''
     const projectId = objectProjectName ? remoteProjectIdByObjectProjectNameRef.current[objectProjectName] : ''
     return (
-      (projectId ? remoteProjectSettingsByIdRef.current[projectId]?.remote_storage_profile_id : '') ||
-      settingsWorkspace.selectedKodoProfileId
+      projectId
+        ? currentDeviceBindingForProject(projectId)?.storageProfileId
+          || findAvailableStorageProfileId(remoteProjectSettingsByIdRef.current[projectId]?.remote_storage_profile_id ?? null)
+        : settingsWorkspace.selectedKodoProfileId
     )
   }
   const remoteProjectRepository = createDesktopRemoteProjectRepository(getRemoteDatabaseProfileId)
@@ -266,7 +288,15 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       try {
         await ensureRemoteProjectSettings(projectId)
         const remoteRows = await remoteProjectRepository.exportProjectRows(projectId)
-        if (remoteRows) rememberRemoteProjectSettings(remoteRows.project, remoteRows.settings)
+        if (remoteRows) {
+          rememberRemoteProjectSettings(remoteRows.project, remoteRows.settings)
+          const remoteDatabaseProfileId = findAvailableDatabaseProfileId(remoteRows.settings.remote_database_profile_id)
+          const remoteStorageProfileId = findAvailableStorageProfileId(remoteRows.settings.remote_storage_profile_id)
+          if (!currentDeviceBindingForProject(projectId) && remoteDatabaseProfileId && remoteStorageProfileId) {
+            bindRemoteProjectToCurrentDevice(projectId, remoteDatabaseProfileId, remoteStorageProfileId)
+          }
+          await projectRepository.importProjectRows(remoteRows)
+        }
         const nextSpace = remoteRows
           ? restoreProjectRowsToPersonalSpaceState(remoteRows)
           : readCachedProjectSpaceState(projectId)
@@ -372,7 +402,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       await syncProjectStateToStorage(project, nextSpace)
     } catch (error) {
       if (remoteSyncSequenceRef.current === syncSequence) {
-        void messageApi.warning(`同步远程项目失败：${String(error)}`)
+        const errorMessage = formatRemoteProjectReadError(error, project)
+        void messageApi.warning(`同步远程项目失败：${errorMessage}`)
       }
     }
   }
@@ -434,6 +465,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     let cancelled = false
 
     const initializeProjects = async () => {
+      if (!settingsWorkspace.connectionProfilesLoaded) return
       const legacySpace = readPersonalSpaceState()
       const localProjects = await projectBootstrapper.listProjects(legacySpace.settings.storageDirectory || '')
       const remoteProjects = await remoteProjectRepository.listProjects()
@@ -454,7 +486,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [settingsWorkspace.connectionProfilesLoaded])
 
   useEffect(() => {
     spaceRef.current = space
@@ -487,11 +519,16 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     void ensureRemoteProjectSettings(selectedProjectId).then(() => {
       const settings = remoteProjectSettingsByIdRef.current[selectedProjectId]
       if (!settings) return
-      if (settings.remote_database_profile_id) {
-        settingsWorkspace.setSelectedDatabaseProfileId(settings.remote_database_profile_id)
+      const currentDeviceBinding = currentDeviceBindingForProject(selectedProjectId)
+      const databaseProfileId = currentDeviceBinding?.databaseProfileId
+        || findAvailableDatabaseProfileId(settings.remote_database_profile_id)
+      const storageProfileId = currentDeviceBinding?.storageProfileId
+        || findAvailableStorageProfileId(settings.remote_storage_profile_id)
+      if (databaseProfileId) {
+        settingsWorkspace.setSelectedDatabaseProfileId(databaseProfileId)
       }
-      if (settings.remote_storage_profile_id) {
-        settingsWorkspace.setSelectedKodoProfileId(settings.remote_storage_profile_id)
+      if (storageProfileId) {
+        settingsWorkspace.setSelectedKodoProfileId(storageProfileId)
       }
     })
   }, [selectedManagementProjectId, projects])
@@ -581,6 +618,11 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     if (!created.settings.remote_database_profile_id || !created.settings.remote_storage_profile_id) {
       throw new Error('远程项目缺少数据库或对象存储配置。')
     }
+    bindRemoteProjectToCurrentDevice(
+      created.project.id,
+      settingsWorkspace.selectedDatabaseProfileId,
+      settingsWorkspace.selectedKodoProfileId,
+    )
     await projectRepository.createRemoteProject({
       id: created.project.id,
       name: created.project.name,
@@ -607,17 +649,18 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     })
     if (!updated) {
       void messageApi.warning('项目不存在，无法编辑')
-      return
+      return false
     }
     await refreshProjectList(projectId)
     void messageApi.success('已编辑项目')
+    return true
   }
 
   const updateRemoteProjectLinks = async (projectId: string) => {
     const project = findProject(projectId)
     if (!project || project.mode !== 'remote') {
       void messageApi.warning('请选择远程项目')
-      return
+      return false
     }
     if (
       !settingsWorkspace.remoteReady ||
@@ -626,7 +669,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       !settingsWorkspace.selectedKodoProfileId
     ) {
       void messageApi.warning('请先完成远程数据库验证、表结构初始化和当前项目 Kodo 验证')
-      return
+      return false
     }
 
     const input = {
@@ -640,8 +683,13 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     const updated = await remoteProjectRepository.updateProject(projectId, input)
     if (!updated) {
       void messageApi.warning('远程项目不存在，无法保存连接')
-      return
+      return false
     }
+    bindRemoteProjectToCurrentDevice(
+      projectId,
+      settingsWorkspace.selectedDatabaseProfileId,
+      settingsWorkspace.selectedKodoProfileId,
+    )
     rememberRemoteProjectSettings(updated.project, updated.settings)
     const localSnapshot = await projectRepository.getProject(projectId)
     if (localSnapshot?.project.mode === 'remote') {
@@ -649,6 +697,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
     await refreshProjectList(projectId)
     void messageApi.success('已保存远程项目连接')
+    return true
   }
 
   const deleteProject = async (projectId: string) => {
@@ -665,6 +714,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       now: new Date().toISOString(),
     })
     deleteProjectSpaceState(projectId)
+    clearProjectDeviceBinding(projectId)
     const wasActive = activeProjectIdRef.current === projectId
     if (wasActive) activateProjectState('')
     const nextProjects = await refreshProjectList('')
@@ -738,6 +788,11 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         void messageApi.warning(`迁移到远程失败：${result.errorMessage}`)
         return
       }
+      bindRemoteProjectToCurrentDevice(
+        migrationProjectId,
+        settingsWorkspace.selectedDatabaseProfileId,
+        settingsWorkspace.selectedKodoProfileId,
+      )
 
       const nextProjects = await refreshProjectList(migrationProjectId)
       await activateProjectStateFromStorage(migrationProjectId, undefined, nextProjects)

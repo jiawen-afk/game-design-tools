@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Input, InputNumber, Popconfirm, Segmented, Select, Space, Switch, Tabs, Tag } from 'antd'
+import { Alert, Button, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Switch, Tabs, Tag } from 'antd'
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
@@ -12,6 +12,14 @@ import {
 import { createProjectId, type Project } from '../ProjectStorage'
 import type { ProjectConnectionProfileSummary, ProjectConnectionVerificationResult } from '../../desktopApi'
 import type { DatabaseProfileDraft, KodoProfileDraft } from './usePersonalSpaceSettingsWorkspace'
+import {
+  clearProjectManagementDirtySource,
+  createCleanProjectManagementDirtyState,
+  hasProjectManagementUnsavedChanges,
+  markProjectManagementDirty,
+  projectManagementDirtySignature,
+  type ProjectManagementDirtySource,
+} from './projectManagementDirtyModel'
 
 interface ProjectManagementPanelProps {
   projects: Project[]
@@ -39,8 +47,8 @@ interface ProjectManagementPanelProps {
   onSelectedProjectChange: (projectId: string) => void
   onCreateLocalProject: (name: string, description: string) => void | Promise<void>
   onCreateRemoteProject: (projectId: string, name: string, description: string) => void | Promise<void>
-  onRenameProject: (projectId: string, name: string, description: string) => void | Promise<void>
-  onUpdateRemoteProjectLinks: (projectId: string) => void | Promise<void>
+  onRenameProject: (projectId: string, name: string, description: string) => boolean | void | Promise<boolean | void>
+  onUpdateRemoteProjectLinks: (projectId: string) => boolean | void | Promise<boolean | void>
   onDeleteProject: (projectId: string) => void | Promise<void>
   onEnableProject: (projectId: string) => void
   onDisableProject: () => void
@@ -51,9 +59,9 @@ interface ProjectManagementPanelProps {
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
   onAddDatabaseProfile: () => void
   onAddKodoProfile: () => void
-  onSaveDatabaseProfile: () => void
+  onSaveDatabaseProfile: () => boolean | void | Promise<boolean | void>
   onDeleteDatabaseProfile: () => void
-  onSaveKodoProfile: () => void
+  onSaveKodoProfile: () => boolean | void | Promise<boolean | void>
   onDeleteKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
@@ -112,14 +120,61 @@ export function ProjectManagementPanel({
   const [remoteCreationProjectId, setRemoteCreationProjectId] = useState(() => createProjectId())
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDescription, setNewProjectDescription] = useState('')
+  const [dirtyState, setDirtyState] = useState(() => createCleanProjectManagementDirtyState())
+  const [ignoredDirtySignature, setIgnoredDirtySignature] = useState('')
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
   const [projectNameDraft, setProjectNameDraft] = useState(selectedProject?.name ?? '')
   const [projectDescriptionDraft, setProjectDescriptionDraft] = useState(selectedProject?.description ?? '')
+  const hasUnsavedChanges = hasProjectManagementUnsavedChanges(dirtyState)
+  const dirtySignature = projectManagementDirtySignature(dirtyState)
+  const shouldWarnUnsavedChanges = hasUnsavedChanges && dirtySignature !== ignoredDirtySignature
 
   useEffect(() => {
     setProjectNameDraft(selectedProject?.name ?? '')
     setProjectDescriptionDraft(selectedProject?.description ?? '')
+    setDirtyState((current) => clearProjectManagementDirtySource(current, 'projectDetails'))
+    setDirtyState((current) => clearProjectManagementDirtySource(current, 'remoteProjectBinding'))
+    setIgnoredDirtySignature('')
   }, [selectedProject])
+
+  useEffect(() => {
+    if (!shouldWarnUnsavedChanges) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [shouldWarnUnsavedChanges])
+
+  const markDirty = (source: ProjectManagementDirtySource) => {
+    setIgnoredDirtySignature('')
+    setDirtyState((current) => markProjectManagementDirty(current, source))
+  }
+
+  const clearDirtySource = (source: ProjectManagementDirtySource) => {
+    setDirtyState((current) => clearProjectManagementDirtySource(current, source))
+  }
+
+  const resetAllDirtySources = () => {
+    setDirtyState(createCleanProjectManagementDirtyState())
+    setIgnoredDirtySignature('')
+  }
+
+  const requestBackToWorkbench = () => {
+    if (!shouldWarnUnsavedChanges) {
+      onBack()
+      return
+    }
+    setLeaveConfirmOpen(true)
+  }
+
+  const discardChangesAndBack = () => {
+    setLeaveConfirmOpen(false)
+    setIgnoredDirtySignature(dirtySignature)
+    onBack()
+  }
 
   const databaseProfileOptions = databaseProfiles.map((profile) => ({
     label: `${profile.displayName} (${profile.redactedSummary})`,
@@ -149,11 +204,28 @@ export function ProjectManagementPanel({
     }
     setNewProjectName('')
     setNewProjectDescription('')
+    clearDirtySource('projectCreation')
   }
 
   const editProject = async () => {
     if (!selectedProject || !projectNameDraft.trim()) return
-    await onRenameProject(selectedProject.id, projectNameDraft, projectDescriptionDraft)
+    const saved = await onRenameProject(selectedProject.id, projectNameDraft, projectDescriptionDraft)
+    if (saved !== false) clearDirtySource('projectDetails')
+  }
+
+  const saveDatabaseProfile = async () => {
+    const saved = await onSaveDatabaseProfile()
+    if (saved !== false) clearDirtySource('databaseProfileDraft')
+  }
+
+  const saveKodoProfile = async () => {
+    const saved = await onSaveKodoProfile()
+    if (saved !== false) clearDirtySource('kodoProfileDraft')
+  }
+
+  const updateRemoteProjectLinks = async (projectId: string) => {
+    const saved = await onUpdateRemoteProjectLinks(projectId)
+    if (saved !== false) clearDirtySource('remoteProjectBinding')
   }
 
   const createTab = (
@@ -170,7 +242,10 @@ export function ProjectManagementPanel({
               { label: '本地项目', value: 'local' },
               { label: '远程项目', value: 'remote' },
             ]}
-            onChange={(value) => setCreateMode(value as 'local' | 'remote')}
+            onChange={(value) => {
+              setCreateMode(value as 'local' | 'remote')
+              markDirty('projectCreation')
+            }}
           />
         </div>
         <div className="remote-form-grid">
@@ -178,7 +253,10 @@ export function ProjectManagementPanel({
             <span className="field-label">项目名称</span>
             <Input
               value={newProjectName}
-              onChange={(event) => setNewProjectName(event.target.value)}
+              onChange={(event) => {
+                setNewProjectName(event.target.value)
+                markDirty('projectCreation')
+              }}
               onPressEnter={() => void createProject()}
               placeholder="例如：地下城怪物包"
             />
@@ -187,7 +265,10 @@ export function ProjectManagementPanel({
             <span className="field-label">项目说明</span>
             <Input
               value={newProjectDescription}
-              onChange={(event) => setNewProjectDescription(event.target.value)}
+              onChange={(event) => {
+                setNewProjectDescription(event.target.value)
+                markDirty('projectCreation')
+              }}
               placeholder="用途、版本或团队说明"
             />
           </label>
@@ -232,20 +313,38 @@ export function ProjectManagementPanel({
           selectedVerificationProjectId={selectedRemoteVerificationProjectId}
           linkTargetProjectId=""
           linkReady={false}
-          onSelectedDatabaseProfileChange={onSelectedDatabaseProfileChange}
-          onSelectedKodoProfileChange={onSelectedKodoProfileChange}
-          onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
-          onKodoProfileDraftChange={onKodoProfileDraftChange}
-          onAddDatabaseProfile={onAddDatabaseProfile}
-          onAddKodoProfile={onAddKodoProfile}
-          onSaveDatabaseProfile={onSaveDatabaseProfile}
+          onSelectedDatabaseProfileChange={(profileId) => {
+            onSelectedDatabaseProfileChange(profileId)
+            markDirty('databaseProfileDraft')
+          }}
+          onSelectedKodoProfileChange={(profileId) => {
+            onSelectedKodoProfileChange(profileId)
+            markDirty('kodoProfileDraft')
+          }}
+          onDatabaseProfileDraftChange={(draft) => {
+            onDatabaseProfileDraftChange(draft)
+            markDirty('databaseProfileDraft')
+          }}
+          onKodoProfileDraftChange={(draft) => {
+            onKodoProfileDraftChange(draft)
+            markDirty('kodoProfileDraft')
+          }}
+          onAddDatabaseProfile={() => {
+            onAddDatabaseProfile()
+            markDirty('databaseProfileDraft')
+          }}
+          onAddKodoProfile={() => {
+            onAddKodoProfile()
+            markDirty('kodoProfileDraft')
+          }}
+          onSaveDatabaseProfile={saveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
-          onSaveKodoProfile={onSaveKodoProfile}
+          onSaveKodoProfile={saveKodoProfile}
           onDeleteKodoProfile={onDeleteKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
-          onUpdateRemoteProjectLinks={onUpdateRemoteProjectLinks}
+          onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
         />
       )}
     </div>
@@ -280,7 +379,10 @@ export function ProjectManagementPanel({
             <span className="field-label">项目名称</span>
             <Input
               value={projectNameDraft}
-              onChange={(event) => setProjectNameDraft(event.target.value)}
+              onChange={(event) => {
+                setProjectNameDraft(event.target.value)
+                markDirty('projectDetails')
+              }}
               onPressEnter={() => void editProject()}
               placeholder="项目名称"
             />
@@ -289,7 +391,10 @@ export function ProjectManagementPanel({
             <span className="field-label">项目说明</span>
             <Input
               value={projectDescriptionDraft}
-              onChange={(event) => setProjectDescriptionDraft(event.target.value)}
+              onChange={(event) => {
+                setProjectDescriptionDraft(event.target.value)
+                markDirty('projectDetails')
+              }}
               placeholder="项目说明"
             />
           </label>
@@ -345,20 +450,38 @@ export function ProjectManagementPanel({
           selectedVerificationProjectId={selectedProject.id}
           linkTargetProjectId={selectedProject.mode === 'remote' ? selectedProject.id : ''}
           linkReady={selectedProject.mode === 'remote' && remoteReadyForSelectedProject}
-          onSelectedDatabaseProfileChange={onSelectedDatabaseProfileChange}
-          onSelectedKodoProfileChange={onSelectedKodoProfileChange}
-          onDatabaseProfileDraftChange={onDatabaseProfileDraftChange}
-          onKodoProfileDraftChange={onKodoProfileDraftChange}
-          onAddDatabaseProfile={onAddDatabaseProfile}
-          onAddKodoProfile={onAddKodoProfile}
-          onSaveDatabaseProfile={onSaveDatabaseProfile}
+          onSelectedDatabaseProfileChange={(profileId) => {
+            onSelectedDatabaseProfileChange(profileId)
+            markDirty('remoteProjectBinding')
+          }}
+          onSelectedKodoProfileChange={(profileId) => {
+            onSelectedKodoProfileChange(profileId)
+            markDirty('remoteProjectBinding')
+          }}
+          onDatabaseProfileDraftChange={(draft) => {
+            onDatabaseProfileDraftChange(draft)
+            markDirty('databaseProfileDraft')
+          }}
+          onKodoProfileDraftChange={(draft) => {
+            onKodoProfileDraftChange(draft)
+            markDirty('kodoProfileDraft')
+          }}
+          onAddDatabaseProfile={() => {
+            onAddDatabaseProfile()
+            markDirty('databaseProfileDraft')
+          }}
+          onAddKodoProfile={() => {
+            onAddKodoProfile()
+            markDirty('kodoProfileDraft')
+          }}
+          onSaveDatabaseProfile={saveDatabaseProfile}
           onDeleteDatabaseProfile={onDeleteDatabaseProfile}
-          onSaveKodoProfile={onSaveKodoProfile}
+          onSaveKodoProfile={saveKodoProfile}
           onDeleteKodoProfile={onDeleteKodoProfile}
           onVerifyDatabaseProfile={onVerifyDatabaseProfile}
           onInitializeDatabaseSchema={onInitializeDatabaseSchema}
           onVerifyKodoProfile={onVerifyKodoProfile}
-          onUpdateRemoteProjectLinks={onUpdateRemoteProjectLinks}
+          onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
         />
       )}
     </div>
@@ -387,14 +510,28 @@ export function ProjectManagementPanel({
           <h2 id="project-management-title">项目管理</h2>
           <p>项目标签只用于查看和编辑，卡片里的启用开关决定当前数据写入目标。</p>
         </div>
-        <Button icon={<ArrowLeftOutlined />} onClick={onBack}>返回工作台</Button>
+        <Button icon={<ArrowLeftOutlined />} onClick={requestBackToWorkbench}>返回工作台</Button>
       </div>
       <Tabs
         className="project-management-tabs"
         activeKey={selectedProjectId || 'create'}
-        onChange={onSelectedProjectChange}
+        onChange={(projectId) => {
+          resetAllDirtySources()
+          onSelectedProjectChange(projectId)
+        }}
         items={projectTabItems}
       />
+      <Modal
+        open={leaveConfirmOpen}
+        title="有未保存的项目管理更改"
+        okText="放弃更改"
+        cancelText="继续编辑"
+        okButtonProps={{ danger: true }}
+        onOk={discardChangesAndBack}
+        onCancel={() => setLeaveConfirmOpen(false)}
+      >
+        <p>返回工作台会丢弃当前项目管理页尚未保存的更改。</p>
+      </Modal>
     </section>
   )
 }
@@ -427,14 +564,14 @@ interface RemoteProjectSettingsProps {
   onKodoProfileDraftChange: (draft: KodoProfileDraft) => void
   onAddDatabaseProfile: () => void
   onAddKodoProfile: () => void
-  onSaveDatabaseProfile: () => void
+  onSaveDatabaseProfile: () => boolean | void | Promise<boolean | void>
   onDeleteDatabaseProfile: () => void
-  onSaveKodoProfile: () => void
+  onSaveKodoProfile: () => boolean | void | Promise<boolean | void>
   onDeleteKodoProfile: () => void
   onVerifyDatabaseProfile: () => void
   onInitializeDatabaseSchema: () => void
   onVerifyKodoProfile: (projectId: string) => void
-  onUpdateRemoteProjectLinks: (projectId: string) => void | Promise<void>
+  onUpdateRemoteProjectLinks: (projectId: string) => boolean | void | Promise<boolean | void>
 }
 
 function RemoteProjectSettings({
@@ -572,14 +709,14 @@ function RemoteProjectSettings({
                 description="保存后项目仍可能无法连接此数据库。"
                 okText="仍然保存"
                 cancelText="取消"
-                onConfirm={onSaveDatabaseProfile}
+                onConfirm={() => void onSaveDatabaseProfile()}
               >
                 <Button icon={<SaveOutlined />} disabled={!databaseDraftTested}>
                   保存当前数据库配置
                 </Button>
               </Popconfirm>
             ) : (
-              <Button icon={<SaveOutlined />} disabled={!databaseDraftTested} onClick={onSaveDatabaseProfile}>
+              <Button icon={<SaveOutlined />} disabled={!databaseDraftTested} onClick={() => void onSaveDatabaseProfile()}>
                 保存当前数据库配置
               </Button>
             )}
@@ -671,14 +808,14 @@ function RemoteProjectSettings({
                 description="保存后项目仍可能无法访问此对象存储。"
                 okText="仍然保存"
                 cancelText="取消"
-                onConfirm={onSaveKodoProfile}
+                onConfirm={() => void onSaveKodoProfile()}
               >
                 <Button icon={<SaveOutlined />} disabled={!kodoDraftTested}>
                   保存当前 Kodo 配置
                 </Button>
               </Popconfirm>
             ) : (
-              <Button icon={<SaveOutlined />} disabled={!kodoDraftTested} onClick={onSaveKodoProfile}>
+              <Button icon={<SaveOutlined />} disabled={!kodoDraftTested} onClick={() => void onSaveKodoProfile()}>
                 保存当前 Kodo 配置
               </Button>
             )}
@@ -717,7 +854,7 @@ function RemoteProjectSettings({
             disabled={!linkReady}
             onClick={() => void onUpdateRemoteProjectLinks(linkTargetProjectId)}
           >
-            保存远程连接
+            保存项目绑定
           </Button>
         </div>
       )}
