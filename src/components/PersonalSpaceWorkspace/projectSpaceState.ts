@@ -42,6 +42,11 @@ export function readProjectSpaceState(projectId: string, options: ProjectSpaceSt
   return clonePersonalSpaceState(options.fallbackState ?? defaultPersonalSpaceState)
 }
 
+export function readCachedProjectSpaceState(projectId: string, storage: Storage = localStorage) {
+  const stored = projectId ? readStoredProjectStates(storage)[projectId] : null
+  return stored ? clonePersonalSpaceState(stored) : null
+}
+
 export function writeProjectSpaceState(projectId: string, state: PersonalSpaceState, storage: Storage = localStorage) {
   if (!projectId) return
   const states = readStoredProjectStates(storage)

@@ -7,6 +7,7 @@ import {
   deleteProjectSpaceState,
   hasProjectSpaceState,
   projectSpaceStatesStorageKey,
+  readCachedProjectSpaceState,
   readProjectSpaceState,
   writeCurrentProjectSpaceState,
   writeProjectSpaceState,
@@ -60,6 +61,19 @@ test('project space state uses fallback only for the first read of an unstored p
       fallbackState: { ...defaultPersonalSpaceState, assets: [fallbackAsset] },
     }).assets,
     [],
+  )
+})
+
+test('cached project space reader returns null instead of fallback for uncached projects', () => {
+  const storage = createMemoryStorage()
+  const cachedAsset = createPersonalSpaceAsset({ kind: 'voice', name: 'cached.wav' })
+
+  assert.equal(readCachedProjectSpaceState('p1', storage), null)
+
+  writeProjectSpaceState('p1', { ...defaultPersonalSpaceState, assets: [cachedAsset] }, storage)
+  assert.deepEqual(
+    readCachedProjectSpaceState('p1', storage)?.assets.map((asset) => asset.name),
+    ['cached.wav'],
   )
 })
 

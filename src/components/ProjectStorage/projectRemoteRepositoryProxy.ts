@@ -63,11 +63,7 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
   async exportProjectRows(projectId: string) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return null
-    try {
-      return await desktopApi.exportRemoteProjectRows(projectId, this.requireProjectDatabaseProfileId(projectId))
-    } catch {
-      return null
-    }
+    return desktopApi.exportRemoteProjectRows(projectId, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async listAssets(projectId: string) {

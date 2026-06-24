@@ -117,3 +117,50 @@ test('desktop remote project repository rejects project writes without a project
     ;(globalThis as { window?: unknown }).window = previousWindow
   }
 })
+
+test('desktop remote project repository rejects project reads without a project database profile', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window
+  const events: string[] = []
+  ;(globalThis as { window?: unknown }).window = {
+    gameDesignToolsDesktop: {
+      exportRemoteProjectRows: async (_projectId: string, databaseProfileId: string) => {
+        events.push(`export:${databaseProfileId}`)
+        return null
+      },
+    },
+  }
+
+  try {
+    const repository = new DesktopRemoteProjectRepository(() => '')
+
+    await assert.rejects(
+      () => repository.exportProjectRows('project-a'),
+      /项目 project-a 缺少远程数据库配置/,
+    )
+    assert.deepEqual(events, [])
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})
+
+test('desktop remote project repository exposes remote export errors', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window
+  ;(globalThis as { window?: unknown }).window = {
+    gameDesignToolsDesktop: {
+      exportRemoteProjectRows: async () => {
+        throw new Error('远程数据库配置不存在。')
+      },
+    },
+  }
+
+  try {
+    const repository = new DesktopRemoteProjectRepository(() => 'db-a')
+
+    await assert.rejects(
+      () => repository.exportProjectRows('project-a'),
+      /远程数据库配置不存在/,
+    )
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})

@@ -523,14 +523,6 @@ function RemoteProjectSettings({
               />
             </label>
             <label className="form-field">
-              <span className="field-label">数据库名</span>
-              <Input
-                value={databaseProfileDraft.database}
-                onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, database: event.target.value })}
-                placeholder="game_assets"
-              />
-            </label>
-            <label className="form-field">
               <span className="field-label">用户名</span>
               <Input
                 value={databaseProfileDraft.username}
@@ -545,7 +537,14 @@ function RemoteProjectSettings({
                 onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, password: event.target.value })}
                 placeholder={databaseProfileMode === 'edit' ? '留空表示不修改密码' : '数据库密码'}
               />
-              {databaseProfileMode === 'edit' && <span className="field-hint">留空表示不修改密码</span>}
+            </label>
+            <label className="form-field">
+              <span className="field-label">数据库名</span>
+              <Input
+                value={databaseProfileDraft.database}
+                onChange={(event) => onDatabaseProfileDraftChange({ ...databaseProfileDraft, database: event.target.value })}
+                placeholder="game_assets"
+              />
             </label>
             <label className="remote-inline-switch">
               <span className="field-label">SSL</span>
@@ -629,7 +628,6 @@ function RemoteProjectSettings({
                 onChange={(event) => onKodoProfileDraftChange({ ...kodoProfileDraft, secretKey: event.target.value })}
                 placeholder={kodoProfileMode === 'edit' ? '留空表示不修改 Secret Key' : 'Secret Key'}
               />
-              {kodoProfileMode === 'edit' && <span className="field-hint">留空表示不修改 Secret Key</span>}
             </label>
             <label className="form-field">
               <span className="field-label">Bucket</span>

@@ -58,6 +58,7 @@ import {
 import {
   deleteProjectSpaceState,
   hasProjectSpaceState,
+  readCachedProjectSpaceState,
   readProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
@@ -257,7 +258,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     projectId: string,
     fallbackState?: PersonalSpaceState,
     projectList = projects,
-  ) => {
+  ): Promise<PersonalSpaceState | null> => {
     const fallbackSpace = fallbackState ?? createEmptyProjectSpaceState()
     const project = findProject(projectId, projectList)
     if (project?.mode === 'remote') {
@@ -267,14 +268,24 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         if (remoteRows) rememberRemoteProjectSettings(remoteRows.project, remoteRows.settings)
         const nextSpace = remoteRows
           ? restoreProjectRowsToPersonalSpaceState(remoteRows)
-          : readProjectSpaceState(projectId, { fallbackState: fallbackSpace })
-        writeProjectSpaceState(projectId, nextSpace)
+          : readCachedProjectSpaceState(projectId)
+        if (nextSpace) writeProjectSpaceState(projectId, nextSpace)
         if (!remoteRows) {
-          void messageApi.warning('远程项目数据读取失败，已使用本地项目缓存')
+          void messageApi.warning(
+            nextSpace
+              ? '远程项目数据读取失败，已使用本地项目缓存'
+              : '远程项目数据读取失败，且当前设备没有可用的项目缓存。请检查远程数据库连接后重试。',
+          )
         }
         return nextSpace
       } catch (error) {
-        void messageApi.warning(`远程项目数据读取失败，已使用本地项目缓存：${String(error)}`)
+        const cachedSpace = readCachedProjectSpaceState(projectId)
+        void messageApi.warning(
+          cachedSpace
+            ? `远程项目数据读取失败，已使用本地项目缓存：${String(error)}`
+            : `远程项目数据读取失败，且当前设备没有可用的项目缓存：${String(error)}`,
+        )
+        return cachedSpace
       }
     }
 
@@ -293,6 +304,10 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       return
     }
     const nextSpace = await loadProjectSpaceState(projectId, fallbackState, projectList)
+    if (!nextSpace) {
+      activateProjectState('')
+      return
+    }
     activateProjectState(projectId, nextSpace)
   }
 
