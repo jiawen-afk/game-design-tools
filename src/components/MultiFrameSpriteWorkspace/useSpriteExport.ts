@@ -16,6 +16,7 @@ import {
   readCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
 import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
+import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -185,7 +186,7 @@ export function useSpriteExport({
         getDirectoryHandle: () => directoryHandle,
       })
       if (persistence.syncError) {
-        message.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+        showCurrentProjectSpaceSyncWarning(message, persistence.syncError)
       }
       message.success(characterId ? '已收藏到 项目空间-素材-精灵图，并关联角色' : '已收藏到 项目空间-素材-精灵图')
     } catch (e) {

@@ -23,6 +23,7 @@ import {
   readCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
 import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
+import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import { useAppToast } from '../AppToastProvider'
 import {
   personalSpaceDirectoryRequiredMessage,
@@ -112,7 +113,7 @@ export default function VoiceDeploymentWorkspace() {
     const createdCharacter = nextSpace.characters[nextSpace.characters.length - 1]
     const persistence = await persistCurrentProjectSpaceState(nextSpace)
     if (persistence.syncError) {
-      void messageApi.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+      showCurrentProjectSpaceSyncWarning(messageApi, persistence.syncError)
     }
     setPersonalSpaceSnapshot(nextSpace)
     setSelectedVoiceCharacterId(createdCharacter?.id ?? null)
@@ -126,7 +127,7 @@ export default function VoiceDeploymentWorkspace() {
     try {
       const nextSpace = await collectVoiceRecordToPersonalSpace(record, link, {
         onSyncError: (error) => {
-          void messageApi.warning(`已保存到本地项目缓存，但同步项目存储失败：${error instanceof Error ? error.message : String(error)}`)
+          showCurrentProjectSpaceSyncWarning(messageApi, error)
         },
       })
       setPersonalSpaceSnapshot(nextSpace)

@@ -63,7 +63,10 @@ import {
   readProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
-import { formatRemoteProjectReadError } from './remoteProjectMessages'
+import {
+  formatRemoteProjectListError,
+  formatRemoteProjectReadError,
+} from './remoteProjectMessages'
 import {
   applyAssetDeleteResult,
   createCommonResourceAssetForUpload,
@@ -82,6 +85,7 @@ import { createProjectStorageWorkflow, type RemoteProjectSettingsSnapshot } from
 import { listProjectCatalogWithRemoteFallback } from './projectWorkspaceStartup'
 import { createProjectRemoteDeviceBindingResolver } from './projectRemoteDeviceBinding'
 import { useProjectRemoteSync } from './useProjectRemoteSync'
+import { createSpriteUploadBatch } from './personalSpaceUploadModel'
 
 interface PersonalSpaceMessageApi {
   success: (content: string) => void
@@ -183,7 +187,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       remoteProjectRepository,
     )
     if (remoteError) {
-      void messageApi.warning(`无法读取远程项目列表：${remoteError instanceof Error ? remoteError.message : String(remoteError)}`)
+      void messageApi.warning(formatRemoteProjectListError(remoteError))
     }
     setProjects(nextProjects)
     setSelectedManagementProjectId((current) => {
@@ -312,7 +316,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       )
       if (cancelled) return
       if (remoteError) {
-        void messageApi.warning(`无法读取远程项目列表：${remoteError instanceof Error ? remoteError.message : String(remoteError)}`)
+        void messageApi.warning(formatRemoteProjectListError(remoteError))
       }
       const enabledProjectId = resolveEnabledProjectId(nextProjects, readActiveProjectId())
       setProjects(nextProjects)
@@ -503,16 +507,16 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
       description: project.description,
       updatedAt: new Date().toISOString(),
     }
-    remoteDeviceBindingResolver.bindProjectToCurrentDevice(
-      projectId,
-      settingsWorkspace.selectedDatabaseProfileId,
-      settingsWorkspace.selectedKodoProfileId,
-    )
     const updated = await remoteProjectRepository.updateProject(projectId, input)
     if (!updated) {
       void messageApi.warning('远程项目不存在，无法保存连接')
       return false
     }
+    remoteDeviceBindingResolver.bindProjectToCurrentDevice(
+      projectId,
+      settingsWorkspace.selectedDatabaseProfileId,
+      settingsWorkspace.selectedKodoProfileId,
+    )
     rememberRemoteProjectSettings(updated.project, updated.settings)
     const localSnapshot = await projectRepository.getProject(projectId)
     if (localSnapshot?.project.mode === 'remote') {
@@ -818,20 +822,16 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     showUploadList: false,
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
-      const files = fileList.flatMap((item) => item.originFileObj ? [item.originFileObj] : [])
-      if (
-        files.some((file) => file.name.toLowerCase().endsWith('.png')) &&
-        files.some((file) => file.name.toLowerCase() === 'index.json')
-      ) {
-        const batchKey = files.map((file) => `${file.name}:${file.size}`).sort().join('|')
-        if (spriteUploadBatchKeyByCharacter.current[characterId] === batchKey) return
-        spriteUploadBatchKeyByCharacter.current[characterId] = batchKey
+      const batch = createSpriteUploadBatch(fileList)
+      if (batch) {
+        if (spriteUploadBatchKeyByCharacter.current[characterId] === batch.batchKey) return
+        spriteUploadBatchKeyByCharacter.current[characterId] = batch.batchKey
         window.setTimeout(() => {
-          if (spriteUploadBatchKeyByCharacter.current[characterId] === batchKey) {
+          if (spriteUploadBatchKeyByCharacter.current[characterId] === batch.batchKey) {
             delete spriteUploadBatchKeyByCharacter.current[characterId]
           }
         }, 1000)
-        void uploadCharacterSprite(characterId, files)
+        void uploadCharacterSprite(characterId, batch.files)
       }
     },
   })
@@ -873,20 +873,16 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     showUploadList: false,
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
-      const files = fileList.flatMap((item) => item.originFileObj ? [item.originFileObj] : [])
-      if (
-        files.some((file) => file.name.toLowerCase().endsWith('.png')) &&
-        files.some((file) => file.name.toLowerCase() === 'index.json')
-      ) {
-        const batchKey = files.map((file) => `${file.name}:${file.size}`).sort().join('|')
-        if (imageSpriteUploadBatchKey.current === batchKey) return
-        imageSpriteUploadBatchKey.current = batchKey
+      const batch = createSpriteUploadBatch(fileList)
+      if (batch) {
+        if (imageSpriteUploadBatchKey.current === batch.batchKey) return
+        imageSpriteUploadBatchKey.current = batch.batchKey
         window.setTimeout(() => {
-          if (imageSpriteUploadBatchKey.current === batchKey) imageSpriteUploadBatchKey.current = null
+          if (imageSpriteUploadBatchKey.current === batch.batchKey) imageSpriteUploadBatchKey.current = null
         }, 1000)
         void (async () => {
           try {
-            const storedAsset = await createSpriteAssetForUpload(space, files, settingsWorkspace.directoryHandle, groupName)
+            const storedAsset = await createSpriteAssetForUpload(space, batch.files, settingsWorkspace.directoryHandle, groupName)
             setSpace((current) => ({ ...current, assets: [storedAsset, ...current.assets] }))
             void messageApi.success('已导入精灵图')
           } catch (error) {

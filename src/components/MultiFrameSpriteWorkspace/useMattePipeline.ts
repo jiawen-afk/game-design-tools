@@ -21,6 +21,7 @@ import {
   readCurrentProjectSpaceState,
 } from '../PersonalSpaceWorkspace/projectSpaceState'
 import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
+import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import {
   getPersonalSpaceDirectoryHandle,
   writeAssetResourcesToDirectory,
@@ -402,7 +403,7 @@ export function useMattePipeline({
         getDirectoryHandle: () => directoryHandle,
       })
       if (persistence.syncError) {
-        message.warning(`已保存到本地项目缓存，但同步项目存储失败：${persistence.syncError instanceof Error ? persistence.syncError.message : String(persistence.syncError)}`)
+        showCurrentProjectSpaceSyncWarning(message, persistence.syncError)
       }
       message.success(`已成功导入 ${assets.length} 张抠图到 项目空间-素材-公共图片`)
     } catch (error) {
