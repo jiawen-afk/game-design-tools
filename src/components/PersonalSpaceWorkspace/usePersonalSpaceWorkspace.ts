@@ -637,6 +637,12 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         return
       }
 
+      bindRemoteProjectToCurrentDevice(
+        migrationProjectId,
+        settingsWorkspace.selectedDatabaseProfileId,
+        settingsWorkspace.selectedKodoProfileId,
+      )
+
       const result = await migrateLocalProjectToRemote({
         projectId: migrationProjectId,
         localRepository: projectRepository,
@@ -654,11 +660,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
         void messageApi.warning(`迁移到远程失败：${result.errorMessage}`)
         return
       }
-      bindRemoteProjectToCurrentDevice(
-        migrationProjectId,
-        settingsWorkspace.selectedDatabaseProfileId,
-        settingsWorkspace.selectedKodoProfileId,
-      )
 
       const nextProjects = await refreshProjectList(migrationProjectId)
       await activateProjectStateFromStorage(migrationProjectId, undefined, nextProjects)

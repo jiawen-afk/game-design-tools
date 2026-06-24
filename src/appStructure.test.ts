@@ -319,7 +319,7 @@ test('remote project repository uses electron database bridge instead of rendere
   assert.match(proxySource, /importRemoteProjectRows/)
   assert.match(proxySource, /listRemoteProjectAssets/)
   assert.match(proxySource, /getDatabaseProfileId\(projectId\)/)
-  assert.match(proxySource, /requireProjectDatabaseProfileId\(rows\.project\.id\)/)
+  assert.match(proxySource, /requireProjectDatabaseProfileId\(rows\.project\.id,\s*rows\.project\.name\)/)
   assert.match(proxySource, /缺少远程数据库配置/)
   assert.doesNotMatch(mainSource, /rows\?\.settings\?\.remote_database_profile_id/)
   assert.match(repositorySource, /buildUpsertSql/)
@@ -328,6 +328,21 @@ test('remote project repository uses electron database bridge instead of rendere
   assert.match(repositorySource, /ON CONFLICT/)
   assert.match(repositorySource, /DO UPDATE SET/)
   assert.match(repositorySource, /ON DUPLICATE KEY UPDATE/)
+})
+
+test('project migration binds current device profiles before remote import', () => {
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const migrateStart = hookSource.indexOf('const migrateActiveProjectToRemote = async')
+  const migrateEnd = hookSource.indexOf('  const createCharacter = () =>', migrateStart)
+  const migrateSource = hookSource.slice(migrateStart, migrateEnd)
+  const bindCall = migrateSource.indexOf('bindRemoteProjectToCurrentDevice(')
+  const migrationCall = migrateSource.indexOf('migrateLocalProjectToRemote({')
+
+  assert.notEqual(migrateStart, -1)
+  assert.notEqual(migrateEnd, -1)
+  assert.notEqual(bindCall, -1)
+  assert.notEqual(migrationCall, -1)
+  assert.ok(bindCall < migrationCall)
 })
 
 test('local project repository uses electron sqlite bridge instead of renderer memory storage', () => {

@@ -63,7 +63,10 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
 
   async importProjectRows(rows: LegacyProjectRows) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.importRemoteProjectRows(rows, this.requireProjectDatabaseProfileId(rows.project.id))
+    await desktopApi.importRemoteProjectRows(
+      rows,
+      this.requireProjectDatabaseProfileId(rows.project.id, rows.project.name),
+    )
   }
 
   async exportProjectRows(projectId: string) {
@@ -95,10 +98,11 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     await desktopApi.deleteRemoteProject(projectId, this.requireProjectDatabaseProfileId(projectId))
   }
 
-  private requireProjectDatabaseProfileId(projectId: string) {
+  private requireProjectDatabaseProfileId(projectId: string, projectName?: string | null) {
     const databaseProfileId = this.getDatabaseProfileId(projectId) || listedProjectDatabaseProfileIds.get(projectId)
     if (!databaseProfileId) {
-      throw new Error(`项目 ${projectId} 缺少远程数据库配置，请在项目管理中重新保存远程数据库连接。`)
+      const projectLabel = projectName?.trim() ? `“${projectName.trim()}”` : ` ${projectId} `
+      throw new Error(`项目${projectLabel}缺少远程数据库配置，请在项目管理中重新保存远程数据库连接。`)
     }
     return databaseProfileId
   }
