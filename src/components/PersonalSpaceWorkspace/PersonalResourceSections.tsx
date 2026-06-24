@@ -1,11 +1,11 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Checkbox, Dropdown, Empty, Input, Modal, Popconfirm, Select, Space, Tag, Upload } from 'antd'
-import { DeleteOutlined, DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
+import { Button, Dropdown, Empty, Input, Modal, Popconfirm, Select, Space, Tag, Upload } from 'antd'
+import { DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
-import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { PersonalResourceAssetRecord } from './PersonalResourceAssetRecord'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 
@@ -165,12 +165,6 @@ function VoiceGroupTransferControl({
   )
 }
 
-function formatImportedAt(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value || '未知时间'
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
 export function PersonalResourceSection({
   section,
   voiceAssets,
@@ -240,81 +234,29 @@ export function PersonalResourceSection({
   }
 
   const renderAssetRecord = (item: PersonalSpaceAsset) => (
-    <article className={`space-record resource-space-record${item.kind === 'voice' ? ' voice-space-record' : ''}`} key={item.id}>
-      <div className="asset-record-row">
-        <Checkbox
-          className="asset-selection-checkbox"
-          checked={selectedAssetIdsForGroup(item.groupName).includes(item.id)}
-          aria-label={`选择${item.name}`}
-          onChange={(event) => toggleAssetSelected(item, event.target.checked)}
-        />
-        <PersonalAssetPreview
-          asset={item}
-          projectObjectStorage={projectObjectStorage}
-          projectAssetManager={projectAssetManager}
-          projectId={projectId}
-          projectMode={projectMode}
-        />
-        <div className="asset-record-main">
-          <div className="asset-record-heading">
-            <Input
-              value={item.name}
-              aria-label={`${section.title}名称`}
-              onChange={(event) => onRenameAsset(item.id, event.target.value)}
-            />
-            <Tag>{getAssetKindLabel(item.kind)}</Tag>
-          </div>
-          <span className="field-note">导入时间：{formatImportedAt(item.createdAt)}</span>
-        </div>
-        <Popconfirm title="删除资源" description="会移除角色和剧情中的关联；勾选设置后会尝试同步删除存储目录资源。" onConfirm={() => onDeleteAsset(item.id)}>
-          <Button size="small" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      </div>
-      <div className={`form-stack asset-record-fields${item.kind === 'voice' ? ' voice-record-fields' : ''}`}>
-        {item.kind === 'image' && item.assetSubtype === 'effect' && (
-          <label className="form-field">
-            <span className="field-label">关联配音素材</span>
-            <Select
-              mode="multiple"
-              value={item.linkedVoiceAssetIds}
-              options={getAssetOptions(voiceAssets)}
-              onChange={(voiceIds) => onChangeEffectVoiceLinks(item.id, voiceIds)}
-            />
-          </label>
-        )}
-        {item.kind === 'voice' && (
-          <>
-            <Input
-              className="voice-dialogue-input"
-              value={item.dialogueText ?? ''}
-              aria-label={`${section.title}台词文本`}
-              addonBefore="台词"
-              placeholder="外部音频没有生成文本时，在这里填写台词文本"
-              onChange={(event) => onChangeDialogueText(item.id, event.target.value)}
-            />
-            <label className="form-field">
-              <span className="field-label">关联角色</span>
-              <Select
-                mode="multiple"
-                value={item.linkedCharacterIds}
-                options={characterOptions}
-                onChange={(characterIds) => onChangeVoiceCharacterLinks(item.id, characterIds)}
-              />
-            </label>
-            <label className="form-field">
-              <span className="field-label">关联剧情组</span>
-              <Select
-                mode="multiple"
-                value={item.linkedStoryboardIds}
-                options={storyboardOptions}
-                onChange={(storyboardIds) => onChangeVoiceStoryboardLinks(item.id, storyboardIds)}
-              />
-            </label>
-            <span className="field-note">剧情顺序：{getStoryboardVoiceRefs(item.id).join('、') || '未编排到剧情组'}</span>
-          </>
-        )}
-      </div>
-    </article>
+    <PersonalResourceAssetRecord
+      key={item.id}
+      sectionTitle={section.title}
+      item={item}
+      checked={selectedAssetIdsForGroup(item.groupName).includes(item.id)}
+      voiceAssets={voiceAssets}
+      characterOptions={characterOptions}
+      storyboardOptions={storyboardOptions}
+      getAssetOptions={getAssetOptions}
+      getAssetKindLabel={getAssetKindLabel}
+      getStoryboardVoiceRefs={getStoryboardVoiceRefs}
+      onSelectedChange={(checked) => toggleAssetSelected(item, checked)}
+      onRenameAsset={onRenameAsset}
+      onChangeDialogueText={onChangeDialogueText}
+      onChangeEffectVoiceLinks={onChangeEffectVoiceLinks}
+      onChangeVoiceCharacterLinks={onChangeVoiceCharacterLinks}
+      onChangeVoiceStoryboardLinks={onChangeVoiceStoryboardLinks}
+      onDeleteAsset={onDeleteAsset}
+      projectObjectStorage={projectObjectStorage}
+      projectAssetManager={projectAssetManager}
+      projectId={projectId}
+      projectMode={projectMode}
+    />
   )
 
   useEffect(() => {
