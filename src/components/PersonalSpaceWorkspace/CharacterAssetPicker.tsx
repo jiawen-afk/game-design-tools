@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, Empty, Input, Modal } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
 import { includesKeyword } from './personalSpaceSearch'
-import { buildProjectAssetResourceRef, resolveProjectAssetResourceSource } from './projectAssetResourceResolver'
+import { useStoredResourcePreviewSource } from './useStoredResourcePreviewSource'
 
 function CharacterAssetPickerThumb({
   asset,
@@ -23,36 +23,13 @@ function CharacterAssetPickerThumb({
   projectMode?: ProjectMode
 }) {
   const fallbackSource = asset.resourcePaths[0] ?? ''
-  const storedPath = asset.storageResourcePaths[0] ?? ''
-  const [source, setSource] = useState('')
-
-  useEffect(() => {
-    if (asset.kind === 'voice' || (!storedPath && !fallbackSource)) {
-      setSource('')
-      return undefined
-    }
-    let alive = true
-    let objectUrl = ''
-    void (async () => {
-      const resourceRef = projectId && projectMode
-        ? buildProjectAssetResourceRef({ asset, resourceIndex: 0, projectId, projectMode })
-        : null
-      const resolved = await resolveProjectAssetResourceSource(storedPath, fallbackSource, {
-        projectObjectStorage,
-        projectAssetManager,
-        resourceRef,
-      })
-      objectUrl = resolved?.objectUrl ?? ''
-      if (alive) setSource(resolved?.source ?? '')
-      else if (objectUrl) URL.revokeObjectURL(objectUrl)
-    })().catch(() => {
-      if (alive) setSource('')
-    })
-    return () => {
-      alive = false
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [asset, fallbackSource, projectAssetManager, projectId, projectMode, projectObjectStorage, storedPath])
+  const source = useStoredResourcePreviewSource(asset, 0, fallbackSource, {
+    enabled: asset.kind !== 'voice',
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
+  })
 
   if (asset.kind === 'voice') return <>{fallback}</>
   return source ? <img src={source} alt="" /> : <>{fallback}</>

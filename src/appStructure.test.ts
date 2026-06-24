@@ -416,8 +416,7 @@ test('project asset previews resolve provider object keys through asset manager'
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
 
-  assert.match(previewSource, /resolveProjectAssetResourceSource/)
-  assert.match(previewSource, /buildProjectAssetResourceRef/)
+  assert.match(previewSource, /useStoredResourcePreviewSource/)
   assert.match(previewSource, /enabled: shouldLoadFullSource/)
   assert.match(previewSource, /asset\.kind === 'voice'[\s\S]*audioPlaying/)
   assert.match(previewSource, /asset\.kind === 'sprite'[\s\S]*spriteOpen/)
@@ -1616,7 +1615,7 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.doesNotMatch(sectionsSource, /关联配音素材/)
   assert.doesNotMatch(sectionsSource, /DeleteOutlined/)
   assert.match(previewSource, /export function PersonalAssetPreview/)
-  assert.match(previewSource, /resolveProjectAssetResourceSource/)
+  assert.match(previewSource, /useStoredResourcePreviewSource/)
   assert.match(previewSource, /projectObjectStorage/)
   assert.match(previewSource, /spriteFrameModalStyle/)
   const resourceSectionBody = sectionsSource.slice(sectionsSource.indexOf('export function PersonalResourceSection'))
@@ -2288,10 +2287,16 @@ test('removed tag and note features do not return to project space', () => {
 
 test('project character pickers and storyboard avatars resolve remote assets through preview helpers', () => {
   const pickerSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterAssetPicker.tsx', 'utf8')
+  const previewSourceHook = readFileSync('src/components/PersonalSpaceWorkspace/useStoredResourcePreviewSource.ts', 'utf8')
   const avatarSource = readFileSync('src/components/PersonalSpaceWorkspace/StoryboardCharacterAvatar.tsx', 'utf8')
   const resolverSource = readFileSync('src/components/PersonalSpaceWorkspace/projectAssetResourceResolver.ts', 'utf8')
 
-  assert.match(pickerSource, /resolveProjectAssetResourceSource/)
+  assert.match(pickerSource, /useStoredResourcePreviewSource/)
+  assert.match(previewSourceHook, /resolveProjectAssetResourceSource/)
+  assert.match(previewSourceHook, /buildProjectAssetResourceRef/)
+  assert.doesNotMatch(pickerSource, /resolveProjectAssetResourceSource/)
+  assert.doesNotMatch(pickerSource, /buildProjectAssetResourceRef/)
+  assert.doesNotMatch(pickerSource, /URL\.revokeObjectURL/)
   assert.match(avatarSource, /resolveProjectAssetResourceSource/)
   assert.match(resolverSource, /buildProjectAssetResourceRef/)
   assert.doesNotMatch(pickerSource, /<img src=\{asset\.resourcePaths\[0\]\}/)
