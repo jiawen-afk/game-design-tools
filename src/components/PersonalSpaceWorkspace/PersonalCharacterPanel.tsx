@@ -1,12 +1,11 @@
 import type { UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
-import { Button, Empty, Popconfirm, Space, Upload } from 'antd'
-import { DeleteOutlined, DisconnectOutlined, DownOutlined, EditOutlined, PlusOutlined, StarFilled, StarOutlined, UpOutlined, UploadOutlined } from '@ant-design/icons'
+import { Button, Empty, Popconfirm, Space } from 'antd'
+import { DeleteOutlined, DownOutlined, EditOutlined, PlusOutlined, StarFilled, StarOutlined, UpOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
-import { CharacterAssetPicker } from './CharacterAssetPicker'
-import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { CharacterLinkedAssetColumn } from './CharacterLinkedAssetColumn'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
 
@@ -190,175 +189,85 @@ export function PersonalCharacterPanel({
                 </div>
               </div>
               <div className="space-columns">
-                <div className="space-column">
-                  <strong>角色肖像</strong>
-                  <div className="character-link-actions">
-                    <Upload {...getPortraitUploadProps(item.id)}>
-                      <Button icon={<UploadOutlined />}>上传肖像</Button>
-                    </Upload>
-                    <CharacterAssetPicker
-                      assets={portraitAssets}
-                      actionLabel="关联肖像"
-                      confirmLabel="确认关联肖像"
-                      searchLabel="搜索公共图片肖像"
-                      searchPlaceholder="搜索公共图片"
-                      emptyDescription="没有匹配的公共图片"
-                      emptyThumb="图"
-                      detailForAsset={() => '公共图片'}
-                      projectObjectStorage={projectObjectStorage}
-                      projectAssetManager={projectAssetManager}
-                      projectId={projectId}
-                      projectMode={projectMode}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'portrait')}
-                    />
-                  </div>
-                  {item.portraitAssets.map((link) => {
-                    const asset = allAssets.find((candidate) => candidate.id === link.assetId)
-                    return (
-                      <div className="linked-asset-row" key={link.assetId}>
-                        {asset && (
-                          <PersonalAssetPreview
-                            asset={asset}
-                            projectObjectStorage={projectObjectStorage}
-                            projectAssetManager={projectAssetManager}
-                            projectId={projectId}
-                            projectMode={projectMode}
-                          />
-                        )}
-                        <div className="form-stack linked-asset-main">
-                          <strong>{asset?.name ?? '肖像'}</strong>
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DisconnectOutlined />}
-                            aria-label="取消关联角色肖像"
-                            onClick={() => onUnassignAsset(item.id, link.assetId, 'portrait')}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="space-column">
-                  <strong>角色精灵图</strong>
-                  <div className="character-link-actions">
-                    <Upload {...getSpriteUploadProps(item.id)}>
-                      <Button icon={<UploadOutlined />}>上传精灵图</Button>
-                    </Upload>
-                    <CharacterAssetPicker
-                      assets={spriteAssets}
-                      actionLabel="关联精灵图"
-                      confirmLabel="确认关联精灵图"
-                      searchLabel="搜索精灵图"
-                      searchPlaceholder="搜索精灵图"
-                      emptyDescription="没有匹配的精灵图"
-                      emptyThumb="精灵"
-                      detailForAsset={() => '精灵图'}
-                      projectObjectStorage={projectObjectStorage}
-                      projectAssetManager={projectAssetManager}
-                      projectId={projectId}
-                      projectMode={projectMode}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'sprite')}
-                    />
-                  </div>
-                  <span className="field-note">一次选择 png 和 index.json，会自动加入角色精灵图。</span>
-                  {item.spriteAssets.map((link) => {
-                    const asset = allAssets.find((candidate) => candidate.id === link.assetId)
-                    return (
-                      <div className="linked-asset-row" key={link.assetId}>
-                        {asset && (
-                          <PersonalAssetPreview
-                            asset={asset}
-                            projectObjectStorage={projectObjectStorage}
-                            projectAssetManager={projectAssetManager}
-                            projectId={projectId}
-                            projectMode={projectMode}
-                          />
-                        )}
-                        <div className="form-stack linked-asset-main">
-                          <strong>{asset?.name ?? '精灵图'}</strong>
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DisconnectOutlined />}
-                            aria-label="取消关联角色精灵图"
-                            onClick={() => onUnassignAsset(item.id, link.assetId, 'sprite')}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="space-column">
-                  <strong>角色配音</strong>
-                  <div className="character-link-actions">
-                    <Upload {...getVoiceUploadProps(item.id)}>
-                      <Button icon={<UploadOutlined />}>上传配音</Button>
-                    </Upload>
-                    <CharacterAssetPicker
-                      assets={voiceAssets}
-                      actionLabel="关联配音"
-                      confirmLabel="确认关联配音"
-                      searchLabel="搜索配音"
-                      searchPlaceholder="搜索配音"
-                      emptyDescription="没有匹配的配音"
-                      emptyThumb="音"
-                      detailForAsset={(asset) => asset.dialogueText || '未填写对白文本'}
-                      projectObjectStorage={projectObjectStorage}
-                      projectAssetManager={projectAssetManager}
-                      projectId={projectId}
-                      projectMode={projectMode}
-                      onConfirm={(assetId) => onAssignAsset(item.id, assetId, 'voice')}
-                    />
-                  </div>
-                  {item.voiceAssets.map((link) => {
-                    const voiceAsset = allAssets.find((asset) => asset.id === link.assetId)
-                    return (
-                      <div
-                        className="character-voice-link"
-                        key={link.assetId}
-                        draggable
-                        onDragStart={(event) => {
-                          event.dataTransfer.effectAllowed = 'move'
-                          event.dataTransfer.setData('text/plain', link.assetId)
-                        }}
-                        onDragOver={(event) => {
-                          event.preventDefault()
-                          event.dataTransfer.dropEffect = 'move'
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault()
-                          const draggedAssetId = event.dataTransfer.getData('text/plain')
-                          if (draggedAssetId) onMoveCharacterVoice(item.id, draggedAssetId, link.assetId)
-                        }}
-                      >
-                        <div className="linked-asset-row character-voice-row">
-                          {voiceAsset ? (
-                            <PersonalAssetPreview
-                              asset={voiceAsset}
-                              projectObjectStorage={projectObjectStorage}
-                              projectAssetManager={projectAssetManager}
-                              projectId={projectId}
-                              projectMode={projectMode}
-                            />
-                          ) : <div className="asset-preview character-voice-preview-placeholder">音</div>}
-                          <div className="character-voice-main">
-                            <strong>{voiceAsset?.name ?? '配音'}</strong>
-                            <span className="character-voice-dialogue">{voiceAsset?.dialogueText || '未填写对白文本'}</span>
-                            <span className="field-note">剧情顺序：{getStoryboardVoiceRefs(link.assetId).join('、') || '未关联剧情组'}</span>
-                          </div>
-                          <Button
-                            size="small"
-                            danger
-                            icon={<DisconnectOutlined />}
-                            aria-label="取消关联角色配音"
-                            onClick={() => onUnassignAsset(item.id, link.assetId, 'voice')}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <CharacterLinkedAssetColumn
+                  character={item}
+                  column="portrait"
+                  title="角色肖像"
+                  uploadLabel="上传肖像"
+                  uploadProps={getPortraitUploadProps(item.id)}
+                  pickerAssets={portraitAssets}
+                  allAssets={allAssets}
+                  actionLabel="关联肖像"
+                  confirmLabel="确认关联肖像"
+                  searchLabel="搜索公共图片肖像"
+                  searchPlaceholder="搜索公共图片"
+                  emptyDescription="没有匹配的公共图片"
+                  emptyThumb="图"
+                  fallbackName="肖像"
+                  unlinkAriaLabel="取消关联角色肖像"
+                  detailForAsset={() => '公共图片'}
+                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
+                  onAssignAsset={onAssignAsset}
+                  onUnassignAsset={onUnassignAsset}
+                  onMoveCharacterVoice={onMoveCharacterVoice}
+                  projectObjectStorage={projectObjectStorage}
+                  projectAssetManager={projectAssetManager}
+                  projectId={projectId}
+                  projectMode={projectMode}
+                />
+                <CharacterLinkedAssetColumn
+                  character={item}
+                  column="sprite"
+                  title="角色精灵图"
+                  uploadLabel="上传精灵图"
+                  uploadProps={getSpriteUploadProps(item.id)}
+                  pickerAssets={spriteAssets}
+                  allAssets={allAssets}
+                  actionLabel="关联精灵图"
+                  confirmLabel="确认关联精灵图"
+                  searchLabel="搜索精灵图"
+                  searchPlaceholder="搜索精灵图"
+                  emptyDescription="没有匹配的精灵图"
+                  emptyThumb="精灵"
+                  fallbackName="精灵图"
+                  unlinkAriaLabel="取消关联角色精灵图"
+                  helperNote="一次选择 png 和 index.json，会自动加入角色精灵图。"
+                  detailForAsset={() => '精灵图'}
+                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
+                  onAssignAsset={onAssignAsset}
+                  onUnassignAsset={onUnassignAsset}
+                  onMoveCharacterVoice={onMoveCharacterVoice}
+                  projectObjectStorage={projectObjectStorage}
+                  projectAssetManager={projectAssetManager}
+                  projectId={projectId}
+                  projectMode={projectMode}
+                />
+                <CharacterLinkedAssetColumn
+                  character={item}
+                  column="voice"
+                  title="角色配音"
+                  uploadLabel="上传配音"
+                  uploadProps={getVoiceUploadProps(item.id)}
+                  pickerAssets={voiceAssets}
+                  allAssets={allAssets}
+                  actionLabel="关联配音"
+                  confirmLabel="确认关联配音"
+                  searchLabel="搜索配音"
+                  searchPlaceholder="搜索配音"
+                  emptyDescription="没有匹配的配音"
+                  emptyThumb="音"
+                  fallbackName="配音"
+                  unlinkAriaLabel="取消关联角色配音"
+                  detailForAsset={(asset) => asset.dialogueText || '未填写对白文本'}
+                  getStoryboardVoiceRefs={getStoryboardVoiceRefs}
+                  onAssignAsset={onAssignAsset}
+                  onUnassignAsset={onUnassignAsset}
+                  onMoveCharacterVoice={onMoveCharacterVoice}
+                  projectObjectStorage={projectObjectStorage}
+                  projectAssetManager={projectAssetManager}
+                  projectId={projectId}
+                  projectMode={projectMode}
+                />
               </div>
             </article>
           ))}

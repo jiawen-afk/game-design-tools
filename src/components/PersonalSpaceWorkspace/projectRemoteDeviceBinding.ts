@@ -33,6 +33,16 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
     return databaseProfileId && storageProfileId ? { databaseProfileId, storageProfileId } : null
   }
 
+  const databaseProfileIdForProject = (projectId: string) => {
+    const binding = readProjectDeviceBinding(projectId, options.storage)
+    return findAvailableProfileId(binding?.databaseProfileId ?? null, options.getDatabaseProfileIds())
+  }
+
+  const storageProfileIdForProject = (projectId: string) => {
+    const binding = readProjectDeviceBinding(projectId, options.storage)
+    return findAvailableProfileId(binding?.storageProfileId ?? null, options.getStorageProfileIds())
+  }
+
   const bindProjectToCurrentDevice = (projectId: string, databaseProfileId: string, storageProfileId: string) => {
     writeProjectDeviceBinding(projectId, { databaseProfileId, storageProfileId }, options.storage)
   }
@@ -45,7 +55,7 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
 
   const getRemoteDatabaseProfileId = (projectId?: string) => (
     projectId
-      ? (currentDeviceBindingForProject(projectId)?.databaseProfileId ?? '')
+      ? databaseProfileIdForProject(projectId)
       : options.getSelectedDatabaseProfileId()
   )
 
@@ -54,7 +64,7 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
     const projectId = objectProjectName ? projectIdByObjectProjectName[objectProjectName] : ''
     return (
       projectId
-        ? (currentDeviceBindingForProject(projectId)?.storageProfileId ?? '')
+        ? storageProfileIdForProject(projectId)
         : options.getSelectedStorageProfileId()
     )
   }
