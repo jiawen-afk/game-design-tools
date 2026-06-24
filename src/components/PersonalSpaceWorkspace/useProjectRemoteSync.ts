@@ -21,6 +21,33 @@ export interface UseProjectRemoteSyncOptions {
   messageApi: ProjectRemoteSyncMessageApi
 }
 
+interface QueuedProjectRemoteSync<State> {
+  project: Project
+  state: State
+}
+
+export function createProjectRemoteSyncQueue<State>() {
+  const pending = new Map<string, QueuedProjectRemoteSync<State>>()
+
+  const enqueue = (project: Project, state: State) => {
+    pending.set(project.id, { project, state })
+  }
+
+  const drain = () => {
+    const entries = Array.from(pending.values())
+    pending.clear()
+    return entries
+  }
+
+  const hasPending = () => pending.size > 0
+
+  return {
+    drain,
+    enqueue,
+    hasPending,
+  }
+}
+
 export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
   const [syncingProjectId, setSyncingProjectId] = useState('')
   const optionsRef = useRef(options)
@@ -28,16 +55,14 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
   const remoteSyncSequenceRef = useRef(0)
   const remoteSyncTimerRef = useRef<number | null>(null)
   const remoteSyncIntervalRef = useRef<number | null>(null)
-  const queuedRemoteSyncSpaceRef = useRef<PersonalSpaceState | null>(null)
+  const queuedRemoteSyncRef = useRef(createProjectRemoteSyncQueue<PersonalSpaceState>())
   const remoteSyncInFlightRef = useRef(false)
 
   optionsRef.current = options
 
-  const syncActiveProjectStateToStorage = async (nextSpace: PersonalSpaceState) => {
+  const syncProjectStateToStorage = async (project: Project, nextSpace: PersonalSpaceState) => {
     const currentOptions = optionsRef.current
-    const projectId = currentOptions.getActiveProjectId()
-    const project = currentOptions.findProject(projectId)
-    if (!projectId || project?.mode !== 'remote') return
+    if (project.mode !== 'remote') return
     const syncSequence = remoteSyncSequenceRef.current + 1
     remoteSyncSequenceRef.current = syncSequence
     try {
@@ -52,15 +77,16 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
 
   const flushQueuedRemoteSync = async () => {
     if (remoteSyncInFlightRef.current) return
-    const queuedSpace = queuedRemoteSyncSpaceRef.current
-    queuedRemoteSyncSpaceRef.current = null
-    if (!queuedSpace) return
+    const queuedEntries = queuedRemoteSyncRef.current.drain()
+    if (queuedEntries.length === 0) return
     remoteSyncInFlightRef.current = true
     try {
-      await syncActiveProjectStateToStorage(queuedSpace)
+      for (const entry of queuedEntries) {
+        await syncProjectStateToStorage(entry.project, entry.state)
+      }
     } finally {
       remoteSyncInFlightRef.current = false
-      if (queuedRemoteSyncSpaceRef.current) void flushQueuedRemoteSync()
+      if (queuedRemoteSyncRef.current.hasPending()) void flushQueuedRemoteSync()
     }
   }
 
@@ -71,7 +97,7 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
     const currentOptions = optionsRef.current
     const project = currentOptions.findProject(currentOptions.getActiveProjectId())
     if (project?.mode !== 'remote') return
-    queuedRemoteSyncSpaceRef.current = nextSpace
+    queuedRemoteSyncRef.current.enqueue(project, nextSpace)
     if (remoteSyncTimerRef.current !== null) window.clearTimeout(remoteSyncTimerRef.current)
     remoteSyncTimerRef.current = window.setTimeout(() => {
       remoteSyncTimerRef.current = null
