@@ -4,21 +4,10 @@ import { Button, Checkbox, Dropdown, Empty, Input, Modal, Popconfirm, Select, Sp
 import { DeleteOutlined, DownOutlined, StarFilled, StarOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
-import type { AssetGroupKind, PersonalSpaceAsset } from './personalSpaceModel'
+import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
-
-export interface PersonalResourceSectionConfig {
-  kind: AssetGroupKind
-  title: string
-  description: string
-  importLabel: string
-  emptyDescription: string
-  groupNames: string[]
-  starredGroupNames: string[]
-  assets: PersonalSpaceAsset[]
-}
 
 interface PersonalResourceSectionProps {
   section: PersonalResourceSectionConfig

@@ -1,6 +1,6 @@
 import type { UploadProps } from 'antd'
 import type { DragEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, Empty, Popconfirm, Upload } from 'antd'
 import {
   DeleteOutlined,
@@ -24,19 +24,8 @@ import {
   type DraggedStoryboardVoice,
   type StoryboardVoiceDropPlacement,
 } from './storyboardVoiceDrag'
-import {
-  resolveStoryboardVoicePlaybackSource,
-  revokeObjectUrls,
-} from './storyboardPlaybackSources'
-import { scheduleStoryboardVoiceStarts, type ProjectAssetManager, type ProjectMode, type ProjectObjectStorage } from '../ProjectStorage'
-
-type StoryboardPlaybackStep = {
-  groupId: string
-  assetId: string
-  source: string
-  startOffsetUs: number
-  durationUs: number
-}
+import { useStoryboardVoicePlayback } from './useStoryboardVoicePlayback'
+import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 
 interface PersonalStoryboardPanelProps {
   storyboardGroups: StoryboardGroup[]
@@ -98,12 +87,18 @@ export function PersonalStoryboardPanel({
   const characterById = useMemo(() => new Map(characters.map((character) => [character.id, character])), [characters])
   const voiceById = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, asset])), [voiceAssets])
   const characterOptions = characters.map((character) => ({ label: character.name, value: character.id }))
-  const playbackQueueRef = useRef<StoryboardPlaybackStep[]>([])
-  const playbackObjectUrlsRef = useRef<string[]>([])
-  const playbackTimersRef = useRef<number[]>([])
-  const activePlaybackAudiosRef = useRef<HTMLAudioElement[]>([])
-  const playbackRequestRef = useRef(0)
-  const [currentPlayback, setCurrentPlayback] = useState<StoryboardPlaybackStep | null>(null)
+  const {
+    currentPlayback,
+    playStoryboardFrom,
+    stopStoryboardPlayback,
+  } = useStoryboardVoicePlayback({
+    storyboardGroups,
+    voiceAssets,
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
+  })
   const [draggedStoryboardVoice, setDraggedStoryboardVoice] = useState<DraggedStoryboardVoice>(null)
   const [dropTargetStoryboardVoice, setDropTargetStoryboardVoice] = useState<DraggedStoryboardVoice>(null)
   const [previewStoryboardVoiceOrders, setPreviewStoryboardVoiceOrders] = useState<Record<string, string[]>>({})
@@ -122,122 +117,6 @@ export function PersonalStoryboardPanel({
   const visibleStoryboardGroups = selectedStoryboardFilter === '全部剧情组'
     ? recentStoryboardOptions
     : starFilteredStoryboardGroups.filter((group) => group.id === selectedStoryboardFilter)
-
-  const stopStoryboardPlayback = () => {
-    playbackRequestRef.current += 1
-    playbackTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
-    playbackTimersRef.current = []
-    activePlaybackAudiosRef.current.forEach((audio) => {
-      audio.pause()
-      audio.removeAttribute('src')
-      audio.load()
-    })
-    activePlaybackAudiosRef.current = []
-    revokeObjectUrls(playbackObjectUrlsRef.current)
-    playbackObjectUrlsRef.current = []
-    playbackQueueRef.current = []
-    setCurrentPlayback(null)
-  }
-
-  const clearStoryboardPlaybackForRestart = () => {
-    playbackTimersRef.current.forEach((timerId) => window.clearTimeout(timerId))
-    playbackTimersRef.current = []
-    activePlaybackAudiosRef.current.forEach((audio) => {
-      audio.pause()
-      audio.removeAttribute('src')
-      audio.load()
-    })
-    activePlaybackAudiosRef.current = []
-    revokeObjectUrls(playbackObjectUrlsRef.current)
-    playbackObjectUrlsRef.current = []
-    playbackQueueRef.current = []
-    setCurrentPlayback(null)
-  }
-
-  const loadStoryboardVoiceDurationUs = async (source: string) => new Promise<number>((resolve) => {
-    const audio = new Audio()
-    audio.preload = 'metadata'
-    audio.onloadedmetadata = () => resolve(Number.isFinite(audio.duration) ? Math.max(0, Math.trunc(audio.duration * 1_000_000)) : 0)
-    audio.onerror = () => resolve(0)
-    audio.src = source
-    audio.load()
-  })
-
-  const scheduleStoryboardPlayback = (queue: StoryboardPlaybackStep[], requestId: number) => {
-    const schedule = scheduleStoryboardVoiceStarts(queue.map((step) => ({
-      id: step.assetId,
-      durationUs: step.durationUs,
-      startOffsetUs: step.startOffsetUs,
-    })))
-    const stepByAssetId = new Map(queue.map((step) => [step.assetId, step]))
-    let endedCount = 0
-    const finishStep = (audio: HTMLAudioElement) => {
-      activePlaybackAudiosRef.current = activePlaybackAudiosRef.current.filter((item) => item !== audio)
-      endedCount += 1
-      if (endedCount >= schedule.length && playbackRequestRef.current === requestId) {
-        stopStoryboardPlayback()
-      }
-    }
-
-    for (const item of schedule) {
-      const step = stepByAssetId.get(item.id)
-      if (!step) continue
-      const timerId = window.setTimeout(() => {
-        if (playbackRequestRef.current !== requestId) return
-        const audio = new Audio(step.source)
-        activePlaybackAudiosRef.current.push(audio)
-        setCurrentPlayback(step)
-        audio.onended = () => finishStep(audio)
-        audio.onerror = () => finishStep(audio)
-        void audio.play()
-      }, Math.max(0, item.startAtUs / 1000))
-      playbackTimersRef.current.push(timerId)
-    }
-  }
-
-  const playStoryboardFrom = async (groupId: string, assetId: string) => {
-    const requestId = playbackRequestRef.current + 1
-    playbackRequestRef.current = requestId
-    clearStoryboardPlaybackForRestart()
-    const group = storyboardGroups.find((item) => item.id === groupId)
-    if (!group) return
-    const orderedEntries = [...group.voiceEntries].sort((a, b) => a.order - b.order)
-    const startIndex = orderedEntries.findIndex((entry) => entry.assetId === assetId)
-    if (startIndex < 0) return
-    const playbackSources = await Promise.all(orderedEntries.slice(startIndex).map(async (entry) => {
-      const asset = voiceById.get(entry.assetId)
-      const playbackSource = asset ? await resolveStoryboardVoicePlaybackSource(asset, {
-        projectObjectStorage,
-        projectAssetManager,
-        projectId,
-        projectMode,
-      }) : null
-      if (!playbackSource) return null
-      const durationUs = await loadStoryboardVoiceDurationUs(playbackSource.source)
-      return { entry, playbackSource, durationUs }
-    }))
-    const objectUrls = playbackSources.flatMap((item) => item?.playbackSource.objectUrl ? [item.playbackSource.objectUrl] : [])
-    if (playbackRequestRef.current !== requestId) {
-      revokeObjectUrls(objectUrls)
-      return
-    }
-    playbackObjectUrlsRef.current = objectUrls
-    const queue = playbackSources.flatMap<StoryboardPlaybackStep>((item) => (
-      item ? [{
-        groupId,
-        assetId: item.entry.assetId,
-        source: item.playbackSource.source,
-        startOffsetUs: item.entry.startOffsetUs,
-        durationUs: item.durationUs,
-      }] : []
-    ))
-    playbackQueueRef.current = queue
-    if (queue.length === 0) {
-      stopStoryboardPlayback()
-      return
-    }
-    scheduleStoryboardPlayback(queue, requestId)
-  }
 
   const startStoryboardVoiceDrag = (groupId: string, assetId: string) => {
     const group = storyboardGroups.find((item) => item.id === groupId)
@@ -293,8 +172,6 @@ export function PersonalStoryboardPanel({
     setDropTargetStoryboardVoice(null)
     setPreviewStoryboardVoiceOrders({})
   }
-
-  useEffect(() => () => stopStoryboardPlayback(), [])
 
   useEffect(() => {
     if (selectedStoryboardFilter !== '全部剧情组' && !storyboardGroups.some((group) => group.id === selectedStoryboardFilter)) {
