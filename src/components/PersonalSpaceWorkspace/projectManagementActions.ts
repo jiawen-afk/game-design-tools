@@ -17,6 +17,7 @@ import {
   deleteProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
+import { isRemoteProjectConfigurationReady } from './projectManagementModel'
 
 interface ProjectManagementMessageApi {
   success: (content: string) => void
@@ -102,13 +103,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
 
   const createRemoteProject = async (projectId: string, name: string, description: string) => {
     const settingsWorkspace = options.getSettingsWorkspace()
-    if (
-      !projectId ||
-      !settingsWorkspace.remoteReady ||
-      settingsWorkspace.kodoVerificationProjectId !== projectId ||
-      !settingsWorkspace.selectedDatabaseProfileId ||
-      !settingsWorkspace.selectedKodoProfileId
-    ) {
+    if (!isRemoteProjectConfigurationReady(settingsWorkspace, projectId)) {
       void options.messageApi.warning('请先完成远程数据库验证、表结构初始化和七牛 Kodo 验证')
       return
     }
@@ -173,12 +168,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
       void options.messageApi.warning('请选择远程项目')
       return false
     }
-    if (
-      !settingsWorkspace.remoteReady ||
-      settingsWorkspace.kodoVerificationProjectId !== projectId ||
-      !settingsWorkspace.selectedDatabaseProfileId ||
-      !settingsWorkspace.selectedKodoProfileId
-    ) {
+    if (!isRemoteProjectConfigurationReady(settingsWorkspace, projectId)) {
       void options.messageApi.warning('请先完成远程数据库验证、表结构初始化和当前项目 Kodo 验证')
       return false
     }
@@ -246,7 +236,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
       void options.messageApi.warning('项目正在迁移，请稍候')
       return
     }
-    if (!activeProjectId || !settingsWorkspace.remoteReady || settingsWorkspace.kodoVerificationProjectId !== activeProjectId) {
+    if (!isRemoteProjectConfigurationReady(settingsWorkspace, activeProjectId)) {
       void options.messageApi.warning('请先验证远程数据库和七牛 Kodo 配置')
       return
     }

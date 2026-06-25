@@ -1,6 +1,6 @@
 import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
-import type { ProjectObjectDeleteResult, ProjectObjectStorage } from './projectObjectStorage'
+import { deleteProjectObjectsIndividually, type ProjectObjectStorage } from './projectObjectStorage'
 
 export interface MemoryProjectObjectStorageOptions {
   failDeleteKeys?: Set<string>
@@ -29,18 +29,8 @@ export class MemoryProjectObjectStorage implements ProjectObjectStorage {
     this.objects.delete(objectKey)
   }
 
-  async deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult> {
-    const deletedKeys: string[] = []
-    const failed: ProjectObjectDeleteResult['failed'] = []
-    for (const objectKey of objectKeys) {
-      try {
-        await this.deleteObject(objectKey)
-        deletedKeys.push(objectKey)
-      } catch (error) {
-        failed.push({ objectKey, errorMessage: error instanceof Error ? error.message : String(error) })
-      }
-    }
-    return { deletedKeys, failed }
+  async deleteObjects(objectKeys: string[]) {
+    return deleteProjectObjectsIndividually(objectKeys, (objectKey) => this.deleteObject(objectKey))
   }
 }
 
@@ -80,18 +70,8 @@ export class DesktopLocalProjectObjectStorage implements ProjectObjectStorage {
     await desktopApi.deleteLocalProjectObject(objectKey)
   }
 
-  async deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult> {
-    const deletedKeys: string[] = []
-    const failed: ProjectObjectDeleteResult['failed'] = []
-    for (const objectKey of objectKeys) {
-      try {
-        await this.deleteObject(objectKey)
-        deletedKeys.push(objectKey)
-      } catch (error) {
-        failed.push({ objectKey, errorMessage: error instanceof Error ? error.message : String(error) })
-      }
-    }
-    return { deletedKeys, failed }
+  async deleteObjects(objectKeys: string[]) {
+    return deleteProjectObjectsIndividually(objectKeys, (objectKey) => this.deleteObject(objectKey))
   }
 }
 

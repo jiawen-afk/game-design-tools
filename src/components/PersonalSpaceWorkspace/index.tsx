@@ -3,7 +3,7 @@ import { SwapOutlined, SyncOutlined } from '@ant-design/icons'
 
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { ProjectManagementPanel } from './ProjectManagementPanel'
-import { PersonalResourceSection } from './PersonalResourceSections'
+import { PersonalMaterialsPanel } from './PersonalMaterialsPanel'
 import { PersonalSettingsPanel } from './PersonalSettingsPanel'
 import { PersonalStoryboardPanel } from './PersonalStoryboardPanel'
 import { usePersonalSpaceWorkspace } from './usePersonalSpaceWorkspace'
@@ -15,36 +15,6 @@ export default function PersonalSpaceWorkspace() {
   const [messageApi, contextHolder] = message.useMessage()
   const workspace = usePersonalSpaceWorkspace(messageApi)
   const workbenchDisabled = !workspace.enabledProjectId || !workspace.directoryHandle
-
-  const materialSection = (section: (typeof workspace.resourceSections)[number]) => (
-    <PersonalResourceSection
-      key={`material-${section.kind}`}
-      section={section}
-      voiceAssets={workspace.voiceAssets}
-      characterOptions={workspace.characterOptions}
-      storyboardOptions={workspace.space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
-      commonResourceUploadProps={workspace.commonResourceUploadProps}
-      spriteResourceUploadProps={workspace.imageSpriteUploadProps}
-      getAssetOptions={workspace.assetOptions}
-      getAssetKindLabel={workspace.assetKindLabel}
-      getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
-      onRenameAsset={workspace.renameAsset}
-      onChangeGroupName={workspace.changeAssetGroupName}
-      onChangeDialogueText={workspace.changeVoiceDialogueText}
-      onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
-      onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
-      onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
-      onAddGroup={workspace.addAssetGroup}
-      onRenameGroup={workspace.renameAssetGroup}
-      onToggleGroupStar={workspace.toggleAssetGroupStar}
-      onDeleteGroup={workspace.deleteAssetGroup}
-      onDeleteAsset={(assetId) => void workspace.deleteAsset(assetId)}
-      projectObjectStorage={workspace.projectObjectStorage}
-      projectAssetManager={workspace.projectAssetManager}
-      projectId={workspace.activeProject?.id}
-      projectMode={workspace.activeProject?.mode}
-    />
-  )
 
   if (workspace.workspacePage === 'management') {
     return (
@@ -240,25 +210,31 @@ export default function PersonalSpaceWorkspace() {
             label: '素材',
             disabled: workbenchDisabled,
             children: (
-              <Tabs
-                className="personal-inner-tabs"
-                items={[
-                  {
-                    key: 'images',
-                    label: '公共图片',
-                    children: workspace.resourceSections.filter((section) => section.kind === 'image').map(materialSection),
-                  },
-                  {
-                    key: 'sprites',
-                    label: '精灵图',
-                    children: workspace.resourceSections.filter((section) => section.kind === 'sprite').map(materialSection),
-                  },
-                  {
-                    key: 'voices',
-                    label: '配音',
-                    children: workspace.resourceSections.filter((section) => section.kind === 'voice').map(materialSection),
-                  },
-                ]}
+              <PersonalMaterialsPanel
+                resourceSections={workspace.resourceSections}
+                voiceAssets={workspace.voiceAssets}
+                characterOptions={workspace.characterOptions}
+                storyboardOptions={workspace.space.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))}
+                commonResourceUploadProps={workspace.commonResourceUploadProps}
+                spriteResourceUploadProps={workspace.imageSpriteUploadProps}
+                getAssetOptions={workspace.assetOptions}
+                getAssetKindLabel={workspace.assetKindLabel}
+                getStoryboardVoiceRefs={workspace.storyboardVoiceRefs}
+                onRenameAsset={workspace.renameAsset}
+                onChangeGroupName={workspace.changeAssetGroupName}
+                onChangeDialogueText={workspace.changeVoiceDialogueText}
+                onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
+                onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
+                onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
+                onAddGroup={workspace.addAssetGroup}
+                onRenameGroup={workspace.renameAssetGroup}
+                onToggleGroupStar={workspace.toggleAssetGroupStar}
+                onDeleteGroup={workspace.deleteAssetGroup}
+                onDeleteAsset={workspace.deleteAsset}
+                projectObjectStorage={workspace.projectObjectStorage}
+                projectAssetManager={workspace.projectAssetManager}
+                projectId={workspace.activeProject?.id}
+                projectMode={workspace.activeProject?.mode}
               />
             ),
           },

@@ -8,6 +8,7 @@ import { createRequire } from 'node:module'
 import { buildProjectObjectKey } from './projectStorageModel'
 import { createDesktopKodoProjectObjectStorage } from './projectKodoObjectStorage'
 import { createDesktopLocalProjectObjectStorage, createMemoryProjectObjectStorage } from './projectLocalObjectStorage'
+import { deleteProjectObjectsIndividually } from './projectObjectStorage'
 
 const require = createRequire(import.meta.url)
 const { createLocalProjectObjectStorage } = require('../../../electron/projectLocalObjectStorage.cjs') as {
@@ -38,6 +39,22 @@ test('local object storage records failed delete keys for project cleanup', asyn
 
   assert.deepEqual(result.deletedKeys, ['objects/p1/image/r2.png'])
   assert.deepEqual(result.failed, [{ objectKey: 'objects/p1/image/r1.png', errorMessage: '删除对象失败' }])
+})
+
+test('project object storage helper records deleted and failed keys consistently', async () => {
+  const deletedByProvider: string[] = []
+
+  const result = await deleteProjectObjectsIndividually(
+    ['objects/p1/image/r1.png', 'objects/p1/image/r2.png', 'objects/p1/image/r3.png'],
+    async (objectKey) => {
+      if (objectKey.endsWith('r2.png')) throw new Error('delete failed')
+      deletedByProvider.push(objectKey)
+    },
+  )
+
+  assert.deepEqual(deletedByProvider, ['objects/p1/image/r1.png', 'objects/p1/image/r3.png'])
+  assert.deepEqual(result.deletedKeys, ['objects/p1/image/r1.png', 'objects/p1/image/r3.png'])
+  assert.deepEqual(result.failed, [{ objectKey: 'objects/p1/image/r2.png', errorMessage: 'delete failed' }])
 })
 
 test('desktop local object storage proxies object operations through the desktop bridge', async () => {

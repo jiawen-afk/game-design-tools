@@ -111,6 +111,7 @@ test('image crop panel owns crop aspect ratio while export panel scales locked o
 test('image processing upscale is an optional export enhancement and keeps normal export available', () => {
   const exportSource = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
   const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
   const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
   const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
@@ -125,13 +126,17 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(exportSource, /workspace\.runUpscalePreview/)
   assert.match(exportSource, /disabled=\{!workspace\.canExport\}/)
   assert.doesNotMatch(exportSource, /disabled=\{!workspace\.canExport \|\| workspace\.upscaleEnabled/)
-  assert.match(hookSource, /queryUpscaleStatus/)
-  assert.match(hookSource, /upscaleImage/)
-  assert.match(hookSource, /resolveExportBaseSize/)
+  assert.match(hookSource, /useImageUpscaleWorkflow\(/)
   assert.match(hookSource, /resolveImageExportTarget/)
-  assert.match(hookSource, /exportScaleSnapshotRef/)
   assert.match(hookSource, /resolveImageExportTarget\(activeImageSource, crop, upscaleEnabled, upscalePreview\)/)
   assert.match(hookSource, /exportProcessedImage\(exportTarget\.sourceUrl, exportTarget\.crop, exportFormat, exportSize\)/)
+  assert.match(upscaleHookSource, /queryUpscaleStatus/)
+  assert.match(upscaleHookSource, /upscaleImage/)
+  assert.match(upscaleHookSource, /resolveExportBaseSize/)
+  assert.match(upscaleHookSource, /exportBaseSize/)
+  assert.match(upscaleHookSource, /exportSize/)
+  assert.match(upscaleHookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
   assert.match(stageSource, /image-upscale-compare/)
   assert.match(stageSource, /image-upscale-compare-after/)
   assert.match(stageSource, /inset\(0 0 0 \$\{comparePosition\}%\)/)
@@ -174,6 +179,7 @@ test('image processing matte can be toggled without disabling crop and export fl
 
 test('image processing resets stale upscale enhancement when replacing the image', () => {
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
   const uploadStart = hookSource.indexOf('const uploadImage = async')
   const resetStart = hookSource.indexOf('const resetWorkspace = useCallback')
   const uploadSource = hookSource.slice(uploadStart, resetStart)
@@ -181,8 +187,18 @@ test('image processing resets stale upscale enhancement when replacing the image
 
   assert.notEqual(uploadStart, -1)
   assert.notEqual(resetStart, -1)
-  assert.match(uploadSource, /setUpscaleEnabled\(false\)/)
-  assert.match(resetSource, /setUpscaleEnabled\(false\)/)
+  assert.match(uploadSource, /resetUpscale\(false\)/)
+  assert.match(resetSource, /resetUpscale\(false\)/)
+  assert.ok(
+    uploadSource.indexOf('resetUpscale(false)') < uploadSource.indexOf('setExportScaleState(1)'),
+    'uploading a new image should clear the old upscale scale snapshot before forcing export scale back to 1',
+  )
+  assert.match(upscaleHookSource, /const clearUpscalePreview = useCallback/)
+  assert.match(upscaleHookSource, /const resetUpscale = useCallback/)
+  assert.match(upscaleHookSource, /setUpscaleEnabled\(enabled\)/)
+  assert.match(upscaleHookSource, /setExportScale\(exportScaleSnapshotRef\.current \?\? 1\)/)
+  assert.match(upscaleHookSource, /shouldInvalidateUpscalePreview/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
 })
 
 test('image processing export target selection stays in the model', () => {
@@ -206,15 +222,16 @@ test('image processing export target selection stays in the model', () => {
 
 test('image processing workspace delegates object URL cleanup to pipeline helpers', () => {
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
   const pipelineSource = readFileSync('src/components/ImageProcessingWorkspace/imageProcessingPipeline.ts', 'utf8')
-  const directRevokes = hookSource.match(/URL\.revokeObjectURL/g) ?? []
+  const directRevokes = `${hookSource}\n${upscaleHookSource}`.match(/URL\.revokeObjectURL/g) ?? []
 
   assert.match(pipelineSource, /function revokeImageObjectUrl/)
   assert.match(pipelineSource, /function revokeLoadedImageDraftUrl/)
   assert.match(pipelineSource, /function revokeProcessedImageDraftUrl/)
   assert.match(hookSource, /revokeLoadedImageDraftUrl/)
   assert.match(hookSource, /revokeProcessedImageDraftUrl/)
-  assert.match(hookSource, /revokeImageObjectUrl/)
+  assert.match(upscaleHookSource, /revokeImageObjectUrl/)
   assert.equal(directRevokes.length, 0)
   assert.match(pipelineSource, /URL\.revokeObjectURL\(url\)/)
 })
@@ -233,6 +250,27 @@ test('image processing workspace delegates crop drag window interactions to a fo
   assert.match(dragHookSource, /window\.addEventListener\('mouseup'/)
   assert.match(dragHookSource, /setCropDraftRect/)
   assert.match(dragHookSource, /setCrop\(/)
+})
+
+test('image processing upscale workflow is delegated to a focused hook', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const upscaleHookPath = 'src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts'
+  const upscaleHookSource = existsSync(upscaleHookPath) ? readFileSync(upscaleHookPath, 'utf8') : ''
+
+  assert.ok(existsSync(upscaleHookPath), 'upscale workflow hook should exist')
+  assert.match(hookSource, /from '\.\/useImageUpscaleWorkflow'/)
+  assert.match(hookSource, /useImageUpscaleWorkflow\(/)
+  assert.doesNotMatch(hookSource, /const queryUpscaleStatus = useCallback/)
+  assert.doesNotMatch(hookSource, /const installUpscaleRuntime = useCallback/)
+  assert.doesNotMatch(hookSource, /const runUpscalePreview = useCallback/)
+  assert.doesNotMatch(hookSource, /upscalePreviewInputsRef/)
+  assert.doesNotMatch(hookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /export function useImageUpscaleWorkflow/)
+  assert.match(upscaleHookSource, /queryUpscaleStatus/)
+  assert.match(upscaleHookSource, /installUpscaleRuntime/)
+  assert.match(upscaleHookSource, /runUpscalePreview/)
+  assert.match(upscaleHookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
 })
 
 test('image processing result stage accepts dragged image files for replacement', () => {
@@ -305,6 +343,20 @@ test('project space workbench shows current project control and opens separate m
   assert.match(managementSource, /key: 'create'/)
   assert.match(managementSurfaceSource, /启用/)
   assert.match(managementSurfaceSource, /迁移到远程/)
+})
+
+test('project space workspace delegates material tab rendering to a focused panel', () => {
+  const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const materialsPanelPath = 'src/components/PersonalSpaceWorkspace/PersonalMaterialsPanel.tsx'
+  const materialsPanelSource = existsSync(materialsPanelPath) ? readFileSync(materialsPanelPath, 'utf8') : ''
+
+  assert.ok(existsSync(materialsPanelPath), 'personal materials panel should exist')
+  assert.match(workspaceSource, /from '\.\/PersonalMaterialsPanel'/)
+  assert.doesNotMatch(workspaceSource, /className="personal-inner-tabs"/)
+  assert.doesNotMatch(workspaceSource, /resourceSections\.filter/)
+  assert.match(materialsPanelSource, /personal-inner-tabs/)
+  assert.match(materialsPanelSource, /resourceSections\.filter/)
+  assert.match(materialsPanelSource, /PersonalResourceSection/)
 })
 
 test('desktop boundary exposes remote project profile storage and verification channels', () => {
@@ -552,6 +604,18 @@ test('project asset cache storage is exposed through electron without polluting 
   assert.doesNotMatch(objectStorageSource, /ProjectAssetCacheStorage/)
 })
 
+test('project object storage providers share batch delete failure collection', () => {
+  const objectStorageSource = readFileSync('src/components/ProjectStorage/projectObjectStorage.ts', 'utf8')
+  const localObjectStorageSource = readFileSync('src/components/ProjectStorage/projectLocalObjectStorage.ts', 'utf8')
+  const kodoObjectStorageSource = readFileSync('src/components/ProjectStorage/projectKodoObjectStorage.ts', 'utf8')
+
+  assert.match(objectStorageSource, /function deleteProjectObjectsIndividually/)
+  assert.match(localObjectStorageSource, /deleteProjectObjectsIndividually/)
+  assert.match(kodoObjectStorageSource, /deleteProjectObjectsIndividually/)
+  assert.doesNotMatch(localObjectStorageSource, /const failed: ProjectObjectDeleteResult\['failed'\]/)
+  assert.doesNotMatch(kodoObjectStorageSource, /const failed: ProjectObjectDeleteResult\['failed'\]/)
+})
+
 test('desktop binary IPC payloads are converted through a shared helper', () => {
   const packageSource = packageJsonSource()
   const helperSource = readFileSync('src/desktopBinaryData.ts', 'utf8')
@@ -559,8 +623,8 @@ test('desktop binary IPC payloads are converted through a shared helper', () => 
     readFileSync('src/components/ProjectStorage/projectAssetCacheStorage.ts', 'utf8'),
     readFileSync('src/components/ProjectStorage/projectKodoObjectStorage.ts', 'utf8'),
     readFileSync('src/components/ProjectStorage/projectLocalObjectStorage.ts', 'utf8'),
-    readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.ts', 'utf8'),
-    readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceNativeFileStorage.ts', 'utf8'),
+    readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8'),
   ]
 
   assert.match(packageSource, /desktopBinaryData\.test\.ts/)
@@ -793,6 +857,25 @@ test('project management warns before leaving with unsaved changes', () => {
   assert.match(remoteDatabaseSettingsSource, /保存当前数据库配置/)
   assert.match(remoteProfileSaveButtonSource, /failureDescription/)
   assert.doesNotMatch(panelSource, /InputNumber/)
+})
+
+test('project management shares remote readiness checks between panel and actions', () => {
+  const packageSource = packageJsonSource()
+  const modelPath = 'src/components/PersonalSpaceWorkspace/projectManagementModel.ts'
+  const modelSource = existsSync(modelPath) ? readFileSync(modelPath, 'utf8') : ''
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementPanel.tsx', 'utf8')
+  const createTabSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectManagementCreateTab.tsx', 'utf8')
+  const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/projectManagementActions.ts', 'utf8')
+
+  assert.ok(existsSync(modelPath), 'project management model should own shared readiness checks')
+  assert.match(packageSource, /projectManagementModel\.test\.ts/)
+  assert.match(modelSource, /function isRemoteProjectConfigurationReady/)
+  assert.match(panelSource, /isRemoteProjectConfigurationReady/)
+  assert.match(createTabSource, /isRemoteProjectConfigurationReady/)
+  assert.match(actionsSource, /isRemoteProjectConfigurationReady/)
+  assert.doesNotMatch(panelSource, /remoteReady && kodoVerificationProjectId ===/)
+  assert.doesNotMatch(createTabSource, /remoteReady && remoteSettingsProps\.kodoVerificationProjectId ===/)
+  assert.doesNotMatch(actionsSource, /kodoVerificationProjectId !==/)
 })
 
 test('remote profile editing requires tested drafts and preserves blank secrets', () => {
@@ -1334,6 +1417,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalMaterialsPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceAssetRecord.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetGroupControls.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceGroupBlock.tsx', 'utf8'),
@@ -1533,6 +1617,7 @@ test('Electron shell exposes a hardened desktop bridge for local system features
 test('desktop bridge is integrated into personal space and VoxCPM setup workflows', () => {
   const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
   const storageSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.ts', 'utf8')
+  const nativeStorageSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceNativeFileStorage.ts', 'utf8')
   const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
   const storyboardExportActionSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceStoryboardExportActions.ts', 'utf8')
   const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
@@ -1541,7 +1626,8 @@ test('desktop bridge is integrated into personal space and VoxCPM setup workflow
 
   assert.match(desktopApiSource, /gameDesignToolsDesktop/)
   assert.match(storageSource, /createNativePersonalSpaceDirectoryHandle/)
-  assert.match(storageSource, /desktop-native-directory/)
+  assert.match(storageSource, /from '\.\/personalSpaceNativeFileStorage'/)
+  assert.match(nativeStorageSource, /desktop-native-directory/)
   assert.match(actionsSource, /selectPersonalSpaceDirectory/)
   assert.doesNotMatch(actionsSource, /saveFile/)
   assert.match(storyboardExportActionSource, /saveFile/)
@@ -1989,6 +2075,7 @@ test('personal space workspace delegates settings and directory authorization to
 
 test('personal space resource kinds are first-level tabs instead of a common resource tab', () => {
   const source = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const materialsPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalMaterialsPanel.tsx', 'utf8')
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
   const personalSpaceCssSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpace.css', 'utf8')
@@ -2015,15 +2102,16 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(derivedSource, /assets: spriteAssets/)
   assert.match(derivedSource, /assets: voiceAssets/)
   assert.match(source, /label: '素材'/)
-  assert.match(source, /label: '公共图片'/)
-  assert.match(source, /label: '精灵图'/)
-  assert.match(source, /label: '配音'/)
-  assert.match(source, /workspace\.resourceSections\.filter\(\(section\) => section\.kind === 'image'\)\.map\(materialSection\)/)
-  assert.match(source, /workspace\.resourceSections\.filter\(\(section\) => section\.kind === 'sprite'\)\.map\(materialSection\)/)
-  assert.match(source, /workspace\.resourceSections\.filter\(\(section\) => section\.kind === 'voice'\)\.map\(materialSection\)/)
-  assert.match(source, /key=\{`material-\$\{section\.kind\}`\}/)
+  assert.match(source, /<PersonalMaterialsPanel/)
+  assert.match(materialsPanelSource, /label: '公共图片'/)
+  assert.match(materialsPanelSource, /label: '精灵图'/)
+  assert.match(materialsPanelSource, /label: '配音'/)
+  assert.match(materialsPanelSource, /resourceSections\.filter\(\(section\) => section\.kind === 'image'\)\.map\(materialSection\)/)
+  assert.match(materialsPanelSource, /resourceSections\.filter\(\(section\) => section\.kind === 'sprite'\)\.map\(materialSection\)/)
+  assert.match(materialsPanelSource, /resourceSections\.filter\(\(section\) => section\.kind === 'voice'\)\.map\(materialSection\)/)
+  assert.match(materialsPanelSource, /key=\{`material-\$\{section\.kind\}`\}/)
   assert.match(source, /key: 'materials'/)
-  assert.match(source, /<PersonalResourceSection/)
+  assert.match(materialsPanelSource, /<PersonalResourceSection/)
   assert.ok(existsSync(groupControlsPath), 'asset group controls component should exist')
   assert.match(sectionsSource, /from '\.\/PersonalAssetGroupControls'/)
   assert.match(groupControlsSource, /function PersonalAssetGroupControls/)
@@ -2489,6 +2577,9 @@ test('personal space workspace delegates resource IO and filesystem side effects
   const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
   const assetActionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceAssetActions.ts', 'utf8')
   const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
+  const storageSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceFileStorage.ts', 'utf8')
+  const nativeStoragePath = 'src/components/PersonalSpaceWorkspace/personalSpaceNativeFileStorage.ts'
+  const nativeStorageSource = existsSync(nativeStoragePath) ? readFileSync(nativeStoragePath, 'utf8') : ''
   const storyboardExportActionSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceStoryboardExportActions.ts', 'utf8')
   const resourceSectionsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8')
 
@@ -2536,6 +2627,14 @@ test('personal space workspace delegates resource IO and filesystem side effects
   assert.match(storyboardExportActionSource, /readProjectAssetResourceBlob/)
   assert.match(actionsSource, /storageResourcePaths/)
   assert.match(actionsSource, /deleteStoredResourceFiles/)
+  assert.ok(existsSync(nativeStoragePath), 'desktop-native personal space adapter should be isolated')
+  assert.match(storageSource, /from '\.\/personalSpaceNativeFileStorage'/)
+  assert.match(nativeStorageSource, /class NativeDirectoryHandle/)
+  assert.match(nativeStorageSource, /class NativeFileHandle/)
+  assert.match(nativeStorageSource, /class NativeWritableFileStream/)
+  assert.doesNotMatch(storageSource, /class NativeDirectoryHandle/)
+  assert.doesNotMatch(storageSource, /class NativeFileHandle/)
+  assert.doesNotMatch(storageSource, /class NativeWritableFileStream/)
   assert.match(resourceSectionsSource, /import type \{[^}]*PersonalResourceSectionConfig[^}]*\} from '\.\/personalSpaceModel'/)
   assert.doesNotMatch(resourceSectionsSource, /export interface PersonalResourceSectionConfig/)
 })

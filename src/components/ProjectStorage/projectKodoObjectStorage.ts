@@ -1,6 +1,6 @@
 import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
-import type { ProjectObjectDeleteResult, ProjectObjectStorage } from './projectObjectStorage'
+import { deleteProjectObjectsIndividually, type ProjectObjectStorage } from './projectObjectStorage'
 
 export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
   private readonly getProfileId: (objectKey?: string) => string
@@ -30,18 +30,8 @@ export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
     await desktopApi.deleteProjectKodoObject(this.requireProfileId(objectKey), objectKey)
   }
 
-  async deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult> {
-    const deletedKeys: string[] = []
-    const failed: ProjectObjectDeleteResult['failed'] = []
-    for (const objectKey of objectKeys) {
-      try {
-        await this.deleteObject(objectKey)
-        deletedKeys.push(objectKey)
-      } catch (error) {
-        failed.push({ objectKey, errorMessage: error instanceof Error ? error.message : String(error) })
-      }
-    }
-    return { deletedKeys, failed }
+  async deleteObjects(objectKeys: string[]) {
+    return deleteProjectObjectsIndividually(objectKeys, (objectKey) => this.deleteObject(objectKey))
   }
 
   private requireDesktopApi() {

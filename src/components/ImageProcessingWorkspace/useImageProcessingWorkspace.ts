@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react'
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
-import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   applyWheelZoom,
   createFullImageCrop,
@@ -14,12 +13,9 @@ import {
   getAspectRatioValue,
   getCropBoxAfterAspectRatioChange,
   getExportScaleAfterDimensionChange,
-  getExportSizeAfterScaleChange,
-  resolveExportBaseSize,
   resolveImageExportTarget,
   resolveMatteImageSource,
   mapPreviewPointToImagePixel,
-  shouldInvalidateUpscalePreview,
   MIN_IMAGE_CROP_SIZE,
   normalizeExportScale,
   type PreviewRect,
@@ -34,7 +30,6 @@ import {
   createImageDraft,
   exportProcessedImage,
   renderCroppedImageUrl,
-  revokeImageObjectUrl,
   revokeLoadedImageDraftUrl,
   revokeProcessedImageDraftUrl,
   saveImageExportBlob,
@@ -42,15 +37,9 @@ import {
   type LoadedImageDraft,
   type ProcessedImageDraft,
 } from './imageProcessingPipeline'
-import {
-  defaultUpscaleOptions,
-  normalizeUpscaleOptions,
-  type UpscaleModel,
-  type UpscaleOptions,
-} from './imageUpscaleModel'
 import { useImageCropDrag, type ImageCropDragState } from './useImageCropDrag'
+import { useImageUpscaleWorkflow } from './useImageUpscaleWorkflow'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
-import type { DesktopUpscaleInstallProgress, DesktopUpscaleRuntimeStatus } from '../../desktopApi'
 
 const DEFAULT_MATTE: MatteParams = {
   keyColor: [0, 255, 0],
@@ -81,28 +70,8 @@ export function useImageProcessingWorkspace() {
   const [cropDrag, setCropDrag] = useState<ImageCropDragState | null>(null)
   const [exportFormat, setExportFormat] = useState<ImageExportFormat>('png')
   const [exportScale, setExportScaleState] = useState(1)
-  const [upscaleEnabled, setUpscaleEnabled] = useState(false)
-  const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
-  const [upscaleRuntimeStatus, setUpscaleRuntimeStatus] = useState<DesktopUpscaleRuntimeStatus | null>(null)
-  const [upscaleInstallProgress, setUpscaleInstallProgress] = useState<DesktopUpscaleInstallProgress | null>(null)
-  const [upscaleInstalling, setUpscaleInstalling] = useState(false)
-  const [upscaleProcessing, setUpscaleProcessing] = useState(false)
-  const [upscalePreview, setUpscalePreview] = useState<{
-    originalUrl: string
-    url: string
-    blob: Blob
-    width: number
-    height: number
-  } | null>(null)
   const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const exportScaleSnapshotRef = useRef<number | null>(null)
-  const upscalePreviewInputsRef = useRef<{
-    crop: CropBox | null
-    exportFormat: ImageExportFormat
-    processedUrl: string | null
-    upscaleOptions: UpscaleOptions
-  } | null>(null)
   const previewZoom = previewTransform.zoom
   const previewPan = previewTransform.pan
   const draftImageSource = useMemo<ImageSourceLike | null>(() => draft
@@ -130,23 +99,6 @@ export function useImageProcessingWorkspace() {
       revokeProcessedImageDraftUrl(cropPreview)
     }
   }, [cropPreview])
-
-  useEffect(() => {
-    return () => {
-      revokeImageObjectUrl(upscalePreview?.url)
-    }
-  }, [upscalePreview])
-
-  useEffect(() => {
-    const api = getDesktopApi()
-    if (!api) return
-    void api.queryUpscaleStatus()
-      .then(setUpscaleRuntimeStatus)
-      .catch((error) => {
-        setUpscaleRuntimeStatus({ installed: false, path: '', models: [], message: String(error) })
-      })
-    return api.onUpscaleInstallProgress((progress) => setUpscaleInstallProgress(progress))
-  }, [])
 
   useEffect(() => {
     if (!draft) {
@@ -207,25 +159,6 @@ export function useImageProcessingWorkspace() {
     }
   }, [activeImageSource, crop])
 
-  useEffect(() => {
-    if (!upscalePreview) return
-    const previewInputs = upscalePreviewInputsRef.current
-    const currentInputs = {
-      crop,
-      exportFormat,
-      processedUrl: activeImageSource?.url ?? null,
-      upscaleOptions,
-    }
-    if (previewInputs && !shouldInvalidateUpscalePreview(previewInputs, currentInputs)) return
-    setUpscalePreview((previous) => {
-      revokeImageObjectUrl(previous?.url)
-      return null
-    })
-    setExportScaleState(exportScaleSnapshotRef.current ?? 1)
-    exportScaleSnapshotRef.current = null
-    upscalePreviewInputsRef.current = null
-  }, [activeImageSource, crop, exportFormat, upscaleOptions, upscalePreview])
-
   const previewImageRect = useMemo(() => {
     if (!activeImageSource || cropPreviewSize.width <= 0 || cropPreviewSize.height <= 0) return null
     return fitContainedImageRect({ width: activeImageSource.width, height: activeImageSource.height }, cropPreviewSize)
@@ -261,14 +194,31 @@ export function useImageProcessingWorkspace() {
     [draft?.sourceName, exportFormat]
   )
   const cropAspectRatio = useMemo(() => crop ? getAspectRatioValue(crop) : 1, [crop])
-  const exportBaseSize = useMemo(
-    () => resolveExportBaseSize(crop, upscaleEnabled, upscalePreview ? { width: upscalePreview.width, height: upscalePreview.height } : null),
-    [crop, upscaleEnabled, upscalePreview]
-  )
-  const exportSize = useMemo(
-    () => getExportSizeAfterScaleChange(exportBaseSize, exportScale),
-    [exportBaseSize, exportScale]
-  )
+  const {
+    upscaleEnabled,
+    setUpscaleEnabled: updateUpscaleEnabled,
+    upscaleOptions,
+    updateUpscaleOptions,
+    upscaleRuntimeStatus,
+    upscaleInstallProgress,
+    upscaleInstalling,
+    upscaleProcessing,
+    upscalePreview,
+    queryUpscaleStatus,
+    installUpscaleRuntime,
+    runUpscalePreview,
+    resetUpscale,
+    exportBaseSize,
+    exportSize,
+  } = useImageUpscaleWorkflow({
+    activeImageSource,
+    crop,
+    cropPreview,
+    exportFormat,
+    exportName,
+    exportScale,
+    setExportScale: setExportScaleState,
+  })
 
   const uploadImage = async (file: File) => {
     if (!isSupportedImageFile(file)) {
@@ -284,14 +234,8 @@ export function useImageProcessingWorkspace() {
       setProcessed(null)
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
       setMatteEnabled(true)
+      resetUpscale(false)
       setExportScaleState(1)
-      setUpscaleEnabled(false)
-      exportScaleSnapshotRef.current = null
-      upscalePreviewInputsRef.current = null
-      setUpscalePreview((previous) => {
-        revokeImageObjectUrl(previous?.url)
-        return null
-      })
       setCropDraftRect(null)
       setCropDrag(null)
       setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
@@ -340,116 +284,12 @@ export function useImageProcessingWorkspace() {
     })
     setCrop(null)
     setMatteEnabled(true)
-    setUpscaleEnabled(false)
-    setUpscalePreview((previous) => {
-      revokeImageObjectUrl(previous?.url)
-      return null
-    })
-    exportScaleSnapshotRef.current = null
-    upscalePreviewInputsRef.current = null
+    resetUpscale(false)
     setCropDraftRect(null)
     setCropDrag(null)
     setExportScaleState(1)
     setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
-  }, [])
-
-  const queryUpscaleStatus = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      const status = { installed: false, path: '', models: [], message: '当前不是桌面运行环境，普通导出仍可使用。' }
-      setUpscaleRuntimeStatus(status)
-      return status
-    }
-    const status = await api.queryUpscaleStatus()
-    setUpscaleRuntimeStatus(status)
-    return status
-  }, [])
-
-  const installUpscaleRuntime = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      message.warning('当前不是桌面运行环境，无法安装 Upscayl 运行包。')
-      return
-    }
-    setUpscaleInstalling(true)
-    try {
-      const status = await api.installUpscaleRuntime()
-      setUpscaleRuntimeStatus(status)
-      if (status.installed) message.success('高清化运行包已安装')
-      else message.error(status.message ?? '运行包安装未完成')
-    } catch (error) {
-      message.error(`高清化运行包安装失败：${String(error)}`)
-    } finally {
-      setUpscaleInstalling(false)
-    }
-  }, [])
-
-  const updateUpscaleOptions = useCallback((patch: Partial<UpscaleOptions>) => {
-    setUpscaleOptions((current) => normalizeUpscaleOptions({ ...current, ...patch }))
-  }, [])
-
-  const updateUpscaleEnabled = useCallback((enabled: boolean) => {
-    setUpscaleEnabled(enabled)
-    if (!enabled) {
-      setUpscalePreview((previous) => {
-        revokeImageObjectUrl(previous?.url)
-        return null
-      })
-      setExportScaleState(exportScaleSnapshotRef.current ?? 1)
-      exportScaleSnapshotRef.current = null
-      upscalePreviewInputsRef.current = null
-    }
-  }, [])
-
-  const runUpscalePreview = useCallback(async () => {
-    if (!activeImageSource || !crop || !cropPreview) return
-    const api = getDesktopApi()
-    if (!api) {
-      message.warning('当前不是桌面运行环境，无法执行高清化。')
-      return
-    }
-    if (!upscaleRuntimeStatus?.installed) {
-      message.warning('请先安装高清化运行包。')
-      return
-    }
-    setUpscaleProcessing(true)
-    try {
-      const blob = await exportProcessedImage(activeImageSource.url, crop, exportFormat, exportSize)
-      if (exportScaleSnapshotRef.current === null) {
-        exportScaleSnapshotRef.current = exportScale
-      }
-      const result = await api.upscaleImage({
-        inputName: exportName,
-        outputFormat: exportFormat,
-        data: await blob.arrayBuffer(),
-        options: upscaleOptions,
-      })
-      const upscaledBlob = blobFromDesktopBinaryData(result.data, blob.type)
-      const url = URL.createObjectURL(upscaledBlob)
-      setUpscalePreview((previous) => {
-        revokeImageObjectUrl(previous?.url)
-        return {
-          originalUrl: cropPreview.url,
-          url,
-          blob: upscaledBlob,
-          width: exportSize.width * upscaleOptions.scale,
-          height: exportSize.height * upscaleOptions.scale,
-        }
-      })
-      upscalePreviewInputsRef.current = {
-        crop,
-        exportFormat,
-        processedUrl: activeImageSource.url,
-        upscaleOptions,
-      }
-      setExportScaleState(1)
-      message.success('高清化预览已生成')
-    } catch (error) {
-      message.error(`高清化失败：${String(error)}`)
-    } finally {
-      setUpscaleProcessing(false)
-    }
-  }, [activeImageSource, crop, cropPreview, exportFormat, exportName, exportScale, exportSize, upscaleOptions, upscaleRuntimeStatus])
+  }, [resetUpscale])
 
   const updateCropAspectRatio = (value: number | null) => {
     if (!value || !crop || !activeImageSource) return

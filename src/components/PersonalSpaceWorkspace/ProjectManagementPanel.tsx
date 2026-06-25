@@ -14,6 +14,7 @@ import { ProjectManagementRemoteSettingsSection } from './ProjectManagementRemot
 import {
   useProjectManagementDirtyNavigation,
 } from './useProjectManagementDirtyNavigation'
+import { isRemoteProjectConfigurationReady } from './projectManagementModel'
 
 interface ProjectManagementPanelProps {
   projects: Project[]
@@ -133,7 +134,16 @@ export function ProjectManagementPanel({
     setProjectDescriptionDraft(selectedProject?.description ?? '')
   }, [selectedProject])
 
-  const remoteReadyForSelectedProject = Boolean(selectedProject && remoteReady && kodoVerificationProjectId === selectedProject.id)
+  const remoteReadiness = {
+    remoteReady,
+    kodoVerificationProjectId,
+    selectedDatabaseProfileId,
+    selectedKodoProfileId,
+  }
+  const remoteReadyForSelectedProject = isRemoteProjectConfigurationReady(
+    remoteReadiness,
+    selectedProject?.id ?? '',
+  )
   const selectedProjectMigrating = Boolean(selectedProject && migratingProjectId === selectedProject.id)
   const remoteSettingsProps = {
     databaseProfiles,

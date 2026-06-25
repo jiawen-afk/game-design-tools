@@ -9,3 +9,20 @@ export interface ProjectObjectStorage {
   deleteObject(objectKey: string): Promise<void>
   deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult>
 }
+
+export async function deleteProjectObjectsIndividually(
+  objectKeys: string[],
+  deleteObject: (objectKey: string) => Promise<void>,
+): Promise<ProjectObjectDeleteResult> {
+  const deletedKeys: string[] = []
+  const failed: ProjectObjectDeleteResult['failed'] = []
+  for (const objectKey of objectKeys) {
+    try {
+      await deleteObject(objectKey)
+      deletedKeys.push(objectKey)
+    } catch (error) {
+      failed.push({ objectKey, errorMessage: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  return { deletedKeys, failed }
+}

@@ -6,6 +6,7 @@ import {
   ProjectManagementRemoteSettingsSection,
   type ProjectManagementRemoteSettingsSectionProps,
 } from './ProjectManagementRemoteSettingsSection'
+import { isRemoteProjectConfigurationReady } from './projectManagementModel'
 
 type ProjectManagementCreateRemoteSettingsProps = Omit<
   ProjectManagementRemoteSettingsSectionProps,
@@ -37,7 +38,15 @@ export function ProjectManagementCreateTab({
   const selectedRemoteVerificationProjectId = createMode === 'remote'
     ? remoteCreationProjectId
     : activeProject?.id || enabledProjectId
-  const remoteReadyForCreation = remoteReady && remoteSettingsProps.kodoVerificationProjectId === remoteCreationProjectId
+  const remoteReadyForCreation = isRemoteProjectConfigurationReady(
+    {
+      remoteReady,
+      kodoVerificationProjectId: remoteSettingsProps.kodoVerificationProjectId,
+      selectedDatabaseProfileId: remoteSettingsProps.selectedDatabaseProfileId,
+      selectedKodoProfileId: remoteSettingsProps.selectedKodoProfileId,
+    },
+    remoteCreationProjectId,
+  )
   const remoteReadinessText = remoteReady ? '远程 DB + 七牛 Kodo 已就绪' : '必须完成 DB 验证、初始化表结构和 Kodo 验证'
 
   const createProject = async () => {
