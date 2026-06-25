@@ -45,6 +45,10 @@ function findSpriteIndexPath(asset: PersonalSpaceAsset) {
   return asset.storageResourcePaths[1] ?? asset.resourcePaths[1]
 }
 
+function findCoverPath(asset: PersonalSpaceAsset) {
+  return asset.coverStorageResourcePath ?? asset.coverResourcePath
+}
+
 function objectKeyExtension(objectKey: string) {
   return fileNameFromProjectObjectKey(objectKey, '').match(/\.[^.\\/]+$/)?.[0] ?? ''
 }
@@ -54,12 +58,16 @@ export function migrateLegacyAssetsToProjectRows(input: LegacyAssetMigrationInpu
   return input.assets.map((asset): Asset => {
     const primaryPath = findPrimaryPath(asset)
     const spriteIndexPath = findSpriteIndexPath(asset)
+    const coverPath = findCoverPath(asset)
     const primaryResourceId = input.preserveSourceIds && isProjectObjectKey(primaryPath)
       ? resourceIdFromProjectObjectKey(primaryPath, createProjectStorageId())
       : createProjectStorageId()
     const spriteIndexResourceId = input.preserveSourceIds && isProjectObjectKey(spriteIndexPath)
       ? resourceIdFromProjectObjectKey(spriteIndexPath!, createProjectStorageId())
       : spriteIndexPath ? createProjectStorageId() : undefined
+    const coverResourceId = input.preserveSourceIds && isProjectObjectKey(coverPath)
+      ? resourceIdFromProjectObjectKey(coverPath!, createProjectStorageId())
+      : coverPath ? createProjectStorageId() : undefined
     const resources = createAssetResourceFields({
       projectId: input.projectId,
       projectName: input.projectName,
@@ -73,6 +81,12 @@ export function migrateLegacyAssetsToProjectRows(input: LegacyAssetMigrationInpu
         sizeBytes: 0,
         resourceId: spriteIndexResourceId,
       } : undefined,
+      cover: coverPath ? {
+        fileName: fileNameFromPath(coverPath, `${asset.name}-cover.png`),
+        mimeType: 'image/png',
+        sizeBytes: 0,
+        resourceId: coverResourceId,
+      } : undefined,
     })
     if (input.preserveSourceIds && isProjectObjectKey(primaryPath)) {
       resources.primary_object_key = primaryPath
@@ -82,6 +96,10 @@ export function migrateLegacyAssetsToProjectRows(input: LegacyAssetMigrationInpu
     if (input.preserveSourceIds && isProjectObjectKey(spriteIndexPath)) {
       resources.sprite_index_object_key = spriteIndexPath!
       resources.sprite_index_file_name = fileNameFromProjectObjectKey(spriteIndexPath!, 'index.json')
+    }
+    if (input.preserveSourceIds && isProjectObjectKey(coverPath)) {
+      resources.cover_object_key = coverPath!
+      resources.cover_file_name = fileNameFromProjectObjectKey(coverPath!, `${asset.name}-cover.png`)
     }
     return {
       id: mappedId(input.assetIdMap, asset.id),

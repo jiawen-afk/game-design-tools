@@ -69,6 +69,12 @@ export interface AssetResourceFields {
   sprite_index_mime_type: string | null
   sprite_index_size_bytes: number | null
   sprite_index_hash_sha256: string | null
+  cover_resource_id: string | null
+  cover_object_key: string | null
+  cover_file_name: string | null
+  cover_mime_type: string | null
+  cover_size_bytes: number | null
+  cover_hash_sha256: string | null
 }
 
 export interface Asset extends AssetResourceFields {

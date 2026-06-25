@@ -2,7 +2,8 @@ import { Avatar } from 'antd'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
-import { useStoredResourcePreviewSource } from './useStoredResourcePreviewSource'
+import { assetListPreviewSource } from './personalSpacePreviewSourceModel'
+import { useStoredAssetCoverSource } from './useStoredResourcePreviewSource'
 
 function characterInitial(name: string) {
   return name.trim().slice(0, 1) || '?'
@@ -43,8 +44,9 @@ export function StoryboardCharacterAvatar({
   projectMode?: ProjectMode
 }) {
   const portrait = findPortraitAsset(character, allAssets)
-  const fallbackSource = portrait?.resourcePaths[0] ?? ''
-  const portraitSource = useStoredResourcePreviewSource(portrait ?? emptyPortraitAsset, 0, fallbackSource, {
+  const portraitAsset = portrait ?? emptyPortraitAsset
+  const fallbackSource = assetListPreviewSource(portraitAsset, { projectMode })
+  const portraitSource = useStoredAssetCoverSource(portraitAsset, {
     enabled: Boolean(portrait),
     projectObjectStorage,
     projectAssetManager,

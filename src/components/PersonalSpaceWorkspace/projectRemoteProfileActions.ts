@@ -10,6 +10,8 @@ import {
 } from '../ProjectStorage'
 import {
   createDatabaseProfileSaveInput,
+  createInitialDatabaseProfileDraft,
+  createInitialKodoProfileDraft,
   createKodoProfileSaveInput,
   type DatabaseProfileDraft,
   type DraftTestState,
@@ -58,6 +60,8 @@ export interface ProjectRemoteProfileActionsOptions {
   setDatabaseVerification: StateSetter<ProjectConnectionVerificationResult | null>
   setKodoVerification: StateSetter<ProjectConnectionVerificationResult | null>
   setKodoVerificationProjectId: StateSetter<string>
+  setDatabaseProfileDraft: StateSetter<DatabaseProfileDraft>
+  setKodoProfileDraft: StateSetter<KodoProfileDraft>
   setDatabaseSchemaReady: StateSetter<boolean>
   setDatabaseDraftTestState: StateSetter<DraftTestState>
   setKodoDraftTestState: StateSetter<DraftTestState>
@@ -130,6 +134,11 @@ export function createProjectRemoteProfileActions(options: ProjectRemoteProfileA
     ))
     options.setDatabaseVerification(null)
     options.setDatabaseSchemaReady(false)
+    options.setDatabaseDraftTestState('untested')
+    if (nextDatabaseProfiles.length === 0) {
+      options.previousDatabaseProfileDraftRef.current = null
+      options.setDatabaseProfileDraft(createInitialDatabaseProfileDraft())
+    }
     void options.messageApi.success('已删除远程数据库配置')
   }
 
@@ -183,6 +192,10 @@ export function createProjectRemoteProfileActions(options: ProjectRemoteProfileA
     ))
     options.setKodoVerification(null)
     options.setKodoVerificationProjectId('')
+    options.setKodoDraftTestState('untested')
+    if (nextKodoProfiles.length === 0) {
+      options.setKodoProfileDraft(createInitialKodoProfileDraft())
+    }
     void options.messageApi.success('已删除七牛 Kodo 配置')
   }
 

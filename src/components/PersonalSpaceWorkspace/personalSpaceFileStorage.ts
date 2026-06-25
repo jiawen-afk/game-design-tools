@@ -194,6 +194,25 @@ export async function writeAssetResourcesToDirectory(
   }
 }
 
+export async function writeAssetCoverToDirectory(
+  root: PersonalSpaceDirectoryHandle,
+  asset: PersonalSpaceAsset,
+  resource: PersonalSpaceResourceFile,
+): Promise<PersonalSpaceAsset> {
+  const folder = await ensureDirectory(root, [storageCategoryForAsset(asset), importDatePart(asset.createdAt)])
+  const fileName = await storedResourceFileName(asset, resource, 0)
+  await writeFile(folder, fileName, resource.data)
+  return {
+    ...asset,
+    coverStorageResourcePath: [
+      root.name,
+      storageCategoryForAsset(asset),
+      importDatePart(asset.createdAt),
+      sanitizePathPart(fileName),
+    ].join('/'),
+  }
+}
+
 export async function writeJsonFileToDirectory(
   root: PersonalSpaceDirectoryHandle,
   directoryParts: string[],

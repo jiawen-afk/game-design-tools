@@ -12,8 +12,14 @@ import {
   createNativePersonalSpaceDirectoryHandle,
   deleteStoredResourceFiles,
   type PersonalSpaceDirectoryHandle,
+  type PersonalSpaceResourceFile,
+  writeAssetCoverToDirectory,
   writeAssetResourcesToDirectory,
 } from './personalSpaceFileStorage'
+import {
+  createAssetCover,
+  type PersonalSpaceAssetCoverOptions,
+} from './personalSpaceAssetCoverService'
 import { getDesktopApi } from '../../desktopApi'
 export {
   exportAllStoryboardCharacterAssetsToTarget,
@@ -34,6 +40,30 @@ export interface AssetDeleteResult {
   resourcesDeleted: boolean
 }
 
+async function attachUploadCover(
+  state: PersonalSpaceState,
+  asset: PersonalSpaceAsset,
+  sourceFile: File,
+  directoryHandle: PersonalSpaceDirectoryHandle | null,
+  options: PersonalSpaceAssetCoverOptions = {},
+) {
+  const cover = await createAssetCover(sourceFile, options)
+  if (!cover) return asset
+  const coverResourcePath = cover.resourcePath ?? URL.createObjectURL(cover.data)
+  const assetWithCover = {
+    ...asset,
+    coverResourcePath,
+  }
+  const coverResource: PersonalSpaceResourceFile = {
+    name: cover.name || 'cover.png',
+    data: cover.data,
+  }
+  if (directoryHandle) {
+    return writeAssetCoverToDirectory(directoryHandle, assetWithCover, coverResource)
+  }
+  return archiveAssetForStorageDirectory(state, assetWithCover)
+}
+
 export async function pickPersonalSpaceDirectory() {
   const desktopApi = getDesktopApi()
   if (!desktopApi) return null
@@ -45,6 +75,7 @@ export async function createPortraitAssetForUpload(
   state: PersonalSpaceState,
   file: File,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
+  options: PersonalSpaceAssetCoverOptions = {},
 ): Promise<PersonalSpaceAsset> {
   const objectUrl = URL.createObjectURL(file)
   const baseAsset = createPortraitAssetFromUpload({
@@ -54,7 +85,7 @@ export async function createPortraitAssetForUpload(
   const storedAsset = directoryHandle
     ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: file.name || 'portrait.png', data: file }])
     : archiveAssetForStorageDirectory(state, baseAsset)
-  return storedAsset
+  return attachUploadCover(state, storedAsset, file, directoryHandle, options)
 }
 
 export async function createCommonResourceAssetForUpload(
@@ -63,6 +94,7 @@ export async function createCommonResourceAssetForUpload(
   file: File,
   directoryHandle: PersonalSpaceDirectoryHandle | null,
   groupName?: string,
+  options: PersonalSpaceAssetCoverOptions = {},
 ): Promise<PersonalSpaceAsset> {
   const objectUrl = URL.createObjectURL(file)
   const baseAsset = createResourceAssetFromUpload({
@@ -74,7 +106,8 @@ export async function createCommonResourceAssetForUpload(
   const storedAsset = directoryHandle
     ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: file.name, data: file }])
     : archiveAssetForStorageDirectory(state, baseAsset)
-  return storedAsset
+  if (storedAsset.kind === 'voice') return storedAsset
+  return attachUploadCover(state, storedAsset, file, directoryHandle, options)
 }
 
 export async function createVoiceAssetForUpload(
@@ -90,6 +123,7 @@ export async function createSpriteAssetForUpload(
   files: File[],
   directoryHandle: PersonalSpaceDirectoryHandle | null,
   groupName?: string,
+  options: PersonalSpaceAssetCoverOptions = {},
 ): Promise<PersonalSpaceAsset> {
   const pngFile = files.find((file) => file.name.toLowerCase().endsWith('.png'))
   const indexFile = files.find((file) => file.name.toLowerCase() === 'index.json')
@@ -109,7 +143,7 @@ export async function createSpriteAssetForUpload(
       { name: 'index.json', data: indexFile },
     ])
     : archiveAssetForStorageDirectory(state, baseAsset)
-  return storedAsset
+  return attachUploadCover(state, storedAsset, pngFile, directoryHandle, options)
 }
 
 export async function deleteAssetWithOptionalResources(

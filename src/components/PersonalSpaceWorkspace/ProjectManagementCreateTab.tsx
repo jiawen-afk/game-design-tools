@@ -93,7 +93,7 @@ export function ProjectManagementCreateTab({
           selectedVerificationProjectId={selectedRemoteVerificationProjectId}
           linkTargetProjectId=""
           linkReady={false}
-          bindingDirtySource="databaseProfileDraft"
+          bindingDirtySource="projectCreation"
         />
       )}
     </div>

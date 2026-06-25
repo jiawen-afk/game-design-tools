@@ -5,7 +5,7 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
 import { includesKeyword } from './personalSpaceSearch'
-import { useStoredResourcePreviewSource } from './useStoredResourcePreviewSource'
+import { useStoredAssetCoverSource } from './useStoredResourcePreviewSource'
 
 function CharacterAssetPickerThumb({
   asset,
@@ -22,8 +22,7 @@ function CharacterAssetPickerThumb({
   projectId?: string
   projectMode?: ProjectMode
 }) {
-  const fallbackSource = asset.resourcePaths[0] ?? ''
-  const source = useStoredResourcePreviewSource(asset, 0, fallbackSource, {
+  const source = useStoredAssetCoverSource(asset, {
     enabled: asset.kind !== 'voice',
     projectObjectStorage,
     projectAssetManager,

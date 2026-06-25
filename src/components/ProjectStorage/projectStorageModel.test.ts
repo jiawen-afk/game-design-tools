@@ -79,10 +79,21 @@ test('asset resource fields merge primary and sprite index resources into assets
     mimeType: 'image/png',
     sizeBytes: 128,
     resourceId: 'r1',
+    cover: {
+      fileName: 'hero-cover.png',
+      mimeType: 'image/png',
+      sizeBytes: 32,
+      resourceId: 'c1',
+    },
   })
   assert.equal(image.primary_resource_id, 'r1')
   assert.equal(image.primary_object_key, 'objects/默认项目/image_png/r1.png')
   assert.equal(image.primary_mime_group, 'image')
+  assert.equal(image.cover_resource_id, 'c1')
+  assert.equal(image.cover_object_key, 'objects/默认项目/image_png/c1.png')
+  assert.equal(image.cover_file_name, 'hero-cover.png')
+  assert.equal(image.cover_mime_type, 'image/png')
+  assert.equal(image.cover_size_bytes, 32)
   assert.equal(image.sprite_index_resource_id, null)
 
   const sprite = createAssetResourceFields({
@@ -102,6 +113,7 @@ test('asset resource fields merge primary and sprite index resources into assets
   assert.equal(sprite.primary_object_key, 'objects/默认项目/image_png/r2.png')
   assert.equal(sprite.sprite_index_resource_id, 'r3')
   assert.equal(sprite.sprite_index_object_key, 'objects/默认项目/application_json/r3.json')
+  assert.equal(sprite.cover_resource_id, null)
 })
 
 test('storyboard voice entries store microsecond offsets', () => {
@@ -151,6 +163,8 @@ test('schema SQL includes required tables and excludes removed tags and resource
     assert.match(sql, /asset_subtype/)
     assert.match(sql, /primary_resource_id/)
     assert.match(sql, /sprite_index_resource_id/)
+    assert.match(sql, /cover_resource_id/)
+    assert.match(sql, /cover_object_key/)
     assert.match(sql, /start_offset_us/)
     assert.match(sql, /asset_relations/)
     assert.match(sql, /UNIQUE\s*\(\s*project_id,\s*kind,\s*name\s*\)/i)

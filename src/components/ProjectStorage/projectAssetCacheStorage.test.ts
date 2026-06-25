@@ -56,6 +56,23 @@ test('filesystem cache writes data and metadata and returns matching cache', asy
   assert.equal(meta.fingerprint, 'sha256:hash-a')
 })
 
+test('filesystem cache accepts cover resources as independent cache entries', async () => {
+  const root = await tempRoot()
+  const storage = createProjectAssetCacheStorage(root)
+  const coverRef = ref({
+    resourceId: 'cover1',
+    role: 'cover',
+    objectKey: 'objects/项目A/image_png/cover1.png',
+  })
+
+  await storage.putCachedResource(coverRef, 'sha256:cover', Buffer.from('cover'), { mimeType: 'image/png' })
+  const read = await storage.getCachedResource(coverRef, 'sha256:cover')
+  const cachePath = resolveProjectAssetCachePath(root, coverRef)
+
+  assert.match(cachePath.replace(/\\/g, '/'), /\/cover\/cover1$/)
+  assert.equal(read!.data.toString('utf8'), 'cover')
+})
+
 test('filesystem cache returns null when object key or fingerprint mismatches', async () => {
   const root = await tempRoot()
   const storage = createProjectAssetCacheStorage(root)

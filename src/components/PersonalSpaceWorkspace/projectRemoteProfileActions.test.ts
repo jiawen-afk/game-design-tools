@@ -7,6 +7,10 @@ import type {
   ProjectConnectionVerificationResult,
 } from '../../desktopApi'
 import { createProjectRemoteProfileActions } from './projectRemoteProfileActions'
+import {
+  createInitialDatabaseProfileDraft,
+  createInitialKodoProfileDraft,
+} from './projectRemoteProfileDraftModel'
 import type {
   DatabaseProfileDraft,
   DraftTestState,
@@ -88,6 +92,8 @@ function createActionsState() {
     databaseSchemaReady: true,
     databaseDraftTestState: 'passed' as DraftTestState,
     kodoDraftTestState: 'passed' as DraftTestState,
+    databaseProfileDraft,
+    kodoProfileDraft,
   }
 }
 
@@ -106,8 +112,8 @@ function createActions(options: {
       selectedDatabaseProfile: options.state.databaseProfiles[0],
       databaseProfileMode: options.state.databaseProfileMode,
       kodoProfileMode: options.state.kodoProfileMode,
-      databaseProfileDraft,
-      kodoProfileDraft,
+      databaseProfileDraft: options.state.databaseProfileDraft,
+      kodoProfileDraft: options.state.kodoProfileDraft,
       databaseVerification: options.state.databaseVerification,
       kodoVerification: options.state.kodoVerification,
       databaseDraftStatus: { isExisting: true, draftTested: true },
@@ -127,6 +133,8 @@ function createActions(options: {
       setDatabaseSchemaReady: (next) => { options.state.databaseSchemaReady = applyState(options.state.databaseSchemaReady, next) },
       setDatabaseDraftTestState: (next) => { options.state.databaseDraftTestState = applyState(options.state.databaseDraftTestState, next) },
       setKodoDraftTestState: (next) => { options.state.kodoDraftTestState = applyState(options.state.kodoDraftTestState, next) },
+      setDatabaseProfileDraft: (next) => { options.state.databaseProfileDraft = applyState(options.state.databaseProfileDraft, next) },
+      setKodoProfileDraft: (next) => { options.state.kodoProfileDraft = applyState(options.state.kodoProfileDraft, next) },
     }),
     messages,
   }
@@ -147,6 +155,8 @@ test('deleting the last database profile returns the draft to create mode', asyn
     assert.equal(state.databaseProfileMode, 'create')
     assert.equal(state.databaseSchemaReady, false)
     assert.equal(state.databaseVerification, null)
+    assert.equal(state.databaseDraftTestState, 'untested')
+    assert.deepEqual(state.databaseProfileDraft, createInitialDatabaseProfileDraft())
   } finally {
     restore()
   }
@@ -167,6 +177,8 @@ test('deleting the last kodo profile returns the draft to create mode', async ()
     assert.equal(state.kodoProfileMode, 'create')
     assert.equal(state.kodoVerification, null)
     assert.equal(state.kodoVerificationProjectId, '')
+    assert.equal(state.kodoDraftTestState, 'untested')
+    assert.deepEqual(state.kodoProfileDraft, createInitialKodoProfileDraft())
   } finally {
     restore()
   }

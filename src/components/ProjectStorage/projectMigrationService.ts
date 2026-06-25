@@ -1,7 +1,7 @@
 import { createProjectStorageId } from './projectId'
 import { isProjectObjectKey } from './projectStorageModel'
 import { migratePersonalSpaceStateToProjectRows, type LegacyProjectRows } from './projectLegacyMigration'
-import type { ProjectAssetManager, ProjectAssetResourceRef } from './projectAssetManager'
+import type { ProjectAssetManager, ProjectAssetResourceRef, ProjectResourceRole } from './projectAssetManager'
 import type { ProjectObjectStorage } from './projectObjectStorage'
 import type { ProjectRepository } from './projectSqliteRepository'
 import type { Asset, ProjectCleanupTask, ProjectDatabaseProvider, ProjectStorageProvider } from './projectStorageTypes'
@@ -44,13 +44,14 @@ function listAssetObjectKeys(asset: Asset) {
   return [
     asset.primary_object_key,
     ...(asset.sprite_index_object_key ? [asset.sprite_index_object_key] : []),
+    ...(asset.cover_object_key ? [asset.cover_object_key] : []),
   ]
 }
 
 function buildAssetResourceRef(
   projectMode: 'local' | 'remote',
   asset: Asset,
-  role: 'primary' | 'sprite_index',
+  role: ProjectResourceRole,
 ): ProjectAssetResourceRef | null {
   if (role === 'sprite_index') {
     if (!asset.sprite_index_resource_id || !asset.sprite_index_object_key) return null
@@ -64,6 +65,20 @@ function buildAssetResourceRef(
       mimeType: asset.sprite_index_mime_type,
       sizeBytes: asset.sprite_index_size_bytes,
       hashSha256: asset.sprite_index_hash_sha256,
+    }
+  }
+  if (role === 'cover') {
+    if (!asset.cover_resource_id || !asset.cover_object_key) return null
+    return {
+      projectId: asset.project_id,
+      projectMode,
+      assetId: asset.id,
+      resourceId: asset.cover_resource_id,
+      role,
+      objectKey: asset.cover_object_key,
+      mimeType: asset.cover_mime_type,
+      sizeBytes: asset.cover_size_bytes,
+      hashSha256: asset.cover_hash_sha256,
     }
   }
   return {
@@ -82,7 +97,7 @@ function buildAssetResourceRef(
 async function putAssetResourceObject(
   input: ProjectSpaceStateSyncInput,
   asset: Asset,
-  role: 'primary' | 'sprite_index',
+  role: ProjectResourceRole,
   blob: Blob,
 ) {
   const ref = buildAssetResourceRef(input.storageProvider === 'qiniu_kodo' ? 'remote' : 'local', asset, role)
@@ -92,7 +107,7 @@ async function putAssetResourceObject(
   }
   const objectStorage = input.objectStorage ?? input.localObjectStorage
   if (!objectStorage) throw new Error('缺少项目对象存储。')
-  await objectStorage.putObject(role === 'sprite_index' ? asset.sprite_index_object_key! : asset.primary_object_key, blob)
+  await objectStorage.putObject(ref?.objectKey ?? asset.primary_object_key, blob)
 }
 
 async function readAssetResourceBlob(
@@ -112,6 +127,25 @@ async function readAssetResourceBlob(
   if (!resourcePath) throw new Error(`素材“${asset.name}”缺少第 ${resourceIndex + 1} 个资源文件。`)
   const response = await fetch(resourcePath)
   if (!response.ok) throw new Error(`读取素材“${asset.name}”失败：${response.status}`)
+  return response.blob()
+}
+
+async function readAssetCoverBlob(
+  asset: PersonalSpaceAsset,
+  directoryHandle?: PersonalSpaceDirectoryHandle | null,
+) {
+  const storedPath = asset.coverStorageResourcePath
+  const resourcePath = asset.coverResourcePath
+  if (directoryHandle && storedPath) {
+    try {
+      return await readStoredResourceBlob(directoryHandle, storedPath)
+    } catch (error) {
+      if (!resourcePath) throw error
+    }
+  }
+  if (!resourcePath) throw new Error(`素材“${asset.name}”缺少封面资源文件。`)
+  const response = await fetch(resourcePath)
+  if (!response.ok) throw new Error(`读取素材“${asset.name}”封面失败：${response.status}`)
   return response.blob()
 }
 
@@ -144,6 +178,17 @@ async function writeAssetObjects(input: ProjectSpaceStateSyncInput, rows: Legacy
           sprite_index_size_bytes: spriteIndexBlob.size,
         }
         await putAssetResourceObject(input, asset, 'sprite_index', spriteIndexBlob)
+      }
+    }
+
+    if (asset.cover_object_key) {
+      if (!isProjectObjectKey(sourceAsset.coverStorageResourcePath) || !isProjectObjectKey(sourceAsset.coverResourcePath)) {
+        const coverBlob = await readAssetCoverBlob(sourceAsset, input.directoryHandle)
+        asset = {
+          ...asset,
+          cover_size_bytes: coverBlob.size,
+        }
+        await putAssetResourceObject(input, asset, 'cover', coverBlob)
       }
     }
 
@@ -214,9 +259,9 @@ async function uploadProjectObject(input: LocalToRemoteMigrationInput, objectKey
   throw new Error('缺少项目对象迁移上传器。')
 }
 
-async function uploadAssetResource(input: LocalToRemoteMigrationInput, asset: Asset, role: 'primary' | 'sprite_index') {
+async function uploadAssetResource(input: LocalToRemoteMigrationInput, asset: Asset, role: ProjectResourceRole) {
   const ref = buildAssetResourceRef('remote', asset, role)
-  const objectKey = role === 'sprite_index' ? asset.sprite_index_object_key : asset.primary_object_key
+  const objectKey = ref?.objectKey ?? (role === 'primary' ? asset.primary_object_key : null)
   if (!objectKey) return
   if (input.assetManager && ref && input.sourceObjectStorage) {
     const objectData = await input.sourceObjectStorage.getObject(objectKey)
@@ -234,6 +279,7 @@ export async function migrateLocalProjectToRemote(input: LocalToRemoteMigrationI
     for (const asset of sourceRows.assets) {
       await uploadAssetResource(input, asset, 'primary')
       await uploadAssetResource(input, asset, 'sprite_index')
+      await uploadAssetResource(input, asset, 'cover')
     }
 
     const migratedRows: LegacyProjectRows = {

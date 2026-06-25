@@ -39,6 +39,13 @@ export interface ResourceFieldInput {
     resourceId?: string
     hashSha256?: string | null
   }
+  cover?: {
+    fileName: string
+    mimeType: string
+    sizeBytes: number
+    resourceId?: string
+    hashSha256?: string | null
+  }
 }
 
 export function assetKindFromLegacyKind(kind: LegacySubtypeInput['kind']): ProjectAssetKind {
@@ -66,6 +73,9 @@ export function createAssetResourceFields(input: ResourceFieldInput): AssetResou
   const spriteIndexResourceId = input.spriteIndex?.resourceId ?? (input.spriteIndex ? createResourceId() : null)
   const spriteIndexExtension = input.spriteIndex ? extensionFromFileName(input.spriteIndex.fileName) : null
   const spriteIndexMimeGroup = input.spriteIndex ? mimeGroupFromMimeType(input.spriteIndex.mimeType) : null
+  const coverResourceId = input.cover?.resourceId ?? (input.cover ? createResourceId() : null)
+  const coverExtension = input.cover ? extensionFromFileName(input.cover.fileName) : null
+  const coverMimeGroup = input.cover ? mimeGroupFromMimeType(input.cover.mimeType) : null
   return {
     primary_resource_id: primaryResourceId,
     primary_object_key: buildProjectObjectKey({
@@ -93,6 +103,19 @@ export function createAssetResourceFields(input: ResourceFieldInput): AssetResou
     sprite_index_mime_type: input.spriteIndex?.mimeType ?? null,
     sprite_index_size_bytes: input.spriteIndex?.sizeBytes ?? null,
     sprite_index_hash_sha256: input.spriteIndex?.hashSha256 ?? null,
+    cover_resource_id: coverResourceId,
+    cover_object_key: input.cover && coverResourceId && coverExtension && coverMimeGroup
+      ? buildProjectObjectKey({
+        projectName: input.projectName,
+        fileMime: input.cover.mimeType,
+        resourceId: coverResourceId,
+        extension: coverExtension,
+      })
+      : null,
+    cover_file_name: input.cover?.fileName ?? null,
+    cover_mime_type: input.cover?.mimeType ?? null,
+    cover_size_bytes: input.cover?.sizeBytes ?? null,
+    cover_hash_sha256: input.cover?.hashSha256 ?? null,
   }
 }
 

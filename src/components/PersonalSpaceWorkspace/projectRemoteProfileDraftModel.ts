@@ -10,6 +10,28 @@ export type DraftTestState = 'untested' | 'passed' | 'failed'
 export type DatabaseProfileDraft = DatabaseProfileInput
 export type KodoProfileDraft = KodoProfileInput
 
+export function createInitialDatabaseProfileDraft(): DatabaseProfileDraft {
+  return {
+    provider: 'postgresql',
+    host: '',
+    port: 5432,
+    database: '',
+    username: '',
+    password: '',
+    ssl: true,
+  }
+}
+
+export function createInitialKodoProfileDraft(): KodoProfileDraft {
+  return {
+    accessKey: '',
+    secretKey: '',
+    bucket: '',
+    region: '',
+    domain: '',
+  }
+}
+
 export interface RemoteProfileDraftStatusInput {
   mode: ProfileEditMode
   selectedProfileId: string

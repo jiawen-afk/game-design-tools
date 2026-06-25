@@ -3,6 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { Project } from '../ProjectStorage'
 import type { PersonalSpaceState } from './personalSpaceModel'
 import { formatRemoteProjectReadError } from './remoteProjectMessages'
+import {
+  countPendingUploadAssets,
+  createEmptyProjectRemoteSyncStatus,
+  upsertProjectRemoteSyncTask,
+  type ProjectRemoteSyncStatus,
+  type ProjectRemoteSyncTask,
+} from './projectRemoteSyncStatusModel'
 
 const REMOTE_PROJECT_SYNC_DEBOUNCE_MS = 1500
 const REMOTE_PROJECT_PERIODIC_SYNC_MS = 60000
@@ -40,16 +47,25 @@ export function createProjectRemoteSyncQueue<State>() {
   }
 
   const hasPending = () => pending.size > 0
+  const pendingTasks = (): ProjectRemoteSyncTask[] => Array.from(pending.values()).map((entry) => ({
+    projectId: entry.project.id,
+    projectName: entry.project.name,
+    status: 'pending',
+    progress: 0,
+    pendingAssetCount: countPendingUploadAssets(entry.state as { assets?: PersonalSpaceState['assets'] }),
+  }))
 
   return {
     drain,
     enqueue,
     hasPending,
+    pendingTasks,
   }
 }
 
 export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
   const [syncingProjectId, setSyncingProjectId] = useState('')
+  const [syncStatus, setSyncStatus] = useState<ProjectRemoteSyncStatus>(() => createEmptyProjectRemoteSyncStatus())
   const optionsRef = useRef(options)
   const manualSyncInFlightProjectIdRef = useRef('')
   const remoteSyncSequenceRef = useRef(0)
@@ -60,18 +76,41 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
 
   optionsRef.current = options
 
+  const markSyncTask = (task: ProjectRemoteSyncTask) => {
+    setSyncStatus((current) => upsertProjectRemoteSyncTask(current, task))
+  }
+
+  const markQueuedTasks = () => {
+    setSyncStatus((current) => (
+      queuedRemoteSyncRef.current.pendingTasks().reduce(upsertProjectRemoteSyncTask, current)
+    ))
+  }
+
   const syncProjectStateToStorage = async (project: Project, nextSpace: PersonalSpaceState) => {
     const currentOptions = optionsRef.current
-    if (project.mode !== 'remote') return
+    if (project.mode !== 'remote') return true
     const syncSequence = remoteSyncSequenceRef.current + 1
     remoteSyncSequenceRef.current = syncSequence
+    const pendingAssetCount = countPendingUploadAssets(nextSpace)
+    markSyncTask({ projectId: project.id, projectName: project.name, status: 'syncing', progress: 50, pendingAssetCount })
     try {
       await currentOptions.syncProjectStateToStorage(project, nextSpace)
+      markSyncTask({ projectId: project.id, projectName: project.name, status: 'succeeded', progress: 100, pendingAssetCount: 0 })
+      return true
     } catch (error) {
+      const errorMessage = formatRemoteProjectReadError(error, project)
+      markSyncTask({
+        projectId: project.id,
+        projectName: project.name,
+        status: 'failed',
+        progress: 100,
+        pendingAssetCount,
+        errorMessage,
+      })
       if (remoteSyncSequenceRef.current === syncSequence) {
-        const errorMessage = formatRemoteProjectReadError(error, project)
         void currentOptions.messageApi.warning(`同步远程项目失败：${errorMessage}`)
       }
+      return false
     }
   }
 
@@ -98,6 +137,7 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
     const project = currentOptions.findProject(currentOptions.getActiveProjectId())
     if (project?.mode !== 'remote') return
     queuedRemoteSyncRef.current.enqueue(project, nextSpace)
+    markQueuedTasks()
     if (remoteSyncTimerRef.current !== null) window.clearTimeout(remoteSyncTimerRef.current)
     remoteSyncTimerRef.current = window.setTimeout(() => {
       remoteSyncTimerRef.current = null
@@ -122,11 +162,24 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
     setSyncingProjectId(syncProjectId)
     try {
       const currentSpace = currentOptions.getCurrentSpace()
+      const pendingAssetCount = countPendingUploadAssets(currentSpace)
+      markSyncTask({ projectId: project.id, projectName: project.name, status: 'syncing', progress: 50, pendingAssetCount })
       currentOptions.persistProjectSpaceState(syncProjectId, currentSpace)
       await currentOptions.syncProjectStateToStorage(project, currentSpace)
+      markSyncTask({ projectId: project.id, projectName: project.name, status: 'succeeded', progress: 100, pendingAssetCount: 0 })
       void currentOptions.messageApi.success('已同步项目空间')
     } catch (error) {
-      void currentOptions.messageApi.warning(`同步项目空间失败：${formatRemoteProjectReadError(error, project)}`)
+      const errorMessage = formatRemoteProjectReadError(error, project)
+      const pendingAssetCount = countPendingUploadAssets(currentOptions.getCurrentSpace())
+      markSyncTask({
+        projectId: project.id,
+        projectName: project.name,
+        status: 'failed',
+        progress: 100,
+        pendingAssetCount,
+        errorMessage,
+      })
+      void currentOptions.messageApi.warning(`同步项目空间失败：${errorMessage}`)
     } finally {
       if (manualSyncInFlightProjectIdRef.current === syncProjectId) {
         manualSyncInFlightProjectIdRef.current = ''
@@ -147,6 +200,7 @@ export function useProjectRemoteSync(options: UseProjectRemoteSyncOptions) {
 
   return {
     scheduleRemoteProjectSync,
+    syncStatus,
     syncingProjectId,
     syncActiveProjectNow,
   }

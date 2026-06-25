@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   exportAllStoryboardVoiceAssetsToTarget,
   exportStoryboardVoiceAssetsToTarget,
+  createCommonResourceAssetForUpload,
   createSpriteAssetForUpload,
   createVoiceAssetForUpload,
 } from './personalSpaceResourceActions'
@@ -76,6 +77,59 @@ test('uploaded character sprite resources require png and index json, keep origi
     () => createSpriteAssetForUpload(state, [new File(['{}'], 'index.json')], null),
     /请选择一个 PNG 精灵图和一个 index\.json/,
   )
+})
+
+test('uploaded image resources generate an independent cover file for list previews', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+  }
+  const file = new File(['image'], 'forest.png', { type: 'image/png' })
+
+  const stored = await createCommonResourceAssetForUpload(state, 'image', file, root, '地图', {
+    createCover: async () => ({
+      name: 'forest-cover.png',
+      data: new Blob(['cover'], { type: 'image/png' }),
+      resourcePath: 'blob:forest-cover',
+    }),
+  })
+
+  assert.equal(stored.kind, 'image')
+  assert.equal(stored.coverResourcePath, 'blob:forest-cover')
+  assert.equal(stored.storageResourcePaths.length, 1)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/图片\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.match(stored.coverStorageResourcePath ?? '', /^PersonalSpace\/图片\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.notEqual(stored.coverStorageResourcePath, stored.storageResourcePaths[0])
+  assert.equal(await root.readText(stored.coverStorageResourcePath!.replace(/^PersonalSpace\//, '')), 'cover')
+})
+
+test('uploaded sprite resources keep png and index resource order while adding a cover file', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+  }
+  const files = [
+    new File(['png'], 'hero.png', { type: 'image/png' }),
+    new File(['{}'], 'index.json', { type: 'application/json' }),
+  ]
+
+  const stored = await createSpriteAssetForUpload(state, files, root, undefined, {
+    createCover: async () => ({
+      name: 'hero-cover.png',
+      data: new Blob(['sprite-cover'], { type: 'image/png' }),
+      resourcePath: 'blob:hero-cover',
+    }),
+  })
+
+  assert.equal(stored.kind, 'sprite')
+  assert.equal(stored.coverResourcePath, 'blob:hero-cover')
+  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.json$/)
+  assert.match(stored.coverStorageResourcePath ?? '', /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.equal(await root.readText(stored.coverStorageResourcePath!.replace(/^PersonalSpace\//, '')), 'sprite-cover')
 })
 
 test('uploaded portrait resources are stored under the portrait category', async () => {

@@ -8,10 +8,12 @@ import { createProjectSchemaSql } from './projectSchema'
 const require = createRequire(import.meta.url)
 const {
   createProjectRemoteSchemaSql,
+  createProjectRemoteSchemaMigrationSql,
   initializeRemoteDatabaseSchema,
   verifyRemoteDatabaseProfile,
 } = require('../../../electron/projectRemoteDatabase.cjs') as {
   createProjectRemoteSchemaSql: (dialect: 'postgresql' | 'mysql') => string[]
+  createProjectRemoteSchemaMigrationSql: (dialect: 'postgresql' | 'mysql') => string[]
   initializeRemoteDatabaseSchema: (profile: unknown, options: RemoteDatabaseTestOptions) => Promise<RemoteDatabaseResult>
   verifyRemoteDatabaseProfile: (profile: unknown, options: RemoteDatabaseTestOptions) => Promise<RemoteDatabaseResult>
 }
@@ -101,7 +103,10 @@ test('remote database schema initialization executes PostgreSQL project schema s
 
   assert.equal(result.ok, true)
   assert.equal(result.message, '远程数据库表结构已初始化。')
-  assert.deepEqual(executedStatements, createProjectSchemaSql('postgresql'))
+  assert.deepEqual(executedStatements, [
+    ...createProjectSchemaSql('postgresql'),
+    ...createProjectRemoteSchemaMigrationSql('postgresql'),
+  ])
 })
 
 test('remote database schema initialization is idempotent when repeated', async () => {
@@ -122,8 +127,36 @@ test('remote database schema initialization is idempotent when repeated', async 
   assert.equal(second.ok, true)
   assert.deepEqual(executedStatements, [
     ...createProjectSchemaSql('postgresql'),
+    ...createProjectRemoteSchemaMigrationSql('postgresql'),
     ...createProjectSchemaSql('postgresql'),
+    ...createProjectRemoteSchemaMigrationSql('postgresql'),
   ])
+})
+
+test('remote database schema initialization treats repeated MySQL cover column migrations as idempotent', async () => {
+  const executedStatements: string[] = []
+  const mysqlPayload = {
+    ...postgresqlPayload,
+    provider: 'mysql',
+    port: 3306,
+  }
+
+  const result = await initializeRemoteDatabaseSchema(databaseProfile(mysqlPayload), {
+    createMysqlConnection: async () => ({
+      execute: async (statement) => {
+        executedStatements.push(statement)
+        if (/ALTER TABLE assets ADD COLUMN cover_resource_id/i.test(statement)) {
+          const error = new Error('Duplicate column name') as Error & { code?: string }
+          error.code = 'ER_DUP_FIELDNAME'
+          throw error
+        }
+      },
+      end: async () => {},
+    }),
+  })
+
+  assert.equal(result.ok, true)
+  assert.ok(executedStatements.some((statement) => /ALTER TABLE assets ADD COLUMN cover_resource_id varchar\(64\) null/i.test(statement)))
 })
 
 test('remote database schema initialization fails when PostgreSQL emits a background connection error during execution', async () => {

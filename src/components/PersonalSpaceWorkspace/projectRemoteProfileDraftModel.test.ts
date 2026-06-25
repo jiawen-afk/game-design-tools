@@ -10,6 +10,8 @@ import type {
 } from './projectRemoteProfileDraftModel'
 import {
   createDatabaseProfileSaveInput,
+  createInitialDatabaseProfileDraft,
+  createInitialKodoProfileDraft,
   createKodoProfileSaveInput,
   getRemoteProfileDraftStatus,
 } from './projectRemoteProfileDraftModel'
@@ -43,6 +45,32 @@ function databaseSummary(input: Partial<ProjectConnectionProfileSummary> = {}): 
     ...input,
   }
 }
+
+test('remote profile draft model owns fresh initial database and kodo drafts', () => {
+  const databaseInitial = createInitialDatabaseProfileDraft()
+  const anotherDatabaseInitial = createInitialDatabaseProfileDraft()
+  const kodoInitial = createInitialKodoProfileDraft()
+  const anotherKodoInitial = createInitialKodoProfileDraft()
+
+  assert.deepEqual(databaseInitial, {
+    provider: 'postgresql',
+    host: '',
+    port: 5432,
+    database: '',
+    username: '',
+    password: '',
+    ssl: true,
+  })
+  assert.deepEqual(kodoInitial, {
+    accessKey: '',
+    secretKey: '',
+    bucket: '',
+    region: '',
+    domain: '',
+  })
+  assert.notEqual(databaseInitial, anotherDatabaseInitial)
+  assert.notEqual(kodoInitial, anotherKodoInitial)
+})
 
 test('remote profile draft status requires tests before saving and detects existing profiles', () => {
   const untested = getRemoteProfileDraftStatus({

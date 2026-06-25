@@ -78,6 +78,26 @@ export function buildProjectAssetResourceRef(input: {
   }
 }
 
+export function buildProjectAssetCoverResourceRef(input: {
+  asset: PersonalSpaceAsset
+  projectId: string
+  projectMode: ProjectMode
+}): ProjectAssetResourceRef | null {
+  const objectKey = input.asset.coverStorageResourcePath ?? input.asset.coverResourcePath ?? ''
+  if (!isProjectObjectKey(objectKey)) return null
+  return {
+    projectId: input.projectId,
+    projectMode: input.projectMode,
+    assetId: input.asset.id,
+    resourceId: input.asset.coverProjectResourceId ?? resourceIdFromProjectObjectKey(objectKey),
+    role: 'cover',
+    objectKey,
+    mimeType: input.asset.coverProjectResourceMimeType ?? null,
+    sizeBytes: input.asset.coverProjectResourceSize ?? null,
+    hashSha256: input.asset.coverProjectResourceHash ?? null,
+  }
+}
+
 export async function readProjectAssetResourceBlob(
   storedPath: string | undefined,
   resourcePath: string | undefined,

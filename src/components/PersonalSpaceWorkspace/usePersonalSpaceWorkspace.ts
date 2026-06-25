@@ -104,6 +104,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
 
   const {
     scheduleRemoteProjectSync,
+    syncStatus,
     syncingProjectId,
     syncActiveProjectNow,
   } = useProjectRemoteSync({
@@ -289,6 +290,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     newStoryboardName,
     storyboardExportingKey,
     migratingProjectId,
+    syncStatus,
     syncingProjectId,
     portraitAssets,
     spriteAssets,

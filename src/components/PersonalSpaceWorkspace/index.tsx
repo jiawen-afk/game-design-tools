@@ -3,6 +3,7 @@ import { SwapOutlined, SyncOutlined } from '@ant-design/icons'
 
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { ProjectManagementPanel } from './ProjectManagementPanel'
+import { ProjectRemoteSyncStatusPanel } from './ProjectRemoteSyncStatusPanel'
 import { PersonalMaterialsPanel } from './PersonalMaterialsPanel'
 import { PersonalSettingsPanel } from './PersonalSettingsPanel'
 import { PersonalStoryboardPanel } from './PersonalStoryboardPanel'
@@ -257,6 +258,7 @@ export default function PersonalSpaceWorkspace() {
           },
         ]}
       />
+      <ProjectRemoteSyncStatusPanel status={workspace.syncStatus} />
     </section>
   )
 }

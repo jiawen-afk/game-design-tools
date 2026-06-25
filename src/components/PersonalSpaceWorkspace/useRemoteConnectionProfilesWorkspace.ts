@@ -11,6 +11,8 @@ import {
 } from '../ProjectStorage'
 import { createProjectRemoteProfileActions } from './projectRemoteProfileActions'
 import {
+  createInitialDatabaseProfileDraft,
+  createInitialKodoProfileDraft,
   getRemoteProfileDraftStatus,
   type DatabaseProfileDraft,
   type DraftTestState,
@@ -21,24 +23,6 @@ import {
 interface RemoteConnectionProfilesMessageApi {
   success: (content: string) => void
   warning: (content: string) => void
-}
-
-const initialDatabaseProfileDraft: DatabaseProfileDraft = {
-  provider: 'postgresql',
-  host: '',
-  port: 5432,
-  database: '',
-  username: '',
-  password: '',
-  ssl: true,
-}
-
-const initialKodoProfileDraft: KodoProfileDraft = {
-  accessKey: '',
-  secretKey: '',
-  bucket: '',
-  region: '',
-  domain: '',
 }
 
 export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectionProfilesMessageApi) {
@@ -55,11 +39,23 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
   const [kodoVerification, setKodoVerification] = useState<ProjectConnectionVerificationResult | null>(null)
   const [kodoVerificationProjectId, setKodoVerificationProjectId] = useState('')
   const [databaseSchemaReady, setDatabaseSchemaReady] = useState(false)
-  const [databaseProfileDraft, setDatabaseProfileDraftState] = useState<DatabaseProfileDraft>(initialDatabaseProfileDraft)
-  const [kodoProfileDraft, setKodoProfileDraftState] = useState<KodoProfileDraft>(initialKodoProfileDraft)
+  const [databaseProfileDraft, setDatabaseProfileDraftState] = useState<DatabaseProfileDraft>(createInitialDatabaseProfileDraft)
+  const [kodoProfileDraft, setKodoProfileDraftState] = useState<KodoProfileDraft>(createInitialKodoProfileDraft)
   const previousDatabaseProfileDraftRef = useRef<DatabaseProfileDraft | null>(null)
   const skipNextDatabaseProfileLoadRef = useRef(false)
   const skipNextKodoProfileLoadRef = useRef(false)
+
+  const resetDatabaseProfileEditingState = () => {
+    setDatabaseVerification(null)
+    setDatabaseSchemaReady(false)
+    setDatabaseDraftTestState('untested')
+  }
+
+  const resetKodoProfileEditingState = () => {
+    setKodoVerification(null)
+    setKodoVerificationProjectId('')
+    setKodoDraftTestState('untested')
+  }
 
   useEffect(() => {
     let mounted = true
@@ -139,51 +135,39 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
 
   const setDatabaseProfileDraft = (draft: DatabaseProfileDraft) => {
     setDatabaseProfileDraftState(draft)
-    setDatabaseVerification(null)
-    setDatabaseSchemaReady(false)
-    setDatabaseDraftTestState('untested')
+    resetDatabaseProfileEditingState()
   }
 
   const setKodoProfileDraft = (draft: KodoProfileDraft) => {
     setKodoProfileDraftState(draft)
-    setKodoVerification(null)
-    setKodoVerificationProjectId('')
-    setKodoDraftTestState('untested')
+    resetKodoProfileEditingState()
   }
 
   const addDatabaseProfile = () => {
     setSelectedDatabaseProfileId('')
     setDatabaseProfileMode('create')
     previousDatabaseProfileDraftRef.current = null
-    setDatabaseProfileDraftState(initialDatabaseProfileDraft)
-    setDatabaseVerification(null)
-    setDatabaseSchemaReady(false)
-    setDatabaseDraftTestState('untested')
+    setDatabaseProfileDraftState(createInitialDatabaseProfileDraft())
+    resetDatabaseProfileEditingState()
   }
 
   const addKodoProfile = () => {
     setSelectedKodoProfileId('')
     setKodoProfileMode('create')
-    setKodoProfileDraftState(initialKodoProfileDraft)
-    setKodoVerification(null)
-    setKodoVerificationProjectId('')
-    setKodoDraftTestState('untested')
+    setKodoProfileDraftState(createInitialKodoProfileDraft())
+    resetKodoProfileEditingState()
   }
 
   const selectDatabaseProfile = (profileId: string) => {
     setSelectedDatabaseProfileId(profileId)
     setDatabaseProfileMode(profileId ? 'edit' : 'create')
-    setDatabaseVerification(null)
-    setDatabaseSchemaReady(false)
-    setDatabaseDraftTestState('untested')
+    resetDatabaseProfileEditingState()
   }
 
   const selectKodoProfile = (profileId: string) => {
     setSelectedKodoProfileId(profileId)
     setKodoProfileMode(profileId ? 'edit' : 'create')
-    setKodoVerification(null)
-    setKodoVerificationProjectId('')
-    setKodoDraftTestState('untested')
+    resetKodoProfileEditingState()
   }
 
   const selectedDatabaseProfile = databaseProfiles.find((profile) => profile.id === selectedDatabaseProfileId)
@@ -235,6 +219,8 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
     setDatabaseVerification,
     setKodoVerification,
     setKodoVerificationProjectId,
+    setDatabaseProfileDraft: setDatabaseProfileDraftState,
+    setKodoProfileDraft: setKodoProfileDraftState,
     setDatabaseSchemaReady,
     setDatabaseDraftTestState,
     setKodoDraftTestState,

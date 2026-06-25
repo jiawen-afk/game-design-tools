@@ -232,6 +232,7 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       asset.primary_mime_type,
       ...(asset.sprite_index_resource_id ? [asset.sprite_index_mime_type] : []),
     ]
+    const coverObjectKey = asset.cover_object_key ?? undefined
     return {
       id: asset.id,
       kind: asset.kind,
@@ -249,6 +250,12 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       projectResourceSizes,
       projectResourceHashes,
       projectResourceMimeTypes,
+      coverResourcePath: coverObjectKey,
+      coverStorageResourcePath: coverObjectKey,
+      coverProjectResourceId: asset.cover_resource_id,
+      coverProjectResourceSize: asset.cover_size_bytes,
+      coverProjectResourceHash: asset.cover_hash_sha256,
+      coverProjectResourceMimeType: asset.cover_mime_type,
       sourceKey: asset.source_key ?? undefined,
     }
   })

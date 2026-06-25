@@ -4,13 +4,10 @@ import { PauseCircleOutlined, PlayCircleOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
+import { assetPrimaryPreviewSource } from './personalSpacePreviewSourceModel'
 import { spriteFrameModalStyle } from './personalSpacePreviewModel'
 import { useSpritePreviewIndex } from './useSpritePreviewIndex'
-import { useStoredResourcePreviewSource } from './useStoredResourcePreviewSource'
-
-function assetPreviewSource(asset: PersonalSpaceAsset) {
-  return asset.resourcePaths[0] ?? ''
-}
+import { useStoredAssetCoverSource, useStoredResourcePreviewSource } from './useStoredResourcePreviewSource'
 
 export function PersonalAssetPreview({
   asset,
@@ -36,7 +33,14 @@ export function PersonalAssetPreview({
     : asset.kind === 'sprite'
       ? spriteOpen
       : imageOpen
-  const source = useStoredResourcePreviewSource(asset, 0, assetPreviewSource(asset), {
+  const coverSource = useStoredAssetCoverSource(asset, {
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
+    enabled: asset.kind !== 'voice',
+  })
+  const source = useStoredResourcePreviewSource(asset, 0, assetPrimaryPreviewSource(asset), {
     projectObjectStorage,
     projectAssetManager,
     projectId,
@@ -114,7 +118,7 @@ export function PersonalAssetPreview({
           onClick={openSpritePreview}
           aria-label="打开精灵图播放预览"
         >
-          {source && spriteFrame ? (
+          {coverSource ? <img src={coverSource} alt="" /> : source && spriteFrame ? (
             <span
               className="asset-preview-sprite-frame"
               style={{
@@ -162,7 +166,7 @@ export function PersonalAssetPreview({
         onClick={() => setImageOpen(true)}
         aria-label="查看图片预览"
       >
-        {source ? <img src={source} alt="" /> : <span>预览</span>}
+        {coverSource ? <img src={coverSource} alt="" /> : <span>预览</span>}
       </button>
       <Modal
         title={asset.name}

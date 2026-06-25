@@ -619,6 +619,85 @@ test('hard delete records cleanup failures for object deletion', async () => {
   assert.deepEqual(await repository.listProjects(), [])
 })
 
+test('syncing project snapshot persists image cover object bytes', async () => {
+  const local = createMemoryProjectRepository()
+  const localObjects = createMemoryProjectObjectStorage()
+  const directory = createMemoryDirectoryHandle('ProjectRoot')
+  await local.initializeSchema()
+  await directory.writeText('图片/2026-06-23/fire.png', 'image-bytes')
+  await directory.writeText('图片/2026-06-23/fire-cover.png', 'cover-bytes')
+
+  const image = {
+    ...createPersonalSpaceAsset({
+      kind: 'image',
+      assetSubtype: 'effect',
+      name: '火球',
+      resourcePaths: ['blob:expired-image'],
+    }),
+    createdAt: '2026-06-23T00:00:00.000Z',
+    storageResourcePaths: ['ProjectRoot/图片/2026-06-23/fire.png'],
+    coverResourcePath: 'blob:expired-cover',
+    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.png',
+  }
+
+  await syncProjectSpaceStateToLocalProjectStorage({
+    projectId: 'p1',
+    projectName: '默认项目',
+    localObjectRoot: 'D:\\GameAssets',
+    state: { ...defaultPersonalSpaceState, assets: [image] },
+    localRepository: local,
+    localObjectStorage: localObjects,
+    directoryHandle: directory,
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  const rows = await local.exportProjectRows('p1')
+  assert.ok(rows)
+  const asset = rows.assets[0]!
+  assert.equal(await (await localObjects.getObject(asset.primary_object_key)).text(), 'image-bytes')
+  assert.equal(await (await localObjects.getObject(asset.cover_object_key!)).text(), 'cover-bytes')
+  assert.equal(asset.cover_size_bytes, 'cover-bytes'.length)
+})
+
+test('local to remote migration uploads cover resources with primary resources', async () => {
+  const local = createMemoryProjectRepository()
+  const remote = createMemoryProjectRepository()
+  await local.initializeSchema()
+  await remote.initializeSchema()
+  const image = {
+    ...createPersonalSpaceAsset({
+      kind: 'image',
+      assetSubtype: 'effect',
+      name: '火球',
+      resourcePaths: ['fire.png'],
+    }),
+    coverResourcePath: 'fire-cover.png',
+    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.png',
+  }
+  const rows = migratePersonalSpaceStateToProjectRows({ ...defaultPersonalSpaceState, assets: [image] }, {
+    projectId: 'p1',
+    projectName: '默认项目',
+    now: '2026-06-23T00:00:00.000Z',
+    localObjectRoot: 'D:\\GameAssets',
+  })
+  await local.importProjectRows(rows)
+  const uploadedKeys: string[] = []
+
+  const result = await migrateLocalProjectToRemote({
+    projectId: 'p1',
+    localRepository: local,
+    remoteRepository: remote,
+    uploadObject: async (objectKey) => { uploadedKeys.push(objectKey) },
+    now: '2026-06-23T01:00:00.000Z',
+  })
+
+  assert.equal(result.status, 'succeeded')
+  assert.deepEqual(uploadedKeys, [
+    rows.assets[0]!.primary_object_key,
+    rows.assets[0]!.cover_object_key,
+  ])
+})
+
 test('hard deleting a remote project can also remove the migrated local snapshot', async () => {
   const local = createMemoryProjectRepository()
   const remote = createMemoryProjectRepository()

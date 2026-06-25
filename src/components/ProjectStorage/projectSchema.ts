@@ -89,6 +89,12 @@ export function createProjectSchemaSql(dialect: ProjectSqlDialect): string[] {
       sprite_index_mime_type text null,
       sprite_index_size_bytes integer null,
       sprite_index_hash_sha256 text null,
+      cover_resource_id text null,
+      cover_object_key text null,
+      cover_file_name text null,
+      cover_mime_type text null,
+      cover_size_bytes integer null,
+      cover_hash_sha256 text null,
       sprite_frame_width integer null,
       sprite_frame_height integer null,
       sprite_sheet_width integer null,
@@ -99,7 +105,8 @@ export function createProjectSchemaSql(dialect: ProjectSqlDialect): string[] {
       updated_at text not null,
       metadata_json ${json} null,
       UNIQUE (project_id, primary_object_key),
-      UNIQUE (project_id, sprite_index_object_key)
+      UNIQUE (project_id, sprite_index_object_key),
+      UNIQUE (project_id, cover_object_key)
     )`,
     `CREATE TABLE IF NOT EXISTS characters (
       id text primary key,

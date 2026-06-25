@@ -151,14 +151,27 @@ export function hashedResourceFileName(asset: PersonalSpaceAsset, path: string, 
   return `${hashText(`${asset.id}:${asset.createdAt}:${index}:${path}`).slice(0, 16)}${resourceExtension(asset, path, index)}`
 }
 
+function coverExtension(path: string): string {
+  const clean = path.split(/[\\/]/).pop()?.trim()
+  return clean?.match(/\.[^.\\/]+$/)?.[0]?.toLowerCase() || '.png'
+}
+
+function hashedCoverFileName(asset: PersonalSpaceAsset, path: string): string {
+  return `${hashText(`${asset.id}:${asset.createdAt}:cover:${path}`).slice(0, 16)}${coverExtension(path)}`
+}
+
 export function archiveAssetForStorageDirectory(state: PersonalSpaceState, asset: PersonalSpaceAsset): PersonalSpaceAsset {
   const directory = state.settings.storageDirectory.trim()
   if (!directory) return { ...asset, storageResourcePaths: [...asset.storageResourcePaths] }
   const category = storageCategoryForAsset(asset)
   const datePart = importDatePart(asset.createdAt)
+  const coverStorageResourcePath = asset.coverResourcePath
+    ? joinStoragePath(directory, category, datePart, hashedCoverFileName(asset, asset.coverResourcePath))
+    : asset.coverStorageResourcePath
   return {
     ...asset,
     storageResourcePaths: asset.resourcePaths.map((path, index) => joinStoragePath(directory, category, datePart, hashedResourceFileName(asset, path, index))),
+    coverStorageResourcePath,
   }
 }
 

@@ -70,7 +70,7 @@ export interface ProjectManagementActionsOptions {
     projectId: string,
     fallbackState?: PersonalSpaceState,
     projectList?: Project[],
-  ) => Promise<void>
+  ) => Promise<boolean>
   ensureRemoteProjectSettings: (projectId: string) => Promise<void>
   rememberRemoteProjectSettings: (
     project: Project,
@@ -177,6 +177,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
       name: project.name,
       description: project.description,
       updatedAt: new Date().toISOString(),
+      databaseProvider: settingsWorkspace.databaseProfileDraft.provider,
     }
     const updated = await options.remoteRepository.updateProject(projectId, input)
     if (!updated) {

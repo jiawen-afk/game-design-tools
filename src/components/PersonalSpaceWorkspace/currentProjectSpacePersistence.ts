@@ -112,6 +112,10 @@ function projectAssetObjectKeys(rows: LegacyProjectRows) {
   ]).filter((objectKey): objectKey is string => Boolean(objectKey))
 }
 
+function formatLocalCacheSyncError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export async function loadProjectSpaceStateFromStorage(
   options: ProjectSpaceStateLoadOptions,
 ): Promise<PersonalSpaceState | null> {
@@ -122,19 +126,28 @@ export async function loadProjectSpaceStateFromStorage(
     try {
       await options.ensureRemoteSettings?.(options.projectId)
       const remoteRows = await options.remoteRepository.exportProjectRows(options.projectId)
+      let localCacheSyncError: unknown | null = null
       if (remoteRows) {
         await options.onRemoteProjectLoaded?.(
           remoteRows.project,
           remoteRows.settings,
           projectAssetObjectKeys(remoteRows),
         )
-        await options.localRepository.importProjectRows(remoteRows)
+        try {
+          await options.localRepository.importProjectRows(remoteRows)
+        } catch (error) {
+          localCacheSyncError = error
+        }
       }
       const nextSpace = remoteRows
         ? restoreProjectRowsToPersonalSpaceState(remoteRows)
         : readCachedProjectSpaceState(options.projectId, storage)
       if (nextSpace) writeProjectSpaceState(options.projectId, nextSpace, storage)
-      if (!remoteRows) {
+      if (localCacheSyncError) {
+        options.onWarning?.(
+          `远程项目数据已读取，但本地项目缓存同步失败：${formatLocalCacheSyncError(localCacheSyncError)}`,
+        )
+      } else if (!remoteRows) {
         options.onWarning?.(
           nextSpace
             ? '远程项目数据读取失败，已使用本地项目缓存'

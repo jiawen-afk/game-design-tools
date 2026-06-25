@@ -13,7 +13,7 @@ function normalizeCachePart(value, label) {
 
 function normalizeRole(role) {
   const normalized = normalizeCachePart(role, '资源角色')
-  if (normalized !== 'primary' && normalized !== 'sprite_index') throw new Error('资源角色不合法。')
+  if (normalized !== 'primary' && normalized !== 'sprite_index' && normalized !== 'cover') throw new Error('资源角色不合法。')
   return normalized
 }
 

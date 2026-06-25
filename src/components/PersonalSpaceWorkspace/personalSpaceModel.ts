@@ -35,6 +35,12 @@ export interface PersonalSpaceAsset {
   projectResourceSizes?: Array<number | null>
   projectResourceHashes?: Array<string | null>
   projectResourceMimeTypes?: Array<string | null>
+  coverResourcePath?: string
+  coverStorageResourcePath?: string
+  coverProjectResourceId?: string | null
+  coverProjectResourceSize?: number | null
+  coverProjectResourceHash?: string | null
+  coverProjectResourceMimeType?: string | null
   sourceKey?: string
 }
 

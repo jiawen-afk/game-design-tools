@@ -7,7 +7,7 @@ export {
   type ProjectAssetCacheStorage,
 } from './projectAssetCacheStorage'
 
-export type ProjectResourceRole = 'primary' | 'sprite_index'
+export type ProjectResourceRole = 'primary' | 'sprite_index' | 'cover'
 
 export interface ProjectAssetResourceRef {
   projectId: string

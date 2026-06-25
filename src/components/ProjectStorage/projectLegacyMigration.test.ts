@@ -47,6 +47,8 @@ test('legacy migration converts assets, groups, character links, storyboard entr
       linkedVoiceAssetIds: [voice.id],
     }),
     storageResourcePaths: ['ProjectRoot/图片/2026-06-23/fire.png'],
+    coverResourcePath: 'blob:fire-cover',
+    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.png',
   }
   const state: PersonalSpaceState = {
     ...defaultPersonalSpaceState,
@@ -114,6 +116,9 @@ test('legacy migration converts assets, groups, character links, storyboard entr
   assert.equal(migratedEffect.asset_subtype, 'effect')
   assert.equal(migratedEffect.kind, 'image')
   assert.equal(migratedEffect.group_id, migrated.assetGroups.find((group) => group.kind === 'image' && group.name === '特效')!.id)
+  assert.ok(migratedEffect.cover_object_key)
+  assert.equal(migratedEffect.cover_object_key.startsWith('objects/默认项目/image_png/'), true)
+  assert.equal(migratedEffect.cover_file_name, 'fire-cover.png')
   assert.equal(migratedVoice.dialogue_text, '欢迎来到我的商店。')
   assert.equal(migratedVoice.primary_object_key.startsWith('objects/默认项目/audio_wav/'), true)
   assert.equal(migratedEffect.primary_object_key.startsWith('objects/默认项目/image_png/'), true)
@@ -151,6 +156,8 @@ test('project rows restore project space state with groups, assets, links, story
       linkedVoiceAssetIds: [voice.id],
     }),
     storageResourcePaths: ['ProjectRoot/图片/2026-06-23/fire.png'],
+    coverResourcePath: 'blob:fire-cover',
+    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.png',
   }
   const state: PersonalSpaceState = {
     ...defaultPersonalSpaceState,
@@ -210,6 +217,12 @@ test('project rows restore project space state with groups, assets, links, story
     asset.linkedCharacterIds,
     asset.linkedStoryboardIds,
     asset.linkedVoiceAssetIds,
+    asset.coverResourcePath ?? '',
+    asset.coverStorageResourcePath ?? '',
+    asset.coverProjectResourceId ?? '',
+    asset.coverProjectResourceSize ?? null,
+    asset.coverProjectResourceHash ?? null,
+    asset.coverProjectResourceMimeType ?? '',
   ]), [
     [
       migratedVoice.id,
@@ -223,6 +236,12 @@ test('project rows restore project space state with groups, assets, links, story
       [migratedCharacter.id],
       [migratedStoryboard.id],
       [],
+      '',
+      '',
+      '',
+      null,
+      null,
+      '',
     ],
     [
       migratedEffect.id,
@@ -236,6 +255,12 @@ test('project rows restore project space state with groups, assets, links, story
       [],
       [],
       [migratedVoice.id],
+      migratedEffect.cover_object_key,
+      migratedEffect.cover_object_key,
+      migratedEffect.cover_resource_id,
+      migratedEffect.cover_size_bytes,
+      migratedEffect.cover_hash_sha256,
+      migratedEffect.cover_mime_type,
     ],
   ])
   assert.deepEqual(restored.characters, [{

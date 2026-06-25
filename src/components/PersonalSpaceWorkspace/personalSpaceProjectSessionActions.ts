@@ -161,8 +161,10 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
       return
     }
     options.stateSetters.setSelectedManagementProjectId(projectId)
-    void activateProjectStateFromStorage(projectId).then(() => {
-      void options.messageApi.success('已启用项目')
+    void activateProjectStateFromStorage(projectId).then((activated) => {
+      if (activated) {
+        void options.messageApi.success('已启用项目')
+      }
     })
   }
 
@@ -216,14 +218,15 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
   ) => {
     if (!projectId) {
       activateProjectState('')
-      return
+      return false
     }
     const nextSpace = await loadProjectSpaceState(projectId, fallbackState, projectList)
     if (!nextSpace) {
       activateProjectState('')
-      return
+      return false
     }
     activateProjectState(projectId, nextSpace)
+    return true
   }
 
   return {
