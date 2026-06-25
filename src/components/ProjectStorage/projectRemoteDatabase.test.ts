@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
 import { createProjectSchemaSql } from './projectSchema'
@@ -27,6 +28,7 @@ interface RemoteDatabaseTestOptions {
     connect: () => Promise<void>
     query: (statement: string) => Promise<unknown>
     end: () => Promise<void>
+    on?: (event: string, listener: (...args: unknown[]) => void) => unknown
   }
   createMysqlConnection?: (config: unknown) => Promise<{
     execute: (statement: string) => Promise<unknown>
@@ -135,6 +137,41 @@ test('remote database schema initialization returns failure when PostgreSQL conn
 
   assert.equal(result.ok, false)
   assert.match(result.message, /password authentication failed/)
+})
+
+test('remote database operations swallow late PostgreSQL connection error events after query failures', async () => {
+  const uncaughtErrors: Error[] = []
+  const client = new EventEmitter()
+
+  process.setUncaughtExceptionCaptureCallback((error) => {
+    uncaughtErrors.push(error as Error)
+  })
+  try {
+    const result = await verifyRemoteDatabaseProfile(databaseProfile(postgresqlPayload), {
+      createPostgresClient: () => ({
+        connect: async () => {},
+        query: async () => {
+          const error = new Error('Connection terminated unexpectedly')
+          setImmediate(() => {
+            client.emit('error', error)
+          })
+          throw error
+        },
+        end: async () => {},
+        on: client.on.bind(client),
+      }),
+    })
+
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve)
+    })
+
+    assert.equal(result.ok, false)
+    assert.match(result.message, /Connection terminated unexpectedly/)
+    assert.deepEqual(uncaughtErrors, [])
+  } finally {
+    process.setUncaughtExceptionCaptureCallback(null)
+  }
 })
 
 test('remote database schema generator keeps PostgreSQL aligned and adapts MySQL types', () => {

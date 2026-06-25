@@ -1,3 +1,5 @@
+const { attachPostgresConnectionErrorSink } = require('./projectPostgresConnection.cjs')
+
 function parseJsonText(text) {
   if (!text) return null
   return JSON.parse(text.replace(/^\uFEFF/, ''))
@@ -275,6 +277,7 @@ function failure(message) {
 async function withPostgresConnection(payload, options, callback) {
   const client = (options.createPostgresClient || defaultCreatePostgresClient)(postgresConfig(payload))
   try {
+    attachPostgresConnectionErrorSink(client)
     await client.connect()
     await callback((statement) => client.query(statement))
   } finally {

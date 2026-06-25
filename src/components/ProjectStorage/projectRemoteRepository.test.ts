@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
@@ -46,6 +47,7 @@ interface RemoteProjectRepository {
     databaseProfileId?: string
     storageProfileId?: string
   }): Promise<unknown>
+  getProject(projectId: string): Promise<unknown>
   importProjectRows(rows: ReturnType<typeof migratePersonalSpaceStateToProjectRows>): Promise<void>
   listAssets(projectId: string): Promise<Array<{ id: string; primary_object_key: string }>>
   deleteProject(projectId: string): Promise<void>
@@ -264,4 +266,92 @@ test('remote project repository keeps deleted-object cleanup tasks after hard de
   await repository.deleteProject('p1')
 
   assert.doesNotMatch(queries.join('\n'), /DELETE FROM deleted_project_cleanup_tasks/i)
+})
+
+test('remote project repository swallows late PostgreSQL connection error events after query failures', async () => {
+  const uncaughtErrors: Error[] = []
+  const client = new EventEmitter()
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async () => {
+        const error = new Error('Connection terminated unexpectedly')
+        setImmediate(() => {
+          client.emit('error', error)
+        })
+        throw error
+      },
+      end: async () => {},
+      on: client.on.bind(client),
+    }),
+  })
+
+  process.setUncaughtExceptionCaptureCallback((error) => {
+    uncaughtErrors.push(error as Error)
+  })
+  try {
+    await assert.rejects(repository.getProject('p1'), /Connection terminated unexpectedly/)
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve)
+    })
+    assert.deepEqual(uncaughtErrors, [])
+  } finally {
+    process.setUncaughtExceptionCaptureCallback(null)
+  }
+})
+
+test('remote project repository retries PostgreSQL reads after a dropped connection', async () => {
+  const events: string[] = []
+  let clientIndex = 0
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => {
+      clientIndex += 1
+      const currentClient = clientIndex
+      return {
+        connect: async () => { events.push(`connect:${currentClient}`) },
+        query: async (statement) => {
+          events.push(`query:${currentClient}`)
+          if (currentClient === 1) throw new Error('Connection terminated unexpectedly')
+          if (/FROM projects/i.test(statement)) {
+            return {
+              rows: [{
+                id: 'p1',
+                name: '远程项目',
+                description: '团队资产',
+                mode: 'remote',
+              }],
+            }
+          }
+          if (/FROM project_settings/i.test(statement)) {
+            return {
+              rows: [{
+                project_id: 'p1',
+                storage_provider: 'qiniu_kodo',
+                database_provider: 'postgresql',
+              }],
+            }
+          }
+          return { rows: [] }
+        },
+        end: async () => { events.push(`end:${currentClient}`) },
+      }
+    },
+  })
+
+  const result = await repository.getProject('p1') as {
+    project: { id: string }
+    settings: { database_provider: string }
+  }
+
+  assert.equal(result.project.id, 'p1')
+  assert.equal(result.settings.database_provider, 'postgresql')
+  assert.deepEqual(events, [
+    'connect:1',
+    'query:1',
+    'end:1',
+    'connect:2',
+    'query:2',
+    'query:2',
+    'end:2',
+  ])
 })

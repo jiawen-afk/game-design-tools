@@ -1,4 +1,5 @@
 const { normalizeDatabasePayload } = require('./projectRemoteDatabase.cjs')
+const { attachPostgresConnectionErrorSink } = require('./projectPostgresConnection.cjs')
 
 const tableDefinitions = {
   projects: {
@@ -240,6 +241,19 @@ function normalizeRows(rows) {
   return rows.map((row) => ({ ...row }))
 }
 
+function isPostgresConnectionTerminationError(error) {
+  const message = String(error?.message || error || '')
+  const code = String(error?.code || '')
+  return [
+    'Connection terminated unexpectedly',
+    'Connection terminated',
+    'Connection ended unexpectedly',
+    'server closed the connection unexpectedly',
+    'ECONNRESET',
+    'EPIPE',
+  ].some((fragment) => message.includes(fragment) || code === fragment)
+}
+
 function sanitizeObjectKeyPart(value) {
   return (String(value || '').trim() || 'unnamed').replace(/[\\/]+/g, '_').replace(/\s+/g, '_')
 }
@@ -248,6 +262,7 @@ async function createRunner(profile, options = {}) {
   const payload = normalizeDatabasePayload(profile)
   if (payload.provider === 'postgresql') {
     const client = (options.createPostgresClient || defaultCreatePostgresClient)(postgresConfig(payload))
+    attachPostgresConnectionErrorSink(client)
     await client.connect()
     return {
       dialect: 'postgresql',
@@ -273,11 +288,21 @@ async function createRunner(profile, options = {}) {
 }
 
 async function withRunner(profile, options, callback) {
-  const runner = await createRunner(profile, options)
-  try {
-    return await callback(runner)
-  } finally {
-    await runner.close()
+  const maxAttempts = 2
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const runner = await createRunner(profile, options)
+    let shouldRetry = false
+    try {
+      return await callback(runner)
+    } catch (error) {
+      shouldRetry = runner.dialect === 'postgresql'
+        && attempt < maxAttempts
+        && isPostgresConnectionTerminationError(error)
+      if (!shouldRetry) throw error
+    } finally {
+      await runner.close()
+    }
+    if (!shouldRetry) break
   }
 }
 

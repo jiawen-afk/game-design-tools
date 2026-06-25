@@ -25,11 +25,18 @@ import {
   syncProjectSpaceStateToLocalProjectStorage,
 } from '../ProjectStorage/projectMigrationService'
 import type {
+  LegacyProjectRows,
+} from '../ProjectStorage/projectLegacyMigration'
+import {
+  restoreProjectRowsToPersonalSpaceState,
+} from '../ProjectStorage/projectLegacyMigration'
+import type {
   ProjectObjectStorage,
 } from '../ProjectStorage/projectObjectStorage'
 import type {
   Project,
   ProjectDatabaseProvider,
+  ProjectSettings,
 } from '../ProjectStorage/projectStorageTypes'
 import type {
   ProjectRepository,
@@ -42,7 +49,15 @@ import {
   setPersonalSpaceDirectoryHandle,
   type PersonalSpaceDirectoryHandle,
 } from './personalSpaceFileStorage'
-import { writeCurrentProjectSpaceState } from './projectSpaceState'
+import {
+  createEmptyProjectSpaceState,
+  hasProjectSpaceState,
+  readCachedProjectSpaceState,
+  readProjectSpaceState,
+  writeCurrentProjectSpaceState,
+  writeProjectSpaceState,
+} from './projectSpaceState'
+import { formatRemoteProjectReadError } from './remoteProjectMessages'
 
 export interface CurrentProjectSpacePersistenceOptions {
   storage?: Storage
@@ -62,6 +77,22 @@ export interface CurrentProjectSpacePersistenceResult {
   syncError: unknown | null
 }
 
+export interface ProjectSpaceStateLoadOptions {
+  projectId: string
+  project?: Project
+  fallbackState?: PersonalSpaceState
+  storage?: Storage
+  localRepository: Pick<ProjectRepository, 'importProjectRows'>
+  remoteRepository: Pick<ProjectRepository, 'exportProjectRows'>
+  ensureRemoteSettings?: (projectId: string) => Promise<void> | void
+  onRemoteProjectLoaded?: (
+    project: Project,
+    settings: ProjectSettings,
+    assetObjectKeys: string[],
+  ) => Promise<void> | void
+  onWarning?: (message: string) => void
+}
+
 function databaseProfileIdForProject(projectId: string, storage: Storage) {
   return readProjectDeviceBinding(projectId, storage)?.databaseProfileId ?? ''
 }
@@ -72,6 +103,60 @@ function storageProfileIdForProject(projectId: string, storage: Storage) {
 
 function remoteDatabaseProvider(settingsProvider?: ProjectDatabaseProvider | null): Extract<ProjectDatabaseProvider, 'postgresql' | 'mysql'> {
   return settingsProvider === 'mysql' ? 'mysql' : 'postgresql'
+}
+
+function projectAssetObjectKeys(rows: LegacyProjectRows) {
+  return rows.assets.flatMap((asset) => [
+    asset.primary_object_key,
+    asset.sprite_index_object_key,
+  ]).filter((objectKey): objectKey is string => Boolean(objectKey))
+}
+
+export async function loadProjectSpaceStateFromStorage(
+  options: ProjectSpaceStateLoadOptions,
+): Promise<PersonalSpaceState | null> {
+  const storage = options.storage ?? localStorage
+  const fallbackSpace = options.fallbackState ?? createEmptyProjectSpaceState()
+  const project = options.project
+  if (project?.mode === 'remote') {
+    try {
+      await options.ensureRemoteSettings?.(options.projectId)
+      const remoteRows = await options.remoteRepository.exportProjectRows(options.projectId)
+      if (remoteRows) {
+        await options.onRemoteProjectLoaded?.(
+          remoteRows.project,
+          remoteRows.settings,
+          projectAssetObjectKeys(remoteRows),
+        )
+        await options.localRepository.importProjectRows(remoteRows)
+      }
+      const nextSpace = remoteRows
+        ? restoreProjectRowsToPersonalSpaceState(remoteRows)
+        : readCachedProjectSpaceState(options.projectId, storage)
+      if (nextSpace) writeProjectSpaceState(options.projectId, nextSpace, storage)
+      if (!remoteRows) {
+        options.onWarning?.(
+          nextSpace
+            ? '远程项目数据读取失败，已使用本地项目缓存'
+            : '远程项目数据读取失败，且当前设备没有可用的项目缓存。请检查远程数据库连接后重试。',
+        )
+      }
+      return nextSpace
+    } catch (error) {
+      const cachedSpace = readCachedProjectSpaceState(options.projectId, storage)
+      const errorMessage = formatRemoteProjectReadError(error, project)
+      options.onWarning?.(
+        cachedSpace
+          ? `远程项目数据读取失败，已使用本地项目缓存：${errorMessage}`
+          : `远程项目数据读取失败，且当前设备没有可用的项目缓存：${errorMessage}`,
+      )
+      return cachedSpace
+    }
+  }
+
+  return hasProjectSpaceState(options.projectId, storage)
+    ? readProjectSpaceState(options.projectId, { storage })
+    : fallbackSpace
 }
 
 async function defaultDirectoryHandle() {
