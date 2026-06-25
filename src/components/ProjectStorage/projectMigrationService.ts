@@ -1,4 +1,5 @@
 import { createProjectStorageId } from './projectId'
+import { isProjectObjectKey } from './projectStorageModel'
 import { migratePersonalSpaceStateToProjectRows, type LegacyProjectRows } from './projectLegacyMigration'
 import type { ProjectAssetManager, ProjectAssetResourceRef } from './projectAssetManager'
 import type { ProjectObjectStorage } from './projectObjectStorage'
@@ -92,10 +93,6 @@ async function putAssetResourceObject(
   const objectStorage = input.objectStorage ?? input.localObjectStorage
   if (!objectStorage) throw new Error('缺少项目对象存储。')
   await objectStorage.putObject(role === 'sprite_index' ? asset.sprite_index_object_key! : asset.primary_object_key, blob)
-}
-
-function isProjectObjectKey(path: string | undefined) {
-  return Boolean(path?.startsWith('objects/'))
 }
 
 async function readAssetResourceBlob(

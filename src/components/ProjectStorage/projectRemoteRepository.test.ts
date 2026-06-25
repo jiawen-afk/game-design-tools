@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import { inspect } from 'node:util'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
@@ -19,6 +20,7 @@ interface RemoteRepositoryTestOptions {
     connect: () => Promise<void>
     query: (statement: string, params?: unknown[]) => Promise<{ rows?: unknown[] }>
     end: () => Promise<void>
+    on?: (event: string, listener: (...args: unknown[]) => void) => unknown
   }
   createMysqlConnection?: (config: unknown) => Promise<{
     execute: (statement: string, params?: unknown[]) => Promise<[unknown[]]>
@@ -413,6 +415,28 @@ test('remote project repository retries PostgreSQL reads after a dropped connect
   ])
 })
 
+test('remote project repository reports exhausted PostgreSQL drops without exposing pg error cause', async () => {
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async () => {
+        throw new Error('Connection terminated unexpectedly')
+      },
+      end: async () => {},
+    }),
+  })
+
+  await assert.rejects(
+    repository.getProject('p1'),
+    (error: unknown) => {
+      assert.equal((error as Error).message, '远程数据库连接已中断，请检查网络或数据库服务后重试。')
+      assert.equal('cause' in (error as Error), false)
+      assert.doesNotMatch(inspect(error), /Connection terminated unexpectedly/)
+      return true
+    },
+  )
+})
+
 test('remote project repository retries PostgreSQL reads after client becomes non-queryable', async () => {
   const events: string[] = []
   let clientIndex = 0
@@ -470,6 +494,77 @@ test('remote project repository retries PostgreSQL reads after client becomes no
     'connect:2',
     'query:2:1',
     'query:2:2',
+    'end:2',
+  ])
+})
+
+test('remote project repository retries after a PostgreSQL client emits a background connection error before the next query', async () => {
+  const events: string[] = []
+  let clientIndex = 0
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => {
+      clientIndex += 1
+      const currentClient = clientIndex
+      const client = new EventEmitter()
+      return {
+        connect: async () => { events.push(`connect:${currentClient}`) },
+        query: async (statement) => {
+          events.push(`query:${currentClient}`)
+          if (currentClient === 1 && /FROM projects/i.test(statement)) {
+            client.emit('error', new Error('Connection terminated unexpectedly'))
+            return {
+              rows: [{
+                id: 'p1',
+                name: '远程项目',
+                description: '团队资产',
+                mode: 'remote',
+              }],
+            }
+          }
+          if (currentClient === 1) {
+            throw new Error('Client has encountered a connection error and is not queryable')
+          }
+          if (/FROM projects/i.test(statement)) {
+            return {
+              rows: [{
+                id: 'p1',
+                name: '远程项目',
+                description: '团队资产',
+                mode: 'remote',
+              }],
+            }
+          }
+          if (/FROM project_settings/i.test(statement)) {
+            return {
+              rows: [{
+                project_id: 'p1',
+                storage_provider: 'qiniu_kodo',
+                database_provider: 'postgresql',
+              }],
+            }
+          }
+          return { rows: [] }
+        },
+        end: async () => { events.push(`end:${currentClient}`) },
+        on: client.on.bind(client),
+      }
+    },
+  })
+
+  const result = await repository.getProject('p1') as {
+    project: { id: string }
+    settings: { database_provider: string }
+  }
+
+  assert.equal(result.project.id, 'p1')
+  assert.equal(result.settings.database_provider, 'postgresql')
+  assert.deepEqual(events, [
+    'connect:1',
+    'query:1',
+    'end:1',
+    'connect:2',
+    'query:2',
+    'query:2',
     'end:2',
   ])
 })

@@ -1,5 +1,6 @@
 import { hashText, importDatePart, type PersonalSpaceAsset, storageCategoryForAsset } from './personalSpaceModel'
 import { getDesktopApi, type DesktopDirectoryInfo, type DesktopFileInfo } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 
 export interface PersonalSpaceResourceFile {
   name: string
@@ -289,10 +290,7 @@ class NativeFileHandle implements PersonalSpaceFileHandle {
     const api = getDesktopApi()
     if (!api) throw new Error('当前环境不支持桌面文件读取')
     const result = await api.readPersonalSpaceFile(this.file.path)
-    const source = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
-    const data = new Uint8Array(source.byteLength)
-    data.set(source)
-    return new Blob([data.buffer])
+    return blobFromDesktopBinaryData(result.data, '')
   }
 
   async createWritable() {

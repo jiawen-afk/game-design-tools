@@ -1,4 +1,5 @@
 import { getDesktopApi } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import type { ProjectObjectDeleteResult, ProjectObjectStorage } from './projectObjectStorage'
 
 export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
@@ -21,10 +22,7 @@ export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
   async getObject(objectKey: string): Promise<Blob> {
     const desktopApi = this.requireDesktopApi()
     const result = await desktopApi.getProjectKodoObject(this.requireProfileId(objectKey), objectKey)
-    const bytes = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
-    const data = new Uint8Array(bytes.byteLength)
-    data.set(bytes)
-    return new Blob([data.buffer], { type: result.mimeType || 'application/octet-stream' })
+    return blobFromDesktopBinaryData(result.data, result.mimeType || 'application/octet-stream')
   }
 
   async deleteObject(objectKey: string) {

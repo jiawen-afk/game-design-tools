@@ -1,4 +1,5 @@
 import { getDesktopApi } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import type { ProjectAssetResourceRef } from './projectAssetManager'
 
 export interface ProjectAssetCacheStorage {
@@ -58,10 +59,7 @@ export class DesktopProjectAssetCacheStorage implements ProjectAssetCacheStorage
     }
     const result = await desktopApi.getProjectAssetCacheResource(ref, expectedFingerprint)
     if (!result) return null
-    const bytes = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
-    const data = new Uint8Array(bytes.byteLength)
-    data.set(bytes)
-    return new Blob([data.buffer], { type: result.mimeType || ref.mimeType || 'application/octet-stream' })
+    return blobFromDesktopBinaryData(result.data, result.mimeType || ref.mimeType || 'application/octet-stream')
   }
 
   async putCachedResource(ref: ProjectAssetResourceRef, fingerprint: string, blob: Blob) {

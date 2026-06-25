@@ -14,6 +14,7 @@ import {
   createPortraitAssetFromUpload,
   createResourceAssetFromUpload,
   createSpriteAssetFromExport,
+  createStoryboardVoiceRefs,
   createVoiceAssetFromRecord,
   createPersonalSpaceDerivedState,
   defaultPersonalSpaceState,
@@ -200,6 +201,39 @@ test('personal space derived state groups assets and workspace options', () => {
   assert.deepEqual(derived.assetCounts, { image: 1, sprite: 1, voice: 1 })
   assert.deepEqual(derived.resourceSections.map((section) => section.kind), ['image', 'sprite', 'voice'])
   assert.deepEqual(derived.resourceSections.find((section) => section.kind === 'voice')?.starredGroupNames, ['对白'])
+})
+
+test('storyboard voice references are derived by asset id', () => {
+  const firstVoice = createPersonalSpaceAsset({ kind: 'voice', name: '第一句' })
+  const secondVoice = createPersonalSpaceAsset({ kind: 'voice', name: '第二句' })
+  const state = {
+    ...defaultPersonalSpaceState,
+    assets: [firstVoice, secondVoice],
+    storyboardGroups: [
+      {
+        id: 'story-a',
+        name: '开场',
+        characterIds: [],
+        voiceAssetIds: [firstVoice.id, secondVoice.id],
+        voiceEntries: [
+          { assetId: firstVoice.id, text: '一', startOffsetUs: 0, order: 0 },
+          { assetId: secondVoice.id, text: '二', startOffsetUs: 0, order: 1 },
+        ],
+      },
+      {
+        id: 'story-b',
+        name: '战斗',
+        characterIds: [],
+        voiceAssetIds: [firstVoice.id],
+        voiceEntries: [
+          { assetId: firstVoice.id, text: '三', startOffsetUs: 0, order: 2 },
+        ],
+      },
+    ],
+  }
+
+  assert.deepEqual(createStoryboardVoiceRefs(state, firstVoice.id), ['开场 #1', '战斗 #3'])
+  assert.deepEqual(createStoryboardVoiceRefs(state, secondVoice.id), ['开场 #2'])
 })
 
 test('collecting the same source asset keeps only the latest asset and clears old links', () => {

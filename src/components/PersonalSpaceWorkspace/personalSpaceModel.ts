@@ -162,6 +162,7 @@ export {
 export {
   assetOptions,
   createPersonalSpaceDerivedState,
+  createStoryboardVoiceRefs,
   type PersonalResourceSectionConfig,
 } from './personalSpaceDerivedState'
 

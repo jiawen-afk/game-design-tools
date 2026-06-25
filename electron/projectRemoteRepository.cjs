@@ -1,5 +1,8 @@
 const { normalizeDatabasePayload } = require('./projectRemoteDatabase.cjs')
-const { attachPostgresConnectionErrorSink } = require('./projectPostgresConnection.cjs')
+const {
+  attachPostgresConnectionErrorSink,
+  throwIfPostgresConnectionErrored,
+} = require('./projectPostgresConnection.cjs')
 
 const tableDefinitions = {
   projects: {
@@ -257,7 +260,10 @@ function isPostgresConnectionTerminationError(error) {
 
 function createPostgresConnectionTerminatedError(error) {
   const wrapped = new Error('远程数据库连接已中断，请检查网络或数据库服务后重试。')
-  wrapped.cause = error
+  Object.defineProperty(wrapped, 'originalMessage', {
+    value: String(error?.message || error || ''),
+    enumerable: false,
+  })
   return wrapped
 }
 
@@ -268,7 +274,7 @@ function sanitizeObjectKeyPart(value) {
 async function createRunner(payload, options = {}) {
   if (payload.provider === 'postgresql') {
     const client = (options.createPostgresClient || defaultCreatePostgresClient)(postgresConfig(payload))
-    attachPostgresConnectionErrorSink(client)
+    const connectionState = attachPostgresConnectionErrorSink(client)
     try {
       await client.connect()
     } catch (error) {
@@ -277,9 +283,16 @@ async function createRunner(payload, options = {}) {
     }
     return {
       dialect: 'postgresql',
-      execute: async (statement, params = []) => client.query(statement, params),
-      queryRows: async (statement, params = []) => {
+      execute: async (statement, params = []) => {
+        throwIfPostgresConnectionErrored(connectionState)
         const result = await client.query(statement, params)
+        throwIfPostgresConnectionErrored(connectionState)
+        return result
+      },
+      queryRows: async (statement, params = []) => {
+        throwIfPostgresConnectionErrored(connectionState)
+        const result = await client.query(statement, params)
+        throwIfPostgresConnectionErrored(connectionState)
         return normalizeRows(result.rows || [])
       },
       close: async () => client.end().catch(() => {}),

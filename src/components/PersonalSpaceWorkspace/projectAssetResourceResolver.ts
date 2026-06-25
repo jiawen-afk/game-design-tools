@@ -1,4 +1,11 @@
-import type { ProjectAssetManager, ProjectAssetResourceRef, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
+import {
+  isProjectObjectKey,
+  resourceIdFromProjectObjectKey,
+  type ProjectAssetManager,
+  type ProjectAssetResourceRef,
+  type ProjectMode,
+  type ProjectObjectStorage,
+} from '../ProjectStorage'
 import type { PersonalSpaceAsset } from './personalSpaceModel'
 import {
   getPersonalSpaceDirectoryHandle,
@@ -10,10 +17,6 @@ import {
 
 function canCreateObjectUrl() {
   return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function'
-}
-
-export function isProjectObjectKey(path: string | undefined) {
-  return Boolean(path?.startsWith('objects/'))
 }
 
 export interface ProjectAssetResourceResolverOptions {
@@ -53,11 +56,6 @@ async function readUrlResourceBlob(path: string) {
   return response.blob()
 }
 
-function objectKeyResourceId(objectKey: string) {
-  const fileName = objectKey.split('/').at(-1) ?? ''
-  return fileName.replace(/\.[^.]+$/, '') || fileName || objectKey
-}
-
 export function buildProjectAssetResourceRef(input: {
   asset: PersonalSpaceAsset
   resourceIndex: number
@@ -71,7 +69,7 @@ export function buildProjectAssetResourceRef(input: {
     projectId: input.projectId,
     projectMode: input.projectMode,
     assetId: input.asset.id,
-    resourceId: input.asset.projectResourceIds?.[input.resourceIndex] ?? objectKeyResourceId(objectKey),
+    resourceId: input.asset.projectResourceIds?.[input.resourceIndex] ?? resourceIdFromProjectObjectKey(objectKey),
     role,
     objectKey,
     mimeType: input.asset.projectResourceMimeTypes?.[input.resourceIndex] ?? null,

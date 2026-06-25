@@ -23,6 +23,19 @@ export function extensionFromFileName(fileName: string) {
   return normalizeFileExtension(match?.[1] ?? '')
 }
 
+export function isProjectObjectKey(path: string | undefined) {
+  return Boolean(path?.startsWith('objects/'))
+}
+
+export function fileNameFromProjectObjectKey(objectKey: string, fallback: string) {
+  return objectKey.split('/').pop()?.trim() || fallback
+}
+
+export function resourceIdFromProjectObjectKey(objectKey: string, fallback: string = objectKey) {
+  const fileName = fileNameFromProjectObjectKey(objectKey, fallback)
+  return fileName.replace(/\.[^.\\/]+$/, '') || fallback
+}
+
 export function mimeGroupFromMimeType(mimeType: string): ProjectMimeGroup {
   const group = mimeType.trim().toLowerCase().split('/')[0] as ProjectMimeGroup
   return knownMimeGroups.has(group) ? group : 'application'

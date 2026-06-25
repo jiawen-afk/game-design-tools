@@ -1,8 +1,20 @@
 import type { DragEvent } from 'react'
 
+import type { StoryboardGroup } from './personalSpaceModel'
+
 export type StoryboardVoiceDropPlacement = 'before' | 'after'
 export type DraggedStoryboardVoice = { groupId: string; assetId: string; placement?: StoryboardVoiceDropPlacement } | null
 export type StoryboardVoiceDropTarget = { assetId: string; placement: StoryboardVoiceDropPlacement } | null
+
+export function orderedStoryboardVoiceAssetIds(group: StoryboardGroup | undefined) {
+  return group ? [...group.voiceEntries].sort((a, b) => a.order - b.order).map((entry) => entry.assetId) : []
+}
+
+export function storyboardVoiceEntriesForPreview(group: StoryboardGroup, previewVoiceAssetIds?: string[]) {
+  const orderedEntries = [...group.voiceEntries].sort((a, b) => a.order - b.order)
+  if (!previewVoiceAssetIds) return orderedEntries
+  return previewVoiceAssetIds.flatMap((assetId) => orderedEntries.find((entry) => entry.assetId === assetId) ?? [])
+}
 
 export function moveAssetIdAroundTarget(
   assetIds: string[],

@@ -2,8 +2,11 @@ import { createProjectId, createProjectStorageId, createResourceId } from './pro
 import {
   buildProjectObjectKey,
   extensionFromFileName,
+  fileNameFromProjectObjectKey,
+  isProjectObjectKey,
   mimeGroupFromMimeType,
   normalizeFileExtension,
+  resourceIdFromProjectObjectKey,
   sanitizeObjectKeyPart,
 } from './projectObjectKeys'
 import { PROJECT_SCHEMA_TABLES, createProjectSchemaSql } from './projectSchema'
@@ -135,8 +138,11 @@ export {
   createProjectSchemaSql,
   createProjectStorageId,
   createResourceId,
+  fileNameFromProjectObjectKey,
+  isProjectObjectKey,
   mimeGroupFromMimeType,
   normalizeFileExtension,
+  resourceIdFromProjectObjectKey,
   sanitizeObjectKeyPart,
 }
 export type * from './projectStorageTypes'

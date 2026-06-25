@@ -126,6 +126,25 @@ test('remote database schema initialization is idempotent when repeated', async 
   ])
 })
 
+test('remote database schema initialization fails when PostgreSQL emits a background connection error during execution', async () => {
+  const client = new EventEmitter()
+  const result = await initializeRemoteDatabaseSchema(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async () => {
+        client.emit('error', new Error('Connection terminated unexpectedly'))
+        return {}
+      },
+      end: async () => {},
+      on: client.on.bind(client),
+    }),
+  })
+
+  assert.equal(result.ok, false)
+  assert.match(result.message, /远程数据库操作失败/)
+  assert.match(result.message, /Connection terminated unexpectedly/)
+})
+
 test('remote database schema initialization returns failure when PostgreSQL connection fails', async () => {
   const result = await initializeRemoteDatabaseSchema(databaseProfile(postgresqlPayload), {
     createPostgresClient: () => ({

@@ -5,6 +5,7 @@ import type { StoryboardGroup } from './personalSpaceModel'
 import {
   getStoryboardVoiceListDropTarget,
   moveAssetIdAroundTarget,
+  orderedStoryboardVoiceAssetIds,
   type DraggedStoryboardVoice,
   type StoryboardVoiceDropPlacement,
 } from './storyboardVoiceDrag'
@@ -17,10 +18,6 @@ interface UseStoryboardVoiceDragDropParams {
     targetAssetId: string,
     placement?: StoryboardVoiceDropPlacement,
   ) => void
-}
-
-function orderedStoryboardVoiceAssetIds(group: StoryboardGroup | undefined) {
-  return group ? [...group.voiceEntries].sort((a, b) => a.order - b.order).map((entry) => entry.assetId) : []
 }
 
 export function useStoryboardVoiceDragDrop({

@@ -7,6 +7,7 @@ import {
   assetOptions,
   assetKindLabel,
   createPersonalSpaceDerivedState,
+  createStoryboardVoiceRefs,
   readPersonalSpaceState,
 } from './personalSpaceModel'
 import { writeProjectSpaceState } from './projectSpaceState'
@@ -262,20 +263,9 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     assetCounts,
   } = createPersonalSpaceDerivedState(space)
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
-  const activeProjectObjectStorage = activeProject?.mode === 'remote'
-    ? remoteProjectObjectStorage
-    : projectObjectStorage
-  const projectResourceReadOptions = {
-    projectObjectStorage: activeProjectObjectStorage,
-    projectAssetManager,
-    projectId: activeProject?.id,
-    projectMode: activeProject?.mode,
-  }
-
-  const storyboardVoiceRefs = (assetId: string) => space.storyboardGroups
-    .flatMap((group) => group.voiceEntries
-      .filter((entry) => entry.assetId === assetId)
-      .map((entry) => `${group.name} #${entry.order + 1}`))
+  const activeProjectStorage = projectStorageWorkflow.objectStorageForProject(activeProject)
+  const projectResourceReadOptions = projectStorageWorkflow.projectReadOptionsForProject(activeProject)
+  const storyboardVoiceRefs = (assetId: string) => createStoryboardVoiceRefs(space, assetId)
 
   return {
     space,
@@ -283,7 +273,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     projects,
     activeProject,
     enabledProjectId: activeProjectId,
-    projectObjectStorage: activeProjectObjectStorage,
+    projectObjectStorage: activeProjectStorage,
     projectAssetManager,
     projectResourceReadOptions,
     workspacePage,

@@ -11,8 +11,11 @@ import {
   createProjectSchemaSql,
   createResourceId,
   createStoryboardVoiceEntry,
+  fileNameFromProjectObjectKey,
+  isProjectObjectKey,
   mimeGroupFromMimeType,
   normalizeFileExtension,
+  resourceIdFromProjectObjectKey,
   validateRemoteProjectSettings,
   type ProjectSettings,
 } from './projectStorageModel'
@@ -34,6 +37,16 @@ test('project object keys use project name, full mime type, resource id, and ext
     buildProjectObjectKey({ projectName: 'Project/Name', fileMime: 'application/json', resourceId: 'index 1', extension: '.json' }),
     'objects/Project_Name/application_json/index_1.json',
   )
+})
+
+test('project object key helpers classify and parse provider object keys', () => {
+  assert.equal(isProjectObjectKey('objects/默认项目/audio_wav/r1.wav'), true)
+  assert.equal(isProjectObjectKey('ProjectRoot/配音/r1.wav'), false)
+  assert.equal(isProjectObjectKey(undefined), false)
+  assert.equal(fileNameFromProjectObjectKey('objects/默认项目/audio_wav/r1.wav', 'fallback.wav'), 'r1.wav')
+  assert.equal(fileNameFromProjectObjectKey('objects/默认项目/audio_wav/', 'fallback.wav'), 'fallback.wav')
+  assert.equal(resourceIdFromProjectObjectKey('objects/默认项目/audio_wav/r1.wav', 'fallback'), 'r1')
+  assert.equal(resourceIdFromProjectObjectKey('objects/默认项目/audio_wav/', 'fallback'), 'fallback')
 })
 
 test('mime group and extension normalization are stable across providers', () => {

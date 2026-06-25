@@ -1,4 +1,5 @@
 import { getDesktopApi } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import type { ProjectObjectDeleteResult, ProjectObjectStorage } from './projectObjectStorage'
 
 export interface MemoryProjectObjectStorageOptions {
@@ -67,10 +68,7 @@ export class DesktopLocalProjectObjectStorage implements ProjectObjectStorage {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return this.fallbackStorage.getObject(objectKey)
     const result = await desktopApi.getLocalProjectObject(objectKey)
-    const bytes = result.data instanceof ArrayBuffer ? new Uint8Array(result.data) : result.data
-    const data = new Uint8Array(bytes.byteLength)
-    data.set(bytes)
-    return new Blob([data.buffer], { type: result.mimeType || 'application/octet-stream' })
+    return blobFromDesktopBinaryData(result.data, result.mimeType || 'application/octet-stream')
   }
 
   async deleteObject(objectKey: string) {

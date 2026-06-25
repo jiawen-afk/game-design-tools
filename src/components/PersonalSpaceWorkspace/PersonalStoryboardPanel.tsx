@@ -8,7 +8,7 @@ import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
-import { type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
+import { storyboardVoiceEntriesForPreview, type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
 import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
 import { useStoryboardVoicePlayback } from './useStoryboardVoicePlayback'
 import { useRenameDrafts } from './useRenameDrafts'
@@ -182,11 +182,7 @@ export function PersonalStoryboardPanel({
       ) : (
         <div className="form-stack">
           {visibleStoryboardGroups.map((item) => {
-            const orderedVoiceEntries = [...item.voiceEntries].sort((a, b) => a.order - b.order)
-            const previewVoiceAssetIds = previewStoryboardVoiceOrders[item.id]
-            const visibleVoiceEntries = previewVoiceAssetIds
-              ? previewVoiceAssetIds.flatMap((assetId) => orderedVoiceEntries.find((entry) => entry.assetId === assetId) ?? [])
-              : orderedVoiceEntries
+            const visibleVoiceEntries = storyboardVoiceEntriesForPreview(item, previewStoryboardVoiceOrders[item.id])
             return (
               <StoryboardGroupCard
                 key={item.id}

@@ -69,3 +69,10 @@ export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
     assetCounts,
   }
 }
+
+export function createStoryboardVoiceRefs(space: Pick<PersonalSpaceState, 'storyboardGroups'>, assetId: string) {
+  return space.storyboardGroups
+    .flatMap((group) => group.voiceEntries
+      .filter((entry) => entry.assetId === assetId)
+      .map((entry) => `${group.name} #${entry.order + 1}`))
+}

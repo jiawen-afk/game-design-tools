@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction 
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   applyWheelZoom,
   clampPreviewRect,
@@ -463,10 +464,7 @@ export function useImageProcessingWorkspace() {
         data: await blob.arrayBuffer(),
         options: upscaleOptions,
       })
-      const resultData = result.data instanceof ArrayBuffer
-        ? result.data
-        : new Uint8Array(result.data).buffer
-      const upscaledBlob = new Blob([resultData], { type: blob.type })
+      const upscaledBlob = blobFromDesktopBinaryData(result.data, blob.type)
       const url = URL.createObjectURL(upscaledBlob)
       setUpscalePreview((previous) => {
         if (previous) URL.revokeObjectURL(previous.url)

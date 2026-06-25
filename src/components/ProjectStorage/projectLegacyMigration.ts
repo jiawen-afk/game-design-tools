@@ -1,5 +1,6 @@
 import { createProjectStorageId } from './projectId'
-import { createAssetResourceFields, sanitizeObjectKeyPart } from './projectStorageModel'
+import { sanitizeObjectKeyPart } from './projectStorageModel'
+import { migrateLegacyAssetsToProjectRows } from './projectLegacyAssetMigration'
 import type {
   Asset,
   AssetGroup,
@@ -34,52 +35,12 @@ export interface LegacyProjectRows {
   assetRelations: AssetRelation[]
 }
 
-function mimeTypeForAsset(asset: PersonalSpaceAsset, index: number) {
-  if (asset.kind === 'voice') return 'audio/wav'
-  if (asset.kind === 'sprite' && index === 1) return 'application/json'
-  return 'image/png'
-}
-
-function fileNameFromPath(path: string, fallback: string) {
-  return path.split(/[\\/]/).pop()?.trim() || fallback
-}
-
 function createIdMap(sourceIds: string[], preserveSourceIds = false) {
   return new Map(sourceIds.map((sourceId) => [sourceId, preserveSourceIds ? sourceId : createProjectStorageId()]))
 }
 
 function mappedId(map: Map<string, string>, sourceId: string) {
   return map.get(sourceId) ?? sourceId
-}
-
-function assetGroupKey(kind: ProjectAssetGroupKind, name: string) {
-  return `${kind}\u0000${name}`
-}
-
-function findPrimaryPath(asset: PersonalSpaceAsset) {
-  return asset.storageResourcePaths[0] ?? asset.resourcePaths[0] ?? asset.name
-}
-
-function findSpriteIndexPath(asset: PersonalSpaceAsset) {
-  if (asset.kind !== 'sprite') return undefined
-  return asset.storageResourcePaths[1] ?? asset.resourcePaths[1]
-}
-
-function isProjectObjectKey(path: string | undefined) {
-  return Boolean(path?.startsWith('objects/'))
-}
-
-function objectKeyFileName(objectKey: string, fallback: string) {
-  return objectKey.split('/').pop()?.trim() || fallback
-}
-
-function objectKeyExtension(objectKey: string) {
-  return objectKeyFileName(objectKey, '').match(/\.[^.\\/]+$/)?.[0] ?? ''
-}
-
-function objectKeyResourceId(objectKey: string, fallback: string) {
-  const fileName = objectKeyFileName(objectKey, fallback)
-  return fileName.replace(/\.[^.\\/]+$/, '') || fallback
 }
 
 export function migratePersonalSpaceStateToProjectRows(
@@ -124,60 +85,14 @@ export function migratePersonalSpaceStateToProjectRows(
       updated_at: options.now,
     }))
   ))
-  const assetGroupIdByKey = new Map(assetGroups.map((group) => [assetGroupKey(group.kind, group.name), group.id]))
-
-  const assets = state.assets.map((asset): Asset => {
-    const primaryPath = findPrimaryPath(asset)
-    const spriteIndexPath = findSpriteIndexPath(asset)
-    const primaryResourceId = options.preserveSourceIds && isProjectObjectKey(primaryPath)
-      ? objectKeyResourceId(primaryPath, createProjectStorageId())
-      : createProjectStorageId()
-    const spriteIndexResourceId = options.preserveSourceIds && isProjectObjectKey(spriteIndexPath)
-      ? objectKeyResourceId(spriteIndexPath!, createProjectStorageId())
-      : spriteIndexPath ? createProjectStorageId() : undefined
-    const resources = createAssetResourceFields({
-      projectId: options.projectId,
-      projectName: options.projectName,
-      fileName: fileNameFromPath(primaryPath, asset.name),
-      mimeType: mimeTypeForAsset(asset, 0),
-      sizeBytes: 0,
-      resourceId: primaryResourceId,
-      spriteIndex: spriteIndexPath ? {
-        fileName: fileNameFromPath(spriteIndexPath, 'index.json'),
-        mimeType: mimeTypeForAsset(asset, 1),
-        sizeBytes: 0,
-        resourceId: spriteIndexResourceId,
-      } : undefined,
-    })
-    if (options.preserveSourceIds && isProjectObjectKey(primaryPath)) {
-      resources.primary_object_key = primaryPath
-      resources.primary_file_name = objectKeyFileName(primaryPath, asset.name)
-      resources.primary_extension = objectKeyExtension(primaryPath)
-    }
-    if (options.preserveSourceIds && isProjectObjectKey(spriteIndexPath)) {
-      resources.sprite_index_object_key = spriteIndexPath!
-      resources.sprite_index_file_name = objectKeyFileName(spriteIndexPath!, 'index.json')
-    }
-    return {
-      id: mappedId(assetIdMap, asset.id),
-      project_id: options.projectId,
-      kind: asset.kind,
-      asset_subtype: asset.assetSubtype,
-      group_id: assetGroupIdByKey.get(assetGroupKey(asset.kind, asset.groupName)) ?? null,
-      name: asset.name,
-      dialogue_text: asset.dialogueText ?? null,
-      source_key: asset.sourceKey ?? null,
-      ...resources,
-      sprite_frame_width: null,
-      sprite_frame_height: null,
-      sprite_sheet_width: null,
-      sprite_sheet_height: null,
-      sprite_fps: null,
-      sprite_frame_count: null,
-      created_at: asset.createdAt,
-      updated_at: options.now,
-      metadata_json: null,
-    }
+  const assets = migrateLegacyAssetsToProjectRows({
+    assets: state.assets,
+    assetGroups,
+    assetIdMap,
+    projectId: options.projectId,
+    projectName: options.projectName,
+    now: options.now,
+    preserveSourceIds: options.preserveSourceIds,
   })
 
   const characters = state.characters.map((character): Character => ({
