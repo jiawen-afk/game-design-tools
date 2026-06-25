@@ -24,6 +24,27 @@ export interface ProcessedImageDraft {
   height: number
 }
 
+export interface ImageExportSavedFile {
+  name: string
+  path: string
+}
+
+export interface ImageExportSaveApi {
+  saveFile: (fileName: string, data: ArrayBuffer) => Promise<ImageExportSavedFile | null>
+}
+
+export function revokeImageObjectUrl(url: string | null | undefined) {
+  if (url) URL.revokeObjectURL(url)
+}
+
+export function revokeLoadedImageDraftUrl(draft: LoadedImageDraft | null | undefined) {
+  revokeImageObjectUrl(draft?.sourceUrl)
+}
+
+export function revokeProcessedImageDraftUrl(draft: ProcessedImageDraft | null | undefined) {
+  revokeImageObjectUrl(draft?.url)
+}
+
 export async function createImageDraft(file: File): Promise<LoadedImageDraft> {
   const sourceUrl = URL.createObjectURL(file)
   try {
@@ -36,7 +57,7 @@ export async function createImageDraft(file: File): Promise<LoadedImageDraft> {
       height: img.naturalHeight,
     }
   } catch (error) {
-    URL.revokeObjectURL(sourceUrl)
+    revokeImageObjectUrl(sourceUrl)
     throw error
   }
 }
@@ -92,6 +113,23 @@ export async function exportProcessedImage(
   }
   ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, targetWidth, targetHeight)
   return canvasToFormatBlob(canvas, format)
+}
+
+export async function saveImageExportBlob(fileName: string, blob: Blob, api?: ImageExportSaveApi | null) {
+  if (api) {
+    const saved = await api.saveFile(fileName, await blob.arrayBuffer())
+    if (!saved) throw new Error('未选择保存位置')
+    return
+  }
+  const url = URL.createObjectURL(blob)
+  try {
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.click()
+  } finally {
+    revokeImageObjectUrl(url)
+  }
 }
 
 function canvasToFormatBlob(canvas: HTMLCanvasElement, format: ImageExportFormat): Promise<Blob> {

@@ -426,6 +426,7 @@ test('voice history library renders outside the connected-only generator branch'
 
 test('voice records can be collected into project space assets', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectSpaceActions.ts', 'utf8')
   const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
   const listSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx', 'utf8')
   const collectorSource = readFileSync('src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.ts', 'utf8')
@@ -442,11 +443,11 @@ test('voice records can be collected into project space assets', () => {
   assert.doesNotMatch(listSource, /Dropdown\.Button/)
   assert.match(source, /personalSpaceVoiceAssets/)
   assert.match(panelSource, /label: `项目空间 \$\{personalSpaceVoiceAssets\.length\}`/)
-  assert.match(source, /collectVoiceRecordToPersonalSpace/)
-  assert.match(source, /readCurrentProjectSpaceState/)
-  assert.match(source, /persistCurrentProjectSpaceState/)
+  assert.match(hookSource, /collectVoiceRecordToPersonalSpace/)
+  assert.match(hookSource, /readCurrentProjectSpaceState/)
+  assert.match(hookSource, /persistCurrentProjectSpaceState/)
   assert.doesNotMatch(source, /writeCurrentProjectSpaceState/)
-  assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
+  assert.match(hookSource, /from '\.\/voicePersonalSpaceCollector'/)
   assert.match(collectorSource, /createVoiceAssetFromRecord/)
   assert.match(collectorSource, /writeAssetResourcesToDirectory/)
   assert.match(collectorSource, /readCurrentProjectSpaceState/)
@@ -487,13 +488,14 @@ test('voice library can clear history and preview personal space voices with lin
 
 test('voice generation panel exposes a searchable character picker for record prefixes', () => {
   const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectSpaceActions.ts', 'utf8')
   const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceGenerationPanel.tsx', 'utf8')
   const workflowSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
 
   assert.match(source, /selectedVoiceCharacterId/)
   assert.match(source, /selectedVoiceCharacterName/)
-  assert.match(source, /addCharacterProfile/)
-  assert.match(source, /persistCurrentProjectSpaceState/)
+  assert.match(hookSource, /addCharacterProfile/)
+  assert.match(hookSource, /persistCurrentProjectSpaceState/)
   assert.doesNotMatch(source, /writeCurrentProjectSpaceState/)
   assert.match(panelSource, /voice-character-selector/)
   assert.match(panelSource, /搜索角色/)

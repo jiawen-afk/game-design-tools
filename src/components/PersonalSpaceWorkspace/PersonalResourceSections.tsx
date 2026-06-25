@@ -6,7 +6,7 @@ import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../
 import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
 import { PersonalResourceAssetRecord } from './PersonalResourceAssetRecord'
 import { PersonalResourceGroupBlock } from './PersonalResourceGroupBlock'
-import { CreateNamePopoverButton } from './CreateNamePopoverButton'
+import { PersonalAssetGroupControls } from './PersonalAssetGroupControls'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { useRenameDrafts } from './useRenameDrafts'
@@ -40,49 +40,6 @@ interface PersonalResourceSectionProps {
 
 function EmptyBlock({ description }: { description: string }) {
   return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={description} />
-}
-
-function PersonalAssetGroupControls({
-  kind,
-  onAddGroup,
-}: {
-  kind: AssetGroupKind
-  onAddGroup: (kind: AssetGroupKind, name: string) => void
-}) {
-  const [newGroupName, setNewGroupName] = useState('')
-  const [creatingGroup, setCreatingGroup] = useState(false)
-
-  const confirmCreateGroup = () => {
-    if (!newGroupName.trim()) return
-    onAddGroup(kind, newGroupName)
-    setNewGroupName('')
-    setCreatingGroup(false)
-  }
-
-  const cancelCreateGroup = () => {
-    setNewGroupName('')
-    setCreatingGroup(false)
-  }
-
-  return (
-    <div className="asset-group-controls">
-      <CreateNamePopoverButton
-        open={creatingGroup}
-        onOpenChange={(open) => {
-          if (open) setCreatingGroup(true)
-          else cancelCreateGroup()
-        }}
-        className="group-create-popover"
-        value={newGroupName}
-        ariaLabel="新分组名称"
-        placeholder="新分组名称"
-        buttonText="创建分组"
-        onValueChange={setNewGroupName}
-        onConfirm={confirmCreateGroup}
-        onCancel={cancelCreateGroup}
-      />
-    </div>
-  )
 }
 
 export function PersonalResourceSection({

@@ -128,9 +128,10 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(hookSource, /queryUpscaleStatus/)
   assert.match(hookSource, /upscaleImage/)
   assert.match(hookSource, /resolveExportBaseSize/)
+  assert.match(hookSource, /resolveImageExportTarget/)
   assert.match(hookSource, /exportScaleSnapshotRef/)
-  assert.match(hookSource, /upscalePreview\.url/)
-  assert.match(hookSource, /exportProcessedImage\(exportSource, exportCrop, exportFormat, exportSize\)/)
+  assert.match(hookSource, /resolveImageExportTarget\(activeImageSource, crop, upscaleEnabled, upscalePreview\)/)
+  assert.match(hookSource, /exportProcessedImage\(exportTarget\.sourceUrl, exportTarget\.crop, exportFormat, exportSize\)/)
   assert.match(stageSource, /image-upscale-compare/)
   assert.match(stageSource, /image-upscale-compare-after/)
   assert.match(stageSource, /inset\(0 0 0 \$\{comparePosition\}%\)/)
@@ -182,6 +183,56 @@ test('image processing resets stale upscale enhancement when replacing the image
   assert.notEqual(resetStart, -1)
   assert.match(uploadSource, /setUpscaleEnabled\(false\)/)
   assert.match(resetSource, /setUpscaleEnabled\(false\)/)
+})
+
+test('image processing export target selection stays in the model', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const modelSource = readFileSync('src/components/ImageProcessingWorkspace/imageProcessingModel.ts', 'utf8')
+  const pipelineSource = readFileSync('src/components/ImageProcessingWorkspace/imageProcessingPipeline.ts', 'utf8')
+  const exportStart = hookSource.indexOf('const exportImage = async')
+  const exportSource = hookSource.slice(exportStart)
+
+  assert.notEqual(exportStart, -1)
+  assert.match(modelSource, /function resolveImageExportTarget/)
+  assert.match(pipelineSource, /function saveImageExportBlob/)
+  assert.match(hookSource, /resolveImageExportTarget/)
+  assert.match(hookSource, /saveImageExportBlob/)
+  assert.doesNotMatch(exportSource, /const exportSource =/)
+  assert.doesNotMatch(exportSource, /const exportCrop =/)
+  assert.doesNotMatch(exportSource, /\.saveFile\(/)
+  assert.doesNotMatch(exportSource, /document\.createElement\('a'\)/)
+  assert.doesNotMatch(exportSource, /anchor\.click\(\)/)
+})
+
+test('image processing workspace delegates object URL cleanup to pipeline helpers', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const pipelineSource = readFileSync('src/components/ImageProcessingWorkspace/imageProcessingPipeline.ts', 'utf8')
+  const directRevokes = hookSource.match(/URL\.revokeObjectURL/g) ?? []
+
+  assert.match(pipelineSource, /function revokeImageObjectUrl/)
+  assert.match(pipelineSource, /function revokeLoadedImageDraftUrl/)
+  assert.match(pipelineSource, /function revokeProcessedImageDraftUrl/)
+  assert.match(hookSource, /revokeLoadedImageDraftUrl/)
+  assert.match(hookSource, /revokeProcessedImageDraftUrl/)
+  assert.match(hookSource, /revokeImageObjectUrl/)
+  assert.equal(directRevokes.length, 0)
+  assert.match(pipelineSource, /URL\.revokeObjectURL\(url\)/)
+})
+
+test('image processing workspace delegates crop drag window interactions to a focused hook', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const dragHookPath = 'src/components/ImageProcessingWorkspace/useImageCropDrag.ts'
+
+  assert.ok(existsSync(dragHookPath), 'crop drag window interaction hook should exist')
+  const dragHookSource = readFileSync(dragHookPath, 'utf8')
+
+  assert.match(hookSource, /useImageCropDrag\(/)
+  assert.doesNotMatch(hookSource, /window\.addEventListener\('mousemove'/)
+  assert.doesNotMatch(hookSource, /window\.addEventListener\('mouseup'/)
+  assert.match(dragHookSource, /window\.addEventListener\('mousemove'/)
+  assert.match(dragHookSource, /window\.addEventListener\('mouseup'/)
+  assert.match(dragHookSource, /setCropDraftRect/)
+  assert.match(dragHookSource, /setCrop\(/)
 })
 
 test('image processing result stage accepts dragged image files for replacement', () => {
@@ -445,6 +496,8 @@ test('remote project migration uploads objects through qiniu kodo storage', () =
 
 test('project asset previews resolve provider object keys through asset manager', () => {
   const previewSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetPreview.tsx', 'utf8')
+  const spritePreviewIndexHookPath = 'src/components/PersonalSpaceWorkspace/useSpritePreviewIndex.ts'
+  const spritePreviewIndexHookSource = existsSync(spritePreviewIndexHookPath) ? readFileSync(spritePreviewIndexHookPath, 'utf8') : ''
   const storyboardPlaybackSource = readFileSync('src/components/PersonalSpaceWorkspace/storyboardPlaybackSources.ts', 'utf8')
   const resourceActionSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
   const storyboardExportActionSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceStoryboardExportActions.ts', 'utf8')
@@ -456,6 +509,13 @@ test('project asset previews resolve provider object keys through asset manager'
   assert.match(previewSource, /asset\.kind === 'voice'[\s\S]*audioPlaying/)
   assert.match(previewSource, /asset\.kind === 'sprite'[\s\S]*spriteOpen/)
   assert.match(previewSource, /imageOpen/)
+  assert.ok(existsSync(spritePreviewIndexHookPath), 'sprite preview index hook should exist')
+  assert.match(previewSource, /from '\.\/useSpritePreviewIndex'/)
+  assert.doesNotMatch(previewSource, /function useSpritePreviewIndex/)
+  assert.doesNotMatch(previewSource, /fetch\(indexSource\)/)
+  assert.match(spritePreviewIndexHookSource, /export function useSpritePreviewIndex/)
+  assert.match(spritePreviewIndexHookSource, /useStoredResourcePreviewSource/)
+  assert.match(spritePreviewIndexHookSource, /fetch\(indexSource\)/)
   assert.match(storyboardPlaybackSource, /resolveProjectAssetResourceSource/)
   assert.match(storyboardPlaybackSource, /projectAssetManager/)
   assert.match(resourceActionSource, /personalSpaceStoryboardExportActions/)
@@ -1275,6 +1335,7 @@ test('personal space page covers required management modules', () => {
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceAssetRecord.tsx', 'utf8'),
+    readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetGroupControls.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceGroupBlock.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceSections.tsx', 'utf8'),
     readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceFilterControl.tsx', 'utf8'),
@@ -1362,6 +1423,7 @@ test('matte task groups can export group images and collect them to public image
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const panelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
   const hookSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const groupActionsSource = readFileSync('src/components/MultiFrameSpriteWorkspace/matteGroupActions.ts', 'utf8')
 
   assert.match(panelSource, /导出组图片/)
   assert.match(panelSource, /收藏到项目空间/)
@@ -1376,19 +1438,26 @@ test('matte task groups can export group images and collect them to public image
   assert.match(panelSource, /onImportMatteGroupToPersonalSpace/)
   assert.match(hookSource, /exportMatteGroup/)
   assert.match(hookSource, /importMatteGroupToPersonalSpace/)
-  assert.match(hookSource, /项目空间-素材-公共图片/)
-  assert.match(hookSource, /JSZip/)
-  assert.match(hookSource, /persistCurrentProjectSpaceState/)
-  assert.match(hookSource, /showCurrentProjectSpaceSyncWarning/)
+  assert.match(hookSource, /createMatteGroupActions/)
+  assert.match(hookSource, /dequeueNextInactiveFrameId/)
+  assert.doesNotMatch(hookSource, /\.findIndex\(\(queuedId\) => !.*ActiveRef\.current\.has\(queuedId\)\)/)
+  assert.match(groupActionsSource, /项目空间-素材-公共图片/)
+  assert.match(groupActionsSource, /JSZip/)
+  assert.match(groupActionsSource, /persistCurrentProjectSpaceState/)
+  assert.match(groupActionsSource, /showCurrentProjectSpaceSyncWarning/)
+  assert.doesNotMatch(hookSource, /JSZip/)
+  assert.doesNotMatch(hookSource, /persistCurrentProjectSpaceState/)
+  assert.doesNotMatch(hookSource, /showCurrentProjectSpaceSyncWarning/)
   assert.doesNotMatch(hookSource, /writeCurrentProjectSpaceState/)
   assert.doesNotMatch(hookSource, /已保存到本地项目缓存，但同步项目存储失败/)
   assert.doesNotMatch(hookSource, /writePersonalSpaceState/)
-  assert.match(hookSource, /createResourceAssetFromUpload/)
+  assert.match(groupActionsSource, /createResourceAssetFromUpload/)
+  assert.doesNotMatch(hookSource, /createResourceAssetFromUpload/)
   assert.match(source, /workspace\.matte\.exportMatteGroup/)
   assert.match(source, /workspace\.matte\.importMatteGroupToPersonalSpace/)
   assert.match(source, /workspace\.personalSpaceCollectEnabled/)
-  assert.match(hookSource, /personalSpaceDirectoryRequiredMessage/)
-  assert.doesNotMatch(hookSource, /importMatteGroupToPersonalSpace[\s\S]*archiveAssetForStorageDirectory/)
+  assert.match(groupActionsSource, /personalSpaceDirectoryRequiredMessage/)
+  assert.doesNotMatch(groupActionsSource, /importMatteGroupToPersonalSpace[\s\S]*archiveAssetForStorageDirectory/)
 })
 
 test('desktop shortcuts open tools and ignore editable targets', () => {
@@ -1518,6 +1587,7 @@ test('app-only branch removes web deployment surfaces and browser-only fallbacks
   const personalActionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceResourceActions.ts', 'utf8')
   const spriteExportSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteExport.ts', 'utf8')
   const mattePipelineSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const matteGroupActionsSource = readFileSync('src/components/MultiFrameSpriteWorkspace/matteGroupActions.ts', 'utf8')
   const settingsHookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceSettingsWorkspace.ts', 'utf8')
   const appOnlySources = [
     indexHtmlSource(),
@@ -1529,6 +1599,7 @@ test('app-only branch removes web deployment surfaces and browser-only fallbacks
     personalActionsSource,
     spriteExportSource,
     mattePipelineSource,
+    matteGroupActionsSource,
     settingsHookSource,
   ].join('\n')
 
@@ -1590,16 +1661,24 @@ test('voice deployment workspace delegates service, record, and personal space s
   const serviceSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentService.ts', 'utf8')
   const setupHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentSetup.ts', 'utf8')
   const generationHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceGenerationWorkflow.ts', 'utf8')
+  const projectSpaceHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectSpaceActions.ts', 'utf8')
 
   assert.doesNotMatch(source, /from '\.\/voiceDeploymentService'/)
   assert.match(source, /from '\.\/voiceRecordStorage'/)
-  assert.match(source, /from '\.\/voicePersonalSpaceCollector'/)
+  assert.match(source, /from '\.\/useVoiceProjectSpaceActions'/)
+  assert.match(source, /useVoiceProjectSpaceActions/)
   assert.match(source, /useVoiceGenerationWorkflow/)
-  assert.match(source, /collectVoiceRecordToPersonalSpace/)
-  assert.match(source, /persistCurrentProjectSpaceState/)
-  assert.match(source, /showCurrentProjectSpaceSyncWarning/)
+  assert.doesNotMatch(source, /from '\.\/voicePersonalSpaceCollector'/)
+  assert.doesNotMatch(source, /collectVoiceRecordToPersonalSpace/)
+  assert.doesNotMatch(source, /persistCurrentProjectSpaceState/)
+  assert.doesNotMatch(source, /showCurrentProjectSpaceSyncWarning/)
+  assert.doesNotMatch(source, /readCurrentProjectSpaceState/)
   assert.doesNotMatch(source, /writeCurrentProjectSpaceState/)
   assert.doesNotMatch(source, /已保存到本地项目缓存，但同步项目存储失败/)
+  assert.match(projectSpaceHookSource, /collectVoiceRecordToPersonalSpace/)
+  assert.match(projectSpaceHookSource, /persistCurrentProjectSpaceState/)
+  assert.match(projectSpaceHookSource, /showCurrentProjectSpaceSyncWarning/)
+  assert.match(projectSpaceHookSource, /readCurrentProjectSpaceState/)
   assert.match(setupHookSource, /from '\.\/voiceDeploymentService'/)
   assert.match(setupHookSource, /checkConnection/)
   assert.match(generationHookSource, /generateVoiceAudio/)
@@ -1621,14 +1700,14 @@ test('voice deployment workspace delegates service, record, and personal space s
 
 test('project space external collectors share sync warning formatting', () => {
   const spriteExportSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteExport.ts', 'utf8')
-  const matteHookSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const matteGroupActionsSource = readFileSync('src/components/MultiFrameSpriteWorkspace/matteGroupActions.ts', 'utf8')
   const voiceCollectorSource = readFileSync('src/components/VoiceDeploymentWorkspace/voicePersonalSpaceCollector.ts', 'utf8')
-  const voiceWorkspaceSource = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const voiceProjectSpaceHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectSpaceActions.ts', 'utf8')
   const messageSource = readFileSync('src/components/PersonalSpaceWorkspace/projectSpacePersistenceMessages.ts', 'utf8')
 
   assert.match(messageSource, /formatCurrentProjectSpaceSyncWarning/)
   assert.match(messageSource, /showCurrentProjectSpaceSyncWarning/)
-  for (const source of [spriteExportSource, matteHookSource, voiceWorkspaceSource]) {
+  for (const source of [spriteExportSource, matteGroupActionsSource, voiceProjectSpaceHookSource]) {
     assert.match(source, /showCurrentProjectSpaceSyncWarning/)
     assert.doesNotMatch(source, /已保存到本地项目缓存，但同步项目存储失败/)
   }
@@ -1787,7 +1866,7 @@ test('voice deployment workspace delegates collect-link dialog state', () => {
 })
 
 test('voice deployment links generated voices to effect assets by subtype', () => {
-  const source = readFileSync('src/components/VoiceDeploymentWorkspace/index.tsx', 'utf8')
+  const source = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectSpaceActions.ts', 'utf8')
 
   assert.match(source, /asset\.assetSubtype === 'effect'/)
   assert.doesNotMatch(source, /asset\.kind === 'effect'/)
@@ -1920,6 +1999,10 @@ test('personal space resource kinds are first-level tabs instead of a common res
   const filterSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceFilterControl.tsx', 'utf8')
   const textPopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalSpaceTextPopover.tsx', 'utf8')
   const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
+  const createNamePopoverHookPath = 'src/components/PersonalSpaceWorkspace/useCreateNamePopover.ts'
+  const createNamePopoverHookSource = existsSync(createNamePopoverHookPath) ? readFileSync(createNamePopoverHookPath, 'utf8') : ''
+  const groupControlsPath = 'src/components/PersonalSpaceWorkspace/PersonalAssetGroupControls.tsx'
+  const groupControlsSource = existsSync(groupControlsPath) ? readFileSync(groupControlsPath, 'utf8') : ''
 
   assert.match(hookSource, /createPersonalSpaceDerivedState/)
   assert.match(derivedSource, /const resourceSections/)
@@ -1941,13 +2024,19 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(source, /key=\{`material-\$\{section\.kind\}`\}/)
   assert.match(source, /key: 'materials'/)
   assert.match(source, /<PersonalResourceSection/)
-  assert.match(sectionsSource, /function PersonalAssetGroupControls/)
+  assert.ok(existsSync(groupControlsPath), 'asset group controls component should exist')
+  assert.match(sectionsSource, /from '\.\/PersonalAssetGroupControls'/)
+  assert.match(groupControlsSource, /function PersonalAssetGroupControls/)
   assert.match(sectionsSource, /onAddGroup/)
-  assert.match(sectionsSource, /creatingGroup/)
-  assert.match(sectionsSource, /group-create-popover/)
-  assert.match(sectionsSource, /from '\.\/CreateNamePopoverButton'/)
-  assert.match(sectionsSource, /<CreateNamePopoverButton/)
-  assert.doesNotMatch(sectionsSource, /content=\{\(\s*<div className="voice-group-rename-popover/)
+  assert.equal(existsSync(createNamePopoverHookPath), true)
+  assert.match(createNamePopoverHookSource, /export function useCreateNamePopover/)
+  assert.match(groupControlsSource, /useCreateNamePopover/)
+  assert.doesNotMatch(sectionsSource, /useCreateNamePopover/)
+  assert.doesNotMatch(sectionsSource, /creatingGroup/)
+  assert.match(groupControlsSource, /group-create-popover/)
+  assert.match(groupControlsSource, /from '\.\/CreateNamePopoverButton'/)
+  assert.match(groupControlsSource, /<CreateNamePopoverButton/)
+  assert.doesNotMatch(groupControlsSource, /content=\{\(\s*<div className="voice-group-rename-popover/)
   assert.match(sectionsSource, /onChangeGroupName/)
   assert.match(sectionsSource, /onDeleteGroup/)
   assert.doesNotMatch(source, /const renderResourceSection = /)
@@ -2102,6 +2191,7 @@ test('personal space workspace delegates character management panel', () => {
   ].join('\n')
   const characterPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalCharacterPanel.tsx', 'utf8')
   const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
+  const createNamePopoverHookSource = readFileSync('src/components/PersonalSpaceWorkspace/useCreateNamePopover.ts', 'utf8')
   const characterProfileCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const linkedAssetColumnSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterLinkedAssetColumn.tsx', 'utf8')
   const recentStarredFilterSource = readFileSync('src/components/PersonalSpaceWorkspace/useRecentStarredFilter.ts', 'utf8')
@@ -2131,10 +2221,13 @@ test('personal space workspace delegates character management panel', () => {
   assert.match(createNamePopoverSource, /export function CreateNamePopoverButton/)
   assert.match(createNamePopoverSource, /PersonalSpaceTextPopover/)
   assert.match(createNamePopoverSource, /confirmDisabled=\{!value\.trim\(\)\}/)
+  assert.match(createNamePopoverHookSource, /export function useCreateNamePopover/)
   assert.match(characterPanelSource, /from '\.\/CreateNamePopoverButton'/)
+  assert.match(characterPanelSource, /from '\.\/useCreateNamePopover'/)
   assert.match(characterPanelSource, /<CreateNamePopoverButton/)
   assert.doesNotMatch(characterPanelSource, /<PersonalSpaceTextPopover/)
-  assert.match(panelSource, /creatingCharacter/)
+  assert.match(characterPanelSource, /useCreateNamePopover/)
+  assert.doesNotMatch(characterPanelSource, /creatingCharacter/)
   assert.match(panelSource, /character-create-popover/)
   assert.match(characterPanelSource, /useRecentStarredFilter/)
   assert.match(characterPanelSource, /selectedCharacterFilter/)
@@ -2225,6 +2318,7 @@ test('personal space workspace delegates storyboard management panel', () => {
   ].join('\n')
   const storyboardPanelSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalStoryboardPanel.tsx', 'utf8')
   const createNamePopoverSource = readFileSync('src/components/PersonalSpaceWorkspace/CreateNamePopoverButton.tsx', 'utf8')
+  const createNamePopoverHookSource = readFileSync('src/components/PersonalSpaceWorkspace/useCreateNamePopover.ts', 'utf8')
   const storyboardGroupCardSource = readFileSync('src/components/PersonalSpaceWorkspace/StoryboardGroupCard.tsx', 'utf8')
   const playbackHookSource = readFileSync('src/components/PersonalSpaceWorkspace/useStoryboardVoicePlayback.ts', 'utf8')
   const storyboardVoiceDragSource = readFileSync('src/components/PersonalSpaceWorkspace/storyboardVoiceDrag.ts', 'utf8')
@@ -2253,7 +2347,9 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.match(panelSource, /<PersonalSpaceFilterControl/)
   assert.match(panelSource, /<PersonalSpaceTextPopover/)
   assert.match(createNamePopoverSource, /export function CreateNamePopoverButton/)
+  assert.match(createNamePopoverHookSource, /export function useCreateNamePopover/)
   assert.match(storyboardPanelSource, /from '\.\/CreateNamePopoverButton'/)
+  assert.match(storyboardPanelSource, /from '\.\/useCreateNamePopover'/)
   assert.match(storyboardPanelSource, /<CreateNamePopoverButton/)
   assert.doesNotMatch(storyboardPanelSource, /<PersonalSpaceTextPopover/)
   assert.doesNotMatch(panelSource, /<strong>剧情分组<\/strong>/)
@@ -2265,7 +2361,8 @@ test('personal space workspace delegates storyboard management panel', () => {
   assert.match(panelSource, /导出所有分组配音资产/)
   assert.match(panelSource, /导出所有分组关联角色资产/)
   assert.match(panelSource, /storyboardExportingKey/)
-  assert.match(panelSource, /creatingStoryboard/)
+  assert.match(storyboardPanelSource, /useCreateNamePopover/)
+  assert.doesNotMatch(storyboardPanelSource, /creatingStoryboard/)
   assert.match(storyboardPanelSource, /useRecentStarredFilter/)
   assert.match(storyboardPanelSource, /selectedStoryboardFilter/)
   assert.match(storyboardPanelSource, /visibleStoryboardGroups/)
@@ -2483,6 +2580,24 @@ test('personal space workspace delegates page state and resource workflow', () =
   assert.match(modelSource, /from '\.\/personalSpaceDerivedState'/)
   assert.match(derivedSource, /export function createPersonalSpaceDerivedState/)
   assert.match(derivedSource, /resourceSections/)
+})
+
+test('personal space workspace delegates creation name drafts to a focused hook', () => {
+  const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const creationHookPath = 'src/components/PersonalSpaceWorkspace/usePersonalSpaceCreationDrafts.ts'
+
+  assert.ok(existsSync(creationHookPath), 'creation draft hook should exist')
+  const creationHookSource = readFileSync(creationHookPath, 'utf8')
+
+  assert.match(hookSource, /from '\.\/usePersonalSpaceCreationDrafts'/)
+  assert.match(hookSource, /usePersonalSpaceCreationDrafts\(/)
+  assert.doesNotMatch(hookSource, /const \[newCharacterName, setNewCharacterName\] = useState\(''\)/)
+  assert.doesNotMatch(hookSource, /const \[newStoryboardName, setNewStoryboardName\] = useState\(''\)/)
+  assert.match(creationHookSource, /export function usePersonalSpaceCreationDrafts/)
+  assert.match(creationHookSource, /createCharacterInSpace\(newCharacterName\)/)
+  assert.match(creationHookSource, /setNewCharacterName\(''\)/)
+  assert.match(creationHookSource, /createStoryboardInSpace\(newStoryboardName\)/)
+  assert.match(creationHookSource, /setNewStoryboardName\(''\)/)
 })
 
 test('personal space model delegates asset factories and storage paths', () => {

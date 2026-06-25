@@ -184,6 +184,22 @@ export function resolveExportBaseSize(crop: RectSize | null, upscaleEnabled: boo
   return crop ?? { width: 1, height: 1 }
 }
 
+export function resolveImageExportTarget(
+  activeImageSource: ImageSourceLike | null,
+  crop: CropBox | null,
+  upscaleEnabled: boolean,
+  upscalePreview: ImageSourceLike | null
+): { sourceUrl: string; crop: CropBox } | null {
+  if (!activeImageSource || !crop) return null
+  if (upscaleEnabled && upscalePreview) {
+    return {
+      sourceUrl: upscalePreview.url,
+      crop: { x: 0, y: 0, width: upscalePreview.width, height: upscalePreview.height },
+    }
+  }
+  return { sourceUrl: activeImageSource.url, crop }
+}
+
 export function resolveMatteImageSource(
   draft: ImageSourceLike | null,
   processed: ImageSourceLike | null,

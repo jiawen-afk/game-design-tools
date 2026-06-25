@@ -8,6 +8,7 @@ import {
   getAspectRatioValue,
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
+  resolveImageExportTarget,
   resolveExportBaseSize,
   resolveMatteImageSource,
   getAnchoredWheelZoomTransform,
@@ -149,6 +150,23 @@ test('image processing workspace resolves upscale preview as the export base siz
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, true, { width: 800, height: 400 }), { width: 800, height: 400 })
   assert.deepEqual(resolveExportBaseSize({ width: 400, height: 200 }, false, { width: 800, height: 400 }), { width: 400, height: 200 })
   assert.deepEqual(resolveExportBaseSize(null, true, null), { width: MIN_IMAGE_EXPORT_SIZE, height: MIN_IMAGE_EXPORT_SIZE })
+})
+
+test('image processing workspace resolves export target source and crop', () => {
+  const source = { url: 'blob://processed', width: 400, height: 200 }
+  const crop = { x: 20, y: 10, width: 120, height: 80 }
+  const upscalePreview = { url: 'blob://upscaled', width: 480, height: 320 }
+
+  assert.equal(resolveImageExportTarget(null, crop, false, null), null)
+  assert.equal(resolveImageExportTarget(source, null, false, null), null)
+  assert.deepEqual(resolveImageExportTarget(source, crop, false, upscalePreview), {
+    sourceUrl: 'blob://processed',
+    crop,
+  })
+  assert.deepEqual(resolveImageExportTarget(source, crop, true, upscalePreview), {
+    sourceUrl: 'blob://upscaled',
+    crop: { x: 0, y: 0, width: 480, height: 320 },
+  })
 })
 
 test('image processing workspace resolves the active image source from matte state', () => {

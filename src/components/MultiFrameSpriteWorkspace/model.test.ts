@@ -54,6 +54,7 @@ import {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
   getNextMatteGroupName,
+  dequeueNextInactiveFrameId,
   queueUniqueFrameId,
   removeMatteFrameGroup,
   resolvePipelineConcurrency,
@@ -943,7 +944,7 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   const frameHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useFrameWorkspaceState.ts', 'utf8')
   const workspaceEntry = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
   const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
-  const matteHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const matteGroupActions = readFileSync('src/components/MultiFrameSpriteWorkspace/matteGroupActions.ts', 'utf8')
 
   assert.match(videoHook, /getInitialMatteFrameIds/)
   assert.match(uploadHook, /getInitialMatteFrameIds/)
@@ -957,9 +958,9 @@ test('adding frames to flow 2 only schedules the initial matte frame', () => {
   assert.match(mattePanel, /收藏到项目空间/)
   assert.match(mattePanel, /personalSpaceCollectEnabled/)
   assert.match(mattePanel, /personalSpaceCollectDisabledReason/)
-  assert.match(matteHook, /readCurrentProjectSpaceState/)
-  assert.match(matteHook, /persistCurrentProjectSpaceState/)
-  assert.doesNotMatch(matteHook, /writeCurrentProjectSpaceState/)
+  assert.match(matteGroupActions, /readCurrentProjectSpaceState/)
+  assert.match(matteGroupActions, /persistCurrentProjectSpaceState/)
+  assert.doesNotMatch(matteGroupActions, /writeCurrentProjectSpaceState/)
   assert.doesNotMatch(mattePanel, /确定应用到该组所有帧/)
   assert.match(mattePanel, /<span>\{group\.name\} · 第 1 帧<\/span>/)
   assert.match(mattePanel, /<Text type="secondary">共 \{group\.frameCount\} 帧<\/Text>/)
@@ -1159,6 +1160,17 @@ test('first frame matte params can be applied to every frame', () => {
 test('pipeline queues keep the latest request for a frame id', () => {
   assert.deepEqual(queueUniqueFrameId(['a', 'b', 'a'], 'b'), ['a', 'a', 'b'])
   assert.deepEqual(queueUniqueFrameId(['a', 'b'], 'c'), ['a', 'b', 'c'])
+})
+
+test('pipeline queues dequeue the first inactive frame id without reordering pending work', () => {
+  assert.deepEqual(
+    dequeueNextInactiveFrameId(['a', 'b', 'c'], new Set(['a'])),
+    { id: 'b', queue: ['a', 'c'] }
+  )
+  assert.deepEqual(
+    dequeueNextInactiveFrameId(['a', 'b'], new Set(['a', 'b'])),
+    { id: null, queue: ['a', 'b'] }
+  )
 })
 
 test('pipeline concurrency scales with available threads', () => {

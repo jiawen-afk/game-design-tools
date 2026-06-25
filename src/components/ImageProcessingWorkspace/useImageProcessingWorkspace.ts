@@ -5,13 +5,10 @@ import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   applyWheelZoom,
-  clampPreviewRect,
   createFullImageCrop,
   deriveExportFileName,
   isSupportedImageFile,
   fitContainedImageRect,
-  getDraggedPreviewRect,
-  getCropBoxFromPreviewRect,
   getPreviewRectFromCropBox,
   getAnchoredWheelZoomTransform,
   getAspectRatioValue,
@@ -19,12 +16,12 @@ import {
   getExportScaleAfterDimensionChange,
   getExportSizeAfterScaleChange,
   resolveExportBaseSize,
+  resolveImageExportTarget,
   resolveMatteImageSource,
   mapPreviewPointToImagePixel,
   shouldInvalidateUpscalePreview,
   MIN_IMAGE_CROP_SIZE,
   normalizeExportScale,
-  type ImageCropHandle,
   type PreviewRect,
   type CropBox,
   type ExportDimension,
@@ -37,6 +34,10 @@ import {
   createImageDraft,
   exportProcessedImage,
   renderCroppedImageUrl,
+  revokeImageObjectUrl,
+  revokeLoadedImageDraftUrl,
+  revokeProcessedImageDraftUrl,
+  saveImageExportBlob,
   sampleSourceImagePixel,
   type LoadedImageDraft,
   type ProcessedImageDraft,
@@ -47,6 +48,7 @@ import {
   type UpscaleModel,
   type UpscaleOptions,
 } from './imageUpscaleModel'
+import { useImageCropDrag, type ImageCropDragState } from './useImageCropDrag'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 import type { DesktopUpscaleInstallProgress, DesktopUpscaleRuntimeStatus } from '../../desktopApi'
 
@@ -76,11 +78,7 @@ export function useImageProcessingWorkspace() {
   const [cropMode, setCropMode] = useState(false)
   const [cropPreviewSize, setCropPreviewSize] = useState({ width: 0, height: 0 })
   const [cropDraftRect, setCropDraftRect] = useState<PreviewRect | null>(null)
-  const [cropDrag, setCropDrag] = useState<{
-    handle: ImageCropHandle
-    startPointer: Point
-    startPreviewRect: PreviewRect
-  } | null>(null)
+  const [cropDrag, setCropDrag] = useState<ImageCropDragState | null>(null)
   const [exportFormat, setExportFormat] = useState<ImageExportFormat>('png')
   const [exportScale, setExportScaleState] = useState(1)
   const [upscaleEnabled, setUpscaleEnabled] = useState(false)
@@ -117,25 +115,25 @@ export function useImageProcessingWorkspace() {
 
   useEffect(() => {
     return () => {
-      if (draft) URL.revokeObjectURL(draft.sourceUrl)
+      revokeLoadedImageDraftUrl(draft)
     }
   }, [draft])
 
   useEffect(() => {
     return () => {
-      if (processed) URL.revokeObjectURL(processed.url)
+      revokeProcessedImageDraftUrl(processed)
     }
   }, [processed])
 
   useEffect(() => {
     return () => {
-      if (cropPreview) URL.revokeObjectURL(cropPreview.url)
+      revokeProcessedImageDraftUrl(cropPreview)
     }
   }, [cropPreview])
 
   useEffect(() => {
     return () => {
-      if (upscalePreview) URL.revokeObjectURL(upscalePreview.url)
+      revokeImageObjectUrl(upscalePreview?.url)
     }
   }, [upscalePreview])
 
@@ -168,11 +166,11 @@ export function useImageProcessingWorkspace() {
     void applyImageMatte(draft.sourceUrl, matte)
       .then((result) => {
         if (!alive) {
-          URL.revokeObjectURL(result.url)
+          revokeProcessedImageDraftUrl(result)
           return
         }
         setProcessed((previous) => {
-          if (previous) URL.revokeObjectURL(previous.url)
+          revokeProcessedImageDraftUrl(previous)
           return result
         })
         setCrop((current) => current ?? createFullImageCrop(result.width, result.height))
@@ -195,11 +193,11 @@ export function useImageProcessingWorkspace() {
     void renderCroppedImageUrl(activeImageSource.url, crop)
       .then((result) => {
         if (!alive) {
-          URL.revokeObjectURL(result.url)
+          revokeProcessedImageDraftUrl(result)
           return
         }
         setCropPreview((previous) => {
-          if (previous) URL.revokeObjectURL(previous.url)
+          revokeProcessedImageDraftUrl(previous)
           return result
         })
       })
@@ -220,7 +218,7 @@ export function useImageProcessingWorkspace() {
     }
     if (previewInputs && !shouldInvalidateUpscalePreview(previewInputs, currentInputs)) return
     setUpscalePreview((previous) => {
-      if (previous) URL.revokeObjectURL(previous.url)
+      revokeImageObjectUrl(previous?.url)
       return null
     })
     setExportScaleState(exportScaleSnapshotRef.current ?? 1)
@@ -246,54 +244,16 @@ export function useImageProcessingWorkspace() {
     return Math.max(4, MIN_IMAGE_CROP_SIZE * scale)
   }, [activeImageSource, previewImageRect])
 
-  useEffect(() => {
-    if (!cropDrag || !previewImageRect || !activeImageSource) return
-    const toLocalRect = (rect: PreviewRect): PreviewRect => ({
-      x: rect.x - previewImageRect.x,
-      y: rect.y - previewImageRect.y,
-      width: rect.width,
-      height: rect.height,
-    })
-    const toImageRect = (rect: PreviewRect): PreviewRect => ({
-      x: rect.x + previewImageRect.x,
-      y: rect.y + previewImageRect.y,
-      width: rect.width,
-      height: rect.height,
-    })
-    const getNextDraftRect = (event: MouseEvent) => toImageRect(
-      clampPreviewRect(
-        getDraggedPreviewRect(
-          toLocalRect(cropDrag.startPreviewRect),
-          cropDrag.handle,
-          (event.clientX - cropDrag.startPointer.x) / previewZoom,
-          (event.clientY - cropDrag.startPointer.y) / previewZoom,
-          minPreviewCropSize
-        ),
-        { width: previewImageRect.width, height: previewImageRect.height },
-        minPreviewCropSize
-      )
-    )
-    const onMove = (event: MouseEvent) => {
-      event.preventDefault()
-      setCropDraftRect(getNextDraftRect(event))
-    }
-    const onUp = (event: MouseEvent) => {
-      const nextDraftRect = getNextDraftRect(event)
-      const nextCrop = getCropBoxFromPreviewRect(nextDraftRect, previewImageRect, {
-        width: activeImageSource.width,
-        height: activeImageSource.height,
-      })
-      setCrop(nextCrop)
-      setCropDraftRect(null)
-      setCropDrag(null)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-  }, [activeImageSource, cropDrag, minPreviewCropSize, previewImageRect, previewZoom])
+  useImageCropDrag({
+    cropDrag,
+    previewImageRect,
+    activeImageSource,
+    previewZoom,
+    minPreviewCropSize,
+    setCrop,
+    setCropDraftRect,
+    setCropDrag,
+  })
 
   const canExport = Boolean(activeImageSource && crop)
   const exportName = useMemo(
@@ -318,7 +278,7 @@ export function useImageProcessingWorkspace() {
     try {
       const nextDraft = await createImageDraft(file)
       setDraft((previous) => {
-        if (previous) URL.revokeObjectURL(previous.sourceUrl)
+        revokeLoadedImageDraftUrl(previous)
         return nextDraft
       })
       setProcessed(null)
@@ -329,7 +289,7 @@ export function useImageProcessingWorkspace() {
       exportScaleSnapshotRef.current = null
       upscalePreviewInputsRef.current = null
       setUpscalePreview((previous) => {
-        if (previous) URL.revokeObjectURL(previous.url)
+        revokeImageObjectUrl(previous?.url)
         return null
       })
       setCropDraftRect(null)
@@ -367,22 +327,22 @@ export function useImageProcessingWorkspace() {
 
   const resetWorkspace = useCallback(() => {
     setDraft((previous) => {
-      if (previous) URL.revokeObjectURL(previous.sourceUrl)
+      revokeLoadedImageDraftUrl(previous)
       return null
     })
     setProcessed((previous) => {
-      if (previous) URL.revokeObjectURL(previous.url)
+      revokeProcessedImageDraftUrl(previous)
       return null
     })
     setCropPreview((previous) => {
-      if (previous) URL.revokeObjectURL(previous.url)
+      revokeProcessedImageDraftUrl(previous)
       return null
     })
     setCrop(null)
     setMatteEnabled(true)
     setUpscaleEnabled(false)
     setUpscalePreview((previous) => {
-      if (previous) URL.revokeObjectURL(previous.url)
+      revokeImageObjectUrl(previous?.url)
       return null
     })
     exportScaleSnapshotRef.current = null
@@ -432,7 +392,7 @@ export function useImageProcessingWorkspace() {
     setUpscaleEnabled(enabled)
     if (!enabled) {
       setUpscalePreview((previous) => {
-        if (previous) URL.revokeObjectURL(previous.url)
+        revokeImageObjectUrl(previous?.url)
         return null
       })
       setExportScaleState(exportScaleSnapshotRef.current ?? 1)
@@ -467,7 +427,7 @@ export function useImageProcessingWorkspace() {
       const upscaledBlob = blobFromDesktopBinaryData(result.data, blob.type)
       const url = URL.createObjectURL(upscaledBlob)
       setUpscalePreview((previous) => {
-        if (previous) URL.revokeObjectURL(previous.url)
+        revokeImageObjectUrl(previous?.url)
         return {
           originalUrl: cropPreview.url,
           url,
@@ -527,26 +487,12 @@ export function useImageProcessingWorkspace() {
   }
 
   const exportImage = async () => {
-    if (!activeImageSource || !crop) return
+    const exportTarget = resolveImageExportTarget(activeImageSource, crop, upscaleEnabled, upscalePreview)
+    if (!exportTarget) return
     setExporting(true)
     try {
-      const exportSource = upscaleEnabled && upscalePreview ? upscalePreview.url : activeImageSource.url
-      const exportCrop = upscaleEnabled && upscalePreview
-        ? { x: 0, y: 0, width: upscalePreview.width, height: upscalePreview.height }
-        : crop
-      const exportBlob = await exportProcessedImage(exportSource, exportCrop, exportFormat, exportSize)
-      const api = getDesktopApi()
-      if (api) {
-        const saved = await api.saveFile(exportName, await exportBlob.arrayBuffer())
-        if (!saved) throw new Error('未选择保存位置')
-      } else {
-        const url = URL.createObjectURL(exportBlob)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = exportName
-        anchor.click()
-        URL.revokeObjectURL(url)
-      }
+      const exportBlob = await exportProcessedImage(exportTarget.sourceUrl, exportTarget.crop, exportFormat, exportSize)
+      await saveImageExportBlob(exportName, exportBlob, getDesktopApi())
       message.success('图片已导出')
     } catch (error) {
       message.error(`导出失败：${String(error)}`)

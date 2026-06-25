@@ -1,5 +1,5 @@
 import type { UploadProps } from 'antd'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button, Empty } from 'antd'
 import { ExportOutlined } from '@ant-design/icons'
 
@@ -7,6 +7,7 @@ import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './pe
 import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
+import { useCreateNamePopover } from './useCreateNamePopover'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { storyboardVoiceEntriesForPreview, type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
 import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
@@ -99,7 +100,11 @@ export function PersonalStoryboardPanel({
     storyboardGroups,
     onMoveStoryboardVoice,
   })
-  const [creatingStoryboard, setCreatingStoryboard] = useState(false)
+  const createStoryboard = useCreateNamePopover({
+    value: newStoryboardName,
+    onValueChange: onNewStoryboardNameChange,
+    onConfirm: onCreateStoryboard,
+  })
   const storyboardRename = useRenameDrafts(onRenameStoryboard)
   const isExportingStoryboard = Boolean(storyboardExportingKey)
   const {
@@ -118,35 +123,21 @@ export function PersonalStoryboardPanel({
     getStarred: (group) => group.starred,
   })
 
-  const confirmCreateStoryboard = () => {
-    if (!newStoryboardName.trim()) return
-    onCreateStoryboard()
-    setCreatingStoryboard(false)
-  }
-
-  const cancelCreateStoryboard = () => {
-    onNewStoryboardNameChange('')
-    setCreatingStoryboard(false)
-  }
-
   return (
       <section className="space-panel">
       <div className="storyboard-panel-toolbar">
         <div className="storyboard-toolbar-left">
           <CreateNamePopoverButton
-            open={creatingStoryboard}
-            onOpenChange={(open) => {
-              if (open) setCreatingStoryboard(true)
-              else cancelCreateStoryboard()
-            }}
+            open={createStoryboard.open}
+            onOpenChange={createStoryboard.onOpenChange}
             className="storyboard-create-popover"
             value={newStoryboardName}
             ariaLabel="新剧情分组名称"
             placeholder="新剧情分组名称"
             buttonText="创建剧情组"
             onValueChange={onNewStoryboardNameChange}
-            onConfirm={confirmCreateStoryboard}
-            onCancel={cancelCreateStoryboard}
+            onConfirm={createStoryboard.confirmCreateName}
+            onCancel={createStoryboard.cancelCreateName}
           />
           <PersonalSpaceFilterControl
             className="storyboard-filter-control"

@@ -49,6 +49,17 @@ export function queueUniqueFrameId(queue: string[], id: string): string[] {
   return [...queue.filter((queuedId) => queuedId !== id), id]
 }
 
+export function dequeueNextInactiveFrameId(
+  queue: string[],
+  activeIds: ReadonlySet<string>
+): { id: string | null; queue: string[] } {
+  const queueIndex = queue.findIndex((queuedId) => !activeIds.has(queuedId))
+  if (queueIndex < 0) return { id: null, queue }
+  const nextQueue = [...queue]
+  const [id] = nextQueue.splice(queueIndex, 1)
+  return { id: id ?? null, queue: nextQueue }
+}
+
 export function resolvePipelineConcurrency(availableThreads: number | undefined, fallback = 4): number {
   if (!Number.isFinite(availableThreads) || !availableThreads || availableThreads <= 0) return fallback
   return clampInt(Math.floor(availableThreads / 2), 2, 6)

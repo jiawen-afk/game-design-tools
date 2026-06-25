@@ -1,5 +1,4 @@
 import type { UploadProps } from 'antd'
-import { useState } from 'react'
 import { Empty } from 'antd'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
@@ -7,6 +6,7 @@ import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { CharacterProfileCard } from './CharacterProfileCard'
 import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
+import { useCreateNamePopover } from './useCreateNamePopover'
 import { useRecentStarredFilter } from './useRecentStarredFilter'
 import { useRenameDrafts } from './useRenameDrafts'
 
@@ -69,7 +69,11 @@ export function PersonalCharacterPanel({
   projectId,
   projectMode,
 }: PersonalCharacterPanelProps) {
-  const [creatingCharacter, setCreatingCharacter] = useState(false)
+  const createCharacter = useCreateNamePopover({
+    value: newCharacterName,
+    onValueChange: onNewCharacterNameChange,
+    onConfirm: onCreateCharacter,
+  })
   const characterRename = useRenameDrafts(onRenameCharacter)
   const orderedCharacters = [...characters].sort((a, b) => a.order - b.order)
   const {
@@ -88,35 +92,21 @@ export function PersonalCharacterPanel({
     getStarred: (character) => character.starred,
   })
 
-  const confirmCreateCharacter = () => {
-    if (!newCharacterName.trim()) return
-    onCreateCharacter()
-    setCreatingCharacter(false)
-  }
-
-  const cancelCreateCharacter = () => {
-    onNewCharacterNameChange('')
-    setCreatingCharacter(false)
-  }
-
   return (
     <section className="space-panel">
       <div className="character-panel-toolbar">
         <div className="character-toolbar-left">
           <CreateNamePopoverButton
-            open={creatingCharacter}
-            onOpenChange={(open) => {
-              if (open) setCreatingCharacter(true)
-              else cancelCreateCharacter()
-            }}
+            open={createCharacter.open}
+            onOpenChange={createCharacter.onOpenChange}
             className="character-create-popover"
             value={newCharacterName}
             ariaLabel="新角色名称"
             placeholder="新角色名称"
             buttonText="创建角色"
             onValueChange={onNewCharacterNameChange}
-            onConfirm={confirmCreateCharacter}
-            onCancel={cancelCreateCharacter}
+            onConfirm={createCharacter.confirmCreateName}
+            onCancel={createCharacter.cancelCreateName}
           />
           <PersonalSpaceFilterControl
             className="character-filter-control"

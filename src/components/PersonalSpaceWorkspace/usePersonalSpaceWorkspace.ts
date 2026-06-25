@@ -23,6 +23,7 @@ import {
   type PersonalSpaceActiveModule,
   type ProjectSpacePage,
 } from './personalSpaceProjectSessionActions'
+import { usePersonalSpaceCreationDrafts } from './usePersonalSpaceCreationDrafts'
 
 interface PersonalSpaceMessageApi {
   success: (content: string) => void
@@ -36,8 +37,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [activeProjectId, setActiveProjectId] = useState('')
   const [workspacePage, setWorkspacePage] = useState<ProjectSpacePage>('workbench')
   const [selectedManagementProjectId, setSelectedManagementProjectId] = useState('')
-  const [newCharacterName, setNewCharacterName] = useState('')
-  const [newStoryboardName, setNewStoryboardName] = useState('')
   const [activeModule, setActiveModule] = useState<PersonalSpaceActiveModule>('characters')
   const [storyboardExportingKey, setStoryboardExportingKey] = useState('')
   const [migratingProjectId, setMigratingProjectId] = useState('')
@@ -218,15 +217,17 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
   })
 
-  const createCharacter = () => {
-    createCharacterInSpace(newCharacterName)
-    setNewCharacterName('')
-  }
-
-  const createStoryboard = () => {
-    createStoryboardInSpace(newStoryboardName)
-    setNewStoryboardName('')
-  }
+  const {
+    newCharacterName,
+    newStoryboardName,
+    setNewCharacterName,
+    setNewStoryboardName,
+    createCharacter,
+    createStoryboard,
+  } = usePersonalSpaceCreationDrafts({
+    createCharacterInSpace,
+    createStoryboardInSpace,
+  })
 
   const {
     deleteAsset,

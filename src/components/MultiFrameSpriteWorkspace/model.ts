@@ -41,6 +41,7 @@ export {
   buildMatteFrameGroups,
   computeChromaKeyAlpha,
   coerceMatteDefaults,
+  dequeueNextInactiveFrameId,
   getSpillColorHex,
   getInitialMatteFrameIds,
   getNextMatteGroupName,

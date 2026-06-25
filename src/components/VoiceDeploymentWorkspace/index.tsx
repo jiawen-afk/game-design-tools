@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Input, message, Modal, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
@@ -16,30 +16,15 @@ import {
   updateRecordName,
   voiceModeMeta,
 } from './voiceDeploymentModel'
-import {
-  addCharacterProfile,
-} from '../PersonalSpaceWorkspace/personalSpaceModel'
-import {
-  readCurrentProjectSpaceState,
-} from '../PersonalSpaceWorkspace/projectSpaceState'
-import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
-import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import { useAppToast } from '../AppToastProvider'
-import {
-  personalSpaceDirectoryRequiredMessage,
-  usePersonalSpaceDirectoryAuthorization,
-} from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 import { readStoredRecords, writeStoredRecords } from './voiceRecordStorage'
-import {
-  collectVoiceRecordToPersonalSpace,
-  type VoiceCollectLinkTarget,
-} from './voicePersonalSpaceCollector'
 import { VoiceGenerationPanel } from './VoiceGenerationPanel'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 import { VoiceSetupPanels } from './VoiceSetupPanels'
 import { useVoiceCollectLinkDialog } from './useVoiceCollectLinkDialog'
 import { useVoiceDeploymentSetup } from './useVoiceDeploymentSetup'
 import { useVoiceGenerationWorkflow } from './useVoiceGenerationWorkflow'
+import { useVoiceProjectSpaceActions } from './useVoiceProjectSpaceActions'
 
 export default function VoiceDeploymentWorkspace() {
   const [messageApi, messageContextHolder] = message.useMessage()
@@ -78,22 +63,24 @@ export default function VoiceDeploymentWorkspace() {
     setModelPath,
   } = useVoiceDeploymentSetup()
   const [records, setRecords] = useState<VoiceGenerationRecord[]>(readStoredRecords)
-  const [personalSpaceSnapshot, setPersonalSpaceSnapshot] = useState(() => readCurrentProjectSpaceState())
   const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null)
-  const [selectedVoiceCharacterId, setSelectedVoiceCharacterId] = useState<string | null>(null)
   const {
+    personalSpaceSnapshot,
+    personalSpaceVoiceAssets,
+    selectedVoiceCharacterId,
+    selectedVoiceCharacterName,
+    setSelectedVoiceCharacterId,
+    characterLinkOptions,
+    effectLinkOptions,
+    storyboardLinkOptions,
     personalSpaceCollectEnabled,
     personalSpaceCollectDisabledReason,
-  } = usePersonalSpaceDirectoryAuthorization()
+    createVoiceCharacter,
+    collectRecordToPersonalSpace,
+    refreshPersonalSpaceSnapshot,
+  } = useVoiceProjectSpaceActions(messageApi)
 
   useEffect(() => { writeStoredRecords(records) }, [records])
-  const personalSpaceVoiceAssets = personalSpaceSnapshot.assets.filter((asset) => asset.kind === 'voice')
-  const selectedVoiceCharacterName = personalSpaceSnapshot.characters.find((character) => character.id === selectedVoiceCharacterId)?.name ?? ''
-  const characterLinkOptions = personalSpaceSnapshot.characters.map((character) => ({ label: character.name, value: character.id }))
-  const effectLinkOptions = personalSpaceSnapshot.assets
-    .filter((asset) => asset.assetSubtype === 'effect')
-    .map((asset) => ({ label: asset.name, value: asset.id }))
-  const storyboardLinkOptions = personalSpaceSnapshot.storyboardGroups.map((group) => ({ label: group.name, value: group.id }))
 
   const renameRecord = (id: string, name: string) => {
     setRecords((current) => updateRecordName(current, id, name))
@@ -107,42 +94,6 @@ export default function VoiceDeploymentWorkspace() {
     setRecords((current) => clearVoiceRecords(current))
     setLastGeneratedId(null)
   }
-
-  const createVoiceCharacter = useCallback(async (name: string) => {
-    const nextSpace = addCharacterProfile(personalSpaceSnapshot, name)
-    const createdCharacter = nextSpace.characters[nextSpace.characters.length - 1]
-    const persistence = await persistCurrentProjectSpaceState(nextSpace)
-    if (persistence.syncError) {
-      showCurrentProjectSpaceSyncWarning(messageApi, persistence.syncError)
-    }
-    setPersonalSpaceSnapshot(nextSpace)
-    setSelectedVoiceCharacterId(createdCharacter?.id ?? null)
-    void messageApi.success(`已创建角色：${createdCharacter?.name ?? name.trim()}`)
-  }, [messageApi, personalSpaceSnapshot])
-
-  const collectRecordToPersonalSpace = useCallback(async (
-    record: VoiceGenerationRecord,
-    link?: { target: VoiceCollectLinkTarget; targetId: string },
-  ) => {
-    try {
-      const nextSpace = await collectVoiceRecordToPersonalSpace(record, link, {
-        onSyncError: (error) => {
-          showCurrentProjectSpaceSyncWarning(messageApi, error)
-        },
-      })
-      setPersonalSpaceSnapshot(nextSpace)
-      const linkLabel = link?.target === 'character' ? '并关联角色'
-        : link?.target === 'effect' ? '并关联特效'
-        : link?.target === 'storyboard' ? '并关联剧情'
-        : ''
-      void messageApi.success(`已收藏到项目空间${linkLabel}`)
-    } catch (error) {
-      const reason = error instanceof Error && error.message === personalSpaceDirectoryRequiredMessage
-        ? error.message
-        : '收藏到项目空间失败，请检查浏览器存储权限。'
-      void messageApi.error(reason)
-    }
-  }, [messageApi])
 
   const {
     voiceParams,
@@ -182,7 +133,7 @@ export default function VoiceDeploymentWorkspace() {
     characterLinkOptions,
     effectLinkOptions,
     storyboardLinkOptions,
-    onOpen: () => setPersonalSpaceSnapshot(readCurrentProjectSpaceState()),
+    onOpen: refreshPersonalSpaceSnapshot,
     onConfirm: (record, link) => void collectRecordToPersonalSpace(record, link),
   })
 
