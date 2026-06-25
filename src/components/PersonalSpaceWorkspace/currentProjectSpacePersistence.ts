@@ -51,9 +51,7 @@ import {
 } from './personalSpaceFileStorage'
 import {
   createEmptyProjectSpaceState,
-  hasProjectSpaceState,
   readCachedProjectSpaceState,
-  readProjectSpaceState,
   writeCurrentProjectSpaceState,
   writeProjectSpaceState,
 } from './projectSpaceState'
@@ -82,7 +80,7 @@ export interface ProjectSpaceStateLoadOptions {
   project?: Project
   fallbackState?: PersonalSpaceState
   storage?: Storage
-  localRepository: Pick<ProjectRepository, 'importProjectRows'>
+  localRepository: Pick<ProjectRepository, 'importProjectRows' | 'exportProjectRows'>
   remoteRepository: Pick<ProjectRepository, 'exportProjectRows'>
   ensureRemoteSettings?: (projectId: string) => Promise<void> | void
   onRemoteProjectLoaded?: (
@@ -168,9 +166,30 @@ export async function loadProjectSpaceStateFromStorage(
     }
   }
 
-  return hasProjectSpaceState(options.projectId, storage)
-    ? readProjectSpaceState(options.projectId, { storage })
-    : fallbackSpace
+  if (project?.mode === 'local') {
+    try {
+      const localRows = await options.localRepository.exportProjectRows(options.projectId)
+      const nextSpace = localRows
+        ? restoreProjectRowsToPersonalSpaceState(localRows)
+        : readCachedProjectSpaceState(options.projectId, storage) ?? fallbackSpace
+      if (nextSpace) writeProjectSpaceState(options.projectId, nextSpace, storage)
+      return nextSpace
+    } catch (error) {
+      const cachedSpace = readCachedProjectSpaceState(options.projectId, storage)
+      if (cachedSpace) {
+        options.onWarning?.(
+          `本地项目数据读取失败，已使用本地项目缓存：${formatLocalCacheSyncError(error)}`,
+        )
+        return cachedSpace
+      }
+      options.onWarning?.(
+        `本地项目数据读取失败，已使用空项目空间：${formatLocalCacheSyncError(error)}`,
+      )
+      return fallbackSpace
+    }
+  }
+
+  return readCachedProjectSpaceState(options.projectId, storage) ?? fallbackSpace
 }
 
 async function defaultDirectoryHandle() {

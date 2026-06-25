@@ -259,6 +259,7 @@ test('project space loader returns cached remote state and named warning when re
     },
     localRepository: {
       importProjectRows: async () => {},
+      exportProjectRows: async () => null,
     },
     onRemoteProjectLoaded: () => {},
     onWarning: (message) => warnings.push(message),

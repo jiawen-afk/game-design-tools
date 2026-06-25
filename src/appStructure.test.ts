@@ -1111,6 +1111,19 @@ test('remote project activation restores workspace state from remote project row
   assert.match(sessionActionsSource, /void activateProjectStateFromStorage\(projectId\)/)
 })
 
+test('local project activation restores workspace state from local project rows', () => {
+  const sessionActionsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceProjectSessionActions.ts', 'utf8')
+  const persistenceSource = readFileSync('src/components/PersonalSpaceWorkspace/currentProjectSpacePersistence.ts', 'utf8')
+  const persistenceTestSource = readFileSync('src/components/PersonalSpaceWorkspace/currentProjectSpacePersistence.test.ts', 'utf8')
+
+  assert.match(sessionActionsSource, /loadProjectSpaceStateFromStorage/)
+  assert.doesNotMatch(sessionActionsSource, /restoreProjectRowsToPersonalSpaceState/)
+  assert.match(persistenceSource, /project\?\.mode === 'local'/)
+  assert.match(persistenceSource, /await options\.localRepository\.exportProjectRows\(options\.projectId\)/)
+  assert.match(persistenceSource, /restoreProjectRowsToPersonalSpaceState\(localRows\)/)
+  assert.match(persistenceTestSource, /local project load restores workspace state from local project repository rows/)
+})
+
 test('remote project workspace changes sync through project storage service', () => {
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const remoteSyncSource = readFileSync('src/components/PersonalSpaceWorkspace/useProjectRemoteSync.ts', 'utf8')
