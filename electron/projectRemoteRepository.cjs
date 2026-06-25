@@ -248,22 +248,33 @@ function isPostgresConnectionTerminationError(error) {
     'Connection terminated unexpectedly',
     'Connection terminated',
     'Connection ended unexpectedly',
+    'connection error and is not queryable',
     'server closed the connection unexpectedly',
     'ECONNRESET',
     'EPIPE',
   ].some((fragment) => message.includes(fragment) || code === fragment)
 }
 
+function createPostgresConnectionTerminatedError(error) {
+  const wrapped = new Error('远程数据库连接已中断，请检查网络或数据库服务后重试。')
+  wrapped.cause = error
+  return wrapped
+}
+
 function sanitizeObjectKeyPart(value) {
   return (String(value || '').trim() || 'unnamed').replace(/[\\/]+/g, '_').replace(/\s+/g, '_')
 }
 
-async function createRunner(profile, options = {}) {
-  const payload = normalizeDatabasePayload(profile)
+async function createRunner(payload, options = {}) {
   if (payload.provider === 'postgresql') {
     const client = (options.createPostgresClient || defaultCreatePostgresClient)(postgresConfig(payload))
     attachPostgresConnectionErrorSink(client)
-    await client.connect()
+    try {
+      await client.connect()
+    } catch (error) {
+      await client.end().catch(() => {})
+      throw error
+    }
     return {
       dialect: 'postgresql',
       execute: async (statement, params = []) => client.query(statement, params),
@@ -288,19 +299,25 @@ async function createRunner(profile, options = {}) {
 }
 
 async function withRunner(profile, options, callback) {
-  const maxAttempts = 2
+  const payload = normalizeDatabasePayload(profile)
+  const maxAttempts = payload.provider === 'postgresql' ? 3 : 1
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const runner = await createRunner(profile, options)
+    let runner = null
     let shouldRetry = false
     try {
+      runner = await createRunner(payload, options)
       return await callback(runner)
     } catch (error) {
-      shouldRetry = runner.dialect === 'postgresql'
-        && attempt < maxAttempts
+      const isPostgresConnectionTermination = payload.provider === 'postgresql'
         && isPostgresConnectionTerminationError(error)
-      if (!shouldRetry) throw error
+      shouldRetry = isPostgresConnectionTermination
+        && attempt < maxAttempts
+      if (!shouldRetry) {
+        if (isPostgresConnectionTermination) throw createPostgresConnectionTerminatedError(error)
+        throw error
+      }
     } finally {
-      await runner.close()
+      if (runner) await runner.close()
     }
     if (!shouldRetry) break
   }

@@ -1,7 +1,8 @@
-import { Button, Input, Popconfirm, Space, Switch, Tag } from 'antd'
+import { Button, Popconfirm, Space, Switch, Tag } from 'antd'
 import { DeleteOutlined, EditOutlined, SwapOutlined } from '@ant-design/icons'
 
 import type { Project } from '../ProjectStorage'
+import { ProjectMetadataFields } from './ProjectMetadataFields'
 
 interface ProjectDetailsCardProps {
   project: Project
@@ -57,25 +58,15 @@ export function ProjectDetailsCard({
           />
         </Space>
       </div>
-      <div className="remote-form-grid">
-        <label className="form-field">
-          <span className="field-label">项目名称</span>
-          <Input
-            value={projectNameDraft}
-            onChange={(event) => onProjectNameDraftChange(event.target.value)}
-            onPressEnter={onEditProject}
-            placeholder="项目名称"
-          />
-        </label>
-        <label className="form-field">
-          <span className="field-label">项目说明</span>
-          <Input
-            value={projectDescriptionDraft}
-            onChange={(event) => onProjectDescriptionDraftChange(event.target.value)}
-            placeholder="项目说明"
-          />
-        </label>
-      </div>
+      <ProjectMetadataFields
+        name={projectNameDraft}
+        description={projectDescriptionDraft}
+        namePlaceholder="项目名称"
+        descriptionPlaceholder="项目说明"
+        onNameChange={onProjectNameDraftChange}
+        onDescriptionChange={onProjectDescriptionDraftChange}
+        onSubmit={onEditProject}
+      />
       <Space wrap>
         <Button icon={<EditOutlined />} disabled={migrating || !projectNameDraft.trim()} onClick={onEditProject}>
           编辑项目

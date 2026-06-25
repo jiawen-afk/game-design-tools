@@ -1,5 +1,7 @@
-import { Button, Input, Segmented, Space, Tag } from 'antd'
+import { Button, Segmented, Space, Tag } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
+
+import { ProjectMetadataFields } from './ProjectMetadataFields'
 
 type ProjectCreateMode = 'local' | 'remote'
 
@@ -42,25 +44,15 @@ export function ProjectCreateCard({
           onChange={(value) => onCreateModeChange(value as ProjectCreateMode)}
         />
       </div>
-      <div className="remote-form-grid">
-        <label className="form-field">
-          <span className="field-label">项目名称</span>
-          <Input
-            value={projectName}
-            onChange={(event) => onProjectNameChange(event.target.value)}
-            onPressEnter={onCreateProject}
-            placeholder="例如：地下城怪物包"
-          />
-        </label>
-        <label className="form-field">
-          <span className="field-label">项目说明</span>
-          <Input
-            value={projectDescription}
-            onChange={(event) => onProjectDescriptionChange(event.target.value)}
-            placeholder="用途、版本或团队说明"
-          />
-        </label>
-      </div>
+      <ProjectMetadataFields
+        name={projectName}
+        description={projectDescription}
+        namePlaceholder="例如：地下城怪物包"
+        descriptionPlaceholder="用途、版本或团队说明"
+        onNameChange={onProjectNameChange}
+        onDescriptionChange={onProjectDescriptionChange}
+        onSubmit={onCreateProject}
+      />
       <Space wrap>
         <Button
           type="primary"

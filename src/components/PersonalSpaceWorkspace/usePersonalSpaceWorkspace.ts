@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import {
-  createDesktopLocalProjectObjectStorage,
-  createDesktopProjectAssetCacheStorage,
-  createDesktopLocalProjectRepository,
-  createDesktopRemoteProjectRepository,
-  createDesktopKodoProjectObjectStorage,
-  createProjectAssetManager,
-  createProjectWorkspaceBootstrapper,
   type Project,
-  type ProjectSettings,
 } from '../ProjectStorage'
 import {
   assetOptions,
@@ -19,9 +11,9 @@ import {
 } from './personalSpaceModel'
 import { writeProjectSpaceState } from './projectSpaceState'
 import { usePersonalSpaceSettingsWorkspace } from './usePersonalSpaceSettingsWorkspace'
-import { createProjectStorageWorkflow, type RemoteProjectSettingsSnapshot } from './projectStorageWorkflow'
-import { createProjectRemoteDeviceBindingResolver } from './projectRemoteDeviceBinding'
+import { useProjectStorageInfrastructure } from './useProjectStorageInfrastructure'
 import { useProjectRemoteSync } from './useProjectRemoteSync'
+import { useSelectedProjectRemoteProfileBinding } from './useSelectedProjectRemoteProfileBinding'
 import { createProjectManagementActions } from './projectManagementActions'
 import { createPersonalSpaceAssetActions } from './personalSpaceAssetActions'
 import { createPersonalSpaceEditActions } from './personalSpaceEditActions'
@@ -37,11 +29,6 @@ interface PersonalSpaceMessageApi {
   error: (content: string) => void
 }
 
-const projectRepository = createDesktopLocalProjectRepository()
-const projectObjectStorage = createDesktopLocalProjectObjectStorage()
-const projectAssetCacheStorage = createDesktopProjectAssetCacheStorage()
-const projectBootstrapper = createProjectWorkspaceBootstrapper(projectRepository)
-
 export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const [space, setSpace] = useState(() => readPersonalSpaceState())
   const [projects, setProjects] = useState<Project[]>([])
@@ -56,8 +43,6 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const spaceRef = useRef(space)
   const activeProjectIdRef = useRef('')
   const migrationInFlightProjectIdRef = useRef('')
-  const remoteProjectSettingsByIdRef = useRef<Record<string, RemoteProjectSettingsSnapshot>>({})
-  const remoteProjectIdByObjectProjectNameRef = useRef<Record<string, string>>({})
   const spriteUploadBatchKeyByCharacter = useRef<Record<string, string>>({})
   const imageSpriteUploadBatchKey = useRef<string | null>(null)
   const settingsWorkspace = usePersonalSpaceSettingsWorkspace({
@@ -65,66 +50,18 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
     messageApi,
   })
-  const settingsWorkspaceRef = useRef(settingsWorkspace)
-  settingsWorkspaceRef.current = settingsWorkspace
-  const remoteDeviceBindingResolverRef = useRef<ReturnType<typeof createProjectRemoteDeviceBindingResolver> | null>(null)
-  if (!remoteDeviceBindingResolverRef.current) {
-    remoteDeviceBindingResolverRef.current = createProjectRemoteDeviceBindingResolver({
-      projectIdByObjectProjectName: remoteProjectIdByObjectProjectNameRef.current,
-      getDatabaseProfileIds: () => settingsWorkspaceRef.current.databaseProfiles.map((profile) => profile.id),
-      getStorageProfileIds: () => settingsWorkspaceRef.current.kodoProfiles.map((profile) => profile.id),
-      getSelectedDatabaseProfileId: () => settingsWorkspaceRef.current.selectedDatabaseProfileId,
-      getSelectedStorageProfileId: () => settingsWorkspaceRef.current.selectedKodoProfileId,
-    })
-  }
-  const remoteDeviceBindingResolver = remoteDeviceBindingResolverRef.current
-  const rememberRemoteProjectSettings = (
-    project: Project,
-    settings: ProjectSettings,
-    assetObjectKeys: string[] = [],
-  ) => {
-    remoteProjectSettingsByIdRef.current[project.id] = {
-      database_provider: settings.database_provider,
-    }
-    remoteDeviceBindingResolver.rememberRemoteProject({ ...project, assetObjectKeys })
-  }
-  const selectedRemoteSettingsSnapshot = (): RemoteProjectSettingsSnapshot => ({
-    database_provider: settingsWorkspace.databaseProfileDraft.provider,
-  })
-  const remoteSettingsForProject = (projectId: string): RemoteProjectSettingsSnapshot => (
-    remoteProjectSettingsByIdRef.current[projectId] ?? selectedRemoteSettingsSnapshot()
-  )
-  const ensureRemoteProjectSettings = async (projectId: string) => {
-    if (remoteProjectSettingsByIdRef.current[projectId]) return
-    const localSnapshot = await projectRepository.getProject(projectId)
-    if (localSnapshot?.project.mode === 'remote') {
-      rememberRemoteProjectSettings(localSnapshot.project, localSnapshot.settings)
-    }
-  }
-  const remoteProjectRepository = createDesktopRemoteProjectRepository(
-    remoteDeviceBindingResolver.getRemoteDatabaseProfileId,
-  )
-  const remoteProjectObjectStorage = createDesktopKodoProjectObjectStorage(
-    remoteDeviceBindingResolver.getRemoteStorageProfileId,
-  )
-  const projectAssetManager = createProjectAssetManager({
-    localObjectStorage: projectObjectStorage,
-    remoteObjectStorage: remoteProjectObjectStorage,
-    cacheStorage: projectAssetCacheStorage,
-  })
-  const projectStorageWorkflow = createProjectStorageWorkflow({
-    localRepository: projectRepository,
-    remoteRepository: remoteProjectRepository,
-    localObjectStorage: projectObjectStorage,
-    remoteObjectStorage: remoteProjectObjectStorage,
-    assetManager: projectAssetManager,
-    getRemoteSettings: remoteSettingsForProject,
-    ensureRemoteSettings: ensureRemoteProjectSettings,
-    getDirectoryHandle: () => settingsWorkspace.directoryHandle,
-    getLocalObjectRoot: (nextSpace) => (
-      settingsWorkspace.draftStorageDirectory || nextSpace.settings.storageDirectory || ''
-    ),
-  })
+  const {
+    ensureRemoteProjectSettings,
+    projectAssetManager,
+    projectBootstrapper,
+    projectObjectStorage,
+    projectRepository,
+    projectStorageWorkflow,
+    rememberRemoteProjectSettings,
+    remoteDeviceBindingResolver,
+    remoteProjectObjectStorage,
+    remoteProjectRepository,
+  } = useProjectStorageInfrastructure(settingsWorkspace)
 
   const findProject = (projectId: string, projectList = projects) => (
     projectList.find((item) => item.id === projectId)
@@ -202,22 +139,14 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     }
   }, [settingsWorkspace.directoryHandleChecked, settingsWorkspace.directoryHandle])
 
-  useEffect(() => {
-    const selectedProjectId = selectedManagementProjectId
-    const project = findProject(selectedProjectId)
-    if (!selectedProjectId || project?.mode !== 'remote') return
-    void ensureRemoteProjectSettings(selectedProjectId).then(() => {
-      const currentDeviceBinding = remoteDeviceBindingResolver.currentDeviceBindingForProject(selectedProjectId)
-      const databaseProfileId = currentDeviceBinding?.databaseProfileId
-      const storageProfileId = currentDeviceBinding?.storageProfileId
-      if (databaseProfileId) {
-        settingsWorkspace.setSelectedDatabaseProfileId(databaseProfileId)
-      }
-      if (storageProfileId) {
-        settingsWorkspace.setSelectedKodoProfileId(storageProfileId)
-      }
-    })
-  }, [selectedManagementProjectId, projects])
+  useSelectedProjectRemoteProfileBinding({
+    selectedManagementProjectId,
+    projects,
+    findProject,
+    ensureRemoteProjectSettings,
+    remoteDeviceBindingResolver,
+    settingsWorkspace,
+  })
 
   const {
     createLocalProject,

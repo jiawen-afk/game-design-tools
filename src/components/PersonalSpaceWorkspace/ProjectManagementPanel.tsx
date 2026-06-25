@@ -5,20 +5,15 @@ import {
   PlusOutlined,
 } from '@ant-design/icons'
 
-import { createProjectId, type Project } from '../ProjectStorage'
+import type { Project } from '../ProjectStorage'
 import type { ProjectConnectionProfileSummary, ProjectConnectionVerificationResult } from '../../desktopApi'
 import type { DatabaseProfileDraft, KodoProfileDraft } from './usePersonalSpaceSettingsWorkspace'
-import {
-  clearProjectManagementDirtySource,
-  createCleanProjectManagementDirtyState,
-  hasProjectManagementUnsavedChanges,
-  markProjectManagementDirty,
-  projectManagementDirtySignature,
-  type ProjectManagementDirtySource,
-} from './projectManagementDirtyModel'
-import { ProjectCreateCard } from './ProjectCreateCard'
 import { ProjectDetailsCard } from './ProjectDetailsCard'
-import { RemoteProjectSettings } from './ProjectRemoteSettingsPanel'
+import { ProjectManagementCreateTab } from './ProjectManagementCreateTab'
+import { ProjectManagementRemoteSettingsSection } from './ProjectManagementRemoteSettingsSection'
+import {
+  useProjectManagementDirtyNavigation,
+} from './useProjectManagementDirtyNavigation'
 
 interface ProjectManagementPanelProps {
   projects: Project[]
@@ -115,122 +110,64 @@ export function ProjectManagementPanel({
   onVerifyKodoProfile,
   onBack,
 }: ProjectManagementPanelProps) {
-  const [createMode, setCreateMode] = useState<'local' | 'remote'>('local')
-  const [remoteCreationProjectId, setRemoteCreationProjectId] = useState(() => createProjectId())
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectDescription, setNewProjectDescription] = useState('')
-  const [dirtyState, setDirtyState] = useState(() => createCleanProjectManagementDirtyState())
-  const [ignoredDirtySignature, setIgnoredDirtySignature] = useState('')
-  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
-  const [pendingProjectTabId, setPendingProjectTabId] = useState('')
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
   const [projectNameDraft, setProjectNameDraft] = useState(selectedProject?.name ?? '')
   const [projectDescriptionDraft, setProjectDescriptionDraft] = useState(selectedProject?.description ?? '')
-  const hasUnsavedChanges = hasProjectManagementUnsavedChanges(dirtyState)
-  const dirtySignature = projectManagementDirtySignature(dirtyState)
-  const shouldWarnUnsavedChanges = hasUnsavedChanges && dirtySignature !== ignoredDirtySignature
+  const {
+    cancelDiscardChanges,
+    clearDirtySource,
+    confirmDiscardChanges,
+    leaveConfirmOpen,
+    markDirty,
+    pendingProjectTabId,
+    requestBackToWorkbench,
+    requestProjectTabChange,
+  } = useProjectManagementDirtyNavigation({
+    selectedProject,
+    onBack,
+    onSelectedProjectChange,
+  })
 
   useEffect(() => {
     setProjectNameDraft(selectedProject?.name ?? '')
     setProjectDescriptionDraft(selectedProject?.description ?? '')
-    setDirtyState((current) => clearProjectManagementDirtySource(current, 'projectDetails'))
-    setDirtyState((current) => clearProjectManagementDirtySource(current, 'remoteProjectBinding'))
-    setIgnoredDirtySignature('')
   }, [selectedProject])
 
-  useEffect(() => {
-    if (!shouldWarnUnsavedChanges) return
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [shouldWarnUnsavedChanges])
-
-  const markDirty = (source: ProjectManagementDirtySource) => {
-    setIgnoredDirtySignature('')
-    setDirtyState((current) => markProjectManagementDirty(current, source))
-  }
-
-  const clearDirtySource = (source: ProjectManagementDirtySource) => {
-    setDirtyState((current) => clearProjectManagementDirtySource(current, source))
-  }
-
-  const resetAllDirtySources = () => {
-    setDirtyState(createCleanProjectManagementDirtyState())
-    setIgnoredDirtySignature('')
-  }
-
-  const requestBackToWorkbench = () => {
-    if (!shouldWarnUnsavedChanges) {
-      onBack()
-      return
-    }
-    setPendingProjectTabId('')
-    setLeaveConfirmOpen(true)
-  }
-
-  const discardChangesAndBack = () => {
-    setLeaveConfirmOpen(false)
-    setIgnoredDirtySignature(dirtySignature)
-    onBack()
-  }
-
-  const requestProjectTabChange = (projectId: string) => {
-    if (!shouldWarnUnsavedChanges) {
-      resetAllDirtySources()
-      onSelectedProjectChange(projectId)
-      return
-    }
-    setPendingProjectTabId(projectId)
-    setLeaveConfirmOpen(true)
-  }
-
-  const confirmDiscardAndSwitchTab = () => {
-    setLeaveConfirmOpen(false)
-    resetAllDirtySources()
-    onSelectedProjectChange(pendingProjectTabId)
-    setPendingProjectTabId('')
-  }
-
-  const confirmDiscardChanges = () => {
-    if (pendingProjectTabId) {
-      confirmDiscardAndSwitchTab()
-      return
-    }
-    discardChangesAndBack()
-  }
-
-  const databaseProfileOptions = databaseProfiles.map((profile) => ({
-    label: `${profile.displayName} (${profile.redactedSummary})`,
-    value: profile.id,
-  }))
-  const kodoProfileOptions = kodoProfiles.map((profile) => ({
-    label: `${profile.displayName} (${profile.redactedSummary})`,
-    value: profile.id,
-  }))
-  const selectedRemoteVerificationProjectId = createMode === 'remote'
-    ? remoteCreationProjectId
-    : selectedProject?.id || activeProject?.id || enabledProjectId
-  const remoteReadyForCreation = remoteReady && kodoVerificationProjectId === remoteCreationProjectId
   const remoteReadyForSelectedProject = Boolean(selectedProject && remoteReady && kodoVerificationProjectId === selectedProject.id)
-  const remoteReadinessText = remoteReady ? '远程 DB + 七牛 Kodo 已就绪' : '必须完成 DB 验证、初始化表结构和 Kodo 验证'
   const selectedProjectMigrating = Boolean(selectedProject && migratingProjectId === selectedProject.id)
-
-  const createProject = async () => {
-    const name = newProjectName.trim()
-    if (!name) return
-    if (createMode === 'remote') {
-      if (!remoteReadyForCreation) return
-      await onCreateRemoteProject(remoteCreationProjectId, name, newProjectDescription)
-      setRemoteCreationProjectId(createProjectId())
-    } else {
-      await onCreateLocalProject(name, newProjectDescription)
-    }
-    setNewProjectName('')
-    setNewProjectDescription('')
-    clearDirtySource('projectCreation')
+  const remoteSettingsProps = {
+    databaseProfiles,
+    kodoProfiles,
+    selectedDatabaseProfileId,
+    selectedKodoProfileId,
+    databaseProfileMode,
+    kodoProfileMode,
+    databaseDraftTestState,
+    kodoDraftTestState,
+    databaseDraftTested,
+    kodoDraftTested,
+    databaseProfileDraft,
+    kodoProfileDraft,
+    databaseVerification,
+    kodoVerification,
+    kodoVerificationProjectId,
+    databaseSchemaReady,
+    markDirty,
+    clearDirtySource,
+    onSelectedDatabaseProfileChange,
+    onSelectedKodoProfileChange,
+    onDatabaseProfileDraftChange,
+    onKodoProfileDraftChange,
+    onAddDatabaseProfile,
+    onAddKodoProfile,
+    onSaveDatabaseProfile,
+    onDeleteDatabaseProfile,
+    onSaveKodoProfile,
+    onDeleteKodoProfile,
+    onVerifyDatabaseProfile,
+    onInitializeDatabaseSchema,
+    onVerifyKodoProfile,
+    onUpdateRemoteProjectLinks,
   }
 
   const editProject = async () => {
@@ -239,119 +176,15 @@ export function ProjectManagementPanel({
     if (saved !== false) clearDirtySource('projectDetails')
   }
 
-  const saveDatabaseProfile = async () => {
-    const saved = await onSaveDatabaseProfile()
-    if (saved !== false) clearDirtySource('databaseProfileDraft')
-  }
-
-  const saveKodoProfile = async () => {
-    const saved = await onSaveKodoProfile()
-    if (saved !== false) clearDirtySource('kodoProfileDraft')
-  }
-
-  const updateRemoteProjectLinks = async (projectId: string) => {
-    const saved = await onUpdateRemoteProjectLinks(projectId)
-    if (saved !== false) clearDirtySource('remoteProjectBinding')
-  }
-
-  const renderRemoteProjectSettings = ({
-    selectedVerificationProjectId,
-    linkTargetProjectId,
-    linkReady,
-    bindingDirtySource,
-  }: {
-    selectedVerificationProjectId: string
-    linkTargetProjectId: string
-    linkReady: boolean
-    bindingDirtySource: ProjectManagementDirtySource
-  }) => (
-    <RemoteProjectSettings
-      databaseProfiles={databaseProfiles}
-      kodoProfiles={kodoProfiles}
-      selectedDatabaseProfileId={selectedDatabaseProfileId}
-      selectedKodoProfileId={selectedKodoProfileId}
-      databaseProfileMode={databaseProfileMode}
-      kodoProfileMode={kodoProfileMode}
-      databaseDraftTestState={databaseDraftTestState}
-      kodoDraftTestState={kodoDraftTestState}
-      databaseDraftTested={databaseDraftTested}
-      kodoDraftTested={kodoDraftTested}
-      databaseProfileDraft={databaseProfileDraft}
-      kodoProfileDraft={kodoProfileDraft}
-      databaseVerification={databaseVerification}
-      kodoVerification={kodoVerification}
-      kodoVerificationProjectId={kodoVerificationProjectId}
-      databaseSchemaReady={databaseSchemaReady}
-      databaseProfileOptions={databaseProfileOptions}
-      kodoProfileOptions={kodoProfileOptions}
-      selectedVerificationProjectId={selectedVerificationProjectId}
-      linkTargetProjectId={linkTargetProjectId}
-      linkReady={linkReady}
-      onSelectedDatabaseProfileChange={(profileId) => {
-        onSelectedDatabaseProfileChange(profileId)
-        markDirty(bindingDirtySource)
-      }}
-      onSelectedKodoProfileChange={(profileId) => {
-        onSelectedKodoProfileChange(profileId)
-        markDirty(bindingDirtySource)
-      }}
-      onDatabaseProfileDraftChange={(draft) => {
-        onDatabaseProfileDraftChange(draft)
-        markDirty('databaseProfileDraft')
-      }}
-      onKodoProfileDraftChange={(draft) => {
-        onKodoProfileDraftChange(draft)
-        markDirty('kodoProfileDraft')
-      }}
-      onAddDatabaseProfile={() => {
-        onAddDatabaseProfile()
-        markDirty('databaseProfileDraft')
-      }}
-      onAddKodoProfile={() => {
-        onAddKodoProfile()
-        markDirty('kodoProfileDraft')
-      }}
-      onSaveDatabaseProfile={saveDatabaseProfile}
-      onDeleteDatabaseProfile={onDeleteDatabaseProfile}
-      onSaveKodoProfile={saveKodoProfile}
-      onDeleteKodoProfile={onDeleteKodoProfile}
-      onVerifyDatabaseProfile={onVerifyDatabaseProfile}
-      onInitializeDatabaseSchema={onInitializeDatabaseSchema}
-      onVerifyKodoProfile={onVerifyKodoProfile}
-      onUpdateRemoteProjectLinks={updateRemoteProjectLinks}
-    />
-  )
-
   const createTab = (
-    <div className="project-create-grid">
-      <ProjectCreateCard
-        createMode={createMode}
-        projectName={newProjectName}
-        projectDescription={newProjectDescription}
-        remoteReadyForCreation={remoteReadyForCreation}
-        remoteReadinessText={remoteReadinessText}
-        onCreateModeChange={(mode) => {
-          setCreateMode(mode)
-          markDirty('projectCreation')
-        }}
-        onProjectNameChange={(name) => {
-          setNewProjectName(name)
-          markDirty('projectCreation')
-        }}
-        onProjectDescriptionChange={(description) => {
-          setNewProjectDescription(description)
-          markDirty('projectCreation')
-        }}
-        onCreateProject={() => void createProject()}
-      />
-
-      {createMode === 'remote' && renderRemoteProjectSettings({
-        selectedVerificationProjectId: selectedRemoteVerificationProjectId,
-        linkTargetProjectId: '',
-        linkReady: false,
-        bindingDirtySource: 'databaseProfileDraft',
-      })}
-    </div>
+    <ProjectManagementCreateTab
+      activeProject={activeProject}
+      enabledProjectId={enabledProjectId}
+      remoteReady={remoteReady}
+      remoteSettingsProps={remoteSettingsProps}
+      onCreateLocalProject={onCreateLocalProject}
+      onCreateRemoteProject={onCreateRemoteProject}
+    />
   )
 
   const projectTabContent = selectedProject ? (
@@ -378,12 +211,15 @@ export function ProjectManagementPanel({
         onDeleteProject={(projectId) => void onDeleteProject(projectId)}
       />
 
-      {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && renderRemoteProjectSettings({
-        selectedVerificationProjectId: selectedProject.id,
-        linkTargetProjectId: selectedProject.mode === 'remote' ? selectedProject.id : '',
-        linkReady: selectedProject.mode === 'remote' && remoteReadyForSelectedProject,
-        bindingDirtySource: 'remoteProjectBinding',
-      })}
+      {(selectedProject.mode === 'local' || selectedProject.mode === 'remote') && (
+        <ProjectManagementRemoteSettingsSection
+          {...remoteSettingsProps}
+          selectedVerificationProjectId={selectedProject.id}
+          linkTargetProjectId={selectedProject.mode === 'remote' ? selectedProject.id : ''}
+          linkReady={selectedProject.mode === 'remote' && remoteReadyForSelectedProject}
+          bindingDirtySource="remoteProjectBinding"
+        />
+      )}
     </div>
   ) : (
     <Alert type="info" showIcon title="请选择一个项目，或使用左侧 + 创建项目。" />
@@ -425,10 +261,7 @@ export function ProjectManagementPanel({
         cancelText="继续编辑"
         okButtonProps={{ danger: true }}
         onOk={confirmDiscardChanges}
-        onCancel={() => {
-          setLeaveConfirmOpen(false)
-          setPendingProjectTabId('')
-        }}
+        onCancel={cancelDiscardChanges}
       >
         <p>{pendingProjectTabId ? '切换项目标签会丢弃当前项目管理页尚未保存的更改。' : '返回工作台会丢弃当前项目管理页尚未保存的更改。'}</p>
       </Modal>
