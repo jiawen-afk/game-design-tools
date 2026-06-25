@@ -19,8 +19,8 @@ import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/curre
 import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import {
   getPersonalSpaceDirectoryHandle,
-  writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
+import { writeAssetResourcesWithGeneratedCoverToDirectory } from '../PersonalSpaceWorkspace/personalSpaceResourceActions'
 import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 import { getDesktopApi } from '../../desktopApi'
 
@@ -166,7 +166,8 @@ export function useSpriteExport({
         playbackMode,
       })
       const spritePath = URL.createObjectURL(spriteBlob)
-      const indexPath = URL.createObjectURL(new Blob([indexJson], { type: 'application/json' }))
+      const indexBlob = new Blob([indexJson], { type: 'application/json' })
+      const indexPath = URL.createObjectURL(indexBlob)
       const space = readCurrentProjectSpaceState()
       const baseAsset = createSpriteAssetFromExport({
         name: 'sprite.png',
@@ -174,9 +175,10 @@ export function useSpriteExport({
         indexPath,
         sourceKey: spriteExportSourceKey(),
       })
-      const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
-        { name: 'sprite.png', data: spriteBlob },
-        { name: 'index.json', data: new Blob([indexJson], { type: 'application/json' }) },
+      const spriteFile = new File([spriteBlob], 'sprite.png', { type: spriteBlob.type || 'image/png' })
+      const asset = await writeAssetResourcesWithGeneratedCoverToDirectory(space, directoryHandle, baseAsset, spriteFile, [
+        { name: 'sprite.png', data: spriteFile },
+        { name: 'index.json', data: indexBlob },
       ])
       let nextSpace = collectPersonalSpaceAsset(space, asset)
       if (characterId) {

@@ -62,7 +62,11 @@ export function deletePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
     voiceAssetIds: group.voiceAssetIds.filter((assetId) => assetId !== id),
   }))
   if (next.settings.deleteResourcesWithContent && deletedAsset && !options.resourcesDeleted) {
-    next.pendingDeletedResourcePaths = Array.from(new Set([...next.pendingDeletedResourcePaths, ...deletedAsset.storageResourcePaths]))
+    const deletedPaths = [
+      ...deletedAsset.storageResourcePaths,
+      deletedAsset.coverStorageResourcePath,
+    ].filter((path): path is string => Boolean(path))
+    next.pendingDeletedResourcePaths = Array.from(new Set([...next.pendingDeletedResourcePaths, ...deletedPaths]))
   }
   return next
 }

@@ -64,6 +64,18 @@ async function attachUploadCover(
   return archiveAssetForStorageDirectory(state, assetWithCover)
 }
 
+export async function writeAssetResourcesWithGeneratedCoverToDirectory(
+  state: PersonalSpaceState,
+  directoryHandle: PersonalSpaceDirectoryHandle,
+  asset: PersonalSpaceAsset,
+  sourceFile: File,
+  resources: PersonalSpaceResourceFile[],
+  options: PersonalSpaceAssetCoverOptions = {},
+): Promise<PersonalSpaceAsset> {
+  const storedAsset = await writeAssetResourcesToDirectory(directoryHandle, asset, resources)
+  return attachUploadCover(state, storedAsset, sourceFile, directoryHandle, options)
+}
+
 export async function pickPersonalSpaceDirectory() {
   const desktopApi = getDesktopApi()
   if (!desktopApi) return null

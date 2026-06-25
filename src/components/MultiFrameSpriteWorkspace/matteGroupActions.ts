@@ -12,8 +12,8 @@ import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/curre
 import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
 import {
   getPersonalSpaceDirectoryHandle,
-  writeAssetResourcesToDirectory,
 } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
+import { writeAssetResourcesWithGeneratedCoverToDirectory } from '../PersonalSpaceWorkspace/personalSpaceResourceActions'
 import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
 import { getDesktopApi } from '../../desktopApi'
 
@@ -105,7 +105,14 @@ export function createMatteGroupActions({ framesRef }: MatteGroupActionsOptions)
           resourcePath: previewUrl,
           groupName: item.matteGroupName,
         })
-        const asset = await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [{ name: `${baseAsset.name}.png`, data: blob }])
+        const imageFile = new File([blob], `${baseAsset.name}.png`, { type: blob.type || 'image/png' })
+        const asset = await writeAssetResourcesWithGeneratedCoverToDirectory(
+          space,
+          directoryHandle,
+          baseAsset,
+          imageFile,
+          [{ name: imageFile.name, data: imageFile }],
+        )
         assets.push(asset)
       }
       const nextSpace = {

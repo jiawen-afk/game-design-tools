@@ -8,6 +8,7 @@ import {
   createSpriteAssetForUpload,
   createVoiceAssetForUpload,
   deleteAssetWithOptionalResources,
+  writeAssetResourcesWithGeneratedCoverToDirectory,
 } from './personalSpaceResourceActions'
 import {
   createMemoryDirectoryHandle,
@@ -131,6 +132,44 @@ test('uploaded sprite resources keep png and index resource order while adding a
   assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.json$/)
   assert.match(stored.coverStorageResourcePath ?? '', /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
   assert.equal(await root.readText(stored.coverStorageResourcePath!.replace(/^PersonalSpace\//, '')), 'sprite-cover')
+})
+
+test('generated image resources can be written with an independent generated cover', async () => {
+  const root = createMemoryDirectoryHandle('PersonalSpace')
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: false },
+  }
+  const asset = createSpriteAssetFromExport({
+    name: 'generated-sprite.png',
+    spritePath: 'blob:generated-sprite',
+    indexPath: 'blob:generated-index',
+  })
+  const sourceFile = new File(['generated-png'], 'generated-sprite.png', { type: 'image/png' })
+
+  const stored = await writeAssetResourcesWithGeneratedCoverToDirectory(
+    state,
+    root,
+    asset,
+    sourceFile,
+    [
+      { name: 'generated-sprite.png', data: sourceFile },
+      { name: 'index.json', data: new Blob(['{}'], { type: 'application/json' }) },
+    ],
+    {
+      createCover: async () => ({
+        name: 'generated-cover.png',
+        data: new Blob(['generated-cover'], { type: 'image/png' }),
+        resourcePath: 'blob:generated-cover',
+      }),
+    },
+  )
+
+  assert.equal(stored.coverResourcePath, 'blob:generated-cover')
+  assert.equal(stored.storageResourcePaths.length, 2)
+  assert.match(stored.coverStorageResourcePath ?? '', /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.notEqual(stored.coverStorageResourcePath, stored.storageResourcePaths[0])
+  assert.equal(await root.readText(stored.coverStorageResourcePath!.replace(/^PersonalSpace\//, '')), 'generated-cover')
 })
 
 test('uploaded portrait resources are stored under the portrait category', async () => {

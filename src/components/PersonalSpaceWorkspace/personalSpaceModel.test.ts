@@ -666,6 +666,28 @@ test('deleting assets with resource deletion enabled records stored resource pat
   assert.deepEqual(deleted.pendingDeletedResourcePaths, ['D:\\GameAssets\\配音素材\\问候\\audio.wav'])
 })
 
+test('deleting image assets with resource deletion enabled records cover paths for cleanup', () => {
+  const image = {
+    ...createPersonalSpaceAsset({ kind: 'image', name: 'forest.png' }),
+    storageResourcePaths: ['D:\\GameAssets\\图片\\forest.png'],
+    coverStorageResourcePath: 'D:\\GameAssets\\图片\\forest-cover.png',
+  }
+  const state = {
+    ...defaultPersonalSpaceState,
+    settings: { storageDirectory: 'D:\\GameAssets', deleteResourcesWithContent: true },
+    assets: [image],
+    pendingDeletedResourcePaths: [],
+  }
+
+  const deleted = deletePersonalSpaceAsset(state, image.id)
+
+  assert.deepEqual(deleted.assets, [])
+  assert.deepEqual(deleted.pendingDeletedResourcePaths, [
+    'D:\\GameAssets\\图片\\forest.png',
+    'D:\\GameAssets\\图片\\forest-cover.png',
+  ])
+})
+
 test('deleting assets after resource cleanup removes links without recording pending cleanup', () => {
   const voice = {
     ...createPersonalSpaceAsset({ kind: 'voice', name: '问候' }),
