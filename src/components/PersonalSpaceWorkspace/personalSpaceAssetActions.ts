@@ -23,13 +23,21 @@ import {
   type ProjectResourceReadOptions,
   type StoryboardExportResult,
 } from './personalSpaceResourceActions'
-import { createSpriteUploadBatch } from './personalSpaceUploadModel'
+import {
+  consumeSpriteUploadBatch,
+  createNullableSpriteUploadBatchTracker,
+  createRecordSpriteUploadBatchTracker,
+  createSpriteUploadBatch,
+  type SpriteUploadBatchTracker,
+} from './personalSpaceUploadModel'
 
 interface PersonalSpaceAssetMessageApi {
   success: (content: string) => void
   warning: (content: string) => void
   error: (content: string) => void
 }
+
+type UploadChangeFileList = Parameters<NonNullable<UploadProps['onChange']>>[0]['fileList']
 
 export interface PersonalSpaceAssetActionsOptions {
   messageApi: PersonalSpaceAssetMessageApi
@@ -237,6 +245,19 @@ export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActio
     }
   }
 
+  const handleSpriteUploadChange = (
+    fileList: UploadChangeFileList,
+    tracker: SpriteUploadBatchTracker,
+    upload: (files: File[]) => Promise<void>,
+  ) => {
+    const batch = consumeSpriteUploadBatch(createSpriteUploadBatch(fileList), tracker)
+    if (!batch) return
+    window.setTimeout(() => {
+      if (tracker.current === batch.batchKey) tracker.current = ''
+    }, 1000)
+    void upload(batch.files)
+  }
+
   const portraitUploadProps = (characterId: string): UploadProps => ({
     accept: 'image/*',
     maxCount: 1,
@@ -254,17 +275,8 @@ export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActio
     showUploadList: false,
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
-      const batch = createSpriteUploadBatch(fileList)
-      if (batch) {
-        if (options.spriteUploadBatchKeyByCharacter.current[characterId] === batch.batchKey) return
-        options.spriteUploadBatchKeyByCharacter.current[characterId] = batch.batchKey
-        window.setTimeout(() => {
-          if (options.spriteUploadBatchKeyByCharacter.current[characterId] === batch.batchKey) {
-            delete options.spriteUploadBatchKeyByCharacter.current[characterId]
-          }
-        }, 1000)
-        void uploadCharacterSprite(characterId, batch.files)
-      }
+      const tracker = createRecordSpriteUploadBatchTracker(options.spriteUploadBatchKeyByCharacter, characterId)
+      handleSpriteUploadChange(fileList, tracker, (files) => uploadCharacterSprite(characterId, files))
     },
   })
 
@@ -305,17 +317,8 @@ export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActio
     showUploadList: false,
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
-      const batch = createSpriteUploadBatch(fileList)
-      if (batch) {
-        if (options.imageSpriteUploadBatchKey.current === batch.batchKey) return
-        options.imageSpriteUploadBatchKey.current = batch.batchKey
-        window.setTimeout(() => {
-          if (options.imageSpriteUploadBatchKey.current === batch.batchKey) {
-            options.imageSpriteUploadBatchKey.current = null
-          }
-        }, 1000)
-        void uploadImageSprite(batch.files, groupName)
-      }
+      const tracker = createNullableSpriteUploadBatchTracker(options.imageSpriteUploadBatchKey)
+      handleSpriteUploadChange(fileList, tracker, (files) => uploadImageSprite(files, groupName))
     },
   })
 

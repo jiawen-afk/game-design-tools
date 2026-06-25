@@ -7,6 +7,14 @@ export interface SpriteUploadBatch {
   batchKey: string
 }
 
+export interface SpriteUploadBatchTracker {
+  current: string
+}
+
+export interface SpriteUploadBatchTrackerRef {
+  current: string | null
+}
+
 function isFileLike(item: unknown): item is File {
   return Boolean(
     item &&
@@ -28,5 +36,46 @@ export function createSpriteUploadBatch(fileEntries: Array<UploadFileEntry | Fil
   return {
     files,
     batchKey: files.map((file) => `${file.name}:${file.size}`).sort().join('|'),
+  }
+}
+
+export function consumeSpriteUploadBatch(
+  batch: SpriteUploadBatch | null,
+  tracker: SpriteUploadBatchTracker,
+): SpriteUploadBatch | null {
+  if (!batch) return null
+  if (tracker.current === batch.batchKey) return null
+  tracker.current = batch.batchKey
+  return batch
+}
+
+export function createRecordSpriteUploadBatchTracker(
+  recordRef: { current: Record<string, string> },
+  key: string,
+): SpriteUploadBatchTracker {
+  return {
+    get current() {
+      return recordRef.current[key] ?? ''
+    },
+    set current(value: string) {
+      if (value) {
+        recordRef.current[key] = value
+      } else {
+        delete recordRef.current[key]
+      }
+    },
+  }
+}
+
+export function createNullableSpriteUploadBatchTracker(
+  ref: SpriteUploadBatchTrackerRef,
+): SpriteUploadBatchTracker {
+  return {
+    get current() {
+      return ref.current ?? ''
+    },
+    set current(value: string) {
+      ref.current = value || null
+    },
   }
 }

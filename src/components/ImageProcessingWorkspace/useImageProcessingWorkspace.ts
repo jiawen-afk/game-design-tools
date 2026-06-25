@@ -3,13 +3,11 @@ import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
-  applyWheelZoom,
   createFullImageCrop,
   deriveExportFileName,
   isSupportedImageFile,
   fitContainedImageRect,
   getPreviewRectFromCropBox,
-  getAnchoredWheelZoomTransform,
   getAspectRatioValue,
   getCropBoxAfterAspectRatioChange,
   getExportScaleAfterDimensionChange,
@@ -26,7 +24,6 @@ import {
   type Point,
 } from './imageProcessingModel'
 import {
-  applyImageMatte,
   createImageDraft,
   exportProcessedImage,
   renderCroppedImageUrl,
@@ -38,6 +35,8 @@ import {
   type ProcessedImageDraft,
 } from './imageProcessingPipeline'
 import { useImageCropDrag, type ImageCropDragState } from './useImageCropDrag'
+import { useImageMatteProcessing } from './useImageMatteProcessing'
+import { useImagePreviewTransform } from './useImagePreviewTransform'
 import { useImageUpscaleWorkflow } from './useImageUpscaleWorkflow'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 
@@ -57,26 +56,35 @@ export function useImageProcessingWorkspace() {
   const [draft, setDraft] = useState<LoadedImageDraft | null>(null)
   const [matte, setMatte] = useState<MatteParams>(DEFAULT_MATTE)
   const [matteEnabled, setMatteEnabled] = useState(true)
-  const [processed, setProcessed] = useState<ProcessedImageDraft | null>(null)
   const [crop, setCrop] = useState<CropBox | null>(null)
   const [cropPreview, setCropPreview] = useState<ProcessedImageDraft | null>(null)
-  const [previewTransform, setPreviewTransform] = useState<{ zoom: number; pan: Point }>({
-    zoom: 1,
-    pan: { x: 0, y: 0 },
-  })
   const [cropMode, setCropMode] = useState(false)
   const [cropPreviewSize, setCropPreviewSize] = useState({ width: 0, height: 0 })
   const [cropDraftRect, setCropDraftRect] = useState<PreviewRect | null>(null)
   const [cropDrag, setCropDrag] = useState<ImageCropDragState | null>(null)
   const [exportFormat, setExportFormat] = useState<ImageExportFormat>('png')
   const [exportScale, setExportScaleState] = useState(1)
-  const [processing, setProcessing] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const previewZoom = previewTransform.zoom
-  const previewPan = previewTransform.pan
+  const {
+    previewZoom,
+    previewPan,
+    setPreviewZoom,
+    handleWheelZoom,
+    resetPreviewTransform,
+  } = useImagePreviewTransform()
   const draftImageSource = useMemo<ImageSourceLike | null>(() => draft
     ? { url: draft.sourceUrl, width: draft.width, height: draft.height }
     : null, [draft])
+  const {
+    processed,
+    processing,
+    clearProcessed,
+  } = useImageMatteProcessing({
+    draft,
+    matte,
+    matteEnabled,
+    setCrop,
+  })
   const activeImageSource = useMemo(
     () => resolveMatteImageSource(draftImageSource, processed, matteEnabled),
     [draftImageSource, matteEnabled, processed]
@@ -90,51 +98,9 @@ export function useImageProcessingWorkspace() {
 
   useEffect(() => {
     return () => {
-      revokeProcessedImageDraftUrl(processed)
-    }
-  }, [processed])
-
-  useEffect(() => {
-    return () => {
       revokeProcessedImageDraftUrl(cropPreview)
     }
   }, [cropPreview])
-
-  useEffect(() => {
-    if (!draft) {
-      setProcessed(null)
-      setCrop(null)
-      setCropPreview(null)
-      return
-    }
-    if (!matteEnabled) {
-      setProcessed(null)
-      setProcessing(false)
-      setCrop((current) => current ?? createFullImageCrop(draft.width, draft.height))
-      return
-    }
-    let alive = true
-    setProcessing(true)
-    void applyImageMatte(draft.sourceUrl, matte)
-      .then((result) => {
-        if (!alive) {
-          revokeProcessedImageDraftUrl(result)
-          return
-        }
-        setProcessed((previous) => {
-          revokeProcessedImageDraftUrl(previous)
-          return result
-        })
-        setCrop((current) => current ?? createFullImageCrop(result.width, result.height))
-      })
-      .catch((error) => message.error(`抠图失败：${String(error)}`))
-      .finally(() => {
-        if (alive) setProcessing(false)
-      })
-    return () => {
-      alive = false
-    }
-  }, [draft, matte, matteEnabled])
 
   useEffect(() => {
     if (!activeImageSource || !crop) {
@@ -231,14 +197,14 @@ export function useImageProcessingWorkspace() {
         revokeLoadedImageDraftUrl(previous)
         return nextDraft
       })
-      setProcessed(null)
+      clearProcessed()
       setCrop(createFullImageCrop(nextDraft.width, nextDraft.height))
       setMatteEnabled(true)
       resetUpscale(false)
       setExportScaleState(1)
       setCropDraftRect(null)
       setCropDrag(null)
-      setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
+      resetPreviewTransform()
       message.success('图片已载入')
     } catch (error) {
       message.error(`图片读取失败：${String(error)}`)
@@ -249,35 +215,12 @@ export function useImageProcessingWorkspace() {
     setMatte((current) => ({ ...current, [key]: value }))
   }
 
-  const setPreviewZoom = useCallback((value: SetStateAction<number>) => {
-    setPreviewTransform((current) => ({
-      ...current,
-      zoom: typeof value === 'function' ? value(current.zoom) : value,
-    }))
-  }, [])
-
-  const handleWheelZoom = useCallback((deltaY: number, anchorFromCenter?: Point) => {
-    setPreviewTransform((current) => {
-      if (!anchorFromCenter) {
-        return { ...current, zoom: applyWheelZoom(current.zoom, deltaY) }
-      }
-      return getAnchoredWheelZoomTransform(current.zoom, current.pan, deltaY, anchorFromCenter)
-    })
-  }, [])
-
-  const resetPreviewTransform = useCallback(() => {
-    setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
-  }, [])
-
   const resetWorkspace = useCallback(() => {
     setDraft((previous) => {
       revokeLoadedImageDraftUrl(previous)
       return null
     })
-    setProcessed((previous) => {
-      revokeProcessedImageDraftUrl(previous)
-      return null
-    })
+    clearProcessed()
     setCropPreview((previous) => {
       revokeProcessedImageDraftUrl(previous)
       return null
@@ -288,8 +231,8 @@ export function useImageProcessingWorkspace() {
     setCropDraftRect(null)
     setCropDrag(null)
     setExportScaleState(1)
-    setPreviewTransform({ zoom: 1, pan: { x: 0, y: 0 } })
-  }, [resetUpscale])
+    resetPreviewTransform()
+  }, [clearProcessed, resetPreviewTransform, resetUpscale])
 
   const updateCropAspectRatio = (value: number | null) => {
     if (!value || !crop || !activeImageSource) return

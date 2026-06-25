@@ -60,6 +60,7 @@ import {
   resolvePipelineConcurrency,
   resolveSpillColor,
 } from './model'
+import { computeFrameSamplePoint } from './matteColorSampler'
 import { computeVideoPreviewCropState } from './videoFramePipeline'
 
 test('auto columns make compact sprite sheets', () => {
@@ -354,6 +355,13 @@ test('upload workspace hook owns image and sprite sheet upload side effects', ()
   assert.match(hook, /splitSpriteSheetToPreviews/)
   assert.match(hook, /filterNewUploadFiles/)
   assert.match(hook, /pendingUploadKeysRef/)
+})
+
+test('upload workspace reports batch image frame creation failures', () => {
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useUploadWorkspace.ts', 'utf8')
+
+  assert.match(hook, /Promise\.all\(nextFiles\.map\(\(file\) => makeFrameFromFile/)
+  assert.match(hook, /\.catch\(\(e\) => \{[\s\S]*message\.error\(`添加图片失败：\$\{String\(e\)\}`\)[\s\S]*\}\)[\s\S]*\.finally\(\(\) => \{/)
 })
 
 test('layout workspace panel owns canvas editing view details', () => {
@@ -989,6 +997,29 @@ test('spill color options expose preview hex values', () => {
   assert.equal(getSpillColorHex('magenta'), '#ff00ff')
   assert.equal(getSpillColorHex('custom', '#123abc'), '#123abc')
   assert.equal(getSpillColorHex('custom', 'bad'), '#00ff00')
+})
+
+test('matte sample point maps preview clicks into source image bounds', () => {
+  assert.deepEqual(
+    computeFrameSamplePoint({
+      clientX: 75,
+      clientY: 140,
+      previewRect: { left: 25, top: 100, width: 100, height: 80 },
+      sourceWidth: 400,
+      sourceHeight: 200,
+    }),
+    { x: 200, y: 100 }
+  )
+  assert.deepEqual(
+    computeFrameSamplePoint({
+      clientX: 999,
+      clientY: -50,
+      previewRect: { left: 25, top: 100, width: 100, height: 80 },
+      sourceWidth: 400,
+      sourceHeight: 200,
+    }),
+    { x: 399, y: 0 }
+  )
 })
 
 test('chroma key alpha matches FrameRonin tolerance and feather semantics', () => {

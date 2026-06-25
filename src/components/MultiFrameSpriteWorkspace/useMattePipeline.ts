@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type * as React from 'react'
 import { message } from 'antd'
 
-import { chromaKey, composeFrame, loadImage } from './imagePipeline'
+import { chromaKey, composeFrame } from './imagePipeline'
+import { sampleFrameKeyColor } from './matteColorSampler'
 import {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
@@ -302,23 +303,19 @@ export function useMattePipeline({
   }
 
   const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = Math.floor(((e.clientX - rect.left) / rect.width) * item.sourceWidth)
-    const y = Math.floor(((e.clientY - rect.top) / rect.height) * item.sourceHeight)
-    const img = await loadImage(item.sourceUrl)
-    const canvas = document.createElement('canvas')
-    canvas.width = item.sourceWidth
-    canvas.height = item.sourceHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(img, 0, 0)
-    const data = ctx.getImageData(
-      Math.max(0, Math.min(item.sourceWidth - 1, x)),
-      Math.max(0, Math.min(item.sourceHeight - 1, y)),
-      1,
-      1
-    ).data
-    setMatteParam(item.id, 'keyColor', [data[0]!, data[1]!, data[2]!])
+    try {
+      const keyColor = await sampleFrameKeyColor({
+        sourceUrl: item.sourceUrl,
+        sourceWidth: item.sourceWidth,
+        sourceHeight: item.sourceHeight,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        previewRect: e.currentTarget.getBoundingClientRect(),
+      })
+      setMatteParam(item.id, 'keyColor', keyColor)
+    } catch (error) {
+      message.error(`取色失败：${String(error)}`)
+    }
   }
   const {
     exportMatteGroup,

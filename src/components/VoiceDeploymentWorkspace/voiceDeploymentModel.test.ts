@@ -415,9 +415,9 @@ test('voice history library renders outside the connected-only generator branch'
   const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
   const styleSource = readFileSync('src/components/VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css', 'utf8')
 
-  assert.match(source, /\{connected \? \([\s\S]*<VoiceLibraryPanel[\s\S]*\) : \([\s\S]*<VoiceLibraryPanel/)
-  assert.match(source, /libraryVariant="sticky"/)
-  assert.match(source, /libraryVariant="embedded"/)
+  assert.match(source, /\{connected \? \([\s\S]*renderVoiceLibraryPanel\('sticky'\)[\s\S]*\) : \([\s\S]*renderVoiceLibraryPanel\('embedded'\)/)
+  assert.match(source, /const renderVoiceLibraryPanel = \(/)
+  assert.match(source, /libraryVariant=\{libraryVariant\}/)
   assert.match(panelSource, /libraryVariant/)
   assert.match(panelSource, /voice-library-\$\{libraryVariant\}/)
   assert.match(styleSource, /\.voice-library-sticky/)

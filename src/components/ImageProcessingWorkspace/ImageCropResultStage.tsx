@@ -4,6 +4,7 @@ import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 import { getPreviewAnchorFromStagePoint, MIN_PREVIEW_ZOOM } from './imageProcessingModel'
+import { ImageCropSelectionLayer } from './ImageCropSelectionLayer'
 
 const { Text } = Typography
 
@@ -91,11 +92,6 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
     }
   }
 
-  const handleStyle = (left: number, top: number, cursor: string) => ({
-    left,
-    top,
-    cursor,
-  })
   const hasDraggedFiles = (event: DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer.types).includes('Files')
   const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!hasDraggedFiles(event)) return
@@ -203,107 +199,11 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
               alt="裁剪与抠图结果"
             />
             {workspace.cropMode && localCropRect ? (
-              <div className="image-crop-layer">
-                <div
-                  className="image-crop-mask"
-                  style={{ left: 0, top: 0, width: imageRect.width, height: localCropRect.y }}
-                />
-                <div
-                  className="image-crop-mask"
-                  style={{
-                    left: 0,
-                    top: localCropRect.y + localCropRect.height,
-                    width: imageRect.width,
-                    height: imageRect.height - localCropRect.y - localCropRect.height,
-                  }}
-                />
-                <div
-                  className="image-crop-mask"
-                  style={{
-                    left: 0,
-                    top: localCropRect.y,
-                    width: localCropRect.x,
-                    height: localCropRect.height,
-                  }}
-                />
-                <div
-                  className="image-crop-mask"
-                  style={{
-                    left: localCropRect.x + localCropRect.width,
-                    top: localCropRect.y,
-                    width: imageRect.width - localCropRect.x - localCropRect.width,
-                    height: localCropRect.height,
-                  }}
-                />
-                <button
-                  type="button"
-                  className="image-crop-selection"
-                  aria-label="调整裁剪区域"
-                  style={{
-                    left: localCropRect.x,
-                    top: localCropRect.y,
-                    width: localCropRect.width,
-                    height: localCropRect.height,
-                  }}
-                  onMouseDown={(event) => startCropDrag(event, 'move')}
-                />
-                <button
-                  type="button"
-                  aria-label="左上角调整"
-                  className="image-crop-handle image-crop-handle-corner"
-                  style={{ left: localCropRect.x, top: localCropRect.y, cursor: 'nwse-resize' }}
-                  onMouseDown={(event) => startCropDrag(event, 'tl')}
-                />
-                <button
-                  type="button"
-                  aria-label="右上角调整"
-                  className="image-crop-handle image-crop-handle-corner"
-                  style={{ left: localCropRect.x + localCropRect.width, top: localCropRect.y, cursor: 'nesw-resize' }}
-                  onMouseDown={(event) => startCropDrag(event, 'tr')}
-                />
-                <button
-                  type="button"
-                  aria-label="左下角调整"
-                  className="image-crop-handle image-crop-handle-corner"
-                  style={{ left: localCropRect.x, top: localCropRect.y + localCropRect.height, cursor: 'nesw-resize' }}
-                  onMouseDown={(event) => startCropDrag(event, 'bl')}
-                />
-                <button
-                  type="button"
-                  aria-label="右下角调整"
-                  className="image-crop-handle image-crop-handle-corner"
-                  style={{ left: localCropRect.x + localCropRect.width, top: localCropRect.y + localCropRect.height, cursor: 'nwse-resize' }}
-                  onMouseDown={(event) => startCropDrag(event, 'br')}
-                />
-                <button
-                  type="button"
-                  aria-label="上边调整"
-                  className="image-crop-handle image-crop-handle-edge image-crop-handle-edge-top"
-                  style={handleStyle(localCropRect.x, localCropRect.y, 'ns-resize')}
-                  onMouseDown={(event) => startCropDrag(event, 'top')}
-                />
-                <button
-                  type="button"
-                  aria-label="下边调整"
-                  className="image-crop-handle image-crop-handle-edge image-crop-handle-edge-bottom"
-                  style={handleStyle(localCropRect.x, localCropRect.y + localCropRect.height, 'ns-resize')}
-                  onMouseDown={(event) => startCropDrag(event, 'bottom')}
-                />
-                <button
-                  type="button"
-                  aria-label="左边调整"
-                  className="image-crop-handle image-crop-handle-edge image-crop-handle-edge-left"
-                  style={handleStyle(localCropRect.x, localCropRect.y, 'ew-resize')}
-                  onMouseDown={(event) => startCropDrag(event, 'left')}
-                />
-                <button
-                  type="button"
-                  aria-label="右边调整"
-                  className="image-crop-handle image-crop-handle-edge image-crop-handle-edge-right"
-                  style={handleStyle(localCropRect.x + localCropRect.width, localCropRect.y, 'ew-resize')}
-                  onMouseDown={(event) => startCropDrag(event, 'right')}
-                />
-              </div>
+              <ImageCropSelectionLayer
+                imageSize={imageRect}
+                cropRect={localCropRect}
+                onStartDrag={startCropDrag}
+              />
             ) : null}
             {!workspace.cropMode && workspace.matteEnabled ? (
               <button

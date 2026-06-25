@@ -157,6 +157,26 @@ export default function VoiceDeploymentWorkspace() {
     disconnected: <Tag color="error">未连接</Tag>,
   }[connectionStatus]
 
+  const renderVoiceLibraryPanel = (libraryVariant: 'sticky' | 'embedded') => (
+    <VoiceLibraryPanel
+      libraryVariant={libraryVariant}
+      records={records}
+      lastGeneratedId={lastGeneratedId}
+      personalSpaceVoiceAssets={personalSpaceVoiceAssets}
+      personalSpaceCharacters={personalSpaceSnapshot.characters}
+      personalSpaceStoryboardGroups={personalSpaceSnapshot.storyboardGroups}
+      onLoad={loadParams}
+      onClone={cloneFromRecord}
+      onDelete={deleteRecord}
+      onClearHistory={clearRecords}
+      onRename={renameRecord}
+      onCollect={(record) => void collectRecordToPersonalSpace(record)}
+      onCollectWithLink={openCollectLinkDialog}
+      personalSpaceCollectEnabled={personalSpaceCollectEnabled}
+      personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
+    />
+  )
+
   return (
     <section className="voice-workspace" aria-labelledby="voice-workspace-title">
       {messageContextHolder}
@@ -266,23 +286,7 @@ export default function VoiceDeploymentWorkspace() {
             onResetParams={resetParams}
           />
 
-          <VoiceLibraryPanel
-            libraryVariant="sticky"
-            records={records}
-            lastGeneratedId={lastGeneratedId}
-            personalSpaceVoiceAssets={personalSpaceVoiceAssets}
-            personalSpaceCharacters={personalSpaceSnapshot.characters}
-            personalSpaceStoryboardGroups={personalSpaceSnapshot.storyboardGroups}
-            onLoad={loadParams}
-            onClone={cloneFromRecord}
-            onDelete={deleteRecord}
-            onClearHistory={clearRecords}
-            onRename={renameRecord}
-            onCollect={(record) => void collectRecordToPersonalSpace(record)}
-            onCollectWithLink={openCollectLinkDialog}
-            personalSpaceCollectEnabled={personalSpaceCollectEnabled}
-            personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
-          />
+          {renderVoiceLibraryPanel('sticky')}
         </div>
       ) : (
         <div className="voice-grid">
@@ -308,23 +312,7 @@ export default function VoiceDeploymentWorkspace() {
             onQueryDesktopDependencyStatus={() => void queryDesktopDependencyStatus()}
           />
 
-          <VoiceLibraryPanel
-            libraryVariant="embedded"
-            records={records}
-            lastGeneratedId={lastGeneratedId}
-            personalSpaceVoiceAssets={personalSpaceVoiceAssets}
-            personalSpaceCharacters={personalSpaceSnapshot.characters}
-            personalSpaceStoryboardGroups={personalSpaceSnapshot.storyboardGroups}
-            onLoad={loadParams}
-            onClone={cloneFromRecord}
-            onDelete={deleteRecord}
-            onClearHistory={clearRecords}
-            onRename={renameRecord}
-            onCollect={(record) => void collectRecordToPersonalSpace(record)}
-            onCollectWithLink={openCollectLinkDialog}
-            personalSpaceCollectEnabled={personalSpaceCollectEnabled}
-            personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
-          />
+          {renderVoiceLibraryPanel('embedded')}
         </div>
       )}
     </section>

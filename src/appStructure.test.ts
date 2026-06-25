@@ -177,6 +177,24 @@ test('image processing matte can be toggled without disabling crop and export fl
   assert.match(stageSource, /workspace\.matteEnabled/)
 })
 
+test('image processing workspace delegates matte processing to a focused hook', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const matteHookPath = 'src/components/ImageProcessingWorkspace/useImageMatteProcessing.ts'
+
+  assert.ok(existsSync(matteHookPath), 'matte processing hook should exist')
+  const matteHookSource = readFileSync(matteHookPath, 'utf8')
+
+  assert.match(hookSource, /from '\.\/useImageMatteProcessing'/)
+  assert.match(hookSource, /useImageMatteProcessing\(/)
+  assert.doesNotMatch(hookSource, /applyImageMatte/)
+  assert.doesNotMatch(hookSource, /const \[processed, setProcessed\] = useState/)
+  assert.doesNotMatch(hookSource, /const \[processing, setProcessing\] = useState/)
+  assert.match(matteHookSource, /export function useImageMatteProcessing/)
+  assert.match(matteHookSource, /applyImageMatte/)
+  assert.match(matteHookSource, /revokeProcessedImageDraftUrl/)
+  assert.match(matteHookSource, /createFullImageCrop/)
+})
+
 test('image processing resets stale upscale enhancement when replacing the image', () => {
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
   const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
@@ -250,6 +268,40 @@ test('image processing workspace delegates crop drag window interactions to a fo
   assert.match(dragHookSource, /window\.addEventListener\('mouseup'/)
   assert.match(dragHookSource, /setCropDraftRect/)
   assert.match(dragHookSource, /setCrop\(/)
+})
+
+test('image processing workspace delegates preview zoom and pan state to a focused hook', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const previewHookPath = 'src/components/ImageProcessingWorkspace/useImagePreviewTransform.ts'
+
+  assert.ok(existsSync(previewHookPath), 'preview transform hook should exist')
+  const previewHookSource = readFileSync(previewHookPath, 'utf8')
+
+  assert.match(hookSource, /from '\.\/useImagePreviewTransform'/)
+  assert.match(hookSource, /useImagePreviewTransform\(/)
+  assert.doesNotMatch(hookSource, /const \[previewTransform, setPreviewTransform\] = useState/)
+  assert.doesNotMatch(hookSource, /const setPreviewZoom = useCallback/)
+  assert.doesNotMatch(hookSource, /const handleWheelZoom = useCallback/)
+  assert.match(previewHookSource, /export function useImagePreviewTransform/)
+  assert.match(previewHookSource, /applyWheelZoom/)
+  assert.match(previewHookSource, /getAnchoredWheelZoomTransform/)
+  assert.match(previewHookSource, /resetPreviewTransform/)
+})
+
+test('image processing result stage delegates crop selection layer rendering', () => {
+  const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
+  const selectionLayerPath = 'src/components/ImageProcessingWorkspace/ImageCropSelectionLayer.tsx'
+
+  assert.ok(existsSync(selectionLayerPath), 'crop selection layer component should exist')
+  const selectionLayerSource = readFileSync(selectionLayerPath, 'utf8')
+
+  assert.match(stageSource, /from '\.\/ImageCropSelectionLayer'/)
+  assert.match(stageSource, /<ImageCropSelectionLayer/)
+  assert.doesNotMatch(stageSource, /image-crop-handle-corner/)
+  assert.doesNotMatch(stageSource, /image-crop-handle-edge-top/)
+  assert.match(selectionLayerSource, /export function ImageCropSelectionLayer/)
+  assert.match(selectionLayerSource, /image-crop-mask/)
+  assert.equal((selectionLayerSource.match(/onStartDrag\(event, /g) ?? []).length, 9)
 })
 
 test('image processing upscale workflow is delegated to a focused hook', () => {
@@ -1248,6 +1300,13 @@ test('personal space workspace delegates asset upload and export actions', () =>
   assert.match(actionsSource, /commonResourceUploadProps/)
   assert.match(actionsSource, /imageSpriteUploadProps/)
   assert.match(actionsSource, /createSpriteUploadBatch/)
+  assert.match(actionsSource, /consumeSpriteUploadBatch/)
+  assert.match(actionsSource, /createRecordSpriteUploadBatchTracker/)
+  assert.match(actionsSource, /createNullableSpriteUploadBatchTracker/)
+  assert.equal((actionsSource.match(/consumeSpriteUploadBatch/g) ?? []).length, 2)
+  assert.match(actionsSource, /const handleSpriteUploadChange = \(/)
+  assert.equal((actionsSource.match(/window\.setTimeout/g) ?? []).length, 1)
+  assert.doesNotMatch(actionsSource, /get current\(\)/)
   assert.match(actionsSource, /exportStoryboardVoiceAssetsToTarget/)
   assert.match(actionsSource, /createSpriteAssetForUpload/)
   assert.match(actionsSource, /deleteAssetWithOptionalResources/)
@@ -1807,7 +1866,11 @@ test('voice deployment workspace delegates record library view components', () =
 
   assert.doesNotMatch(source, /from '\.\/VoiceRecordLists'/)
   assert.match(source, /from '\.\/VoiceLibraryPanel'/)
+  assert.match(source, /const renderVoiceLibraryPanel = \(/)
+  assert.match(source, /renderVoiceLibraryPanel\('sticky'\)/)
+  assert.match(source, /renderVoiceLibraryPanel\('embedded'\)/)
   assert.match(source, /<VoiceLibraryPanel/)
+  assert.equal((source.match(/<VoiceLibraryPanel/g) ?? []).length, 1)
   assert.doesNotMatch(source, /const libraryPanel = \(/)
   assert.doesNotMatch(source, /<VoiceRecordList/)
   assert.doesNotMatch(source, /<PersonalSpaceVoiceAssetList/)
@@ -2590,6 +2653,7 @@ test('personal space workspace delegates resource IO and filesystem side effects
   assert.match(assetActionsSource, /createPortraitAssetForUpload/)
   assert.match(assetActionsSource, /createCommonResourceAssetForUpload/)
   assert.match(assetActionsSource, /createSpriteUploadBatch/)
+  assert.match(assetActionsSource, /consumeSpriteUploadBatch/)
   assert.match(assetActionsSource, /deleteAssetWithOptionalResources/)
   assert.match(assetActionsSource, /applyAssetDeleteResult/)
   assert.doesNotMatch(hookSource, /from '\.\/personalSpaceResourceActions'/)
@@ -2856,6 +2920,32 @@ test('matte pipeline delegates default parameter persistence to a focused hook',
   assert.match(defaultsHook, /coerceMatteDefaults/)
   assert.match(defaultsHook, /openMatteDefaults/)
   assert.match(defaultsHook, /saveMatteDefaults/)
+})
+
+test('matte pipeline delegates sampled key color reads to a focused helper', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const samplerPath = 'src/components/MultiFrameSpriteWorkspace/matteColorSampler.ts'
+
+  assert.ok(existsSync(samplerPath), 'matte color sampler should exist')
+  const samplerSource = readFileSync(samplerPath, 'utf8')
+
+  assert.match(source, /from '\.\/matteColorSampler'/)
+  assert.match(source, /sampleFrameKeyColor\(/)
+  assert.doesNotMatch(source, /loadImage/)
+  assert.doesNotMatch(source, /document\.createElement\('canvas'\)/)
+  assert.doesNotMatch(source, /getImageData/)
+  assert.match(samplerSource, /export async function sampleFrameKeyColor/)
+  assert.match(samplerSource, /loadImage/)
+  assert.match(samplerSource, /document\.createElement\('canvas'\)/)
+  assert.match(samplerSource, /getImageData/)
+})
+
+test('matte pipeline reports key color sampling failures instead of leaking rejected promises', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+
+  assert.match(source, /const sampleColor = async/)
+  assert.match(source, /try\s*{[\s\S]*sampleFrameKeyColor\([\s\S]*setMatteParam\(item\.id, 'keyColor', keyColor\)[\s\S]*} catch \(error\)/)
+  assert.match(source, /message\.error\(`取色失败：\$\{String\(error\)\}`\)/)
 })
 
 test('video workspace delegates extracted frame preview and crop interactions to a focused hook', () => {

@@ -7,10 +7,15 @@ interface SelectedProjectRemoteProfileSettingsWorkspace {
   setSelectedKodoProfileId: (profileId: string) => void
 }
 
+export interface SelectedProjectRemoteDeviceBinding {
+  databaseProfileId: string
+  storageProfileId: string
+}
+
 interface SelectedProjectRemoteDeviceBindingResolver {
   currentDeviceBindingForProject: (
     projectId: string,
-  ) => { databaseProfileId: string; storageProfileId: string } | null
+  ) => SelectedProjectRemoteDeviceBinding | null
 }
 
 export interface UseSelectedProjectRemoteProfileBindingOptions {
@@ -20,6 +25,21 @@ export interface UseSelectedProjectRemoteProfileBindingOptions {
   ensureRemoteProjectSettings: (projectId: string) => Promise<void>
   remoteDeviceBindingResolver: SelectedProjectRemoteDeviceBindingResolver
   settingsWorkspace: SelectedProjectRemoteProfileSettingsWorkspace
+}
+
+export async function resolveSelectedProjectRemoteProfileBinding({
+  selectedProjectId,
+  ensureRemoteProjectSettings,
+  remoteDeviceBindingResolver,
+}: Pick<UseSelectedProjectRemoteProfileBindingOptions, 'ensureRemoteProjectSettings' | 'remoteDeviceBindingResolver'> & {
+  selectedProjectId: string
+}) {
+  try {
+    await ensureRemoteProjectSettings(selectedProjectId)
+  } catch {
+    return null
+  }
+  return remoteDeviceBindingResolver.currentDeviceBindingForProject(selectedProjectId)
 }
 
 export function useSelectedProjectRemoteProfileBinding({
@@ -34,8 +54,13 @@ export function useSelectedProjectRemoteProfileBinding({
     const selectedProjectId = selectedManagementProjectId
     const project = findProject(selectedProjectId)
     if (!selectedProjectId || project?.mode !== 'remote') return
-    void ensureRemoteProjectSettings(selectedProjectId).then(() => {
-      const currentDeviceBinding = remoteDeviceBindingResolver.currentDeviceBindingForProject(selectedProjectId)
+    let active = true
+    void resolveSelectedProjectRemoteProfileBinding({
+      selectedProjectId,
+      ensureRemoteProjectSettings,
+      remoteDeviceBindingResolver,
+    }).then((currentDeviceBinding) => {
+      if (!active || !currentDeviceBinding) return
       const databaseProfileId = currentDeviceBinding?.databaseProfileId
       const storageProfileId = currentDeviceBinding?.storageProfileId
       if (databaseProfileId) {
@@ -45,5 +70,8 @@ export function useSelectedProjectRemoteProfileBinding({
         settingsWorkspace.setSelectedKodoProfileId(storageProfileId)
       }
     })
+    return () => {
+      active = false
+    }
   }, [selectedManagementProjectId, projects])
 }

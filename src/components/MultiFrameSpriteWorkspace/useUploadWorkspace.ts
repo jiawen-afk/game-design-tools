@@ -108,6 +108,8 @@ export function useUploadWorkspace({
         existingFrameCount,
         createdIds: created.map((item) => item.id),
       }).forEach((id) => scheduleMatte(id))
+    }).catch((e) => {
+      message.error(`添加图片失败：${String(e)}`)
     }).finally(() => {
       nextFiles.forEach((file) => pendingUploadKeysRef.current.delete(buildUploadFileKey(file)))
     })
