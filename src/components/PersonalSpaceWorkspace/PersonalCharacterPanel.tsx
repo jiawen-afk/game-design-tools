@@ -27,6 +27,7 @@ interface PersonalCharacterPanelProps {
   onToggleCharacterStar: (characterId: string) => void
   onReorderCharacter: (characterId: string, direction: 'up' | 'down') => void
   onDeleteCharacter: (characterId: string) => void
+  onRenameAsset: (assetId: string, name: string) => void
   onAssignAsset: (
     characterId: string,
     assetId: string,
@@ -62,6 +63,7 @@ export function PersonalCharacterPanel({
   onToggleCharacterStar,
   onReorderCharacter,
   onDeleteCharacter,
+  onRenameAsset,
   onAssignAsset,
   onUnassignAsset,
   onMoveCharacterVoice,
@@ -147,6 +149,7 @@ export function PersonalCharacterPanel({
               onToggleCharacterStar={onToggleCharacterStar}
               onReorderCharacter={onReorderCharacter}
               onDeleteCharacter={onDeleteCharacter}
+              onRenameAsset={onRenameAsset}
               onAssignAsset={onAssignAsset}
               onUnassignAsset={onUnassignAsset}
               onMoveCharacterVoice={onMoveCharacterVoice}

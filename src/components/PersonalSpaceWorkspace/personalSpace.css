@@ -1243,6 +1243,21 @@ button.asset-preview {
   white-space: nowrap;
 }
 
+.linked-asset-name-block {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.character-linked-asset-rename-popover {
+  min-width: 220px;
+}
+
+.character-voice-main .character-linked-asset-rename-popover {
+  justify-self: start;
+}
+
 .linked-asset-main {
   min-width: 0;
   display: grid;

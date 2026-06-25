@@ -30,6 +30,7 @@ interface CharacterProfileCardProps {
   onDeleteCharacter: (characterId: string) => void
   onAssignAsset: (characterId: string, assetId: string, column: CharacterAssetColumnKind) => void
   onUnassignAsset: (characterId: string, assetId: string, column: CharacterAssetColumnKind) => void
+  onRenameAsset: (assetId: string, name: string) => void
   onMoveCharacterVoice: (characterId: string, draggedAssetId: string, targetAssetId: string) => void
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
@@ -58,6 +59,7 @@ export function CharacterProfileCard({
   onDeleteCharacter,
   onAssignAsset,
   onUnassignAsset,
+  onRenameAsset,
   onMoveCharacterVoice,
   projectObjectStorage,
   projectAssetManager,
@@ -125,6 +127,7 @@ export function CharacterProfileCard({
           getStoryboardVoiceRefs={getStoryboardVoiceRefs}
           onAssignAsset={onAssignAsset}
           onUnassignAsset={onUnassignAsset}
+          onRenameAsset={onRenameAsset}
           onMoveCharacterVoice={onMoveCharacterVoice}
           projectObjectStorage={projectObjectStorage}
           projectAssetManager={projectAssetManager}
@@ -152,6 +155,7 @@ export function CharacterProfileCard({
           getStoryboardVoiceRefs={getStoryboardVoiceRefs}
           onAssignAsset={onAssignAsset}
           onUnassignAsset={onUnassignAsset}
+          onRenameAsset={onRenameAsset}
           onMoveCharacterVoice={onMoveCharacterVoice}
           projectObjectStorage={projectObjectStorage}
           projectAssetManager={projectAssetManager}
@@ -178,6 +182,7 @@ export function CharacterProfileCard({
           getStoryboardVoiceRefs={getStoryboardVoiceRefs}
           onAssignAsset={onAssignAsset}
           onUnassignAsset={onUnassignAsset}
+          onRenameAsset={onRenameAsset}
           onMoveCharacterVoice={onMoveCharacterVoice}
           projectObjectStorage={projectObjectStorage}
           projectAssetManager={projectAssetManager}

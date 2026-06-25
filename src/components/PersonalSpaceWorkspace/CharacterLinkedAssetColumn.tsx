@@ -1,11 +1,13 @@
 import type { UploadProps } from 'antd'
 import { Button, Upload } from 'antd'
-import { DisconnectOutlined, UploadOutlined } from '@ant-design/icons'
+import { DisconnectOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { CharacterProfile, PersonalSpaceAsset } from './personalSpaceModel'
 import { CharacterAssetPicker } from './CharacterAssetPicker'
 import { PersonalAssetPreview } from './PersonalAssetPreview'
+import { PersonalSpaceTextPopover } from './PersonalSpaceTextPopover'
+import { useRenameDrafts } from './useRenameDrafts'
 
 type CharacterAssetColumnKind = 'portrait' | 'sprite' | 'voice'
 
@@ -30,6 +32,7 @@ interface CharacterLinkedAssetColumnProps {
   getStoryboardVoiceRefs: (assetId: string) => string[]
   onAssignAsset: (characterId: string, assetId: string, column: CharacterAssetColumnKind) => void
   onUnassignAsset: (characterId: string, assetId: string, column: CharacterAssetColumnKind) => void
+  onRenameAsset: (assetId: string, name: string) => void
   onMoveCharacterVoice: (characterId: string, draggedAssetId: string, targetAssetId: string) => void
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
@@ -64,6 +67,7 @@ export function CharacterLinkedAssetColumn({
   getStoryboardVoiceRefs,
   onAssignAsset,
   onUnassignAsset,
+  onRenameAsset,
   onMoveCharacterVoice,
   projectObjectStorage,
   projectAssetManager,
@@ -73,6 +77,7 @@ export function CharacterLinkedAssetColumn({
   const linkedAssets = linkedAssetsForColumn(character, column)
   const assetById = new Map(allAssets.map((asset) => [asset.id, asset]))
   const isVoiceColumn = column === 'voice'
+  const assetRename = useRenameDrafts<{ id: string; name: string }>(onRenameAsset)
 
   const renderPreview = (asset?: PersonalSpaceAsset) => (
     asset ? (
@@ -86,6 +91,34 @@ export function CharacterLinkedAssetColumn({
     ) : isVoiceColumn ? <div className="asset-preview character-voice-preview-placeholder">音</div> : null
   )
 
+  const renderRenameButton = (assetId: string, asset?: PersonalSpaceAsset) => {
+    const renameItem = { id: assetId, name: asset?.name ?? fallbackName }
+    return (
+      <PersonalSpaceTextPopover
+        open={assetRename.isRenaming(assetId)}
+        onOpenChange={(open) => assetRename.openRename(renameItem, open)}
+        className="character-linked-asset-rename-popover"
+        value={assetRename.draftFor(renameItem)}
+        ariaLabel={`${asset?.name ?? fallbackName}资产名称`}
+        placeholder="资产名称"
+        confirmIcon={<EditOutlined />}
+        confirmDisabled={!assetRename.draftFor(renameItem).trim()}
+        onValueChange={(value) => assetRename.changeDraft(assetId, value)}
+        onConfirm={() => assetRename.confirmRename(renameItem)}
+        onCancel={() => assetRename.cancelRename(assetId)}
+      >
+        <Button
+          size="small"
+          icon={<EditOutlined />}
+          aria-label="重命名资产"
+          onClick={() => assetRename.openRename(renameItem, true)}
+        >
+          重命名
+        </Button>
+      </PersonalSpaceTextPopover>
+    )
+  }
+
   const renderLinkedAsset = (assetId: string) => {
     const asset = assetById.get(assetId)
     if (!isVoiceColumn) {
@@ -93,7 +126,10 @@ export function CharacterLinkedAssetColumn({
         <div className="linked-asset-row" key={assetId}>
           {renderPreview(asset)}
           <div className="form-stack linked-asset-main">
-            <strong>{asset?.name ?? fallbackName}</strong>
+            <div className="linked-asset-name-block">
+              <strong>{asset?.name ?? fallbackName}</strong>
+              {renderRenameButton(assetId, asset)}
+            </div>
             <Button
               size="small"
               danger
@@ -129,6 +165,7 @@ export function CharacterLinkedAssetColumn({
           {renderPreview(asset)}
           <div className="character-voice-main">
             <strong>{asset?.name ?? fallbackName}</strong>
+            {renderRenameButton(assetId, asset)}
             <span className="character-voice-dialogue">{asset?.dialogueText || '未填写对白文本'}</span>
             <span className="field-note">剧情顺序：{getStoryboardVoiceRefs(assetId).join('、') || '未关联剧情组'}</span>
           </div>

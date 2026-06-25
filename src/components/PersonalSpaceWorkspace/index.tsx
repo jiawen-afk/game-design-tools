@@ -161,6 +161,7 @@ export default function PersonalSpaceWorkspace() {
                 onToggleCharacterStar={workspace.toggleCharacterStar}
                 onReorderCharacter={workspace.reorderCharacter}
                 onDeleteCharacter={workspace.deleteCharacter}
+                onRenameAsset={workspace.renameAsset}
                 onAssignAsset={workspace.assignAsset}
                 onUnassignAsset={workspace.unassignAsset}
                 onMoveCharacterVoice={workspace.moveCharacterVoice}
