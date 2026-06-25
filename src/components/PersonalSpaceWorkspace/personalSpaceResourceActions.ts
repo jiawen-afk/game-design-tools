@@ -152,7 +152,11 @@ export async function deleteAssetWithOptionalResources(
   directoryHandle: PersonalSpaceDirectoryHandle | null,
 ): Promise<AssetDeleteResult> {
   const asset = state.assets.find((item) => item.id === assetId)
-  if (!state.settings.deleteResourcesWithContent || !asset?.storageResourcePaths.length || !directoryHandle) {
+  const storedPaths = asset ? [
+    ...asset.storageResourcePaths,
+    asset.coverStorageResourcePath,
+  ].filter((path): path is string => Boolean(path)) : []
+  if (!state.settings.deleteResourcesWithContent || storedPaths.length === 0 || !directoryHandle) {
     return {
       attemptedResourceDeletion: false,
       pendingDeletedPaths: [],
@@ -160,7 +164,7 @@ export async function deleteAssetWithOptionalResources(
     }
   }
 
-  const cleanup = await deleteStoredResourceFiles(directoryHandle, asset.storageResourcePaths)
+  const cleanup = await deleteStoredResourceFiles(directoryHandle, storedPaths)
   return {
     attemptedResourceDeletion: true,
     pendingDeletedPaths: cleanup.pendingPaths,

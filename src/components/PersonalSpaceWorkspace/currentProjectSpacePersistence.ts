@@ -109,6 +109,7 @@ function projectAssetObjectKeys(rows: LegacyProjectRows) {
   return rows.assets.flatMap((asset) => [
     asset.primary_object_key,
     asset.sprite_index_object_key,
+    asset.cover_object_key,
   ]).filter((objectKey): objectKey is string => Boolean(objectKey))
 }
 
