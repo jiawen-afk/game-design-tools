@@ -26,6 +26,7 @@ interface PersonalMaterialsPanelProps {
   onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
   onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
   onDeleteAsset: (assetId: string) => void | Promise<void>
+  onRefreshProjectData?: () => void | Promise<void>
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
   projectId?: string
@@ -53,6 +54,7 @@ export function PersonalMaterialsPanel({
   onToggleGroupStar,
   onDeleteGroup,
   onDeleteAsset,
+  onRefreshProjectData,
   projectObjectStorage,
   projectAssetManager,
   projectId,
@@ -81,6 +83,7 @@ export function PersonalMaterialsPanel({
       onToggleGroupStar={onToggleGroupStar}
       onDeleteGroup={onDeleteGroup}
       onDeleteAsset={(assetId) => void onDeleteAsset(assetId)}
+      onRefreshProjectData={onRefreshProjectData}
       projectObjectStorage={projectObjectStorage}
       projectAssetManager={projectAssetManager}
       projectId={projectId}
@@ -91,6 +94,7 @@ export function PersonalMaterialsPanel({
   return (
     <Tabs
       className="personal-inner-tabs"
+      onChange={() => void onRefreshProjectData?.()}
       items={[
         {
           key: 'images',

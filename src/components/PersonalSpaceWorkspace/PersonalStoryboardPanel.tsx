@@ -38,6 +38,7 @@ interface PersonalStoryboardPanelProps {
   onAssignStoryboardVoiceCharacter: (groupId: string, assetId: string, characterId: string) => void
   onUpdateStoryboardVoiceText: (groupId: string, assetId: string, text: string) => void
   onMoveStoryboardVoice: (groupId: string, draggedAssetId: string, targetAssetId: string, placement?: StoryboardVoiceDropPlacement) => void
+  onRefreshProjectData?: () => void | Promise<void>
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
   projectId?: string
@@ -67,6 +68,7 @@ export function PersonalStoryboardPanel({
   onAssignStoryboardVoiceCharacter,
   onUpdateStoryboardVoiceText,
   onMoveStoryboardVoice,
+  onRefreshProjectData,
   projectObjectStorage,
   projectAssetManager,
   projectId,
@@ -147,6 +149,7 @@ export function PersonalStoryboardPanel({
             onlyStarred={onlyStarredStoryboards}
             onChange={setSelectedStoryboardFilter}
             onOnlyStarredChange={setOnlyStarredStoryboards}
+            onRefresh={onRefreshProjectData}
           />
         </div>
         <div className="storyboard-global-actions">

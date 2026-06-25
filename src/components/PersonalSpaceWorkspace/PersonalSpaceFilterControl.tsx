@@ -1,4 +1,5 @@
-import { Checkbox, Select } from 'antd'
+import { Button, Checkbox, Select } from 'antd'
+import { SyncOutlined } from '@ant-design/icons'
 
 export interface PersonalSpaceFilterOption {
   label: string
@@ -13,6 +14,7 @@ interface PersonalSpaceFilterControlProps {
   onlyStarred: boolean
   onChange: (value: string) => void
   onOnlyStarredChange: (checked: boolean) => void
+  onRefresh?: () => void | Promise<void>
 }
 
 export function PersonalSpaceFilterControl({
@@ -23,6 +25,7 @@ export function PersonalSpaceFilterControl({
   onlyStarred,
   onChange,
   onOnlyStarredChange,
+  onRefresh,
 }: PersonalSpaceFilterControlProps) {
   return (
     <div className={className}>
@@ -44,6 +47,14 @@ export function PersonalSpaceFilterControl({
       >
         仅星标
       </Checkbox>
+      {onRefresh ? (
+        <Button
+          aria-label="刷新项目数据"
+          className="personal-filter-refresh"
+          icon={<SyncOutlined />}
+          onClick={() => void onRefresh()}
+        />
+      ) : null}
     </div>
   )
 }

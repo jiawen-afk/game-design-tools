@@ -7,6 +7,7 @@ import {
   createRecordSpriteUploadBatchTracker,
   createSpriteUploadBatch,
 } from './personalSpaceUploadModel'
+import type { UploadFileEntry } from './personalSpaceUploadModel'
 
 function uploadFile(name: string, size: number) {
   return { name, size } as File
@@ -34,6 +35,27 @@ test('sprite upload batch accepts uppercase png and ignores entries without file
 
   assert.deepEqual(batch?.files.map((file) => file.name), ['HERO.PNG', 'index.json'])
   assert.equal(batch?.batchKey, 'HERO.PNG:20|index.json:5')
+})
+
+test('sprite upload batch unwraps upload file entries before reading object URLs', () => {
+  const spriteFile = uploadFile('sprite.png', 12)
+  const indexFile = uploadFile('index.json', 8)
+  const batch = createSpriteUploadBatch([
+    {
+      name: 'wrapped-sprite.png',
+      size: 999,
+      originFileObj: spriteFile,
+    } as UploadFileEntry,
+    {
+      name: 'wrapped-index.json',
+      size: 888,
+      originFileObj: indexFile,
+    } as UploadFileEntry,
+  ])
+
+  assert.equal(batch?.files[0], spriteFile)
+  assert.equal(batch?.files[1], indexFile)
+  assert.equal(batch?.batchKey, 'index.json:8|sprite.png:12')
 })
 
 test('sprite upload batch consumer ignores repeated batches until cleared', () => {

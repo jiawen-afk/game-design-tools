@@ -76,6 +76,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     enableProject,
     initializeProjects,
     openProjectManagement,
+    refreshActiveProjectState,
     refreshProjectList,
   } = createPersonalSpaceProjectSessionActions({
     projectBootstrapper,
@@ -268,6 +269,15 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   const activeProjectStorage = projectStorageWorkflow.objectStorageForProject(activeProject)
   const projectResourceReadOptions = projectStorageWorkflow.projectReadOptionsForProject(activeProject)
   const storyboardVoiceRefs = (assetId: string) => createStoryboardVoiceRefs(space, assetId)
+  const refreshActiveProjectData = async () => {
+    await refreshActiveProjectState()
+  }
+  const changeActiveModuleAndRefresh = (key: string) => {
+    const changed = changeActiveModule(key)
+    if (changed && key !== 'settings') {
+      void refreshActiveProjectState()
+    }
+  }
 
   return {
     space,
@@ -301,6 +311,8 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setNewCharacterName,
     setNewStoryboardName,
     changeActiveModule,
+    changeActiveModuleAndRefresh,
+    refreshActiveProjectData,
     createLocalProject,
     createRemoteProject,
     renameProject,

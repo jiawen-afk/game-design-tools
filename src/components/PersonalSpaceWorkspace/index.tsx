@@ -137,7 +137,7 @@ export default function PersonalSpaceWorkspace() {
       <Tabs
         className="personal-tabs"
         activeKey={workspace.activeModule}
-        onChange={workspace.changeActiveModule}
+        onChange={workspace.changeActiveModuleAndRefresh}
         items={[
           {
             key: 'characters',
@@ -164,6 +164,7 @@ export default function PersonalSpaceWorkspace() {
                 onAssignAsset={workspace.assignAsset}
                 onUnassignAsset={workspace.unassignAsset}
                 onMoveCharacterVoice={workspace.moveCharacterVoice}
+                onRefreshProjectData={workspace.refreshActiveProjectData}
                 projectObjectStorage={workspace.projectObjectStorage}
                 projectAssetManager={workspace.projectAssetManager}
                 projectId={workspace.activeProject?.id}
@@ -199,6 +200,7 @@ export default function PersonalSpaceWorkspace() {
                 onAssignStoryboardVoiceCharacter={workspace.assignStoryboardVoiceCharacter}
                 onUpdateStoryboardVoiceText={workspace.updateStoryboardVoice}
                 onMoveStoryboardVoice={workspace.moveStoryboardVoice}
+                onRefreshProjectData={workspace.refreshActiveProjectData}
                 projectObjectStorage={workspace.projectObjectStorage}
                 projectAssetManager={workspace.projectAssetManager}
                 projectId={workspace.activeProject?.id}
@@ -232,6 +234,7 @@ export default function PersonalSpaceWorkspace() {
                 onToggleGroupStar={workspace.toggleAssetGroupStar}
                 onDeleteGroup={workspace.deleteAssetGroup}
                 onDeleteAsset={workspace.deleteAsset}
+                onRefreshProjectData={workspace.refreshActiveProjectData}
                 projectObjectStorage={workspace.projectObjectStorage}
                 projectAssetManager={workspace.projectAssetManager}
                 projectId={workspace.activeProject?.id}

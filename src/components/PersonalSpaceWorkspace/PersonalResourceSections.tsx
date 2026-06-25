@@ -32,6 +32,7 @@ interface PersonalResourceSectionProps {
   onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
   onDeleteGroup: (kind: AssetGroupKind, name: string, options: { deleteAssets?: boolean; transferToGroup?: string }) => void
   onDeleteAsset: (assetId: string) => void
+  onRefreshProjectData?: () => void | Promise<void>
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
   projectId?: string
@@ -63,6 +64,7 @@ export function PersonalResourceSection({
   onToggleGroupStar,
   onDeleteGroup,
   onDeleteAsset,
+  onRefreshProjectData,
   projectObjectStorage,
   projectAssetManager,
   projectId,
@@ -166,6 +168,7 @@ export function PersonalResourceSection({
               onlyStarred={onlyStarredResourceGroups}
               onChange={setSelectedGroup}
               onOnlyStarredChange={setOnlyStarredResourceGroups}
+              onRefresh={onRefreshProjectData}
             />
             <PersonalAssetGroupControls
               kind={section.kind}

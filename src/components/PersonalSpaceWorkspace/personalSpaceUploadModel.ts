@@ -24,11 +24,16 @@ function isFileLike(item: unknown): item is File {
   )
 }
 
+function isUploadFileEntry(item: unknown): item is UploadFileEntry {
+  return Boolean(item && typeof item === 'object' && 'originFileObj' in item)
+}
+
 export function createSpriteUploadBatch(fileEntries: Array<UploadFileEntry | File | null | undefined>): SpriteUploadBatch | null {
   const files = fileEntries.flatMap((item) => {
     if (!item) return []
+    if (isUploadFileEntry(item)) return item.originFileObj ? [item.originFileObj] : []
     if (isFileLike(item)) return [item]
-    return item.originFileObj ? [item.originFileObj] : []
+    return []
   })
   const hasPng = files.some((file) => file.name.toLowerCase().endsWith('.png'))
   const hasIndexJson = files.some((file) => file.name.toLowerCase() === 'index.json')

@@ -564,6 +564,14 @@
   white-space: nowrap;
 }
 
+.personal-filter-refresh.ant-btn {
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
 .voice-group-filter .field-label,
 .character-filter-control .field-label,
 .storyboard-filter-control .field-label {

@@ -38,6 +38,7 @@ interface PersonalCharacterPanelProps {
     column: 'portrait' | 'sprite' | 'voice',
   ) => void
   onMoveCharacterVoice: (characterId: string, draggedAssetId: string, targetAssetId: string) => void
+  onRefreshProjectData?: () => void | Promise<void>
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
   projectId?: string
@@ -64,6 +65,7 @@ export function PersonalCharacterPanel({
   onAssignAsset,
   onUnassignAsset,
   onMoveCharacterVoice,
+  onRefreshProjectData,
   projectObjectStorage,
   projectAssetManager,
   projectId,
@@ -116,6 +118,7 @@ export function PersonalCharacterPanel({
             onlyStarred={onlyStarredCharacters}
             onChange={setSelectedCharacterFilter}
             onOnlyStarredChange={setOnlyStarredCharacters}
+            onRefresh={onRefreshProjectData}
           />
         </div>
       </div>

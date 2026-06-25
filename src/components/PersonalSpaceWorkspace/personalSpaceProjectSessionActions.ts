@@ -145,14 +145,15 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
     if (!options.stateRefs.activeProjectIdRef.current && nextModule !== 'settings') {
       options.stateSetters.setActiveModule('settings')
       void options.messageApi.warning('请先启用一个项目空间')
-      return
+      return false
     }
     if (!options.getSettingsWorkspace().directoryHandle && nextModule !== 'settings') {
       options.stateSetters.setActiveModule('settings')
       void options.messageApi.warning('请先选择授权目录')
-      return
+      return false
     }
     options.stateSetters.setActiveModule(nextModule)
+    return true
   }
 
   const enableProject = (projectId: string) => {
@@ -229,6 +230,15 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
     return true
   }
 
+  const refreshActiveProjectState = async () => {
+    const activeProjectId = options.stateRefs.activeProjectIdRef.current
+    if (!activeProjectId) return false
+    return activateProjectStateFromStorage(
+      activeProjectId,
+      getActiveProjectState(options.stateRefs),
+    )
+  }
+
   return {
     activateProjectState,
     activateProjectStateFromStorage,
@@ -240,6 +250,7 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
     findProject: options.findProject,
     loadProjectSpaceState,
     openProjectManagement,
+    refreshActiveProjectState,
     refreshProjectList,
   }
 }
