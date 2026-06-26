@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 
 const appSource = () => readFileSync('src/App.tsx', 'utf8')
 const viteConfigSource = () => readFileSync('vite.config.ts', 'utf8')
@@ -10,6 +11,27 @@ const openSourceSoftwareSource = () => readFileSync('src/openSourceSoftware.ts',
 const packageJsonSource = () => readFileSync('package.json', 'utf8')
 const appToastProviderSource = () => readFileSync('src/components/AppToastProvider.tsx', 'utf8')
 const releaseWorkflowSource = () => readFileSync('.github/workflows/windows-release.yml', 'utf8')
+
+function normalizePath(path: string) {
+  return path.replace(/\\/g, '/')
+}
+
+function listSourceFiles(root: string): string[] {
+  if (!existsSync(root)) return []
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) return listSourceFiles(path)
+    return /\.(ts|tsx|cjs)$/.test(entry.name) ? [normalizePath(path)] : []
+  })
+}
+
+function productionSourceFiles(root: string): string[] {
+  return listSourceFiles(root).filter((path) => !/\.test\.(ts|tsx|cjs)$/.test(path))
+}
+
+function readSources(paths: string[]) {
+  return paths.map((path) => readFileSync(path, 'utf8')).join('\n')
+}
 
 test('home page shows tool details directly instead of hiding them in a popover', () => {
   const source = appSource()
@@ -3153,4 +3175,75 @@ test('project character pickers and storyboard avatars resolve remote assets thr
   assert.match(resolverSource, /buildProjectAssetCoverResourceRef/)
   assert.doesNotMatch(pickerSource, /<img src=\{asset\.resourcePaths\[0\]\}/)
   assert.doesNotMatch(avatarSource, /src=\{portraitPath\}/)
+})
+
+test('document knowledge workspace keeps panels free of storage adapters and workflow hooks', () => {
+  const panelPaths = productionSourceFiles('src/components/DocumentWorkspace')
+    .filter((path) => /Panel\.tsx$/.test(path))
+
+  assert.deepEqual(panelPaths.sort(), [
+    'src/components/DocumentWorkspace/DocumentBrowserPanel.tsx',
+    'src/components/DocumentWorkspace/DocumentGraphPanel.tsx',
+  ])
+
+  for (const path of panelPaths) {
+    const source = readFileSync(path, 'utf8')
+    assert.doesNotMatch(source, /projectSqliteRepository|projectLocalRepositoryProxy|projectRemoteRepositoryProxy/)
+    assert.doesNotMatch(source, /\.\.\/\.\.\/desktopApi|electron/)
+    assert.doesNotMatch(source, /shjGraphImportAdapter/)
+    assert.doesNotMatch(source, /useDocumentWorkspace/)
+  }
+})
+
+test('document knowledge import and repository modules do not depend on UI panels', () => {
+  const source = readSources([
+    'src/components/DocumentWorkspace/documentKnowledgeImportService.ts',
+    'src/components/ProjectStorage/projectSqliteRepository.ts',
+    'src/components/ProjectStorage/projectLocalRepositoryProxy.ts',
+    'src/components/ProjectStorage/projectRemoteRepositoryProxy.ts',
+    'electron/projectLocalRepository.cjs',
+    'electron/projectRemoteRepository.cjs',
+    'electron/projectStorageIpcHandlers.cjs',
+  ])
+
+  assert.doesNotMatch(source, /DocumentBrowserPanel|DocumentGraphPanel|DocumentWorkspace\.tsx/)
+  assert.doesNotMatch(readFileSync('src/components/DocumentWorkspace/shjGraphImportAdapter.ts', 'utf8'), /from 'react'|from "react"|React\./)
+})
+
+test('document knowledge raw graph field assumptions stay in the shj adapter', () => {
+  const adapterPath = 'src/components/DocumentWorkspace/shjGraphImportAdapter.ts'
+  const documentWorkspaceSource = readSources(
+    productionSourceFiles('src/components/DocumentWorkspace')
+      .filter((path) => path !== adapterPath),
+  )
+
+  for (const field of ['term_record', 'category_paths', 'site_relation', 'source_kind']) {
+    assert.match(readFileSync(adapterPath, 'utf8'), new RegExp(field))
+    assert.doesNotMatch(documentWorkspaceSource, new RegExp(field))
+  }
+})
+
+test('project space stays independent from document knowledge parsing', () => {
+  const source = readSources(productionSourceFiles('src/components/PersonalSpaceWorkspace'))
+
+  assert.doesNotMatch(source, /DocumentWorkspace|documentKnowledge|entity_graph\.json/)
+  assert.doesNotMatch(source, /term_record|category_paths|site_relation/)
+})
+
+test('app shell exposes generic knowledge base UI without shj-specific fields', () => {
+  const source = [
+    appSource(),
+    readFileSync('src/components/DocumentWorkspace/DocumentHomeKnowledgeSection.tsx', 'utf8'),
+  ].join('\n')
+
+  assert.match(source, /知识库/)
+  assert.doesNotMatch(source, /山海经|term_record|category_paths|site_relation|source_kind/)
+})
+
+test('production import paths only advertise entity graph json support', () => {
+  const source = readSources(productionSourceFiles('src'))
+
+  assert.match(source, /entity_graph\.json/)
+  assert.doesNotMatch(source, /acceptedFileNames:\s*\[[^\]]*graph\.json/)
+  assert.doesNotMatch(source, /支持导入 graph\.json|接受 graph\.json|兼容 graph\.json/)
 })

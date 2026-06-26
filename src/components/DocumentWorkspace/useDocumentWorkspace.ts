@@ -21,6 +21,7 @@ import {
 import { buildDocumentGraphView } from './documentKnowledgeModel'
 import { importKnowledgeBaseFile, type KnowledgeBaseFileLike } from './documentKnowledgeImportService'
 import { shjGraphImportAdapter } from './shjGraphImportAdapter'
+import type { DocumentWorkspaceState } from './documentWorkspaceTypes'
 
 interface DocumentWorkspaceMessageApi {
   success: (content: string) => void
@@ -31,7 +32,7 @@ interface DocumentWorkspaceMessageApi {
 const localRepository = createDesktopLocalProjectRepository()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(localRepository)
 
-export function useDocumentWorkspace(messageApi: DocumentWorkspaceMessageApi) {
+export function useDocumentWorkspace(messageApi: DocumentWorkspaceMessageApi): DocumentWorkspaceState {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [collections, setCollections] = useState<DocumentCollection[]>([])

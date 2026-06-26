@@ -7,10 +7,8 @@ import {
   SearchOutlined,
 } from '@ant-design/icons'
 
-import type { useDocumentWorkspace } from './useDocumentWorkspace'
+import type { DocumentWorkspaceState } from './documentWorkspaceTypes'
 import type { DocumentNode } from '../ProjectStorage'
-
-type DocumentWorkspaceState = ReturnType<typeof useDocumentWorkspace>
 
 interface DocumentBrowserPanelProps {
   workspace: DocumentWorkspaceState
