@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
+import { shjGraphImportAdapter } from '../DocumentWorkspace/shjGraphImportAdapter'
 import type {
   CreateLocalProjectInput,
   ProjectWithSettings,
@@ -27,6 +28,94 @@ async function createSqlJsDatabase() {
   return initSqlJs({
     locateFile: (fileName: string) => path.join(path.dirname(require.resolve('sql.js')), fileName),
   })
+}
+
+function documentGraphInput(projectId: string) {
+  const text = JSON.stringify({
+    nodes: {
+      'entity:傲徕': {
+        id: 'entity:傲徕',
+        label: '傲徕',
+        type: 'entity',
+        records: ['830'],
+        data: {
+          roles: ['term'],
+          term_record: {
+            source_id: '830',
+            name: '傲徕',
+            category_1: '动物',
+            category_2: '兽名',
+            description: '其状如牛',
+            place_path: '西山经',
+          },
+        },
+      },
+      'descriptor:四角': {
+        id: 'descriptor:四角',
+        label: '四角',
+        type: 'descriptor',
+        records: ['830'],
+        data: {},
+      },
+    },
+    edges: {
+      'edge:1': {
+        id: 'edge:1',
+        source: 'entity:傲徕',
+        target: 'descriptor:四角',
+        type: 'site_relation',
+        label: '描述',
+        weight: 1,
+        record_ids: ['830'],
+        source_kind: 'record',
+      },
+    },
+  })
+  const rows = shjGraphImportAdapter.convertSource({
+    projectId,
+    collectionId: 'collection-1',
+    sourceId: 'source-1',
+    fileName: 'entity_graph.json',
+    text,
+    sizeBytes: text.length,
+    hashSha256: 'hash-1',
+    now: '2026-06-26T00:00:00.000Z',
+  })
+  return {
+    collection: {
+      id: 'collection-1',
+      project_id: projectId,
+      name: '山海经实体图谱',
+      description: '',
+      source_type: 'shj_nlc_graph',
+      status: 'ready',
+      record_count: rows.records.length,
+      node_count: rows.nodes.length,
+      edge_count: rows.edges.length,
+      created_at: '2026-06-26T00:00:00.000Z',
+      updated_at: '2026-06-26T00:00:00.000Z',
+      imported_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    },
+    importRun: {
+      id: 'import-1',
+      project_id: projectId,
+      collection_id: 'collection-1',
+      source_type: 'shj_nlc_graph',
+      status: 'succeeded',
+      started_at: '2026-06-26T00:00:00.000Z',
+      finished_at: '2026-06-26T00:00:00.000Z',
+      total_records: rows.records.length,
+      total_nodes: rows.nodes.length,
+      total_edges: rows.edges.length,
+      imported_records: rows.records.length,
+      imported_nodes: rows.nodes.length,
+      imported_edges: rows.edges.length,
+      error_message: null,
+      report_json: null,
+    },
+    ...rows,
+  }
 }
 
 test('local sqlite repository persists project rows across repository instances', async () => {
@@ -74,6 +163,54 @@ test('local sqlite repository persists project rows across repository instances'
     const reopenedAfterDelete = createLocalProjectRepository(databasePath)
     assert.equal(await reopenedAfterDelete.getProject('p1'), null)
     assert.deepEqual(await reopenedAfterDelete.listAssets('p1'), [])
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('local sqlite repository persists document graph rows and deletes collections with children', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
+  try {
+    const databasePath = path.join(tempDir, 'projects.sqlite')
+    const repository = createLocalProjectRepository(databasePath)
+    await repository.initializeSchema()
+
+    const created = await repository.createProject({
+      name: '山海再就业',
+      description: '',
+      localObjectRoot: 'D:\\GameAssets',
+      now: '2026-06-26T00:00:00.000Z',
+    } satisfies CreateLocalProjectInput)
+    const graph = documentGraphInput(created.project.id)
+
+    await repository.replaceDocumentGraph({
+      projectId: created.project.id,
+      collection: graph.collection,
+      sources: graph.sources,
+      records: graph.records,
+      nodes: graph.nodes,
+      edges: graph.edges,
+      nodeRecordLinks: graph.nodeRecordLinks,
+      edgeRecordLinks: graph.edgeRecordLinks,
+      importRun: graph.importRun,
+    })
+
+    const reopened = createLocalProjectRepository(databasePath)
+    assert.deepEqual((await reopened.listDocumentCollections(created.project.id)).map((item) => item.name), ['山海经实体图谱'])
+    assert.equal((await reopened.listDocumentSources(created.project.id, graph.collection.id))[0]?.file_name, 'entity_graph.json')
+    assert.equal((await reopened.searchDocumentRecords({ projectId: created.project.id, query: '西山经' })).total, 1)
+
+    const nodeSearch = await reopened.searchDocumentNodes({ projectId: created.project.id, query: '四角' })
+    assert.equal(nodeSearch.total, 1)
+    const nodeDetails = await reopened.getDocumentNode(created.project.id, nodeSearch.items[0]!.id)
+    assert.equal(nodeDetails?.node.label, '四角')
+    assert.equal(nodeDetails?.records[0]?.title, '傲徕')
+    assert.deepEqual((await reopened.listDocumentNeighbors(created.project.id, nodeDetails!.node.id)).map((item) => item.node.label), ['傲徕'])
+
+    await reopened.deleteDocumentCollection(created.project.id, graph.collection.id)
+    assert.deepEqual(await reopened.listDocumentCollections(created.project.id), [])
+    assert.equal((await reopened.searchDocumentNodes({ projectId: created.project.id, query: '傲徕' })).total, 0)
+    assert.equal((await reopened.searchDocumentRecords({ projectId: created.project.id, query: '傲徕' })).total, 0)
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }

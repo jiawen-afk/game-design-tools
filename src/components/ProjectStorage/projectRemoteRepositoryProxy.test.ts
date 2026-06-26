@@ -61,6 +61,93 @@ test('desktop remote project repository resolves database profile per project op
   }
 })
 
+test('desktop remote project repository resolves database profile for document knowledge operations', async () => {
+  const previousWindow = (globalThis as { window?: unknown }).window
+  const events: string[] = []
+  ;(globalThis as { window?: unknown }).window = {
+    gameDesignToolsDesktop: {
+      listRemoteDocumentCollections: async (projectId: string, databaseProfileId: string) => {
+        events.push(`collections:${projectId}:${databaseProfileId}`)
+        return []
+      },
+      getRemoteDocumentCollection: async (projectId: string, collectionId: string, databaseProfileId: string) => {
+        events.push(`collection:${projectId}:${collectionId}:${databaseProfileId}`)
+        return null
+      },
+      listRemoteDocumentSources: async (projectId: string, collectionId: string, databaseProfileId: string) => {
+        events.push(`sources:${projectId}:${collectionId}:${databaseProfileId}`)
+        return []
+      },
+      replaceRemoteDocumentGraph: async (input: { projectId: string }, databaseProfileId: string) => {
+        events.push(`replace:${input.projectId}:${databaseProfileId}`)
+        return { collection: { id: 'collection-1' }, importRun: { id: 'import-1' } }
+      },
+      searchRemoteDocumentRecords: async (input: { projectId: string }, databaseProfileId: string) => {
+        events.push(`records:${input.projectId}:${databaseProfileId}`)
+        return { items: [], total: 0 }
+      },
+      searchRemoteDocumentNodes: async (input: { projectId: string }, databaseProfileId: string) => {
+        events.push(`nodes:${input.projectId}:${databaseProfileId}`)
+        return { items: [], total: 0 }
+      },
+      getRemoteDocumentNode: async (projectId: string, nodeId: string, databaseProfileId: string) => {
+        events.push(`node:${projectId}:${nodeId}:${databaseProfileId}`)
+        return null
+      },
+      listRemoteDocumentNeighbors: async (projectId: string, nodeId: string, databaseProfileId: string) => {
+        events.push(`neighbors:${projectId}:${nodeId}:${databaseProfileId}`)
+        return []
+      },
+      deleteRemoteDocumentCollection: async (projectId: string, collectionId: string, databaseProfileId: string) => {
+        events.push(`deleteCollection:${projectId}:${collectionId}:${databaseProfileId}`)
+        return true
+      },
+    },
+  }
+
+  try {
+    const repository = new DesktopRemoteProjectRepository((projectId) => {
+      if (!projectId) return 'current-ui-db'
+      return projectId === 'project-a' ? 'db-a' : 'db-b'
+    })
+    const replaceInput = {
+      projectId: 'project-b',
+      collection: {},
+      sources: [],
+      records: [],
+      nodes: [],
+      edges: [],
+      nodeRecordLinks: [],
+      edgeRecordLinks: [],
+      importRun: {},
+    }
+
+    await repository.listDocumentCollections('project-a')
+    await repository.getDocumentCollection('project-a', 'collection-1')
+    await repository.listDocumentSources('project-b', 'collection-1')
+    await repository.replaceDocumentGraph(replaceInput)
+    await repository.searchDocumentRecords({ projectId: 'project-a', query: '傲徕' })
+    await repository.searchDocumentNodes({ projectId: 'project-b', query: '四角' })
+    await repository.getDocumentNode('project-a', 'node-1')
+    await repository.listDocumentNeighbors('project-b', 'node-2')
+    await repository.deleteDocumentCollection('project-a', 'collection-1')
+
+    assert.deepEqual(events, [
+      'collections:project-a:db-a',
+      'collection:project-a:collection-1:db-a',
+      'sources:project-b:collection-1:db-b',
+      'replace:project-b:db-b',
+      'records:project-a:db-a',
+      'nodes:project-b:db-b',
+      'node:project-a:node-1:db-a',
+      'neighbors:project-b:node-2:db-b',
+      'deleteCollection:project-a:collection-1:db-a',
+    ])
+  } finally {
+    ;(globalThis as { window?: unknown }).window = previousWindow
+  }
+})
+
 test('desktop remote project repository can update a project with an explicit database profile', async () => {
   const previousWindow = (globalThis as { window?: unknown }).window
   const events: string[] = []

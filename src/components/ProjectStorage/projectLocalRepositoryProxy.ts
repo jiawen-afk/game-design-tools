@@ -4,6 +4,9 @@ import {
   createMemoryProjectRepository,
   type CreateLocalProjectInput,
   type CreateRemoteProjectInput,
+  type DocumentNodeSearchInput,
+  type DocumentRecordSearchInput,
+  type ReplaceDocumentGraphInput,
   type ProjectRepository,
   type UpdateProjectInput,
 } from './projectSqliteRepository'
@@ -85,6 +88,63 @@ export class DesktopLocalProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return this.fallbackRepository.listCleanupTasks(projectId)
     return desktopApi.listLocalProjectCleanupTasks(projectId)
+  }
+
+  async listDocumentCollections(projectId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.listDocumentCollections(projectId)
+    return desktopApi.listLocalDocumentCollections(projectId)
+  }
+
+  async getDocumentCollection(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.getDocumentCollection(projectId, collectionId)
+    return desktopApi.getLocalDocumentCollection(projectId, collectionId)
+  }
+
+  async deleteDocumentCollection(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) {
+      await this.fallbackRepository.deleteDocumentCollection(projectId, collectionId)
+      return
+    }
+    await desktopApi.deleteLocalDocumentCollection(projectId, collectionId)
+  }
+
+  async listDocumentSources(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.listDocumentSources(projectId, collectionId)
+    return desktopApi.listLocalDocumentSources(projectId, collectionId)
+  }
+
+  async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.replaceDocumentGraph(input)
+    return desktopApi.replaceLocalDocumentGraph(input)
+  }
+
+  async searchDocumentRecords(input: DocumentRecordSearchInput) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.searchDocumentRecords(input)
+    return desktopApi.searchLocalDocumentRecords(input)
+  }
+
+  async searchDocumentNodes(input: DocumentNodeSearchInput) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.searchDocumentNodes(input)
+    return desktopApi.searchLocalDocumentNodes(input)
+  }
+
+  async getDocumentNode(projectId: string, nodeId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.getDocumentNode(projectId, nodeId)
+    return desktopApi.getLocalDocumentNode(projectId, nodeId)
+  }
+
+  async listDocumentNeighbors(projectId: string, nodeId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.listDocumentNeighbors(projectId, nodeId)
+    return desktopApi.listLocalDocumentNeighbors(projectId, nodeId)
   }
 
   async deleteProject(projectId: string) {

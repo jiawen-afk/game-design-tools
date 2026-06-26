@@ -4,8 +4,11 @@ import type { LegacyProjectRows } from './projectLegacyMigration'
 import type {
   CreateLocalProjectInput,
   CreateRemoteProjectInput,
+  DocumentNodeSearchInput,
+  DocumentRecordSearchInput,
   ProjectWithSettings,
   ProjectRepository,
+  ReplaceDocumentGraphInput,
   UpdateProjectInput,
 } from './projectSqliteRepository'
 import type { ProjectCleanupTask } from './projectStorageTypes'
@@ -92,6 +95,58 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return []
     return desktopApi.listRemoteProjectCleanupTasks(projectId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async listDocumentCollections(projectId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return []
+    return desktopApi.listRemoteDocumentCollections(projectId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async getDocumentCollection(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return null
+    return desktopApi.getRemoteDocumentCollection(projectId, collectionId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async deleteDocumentCollection(projectId: string, collectionId: string) {
+    const desktopApi = this.requireDesktopApi()
+    await desktopApi.deleteRemoteDocumentCollection(projectId, collectionId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async listDocumentSources(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return []
+    return desktopApi.listRemoteDocumentSources(projectId, collectionId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
+    const desktopApi = this.requireDesktopApi()
+    return desktopApi.replaceRemoteDocumentGraph(input, this.requireProjectDatabaseProfileId(input.projectId))
+  }
+
+  async searchDocumentRecords(input: DocumentRecordSearchInput) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return { items: [], total: 0 }
+    return desktopApi.searchRemoteDocumentRecords(input, this.requireProjectDatabaseProfileId(input.projectId))
+  }
+
+  async searchDocumentNodes(input: DocumentNodeSearchInput) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return { items: [], total: 0 }
+    return desktopApi.searchRemoteDocumentNodes(input, this.requireProjectDatabaseProfileId(input.projectId))
+  }
+
+  async getDocumentNode(projectId: string, nodeId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return null
+    return desktopApi.getRemoteDocumentNode(projectId, nodeId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
+  async listDocumentNeighbors(projectId: string, nodeId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return []
+    return desktopApi.listRemoteDocumentNeighbors(projectId, nodeId, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async deleteProject(projectId: string) {

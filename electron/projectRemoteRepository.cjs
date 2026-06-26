@@ -557,6 +557,46 @@ function selectSql(dialect, tableName, whereColumn) {
   return `SELECT ${definition.columns.join(', ')} FROM ${tableName} WHERE ${whereColumn} = ${parameter(dialect, 1)}`
 }
 
+function normalizeDocumentLimit(limit) {
+  const value = Number(limit)
+  if (!Number.isFinite(value)) return 50
+  return Math.max(1, Math.min(200, Math.floor(value)))
+}
+
+function documentSearchWhere(dialect, input) {
+  const where = []
+  const params = []
+  const add = (clause, value) => {
+    params.push(value)
+    where.push(clause(parameter(dialect, params.length)))
+  }
+  add((placeholder) => `project_id = ${placeholder}`, input.projectId)
+  if (input.collectionId) add((placeholder) => `collection_id = ${placeholder}`, input.collectionId)
+  if (input.nodeType) add((placeholder) => `node_type = ${placeholder}`, input.nodeType)
+  const query = String(input.query || '').trim()
+  if (query) add((placeholder) => `search_text LIKE ${placeholder}`, `%${query}%`)
+  return { where: where.join(' AND '), params }
+}
+
+async function deleteDocumentCollectionRows(runner, projectId, collectionId) {
+  for (const tableName of [
+    'document_edge_record_links',
+    'document_node_record_links',
+    'document_edges',
+    'document_nodes',
+    'document_records',
+    'document_sources',
+    'document_import_runs',
+    'document_collections',
+  ]) {
+    const collectionColumn = tableName === 'document_collections' ? 'id' : 'collection_id'
+    await runner.execute(
+      `DELETE FROM ${tableName} WHERE project_id = ${parameter(runner.dialect, 1)} AND ${collectionColumn} = ${parameter(runner.dialect, 2)}`,
+      [projectId, collectionId],
+    )
+  }
+}
+
 class RemoteProjectRepository {
   constructor(profile, options = {}) {
     this.profile = profile
@@ -670,6 +710,128 @@ class RemoteProjectRepository {
     return withRunner(this.profile, this.options, async (runner) => (
       runner.queryRows(selectSql(runner.dialect, 'deleted_project_cleanup_tasks', 'project_id'), [projectId])
     ))
+  }
+
+  async listDocumentCollections(projectId) {
+    return withRunner(this.profile, this.options, async (runner) => (
+      runner.queryRows(
+        `SELECT ${tableDefinitions.document_collections.columns.join(', ')} FROM document_collections WHERE project_id = ${parameter(runner.dialect, 1)} ORDER BY created_at ASC`,
+        [projectId],
+      )
+    ))
+  }
+
+  async getDocumentCollection(projectId, collectionId) {
+    return withRunner(this.profile, this.options, async (runner) => {
+      const rows = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_collections.columns.join(', ')} FROM document_collections WHERE project_id = ${parameter(runner.dialect, 1)} AND id = ${parameter(runner.dialect, 2)}`,
+        [projectId, collectionId],
+      )
+      return rows[0] || null
+    })
+  }
+
+  async deleteDocumentCollection(projectId, collectionId) {
+    await withTransaction(this.profile, this.options, async (runner) => {
+      await deleteDocumentCollectionRows(runner, projectId, collectionId)
+    })
+  }
+
+  async listDocumentSources(projectId, collectionId) {
+    return withRunner(this.profile, this.options, async (runner) => (
+      runner.queryRows(
+        `SELECT ${tableDefinitions.document_sources.columns.join(', ')} FROM document_sources WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY created_at ASC`,
+        [projectId, collectionId],
+      )
+    ))
+  }
+
+  async replaceDocumentGraph(input) {
+    await withTransaction(this.profile, this.options, async (runner) => {
+      await deleteDocumentCollectionRows(runner, input.projectId, input.collection.id)
+      await upsertRow(runner, 'document_collections', input.collection)
+      await upsertRows(runner, 'document_sources', input.sources || [])
+      await upsertRows(runner, 'document_records', input.records || [])
+      await upsertRows(runner, 'document_nodes', input.nodes || [])
+      await upsertRows(runner, 'document_edges', input.edges || [])
+      await upsertRows(runner, 'document_node_record_links', input.nodeRecordLinks || [])
+      await upsertRows(runner, 'document_edge_record_links', input.edgeRecordLinks || [])
+      await upsertRow(runner, 'document_import_runs', input.importRun)
+    })
+    return { collection: input.collection, importRun: input.importRun }
+  }
+
+  async searchDocumentRecords(input) {
+    return withRunner(this.profile, this.options, async (runner) => {
+      const search = documentSearchWhere(runner.dialect, input)
+      const totalRows = await runner.queryRows(
+        `SELECT COUNT(*) AS total FROM document_records WHERE ${search.where}`,
+        search.params,
+      )
+      const limitPlaceholder = parameter(runner.dialect, search.params.length + 1)
+      const items = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_records.columns.join(', ')} FROM document_records WHERE ${search.where} ORDER BY title ASC LIMIT ${limitPlaceholder}`,
+        [...search.params, normalizeDocumentLimit(input.limit)],
+      )
+      return { items, total: Number(totalRows[0]?.total ?? 0) }
+    })
+  }
+
+  async searchDocumentNodes(input) {
+    return withRunner(this.profile, this.options, async (runner) => {
+      const search = documentSearchWhere(runner.dialect, input)
+      const totalRows = await runner.queryRows(
+        `SELECT COUNT(*) AS total FROM document_nodes WHERE ${search.where}`,
+        search.params,
+      )
+      const limitPlaceholder = parameter(runner.dialect, search.params.length + 1)
+      const items = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_nodes.columns.join(', ')} FROM document_nodes WHERE ${search.where} ORDER BY label ASC LIMIT ${limitPlaceholder}`,
+        [...search.params, normalizeDocumentLimit(input.limit)],
+      )
+      return { items, total: Number(totalRows[0]?.total ?? 0) }
+    })
+  }
+
+  async getDocumentNode(projectId, nodeId) {
+    return withRunner(this.profile, this.options, async (runner) => {
+      const nodes = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_nodes.columns.join(', ')} FROM document_nodes WHERE project_id = ${parameter(runner.dialect, 1)} AND id = ${parameter(runner.dialect, 2)}`,
+        [projectId, nodeId],
+      )
+      if (nodes.length === 0) return null
+      const records = await runner.queryRows(
+        [
+          `SELECT ${tableDefinitions.document_records.columns.map((column) => `records.${column}`).join(', ')}`,
+          'FROM document_records records',
+          'INNER JOIN document_node_record_links links ON links.record_id = records.id',
+          `WHERE links.project_id = ${parameter(runner.dialect, 1)} AND links.node_id = ${parameter(runner.dialect, 2)}`,
+          'ORDER BY records.title ASC',
+        ].join(' '),
+        [projectId, nodeId],
+      )
+      return { node: nodes[0], records }
+    })
+  }
+
+  async listDocumentNeighbors(projectId, nodeId) {
+    return withRunner(this.profile, this.options, async (runner) => {
+      const edges = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_edges.columns.join(', ')} FROM document_edges WHERE project_id = ${parameter(runner.dialect, 1)} AND (source_node_id = ${parameter(runner.dialect, 2)} OR target_node_id = ${parameter(runner.dialect, 3)}) ORDER BY label ASC`,
+        [projectId, nodeId, nodeId],
+      )
+      const neighbors = []
+      for (const edge of edges) {
+        const direction = edge.source_node_id === nodeId ? 'outgoing' : 'incoming'
+        const neighborNodeId = direction === 'outgoing' ? edge.target_node_id : edge.source_node_id
+        const nodes = await runner.queryRows(
+          `SELECT ${tableDefinitions.document_nodes.columns.join(', ')} FROM document_nodes WHERE project_id = ${parameter(runner.dialect, 1)} AND id = ${parameter(runner.dialect, 2)}`,
+          [projectId, neighborNodeId],
+        )
+        if (nodes[0]) neighbors.push({ edge, node: nodes[0], direction })
+      }
+      return neighbors
+    })
   }
 
   async deleteProject(projectId) {

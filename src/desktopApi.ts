@@ -3,6 +3,15 @@ import type {
   Asset,
   CreateLocalProjectInput,
   CreateRemoteProjectInput,
+  DocumentCollection,
+  DocumentImportResult,
+  DocumentNeighbor,
+  DocumentNodeDetails,
+  DocumentNodeSearchInput,
+  DocumentNodeSearchResult,
+  DocumentRecordSearchInput,
+  DocumentRecordSearchResult,
+  DocumentSource,
   LegacyProjectRows,
   Project,
   ProjectCleanupTask,
@@ -10,6 +19,7 @@ import type {
   ProjectAssetResourceRef,
   ProjectDeviceBinding,
   ProjectWithSettings,
+  ReplaceDocumentGraphInput,
   UpdateProjectInput,
 } from './components/ProjectStorage'
 
@@ -181,6 +191,15 @@ export interface GameDesignToolsDesktopApi {
   listLocalProjectAssets(projectId: string): Promise<Asset[]>
   addLocalProjectCleanupTasks(tasks: ProjectCleanupTask[]): Promise<boolean>
   listLocalProjectCleanupTasks(projectId: string): Promise<ProjectCleanupTask[]>
+  listLocalDocumentCollections(projectId: string): Promise<DocumentCollection[]>
+  getLocalDocumentCollection(projectId: string, collectionId: string): Promise<DocumentCollection | null>
+  deleteLocalDocumentCollection(projectId: string, collectionId: string): Promise<boolean>
+  listLocalDocumentSources(projectId: string, collectionId: string): Promise<DocumentSource[]>
+  replaceLocalDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
+  searchLocalDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult>
+  searchLocalDocumentNodes(input: DocumentNodeSearchInput): Promise<DocumentNodeSearchResult>
+  getLocalDocumentNode(projectId: string, nodeId: string): Promise<DocumentNodeDetails | null>
+  listLocalDocumentNeighbors(projectId: string, nodeId: string): Promise<DocumentNeighbor[]>
   deleteLocalProject(projectId: string): Promise<boolean>
   listProjectDeviceBindings(): Promise<Record<string, ProjectDeviceBinding>>
   writeProjectDeviceBinding(projectId: string, binding: ProjectDeviceBinding): Promise<boolean>
@@ -209,6 +228,15 @@ export interface GameDesignToolsDesktopApi {
   listRemoteProjectAssets(projectId: string, databaseProfileId?: string): Promise<Asset[]>
   addRemoteProjectCleanupTasks(tasks: ProjectCleanupTask[], databaseProfileId?: string): Promise<boolean>
   listRemoteProjectCleanupTasks(projectId: string, databaseProfileId?: string): Promise<ProjectCleanupTask[]>
+  listRemoteDocumentCollections(projectId: string, databaseProfileId?: string): Promise<DocumentCollection[]>
+  getRemoteDocumentCollection(projectId: string, collectionId: string, databaseProfileId?: string): Promise<DocumentCollection | null>
+  deleteRemoteDocumentCollection(projectId: string, collectionId: string, databaseProfileId?: string): Promise<boolean>
+  listRemoteDocumentSources(projectId: string, collectionId: string, databaseProfileId?: string): Promise<DocumentSource[]>
+  replaceRemoteDocumentGraph(input: ReplaceDocumentGraphInput, databaseProfileId?: string): Promise<DocumentImportResult>
+  searchRemoteDocumentRecords(input: DocumentRecordSearchInput, databaseProfileId?: string): Promise<DocumentRecordSearchResult>
+  searchRemoteDocumentNodes(input: DocumentNodeSearchInput, databaseProfileId?: string): Promise<DocumentNodeSearchResult>
+  getRemoteDocumentNode(projectId: string, nodeId: string, databaseProfileId?: string): Promise<DocumentNodeDetails | null>
+  listRemoteDocumentNeighbors(projectId: string, nodeId: string, databaseProfileId?: string): Promise<DocumentNeighbor[]>
   deleteRemoteProject(projectId: string, databaseProfileId?: string): Promise<boolean>
   putProjectKodoObject(profileId: string, objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
   getProjectKodoObject(profileId: string, objectKey: string): Promise<DesktopProjectObjectReadResult>

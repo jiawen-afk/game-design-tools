@@ -6,6 +6,7 @@ import { inspect } from 'node:util'
 
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
+import { shjGraphImportAdapter } from '../DocumentWorkspace/shjGraphImportAdapter'
 
 const require = createRequire(import.meta.url)
 const {
@@ -52,6 +53,23 @@ interface RemoteProjectRepository {
   getProject(projectId: string): Promise<unknown>
   importProjectRows(rows: ReturnType<typeof migratePersonalSpaceStateToProjectRows>): Promise<void>
   listAssets(projectId: string): Promise<Array<{ id: string; primary_object_key: string }>>
+  replaceDocumentGraph(input: {
+    projectId: string
+    collection: Record<string, unknown>
+    sources: Record<string, unknown>[]
+    records: Record<string, unknown>[]
+    nodes: Record<string, unknown>[]
+    edges: Record<string, unknown>[]
+    nodeRecordLinks: Record<string, unknown>[]
+    edgeRecordLinks: Record<string, unknown>[]
+    importRun: Record<string, unknown>
+  }): Promise<{ collection: Record<string, unknown>; importRun: Record<string, unknown> }>
+  searchDocumentNodes(input: {
+    projectId: string
+    collectionId?: string
+    query?: string
+  }): Promise<{ items: Array<{ id: string; label: string }>; total: number }>
+  deleteDocumentCollection(projectId: string, collectionId: string): Promise<void>
   deleteProject(projectId: string): Promise<void>
 }
 
@@ -80,6 +98,94 @@ const mysqlPayload = {
   ...postgresqlPayload,
   provider: 'mysql',
   port: 3306,
+}
+
+function documentGraphInput(projectId: string) {
+  const text = JSON.stringify({
+    nodes: {
+      'entity:傲徕': {
+        id: 'entity:傲徕',
+        label: '傲徕',
+        type: 'entity',
+        records: ['830'],
+        data: {
+          roles: ['term'],
+          term_record: {
+            source_id: '830',
+            name: '傲徕',
+            category_1: '动物',
+            category_2: '兽名',
+            description: '其状如牛',
+            place_path: '西山经',
+          },
+        },
+      },
+      'descriptor:四角': {
+        id: 'descriptor:四角',
+        label: '四角',
+        type: 'descriptor',
+        records: ['830'],
+        data: {},
+      },
+    },
+    edges: {
+      'edge:1': {
+        id: 'edge:1',
+        source: 'entity:傲徕',
+        target: 'descriptor:四角',
+        type: 'site_relation',
+        label: '描述',
+        weight: 1,
+        record_ids: ['830'],
+        source_kind: 'record',
+      },
+    },
+  })
+  const rows = shjGraphImportAdapter.convertSource({
+    projectId,
+    collectionId: 'collection-1',
+    sourceId: 'source-1',
+    fileName: 'entity_graph.json',
+    text,
+    sizeBytes: text.length,
+    hashSha256: 'hash-1',
+    now: '2026-06-26T00:00:00.000Z',
+  })
+  return {
+    collection: {
+      id: 'collection-1',
+      project_id: projectId,
+      name: '山海经实体图谱',
+      description: '',
+      source_type: 'shj_nlc_graph',
+      status: 'ready',
+      record_count: rows.records.length,
+      node_count: rows.nodes.length,
+      edge_count: rows.edges.length,
+      created_at: '2026-06-26T00:00:00.000Z',
+      updated_at: '2026-06-26T00:00:00.000Z',
+      imported_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    },
+    importRun: {
+      id: 'import-1',
+      project_id: projectId,
+      collection_id: 'collection-1',
+      source_type: 'shj_nlc_graph',
+      status: 'succeeded',
+      started_at: '2026-06-26T00:00:00.000Z',
+      finished_at: '2026-06-26T00:00:00.000Z',
+      total_records: rows.records.length,
+      total_nodes: rows.nodes.length,
+      total_edges: rows.edges.length,
+      imported_records: rows.records.length,
+      imported_nodes: rows.nodes.length,
+      imported_edges: rows.edges.length,
+      error_message: null,
+      report_json: null,
+    },
+    ...rows,
+  }
 }
 
 test('remote project repository creates project rows in a PostgreSQL transaction', async () => {
@@ -250,6 +356,98 @@ test('remote project repository lists assets and hard deletes projects through p
   assert.deepEqual(queries[0]!.params, ['p1'])
   assert.match(queries.at(-2)!.statement, /DELETE FROM projects WHERE id = \$1/i)
   assert.deepEqual(queries.at(-2)!.params, ['p1'])
+})
+
+test('remote project repository replaces document graph rows with parameterized PostgreSQL statements', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+  const graph = documentGraphInput('p1')
+
+  const result = await repository.replaceDocumentGraph({
+    projectId: 'p1',
+    collection: graph.collection,
+    sources: graph.sources,
+    records: graph.records,
+    nodes: graph.nodes,
+    edges: graph.edges,
+    nodeRecordLinks: graph.nodeRecordLinks,
+    edgeRecordLinks: graph.edgeRecordLinks,
+    importRun: graph.importRun,
+  })
+
+  const sql = queries.map((query) => query.statement).join('\n')
+  assert.equal(result.collection.id, 'collection-1')
+  assert.equal(queries[0]!.statement, 'BEGIN')
+  assert.equal(queries.at(-1)!.statement, 'COMMIT')
+  assert.match(sql, /DELETE FROM document_edge_record_links WHERE project_id = \$1 AND collection_id = \$2/i)
+  assert.match(sql, /DELETE FROM document_node_record_links WHERE project_id = \$1 AND collection_id = \$2/i)
+  assert.match(sql, /DELETE FROM document_edges WHERE project_id = \$1 AND collection_id = \$2/i)
+  assert.match(sql, /INSERT INTO document_collections/i)
+  assert.match(sql, /INSERT INTO document_sources/i)
+  assert.match(sql, /INSERT INTO document_records/i)
+  assert.match(sql, /INSERT INTO document_nodes/i)
+  assert.match(sql, /INSERT INTO document_edges/i)
+  assert.match(sql, /INSERT INTO document_node_record_links/i)
+  assert.match(sql, /INSERT INTO document_edge_record_links/i)
+  assert.match(sql, /INSERT INTO document_import_runs/i)
+  assert.ok(queries.every((query) => Array.isArray(query.params)))
+})
+
+test('remote project repository searches document nodes and deletes collections through parameterized SQL', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        if (/COUNT\(\*\).*document_nodes/is.test(statement)) {
+          return { rows: [{ total: '1' }] }
+        }
+        if (/FROM document_nodes/i.test(statement)) {
+          return {
+            rows: [{
+              id: 'node-1',
+              project_id: 'p1',
+              collection_id: 'collection-1',
+              external_id: 'entity:傲徕',
+              node_type: 'entity',
+              label: '傲徕',
+              description: '其状如牛',
+              search_text: '傲徕 西山经',
+              created_at: '2026-06-26T00:00:00.000Z',
+              updated_at: '2026-06-26T00:00:00.000Z',
+              metadata_json: null,
+            }],
+          }
+        }
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+
+  const result = await repository.searchDocumentNodes({
+    projectId: 'p1',
+    collectionId: 'collection-1',
+    query: '傲徕',
+  })
+  await repository.deleteDocumentCollection('p1', 'collection-1')
+
+  assert.equal(result.total, 1)
+  assert.equal(result.items[0]?.label, '傲徕')
+  assert.match(queries[0]!.statement, /COUNT\(\*\).*FROM document_nodes/i)
+  assert.deepEqual(queries[0]!.params, ['p1', 'collection-1', '%傲徕%'])
+  assert.match(queries.at(-2)!.statement, /DELETE FROM document_collections WHERE project_id = \$1 AND id = \$2/i)
+  assert.deepEqual(queries.at(-2)!.params, ['p1', 'collection-1'])
 })
 
 test('remote project repository keeps deleted-object cleanup tasks after hard deleting project rows', async () => {

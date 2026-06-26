@@ -202,6 +202,43 @@ function registerProjectStorageIpcHandlers({ app, ipcMain }) {
     getLocalProjectRepository(app).listCleanupTasks(String(projectId || ''))
   ))
 
+  ipcMain.handle('project-local-repository:list-document-collections', async (_event, projectId) => (
+    getLocalProjectRepository(app).listDocumentCollections(String(projectId || ''))
+  ))
+
+  ipcMain.handle('project-local-repository:get-document-collection', async (_event, projectId, collectionId) => (
+    getLocalProjectRepository(app).getDocumentCollection(String(projectId || ''), String(collectionId || ''))
+  ))
+
+  ipcMain.handle('project-local-repository:delete-document-collection', async (_event, projectId, collectionId) => {
+    await getLocalProjectRepository(app).deleteDocumentCollection(String(projectId || ''), String(collectionId || ''))
+    return true
+  })
+
+  ipcMain.handle('project-local-repository:list-document-sources', async (_event, projectId, collectionId) => (
+    getLocalProjectRepository(app).listDocumentSources(String(projectId || ''), String(collectionId || ''))
+  ))
+
+  ipcMain.handle('project-local-repository:replace-document-graph', async (_event, input = {}) => (
+    getLocalProjectRepository(app).replaceDocumentGraph(input)
+  ))
+
+  ipcMain.handle('project-local-repository:search-document-records', async (_event, input = {}) => (
+    getLocalProjectRepository(app).searchDocumentRecords(input)
+  ))
+
+  ipcMain.handle('project-local-repository:search-document-nodes', async (_event, input = {}) => (
+    getLocalProjectRepository(app).searchDocumentNodes(input)
+  ))
+
+  ipcMain.handle('project-local-repository:get-document-node', async (_event, projectId, nodeId) => (
+    getLocalProjectRepository(app).getDocumentNode(String(projectId || ''), String(nodeId || ''))
+  ))
+
+  ipcMain.handle('project-local-repository:list-document-neighbors', async (_event, projectId, nodeId) => (
+    getLocalProjectRepository(app).listDocumentNeighbors(String(projectId || ''), String(nodeId || ''))
+  ))
+
   ipcMain.handle('project-local-repository:delete-project', async (_event, projectId) => {
     await getLocalProjectRepository(app).deleteProject(String(projectId || ''))
     return true
@@ -302,6 +339,52 @@ function registerProjectStorageIpcHandlers({ app, ipcMain }) {
   ipcMain.handle('project-remote-repository:list-cleanup-tasks', async (_event, projectId, databaseProfileId) => {
     const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
     return repository.listCleanupTasks(String(projectId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:list-document-collections', async (_event, projectId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.listDocumentCollections(String(projectId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:get-document-collection', async (_event, projectId, collectionId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.getDocumentCollection(String(projectId || ''), String(collectionId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:delete-document-collection', async (_event, projectId, collectionId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    await repository.deleteDocumentCollection(String(projectId || ''), String(collectionId || ''))
+    return true
+  })
+
+  ipcMain.handle('project-remote-repository:list-document-sources', async (_event, projectId, collectionId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.listDocumentSources(String(projectId || ''), String(collectionId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:replace-document-graph', async (_event, input = {}, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.replaceDocumentGraph(input)
+  })
+
+  ipcMain.handle('project-remote-repository:search-document-records', async (_event, input = {}, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.searchDocumentRecords(input)
+  })
+
+  ipcMain.handle('project-remote-repository:search-document-nodes', async (_event, input = {}, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.searchDocumentNodes(input)
+  })
+
+  ipcMain.handle('project-remote-repository:get-document-node', async (_event, projectId, nodeId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.getDocumentNode(String(projectId || ''), String(nodeId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:list-document-neighbors', async (_event, projectId, nodeId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.listDocumentNeighbors(String(projectId || ''), String(nodeId || ''))
   })
 
   ipcMain.handle('project-remote-repository:delete-project', async (_event, projectId, databaseProfileId) => {

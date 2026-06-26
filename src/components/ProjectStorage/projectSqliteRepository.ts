@@ -55,6 +55,59 @@ export interface ProjectWithSettings {
   settings: ProjectSettings
 }
 
+export interface ReplaceDocumentGraphInput {
+  projectId: string
+  collection: DocumentCollection
+  sources: DocumentSource[]
+  records: DocumentRecord[]
+  nodes: DocumentNode[]
+  edges: DocumentEdge[]
+  nodeRecordLinks: DocumentNodeRecordLink[]
+  edgeRecordLinks: DocumentEdgeRecordLink[]
+  importRun: DocumentImportRun
+}
+
+export interface DocumentImportResult {
+  collection: DocumentCollection
+  importRun: DocumentImportRun
+}
+
+export interface DocumentRecordSearchInput {
+  projectId: string
+  collectionId?: string
+  query?: string
+  limit?: number
+}
+
+export interface DocumentRecordSearchResult {
+  items: DocumentRecord[]
+  total: number
+}
+
+export interface DocumentNodeSearchInput {
+  projectId: string
+  collectionId?: string
+  query?: string
+  nodeType?: string
+  limit?: number
+}
+
+export interface DocumentNodeSearchResult {
+  items: DocumentNode[]
+  total: number
+}
+
+export interface DocumentNodeDetails {
+  node: DocumentNode
+  records: DocumentRecord[]
+}
+
+export interface DocumentNeighbor {
+  edge: DocumentEdge
+  node: DocumentNode
+  direction: 'incoming' | 'outgoing'
+}
+
 export interface ProjectRepository {
   initializeSchema(): Promise<void>
   createProject(input: CreateLocalProjectInput): Promise<ProjectWithSettings>
@@ -67,6 +120,15 @@ export interface ProjectRepository {
   listAssets(projectId: string): Promise<Asset[]>
   addCleanupTasks(tasks: ProjectCleanupTask[]): Promise<void>
   listCleanupTasks(projectId: string): Promise<ProjectCleanupTask[]>
+  listDocumentCollections(projectId: string): Promise<DocumentCollection[]>
+  getDocumentCollection(projectId: string, collectionId: string): Promise<DocumentCollection | null>
+  deleteDocumentCollection(projectId: string, collectionId: string): Promise<void>
+  listDocumentSources(projectId: string, collectionId: string): Promise<DocumentSource[]>
+  replaceDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
+  searchDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult>
+  searchDocumentNodes(input: DocumentNodeSearchInput): Promise<DocumentNodeSearchResult>
+  getDocumentNode(projectId: string, nodeId: string): Promise<DocumentNodeDetails | null>
+  listDocumentNeighbors(projectId: string, nodeId: string): Promise<DocumentNeighbor[]>
   deleteProject(projectId: string): Promise<void>
 }
 
@@ -279,6 +341,101 @@ export class MemoryProjectRepository implements ProjectRepository {
     return [...(this.cleanupTasks.get(projectId) ?? [])]
   }
 
+  async listDocumentCollections(projectId: string) {
+    return [...(this.documentCollections.get(projectId) ?? [])]
+      .sort((left, right) => left.created_at.localeCompare(right.created_at))
+  }
+
+  async getDocumentCollection(projectId: string, collectionId: string) {
+    return (this.documentCollections.get(projectId) ?? [])
+      .find((collection) => collection.id === collectionId) ?? null
+  }
+
+  async deleteDocumentCollection(projectId: string, collectionId: string) {
+    this.documentCollections.set(projectId, (this.documentCollections.get(projectId) ?? [])
+      .filter((collection) => collection.id !== collectionId))
+    this.deleteDocumentCollectionChildren(projectId, collectionId)
+  }
+
+  async listDocumentSources(projectId: string, collectionId: string) {
+    return (this.documentSources.get(projectId) ?? [])
+      .filter((source) => source.collection_id === collectionId)
+      .sort((left, right) => left.created_at.localeCompare(right.created_at))
+  }
+
+  async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
+    this.documentCollections.set(input.projectId, [
+      ...(this.documentCollections.get(input.projectId) ?? [])
+        .filter((collection) => collection.id !== input.collection.id),
+      input.collection,
+    ])
+    this.deleteDocumentCollectionChildren(input.projectId, input.collection.id)
+    this.documentSources.set(input.projectId, [...(this.documentSources.get(input.projectId) ?? []), ...input.sources])
+    this.documentRecords.set(input.projectId, [...(this.documentRecords.get(input.projectId) ?? []), ...input.records])
+    this.documentNodes.set(input.projectId, [...(this.documentNodes.get(input.projectId) ?? []), ...input.nodes])
+    this.documentEdges.set(input.projectId, [...(this.documentEdges.get(input.projectId) ?? []), ...input.edges])
+    this.documentNodeRecordLinks.set(input.projectId, [
+      ...(this.documentNodeRecordLinks.get(input.projectId) ?? []),
+      ...input.nodeRecordLinks,
+    ])
+    this.documentEdgeRecordLinks.set(input.projectId, [
+      ...(this.documentEdgeRecordLinks.get(input.projectId) ?? []),
+      ...input.edgeRecordLinks,
+    ])
+    this.documentImportRuns.set(input.projectId, [...(this.documentImportRuns.get(input.projectId) ?? []), input.importRun])
+    return { collection: input.collection, importRun: input.importRun }
+  }
+
+  async searchDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult> {
+    const query = normalizeDocumentQuery(input.query)
+    const matched = (this.documentRecords.get(input.projectId) ?? [])
+      .filter((record) => !input.collectionId || record.collection_id === input.collectionId)
+      .filter((record) => !query || record.search_text.toLocaleLowerCase().includes(query))
+      .sort((left, right) => left.title.localeCompare(right.title))
+    return {
+      items: matched.slice(0, normalizeDocumentLimit(input.limit)),
+      total: matched.length,
+    }
+  }
+
+  async searchDocumentNodes(input: DocumentNodeSearchInput): Promise<DocumentNodeSearchResult> {
+    const query = normalizeDocumentQuery(input.query)
+    const matched = (this.documentNodes.get(input.projectId) ?? [])
+      .filter((node) => !input.collectionId || node.collection_id === input.collectionId)
+      .filter((node) => !input.nodeType || node.node_type === input.nodeType)
+      .filter((node) => !query || node.search_text.toLocaleLowerCase().includes(query))
+      .sort((left, right) => left.label.localeCompare(right.label))
+    return {
+      items: matched.slice(0, normalizeDocumentLimit(input.limit)),
+      total: matched.length,
+    }
+  }
+
+  async getDocumentNode(projectId: string, nodeId: string) {
+    const node = (this.documentNodes.get(projectId) ?? []).find((item) => item.id === nodeId)
+    if (!node) return null
+    const recordIds = new Set((this.documentNodeRecordLinks.get(projectId) ?? [])
+      .filter((link) => link.node_id === nodeId)
+      .map((link) => link.record_id))
+    const records = (this.documentRecords.get(projectId) ?? [])
+      .filter((record) => recordIds.has(record.id))
+      .sort((left, right) => left.title.localeCompare(right.title))
+    return { node, records }
+  }
+
+  async listDocumentNeighbors(projectId: string, nodeId: string) {
+    const nodes = this.documentNodes.get(projectId) ?? []
+    return (this.documentEdges.get(projectId) ?? [])
+      .flatMap((edge): DocumentNeighbor[] => {
+        if (edge.source_node_id !== nodeId && edge.target_node_id !== nodeId) return []
+        const direction = edge.source_node_id === nodeId ? 'outgoing' : 'incoming'
+        const neighborNodeId = direction === 'outgoing' ? edge.target_node_id : edge.source_node_id
+        const node = nodes.find((item) => item.id === neighborNodeId)
+        return node ? [{ edge, node, direction }] : []
+      })
+      .sort((left, right) => left.node.label.localeCompare(right.node.label))
+  }
+
   async deleteProject(projectId: string) {
     this.projects.delete(projectId)
     this.settings.delete(projectId)
@@ -298,6 +455,32 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.documentEdgeRecordLinks.delete(projectId)
     this.documentImportRuns.delete(projectId)
   }
+
+  private deleteDocumentCollectionChildren(projectId: string, collectionId: string) {
+    this.documentSources.set(projectId, (this.documentSources.get(projectId) ?? [])
+      .filter((source) => source.collection_id !== collectionId))
+    this.documentRecords.set(projectId, (this.documentRecords.get(projectId) ?? [])
+      .filter((record) => record.collection_id !== collectionId))
+    this.documentNodes.set(projectId, (this.documentNodes.get(projectId) ?? [])
+      .filter((node) => node.collection_id !== collectionId))
+    this.documentEdges.set(projectId, (this.documentEdges.get(projectId) ?? [])
+      .filter((edge) => edge.collection_id !== collectionId))
+    this.documentNodeRecordLinks.set(projectId, (this.documentNodeRecordLinks.get(projectId) ?? [])
+      .filter((link) => link.collection_id !== collectionId))
+    this.documentEdgeRecordLinks.set(projectId, (this.documentEdgeRecordLinks.get(projectId) ?? [])
+      .filter((link) => link.collection_id !== collectionId))
+    this.documentImportRuns.set(projectId, (this.documentImportRuns.get(projectId) ?? [])
+      .filter((run) => run.collection_id !== collectionId))
+  }
+}
+
+function normalizeDocumentQuery(query: string | undefined) {
+  return String(query || '').trim().toLocaleLowerCase()
+}
+
+function normalizeDocumentLimit(limit: number | undefined) {
+  if (!Number.isFinite(limit)) return 50
+  return Math.max(1, Math.min(200, Math.floor(limit as number)))
 }
 
 export function createMemoryProjectRepository() {
