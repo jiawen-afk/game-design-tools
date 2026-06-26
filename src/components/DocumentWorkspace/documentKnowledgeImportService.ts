@@ -1,10 +1,31 @@
 import { listKnowledgeBaseAdapters } from './documentKnowledgeModel'
 import type { ProjectRepository, DocumentImportResult } from '../ProjectStorage/projectSqliteRepository'
+import type { DocumentSourceContent } from '../ProjectStorage/projectStorageTypes'
 
 export interface KnowledgeBaseFileLike {
   name: string
   size: number
   text(): Promise<string>
+}
+
+export type KnowledgeBaseImportProgressStage =
+  | 'reading'
+  | 'hashing'
+  | 'checking-existing'
+  | 'converting'
+  | 'writing'
+  | 'done'
+  | 'failed'
+
+export interface KnowledgeBaseImportProgress {
+  stage: KnowledgeBaseImportProgressStage
+  message: string
+  percent: number
+  counts?: {
+    records: number
+    nodes: number
+    edges: number
+  }
 }
 
 export interface ImportKnowledgeBaseFileInput {
@@ -13,6 +34,7 @@ export interface ImportKnowledgeBaseFileInput {
   collectionName: string
   file: KnowledgeBaseFileLike
   now?: string
+  onProgress?: (event: KnowledgeBaseImportProgress) => void
 }
 
 const textEncoder = new TextEncoder()
@@ -25,9 +47,24 @@ export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInpu
   }
 
   const now = input.now ?? new Date().toISOString()
+  reportProgress(input, {
+    stage: 'reading',
+    message: `读取 ${fileName}`,
+    percent: 8,
+  })
   const text = await input.file.text()
+  reportProgress(input, {
+    stage: 'hashing',
+    message: '计算文件指纹',
+    percent: 18,
+  })
   const hashSha256 = await sha256Hex(text)
   const collectionName = input.collectionName.trim() || adapter.displayName
+  reportProgress(input, {
+    stage: 'checking-existing',
+    message: '检查已有知识库集合',
+    percent: 32,
+  })
   const existingCollection = (await input.repository.listDocumentCollections(input.projectId))
     .find((collection) => collection.name === collectionName && collection.source_type === adapter.sourceType)
   const collectionId = existingCollection?.id
@@ -47,7 +84,28 @@ export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInpu
   const validation = adapter.validateSource(sourceInput)
   if (!validation.ok) throw new Error(validation.errors.join('\n'))
 
+  reportProgress(input, {
+    stage: 'converting',
+    message: '解析图谱节点与关系',
+    percent: 52,
+  })
   const rows = adapter.convertSource(sourceInput)
+  const sourceContents: DocumentSourceContent[] = rows.sourceContents?.length ? rows.sourceContents : [{
+    source_id: sourceId,
+    project_id: input.projectId,
+    collection_id: collectionId,
+    content_text: text,
+    content_encoding: 'utf-8',
+    size_bytes: input.file.size,
+    hash_sha256: hashSha256,
+    created_at: now,
+    metadata_json: JSON.stringify({ sourceType: adapter.sourceType }),
+  }]
+  const counts = {
+    records: rows.records.length,
+    nodes: rows.nodes.length,
+    edges: rows.edges.length,
+  }
   const collection = {
     id: collectionId,
     project_id: input.projectId,
@@ -81,17 +139,36 @@ export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInpu
     report_json: null,
   }
 
+  reportProgress(input, {
+    stage: 'writing',
+    message: `写入 ${counts.records} 条记录、${counts.nodes} 个节点、${counts.edges} 条关系`,
+    percent: 78,
+    counts,
+  })
   return input.repository.replaceDocumentGraph({
     projectId: input.projectId,
     collection,
     sources: rows.sources,
+    sourceContents,
     records: rows.records,
     nodes: rows.nodes,
     edges: rows.edges,
     nodeRecordLinks: rows.nodeRecordLinks,
     edgeRecordLinks: rows.edgeRecordLinks,
     importRun,
+  }).then((result) => {
+    reportProgress(input, {
+      stage: 'done',
+      message: `导入完成：${counts.records} 条记录、${counts.nodes} 个节点、${counts.edges} 条关系`,
+      percent: 100,
+      counts,
+    })
+    return result
   })
+}
+
+function reportProgress(input: ImportKnowledgeBaseFileInput, event: KnowledgeBaseImportProgress) {
+  input.onProgress?.(event)
 }
 
 async function sha256Hex(text: string) {

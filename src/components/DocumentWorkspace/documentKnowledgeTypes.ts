@@ -5,6 +5,7 @@ import type {
   DocumentNodeRecordLink,
   DocumentRecord,
   DocumentSource,
+  DocumentSourceContent,
 } from '../ProjectStorage/projectStorageTypes'
 
 export interface KnowledgeBaseSourceInput {
@@ -25,6 +26,7 @@ export interface KnowledgeBaseValidationResult {
 
 export interface KnowledgeBaseImportRows {
   sources: DocumentSource[]
+  sourceContents?: DocumentSourceContent[]
   records: DocumentRecord[]
   nodes: DocumentNode[]
   edges: DocumentEdge[]

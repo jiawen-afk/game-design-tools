@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createMemoryProjectRepository } from '../ProjectStorage/projectSqliteRepository'
+import type { ReplaceDocumentGraphInput } from '../ProjectStorage/projectSqliteRepository'
 import { importKnowledgeBaseFile } from './documentKnowledgeImportService'
 
 const now = '2026-06-26T00:00:00.000Z'
@@ -70,6 +71,12 @@ function fileLike(name: string, text: string) {
 
 test('imports entity graph files as normalized document rows without raw JSON source storage', async () => {
   const repository = createMemoryProjectRepository()
+  const originalReplaceDocumentGraph = repository.replaceDocumentGraph.bind(repository)
+  let replacedInput: ReplaceDocumentGraphInput | null = null
+  repository.replaceDocumentGraph = async (input: ReplaceDocumentGraphInput) => {
+    replacedInput = input
+    return originalReplaceDocumentGraph(input)
+  }
   const created = await repository.createProject({
     name: '山海再就业',
     description: '',
@@ -77,11 +84,13 @@ test('imports entity graph files as normalized document rows without raw JSON so
     now,
   })
 
+  const fileText = entityGraphText('傲徕', '830')
+  const file = fileLike('entity_graph.json', fileText)
   const result = await importKnowledgeBaseFile({
     repository,
     projectId: created.project.id,
     collectionName: '山海经实体图谱',
-    file: fileLike('entity_graph.json', entityGraphText('傲徕', '830')),
+    file,
     now,
   })
 
@@ -97,6 +106,16 @@ test('imports entity graph files as normalized document rows without raw JSON so
   assert.equal(sources[0]?.hash_sha256?.length, 64)
   assert.equal('content_text' in sources[0]!, false)
   assert.equal('content_blob' in sources[0]!, false)
+  assert.equal(replacedInput?.sourceContents.length, 1)
+  assert.equal(replacedInput?.sourceContents[0]?.source_id, replacedInput?.sources[0]?.id)
+  assert.equal(replacedInput?.sourceContents[0]?.content_text, fileText)
+  assert.equal(replacedInput?.sourceContents[0]?.content_encoding, 'utf-8')
+  assert.equal(replacedInput?.sourceContents[0]?.size_bytes, file.size)
+  assert.equal(replacedInput?.sourceContents[0]?.hash_sha256, replacedInput?.sources[0]?.hash_sha256)
+  assert.equal(replacedInput?.sources[0] && 'content_text' in replacedInput.sources[0], false)
+
+  const sourceContent = await repository.getDocumentSourceContent(created.project.id, sources[0]!.id)
+  assert.equal(sourceContent?.content_text, fileText)
 
   const recordSearch = await repository.searchDocumentRecords({
     projectId: created.project.id,
@@ -117,7 +136,6 @@ test('imports entity graph files as normalized document rows without raw JSON so
   const details = await repository.getDocumentNode(created.project.id, nodeSearch.items[0]!.id)
   assert.equal(details?.records[0]?.external_id, '830')
   assert.equal((await repository.listDocumentNeighbors(created.project.id, details!.node.id)).length, 1)
-  assert.equal('getDocumentSourceContent' in repository, false)
 })
 
 test('reimporting the same knowledge collection replaces old normalized rows', async () => {
@@ -151,6 +169,37 @@ test('reimporting the same knowledge collection replaces old normalized rows', a
   await repository.deleteDocumentCollection(created.project.id, second.collection.id)
   assert.deepEqual(await repository.listDocumentCollections(created.project.id), [])
   assert.equal((await repository.searchDocumentRecords({ projectId: created.project.id, query: '旋龟' })).total, 0)
+})
+
+test('import service reports staged progress with converted row counts', async () => {
+  const repository = createMemoryProjectRepository()
+  const created = await repository.createProject({
+    name: '山海再就业',
+    description: '',
+    localObjectRoot: 'D:\\GameAssets',
+    now,
+  })
+  const progressEvents: Array<{
+    stage: string
+    percent: number
+    counts?: { records: number; nodes: number; edges: number }
+  }> = []
+
+  await importKnowledgeBaseFile({
+    repository,
+    projectId: created.project.id,
+    collectionName: '山海经实体图谱',
+    file: fileLike('entity_graph.json', entityGraphText('傲徕', '830')),
+    now,
+    onProgress: (event) => progressEvents.push(event),
+  })
+
+  assert.deepEqual(
+    progressEvents.map((event) => event.stage),
+    ['reading', 'hashing', 'checking-existing', 'converting', 'writing', 'done'],
+  )
+  assert.deepEqual(progressEvents.at(-1)?.counts, { records: 1, nodes: 2, edges: 1 })
+  assert.equal(progressEvents.at(-1)?.percent, 100)
 })
 
 test('import service rejects graph json compatibility input', async () => {

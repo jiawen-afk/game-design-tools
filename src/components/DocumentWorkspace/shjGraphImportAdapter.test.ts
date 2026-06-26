@@ -147,6 +147,11 @@ test('shj adapter reports duplicate node external ids before database writes', (
 
 test('shj adapter does not copy the full source graph into row metadata', () => {
   const rows = shjGraphImportAdapter.convertSource(sourceInput(validEntityGraphText))
+  const serializedRows = JSON.stringify([
+    ...rows.records.map((row) => row.metadata_json),
+    ...rows.nodes.map((row) => row.metadata_json),
+    ...rows.edges.map((row) => row.metadata_json),
+  ])
   const serializedMetadata = [
     ...rows.sources,
     ...rows.records,
@@ -159,6 +164,8 @@ test('shj adapter does not copy the full source graph into row metadata', () => 
   assert.doesNotMatch(serializedMetadata, /term_record/)
   assert.doesNotMatch(serializedMetadata, /"nodes"\s*:/)
   assert.doesNotMatch(serializedMetadata, /"edges"\s*:/)
+  assert.equal(serializedRows.includes('"nodes"'), false)
+  assert.equal(serializedRows.includes('"edges"'), false)
 })
 
 test('document search text normalizes parsed fields without raw JSON dependence', () => {
