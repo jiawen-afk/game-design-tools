@@ -40,13 +40,13 @@ function createProjectRemoteSchemaSql(dialect) {
   if (dialect !== 'mysql') throw new Error('初始化表结构仅支持 PostgreSQL 或 MySQL。')
 
   return createProjectSchemaSql('mysql').map((statement) => statement
-    .replace(/\b(id|version|project_id|group_id|character_id|asset_id|storyboard_id|source_asset_id|target_asset_id)\s+text\s+primary\s+key/gi, '$1 varchar(64) primary key')
-    .replace(/\b(id|version|project_id|group_id|character_id|asset_id|storyboard_id|source_asset_id|target_asset_id|primary_resource_id|sprite_index_resource_id|cover_resource_id|remote_database_profile_id|remote_storage_profile_id)\s+text\b/gi, '$1 varchar(64)')
-    .replace(/\b(kind|mode|status|storage_provider|database_provider|asset_subtype|column_kind|relation_type|from_mode|to_mode|storage_provider|primary_mime_group|primary_extension|sprite_index_mime_type|cover_mime_type)\s+text\b/gi, '$1 varchar(64)')
-    .replace(/\b(name|display_name|primary_file_name|sprite_index_file_name|cover_file_name|primary_mime_type|primary_hash_sha256|sprite_index_hash_sha256|cover_hash_sha256)\s+text\b/gi, '$1 varchar(255)')
-    .replace(/\b(object_key_prefix|primary_object_key|sprite_index_object_key|cover_object_key|object_key|source_key|local_object_root|error_message)\s+text\b/gi, '$1 varchar(512)')
-    .replace(/\b(created_at|updated_at|applied_at|last_verified_at|started_at|finished_at)\s+text\b/gi, '$1 varchar(32)')
-    .replace(/\b(description|dialogue_text|text|checksum)\s+text\b/gi, '$1 varchar(2048)')
+    .replace(/\b(id|version|project_id|group_id|character_id|asset_id|storyboard_id|source_asset_id|target_asset_id|collection_id|source_id|node_id|edge_id|record_id)\s+text\s+primary\s+key/gi, '$1 varchar(64) primary key')
+    .replace(/\b(id|version|project_id|group_id|character_id|asset_id|storyboard_id|source_asset_id|target_asset_id|collection_id|source_id|node_id|edge_id|record_id|source_node_id|target_node_id|primary_resource_id|sprite_index_resource_id|cover_resource_id|remote_database_profile_id|remote_storage_profile_id)\s+text\b/gi, '$1 varchar(64)')
+    .replace(/\b(kind|mode|status|storage_provider|database_provider|asset_subtype|column_kind|relation_type|from_mode|to_mode|storage_provider|primary_mime_group|primary_extension|sprite_index_mime_type|cover_mime_type|source_type|record_type|node_type|edge_type|source_kind|role|mime_group|extension|encoding|link_role)\s+text\b/gi, '$1 varchar(64)')
+    .replace(/\b(name|display_name|primary_file_name|sprite_index_file_name|cover_file_name|primary_mime_type|primary_hash_sha256|sprite_index_hash_sha256|cover_hash_sha256|file_name|mime_type|hash_sha256|external_id|title|label|category_1|category_2|category_3|book_title|chapter_title|version_title)\s+text\b/gi, '$1 varchar(255)')
+    .replace(/\b(object_key_prefix|primary_object_key|sprite_index_object_key|cover_object_key|object_key|source_key|local_object_root|error_message|place_path|source_url)\s+text\b/gi, '$1 varchar(512)')
+    .replace(/\b(created_at|updated_at|applied_at|last_verified_at|started_at|finished_at|imported_at)\s+text\b/gi, '$1 varchar(32)')
+    .replace(/\b(description|dialogue_text|text|checksum|search_text|usage_text|effect_text)\s+text\b/gi, '$1 varchar(2048)')
     .replace(/\bCREATE INDEX IF NOT EXISTS\b/gi, 'CREATE INDEX')
   )
 }
@@ -217,6 +217,128 @@ function createProjectSchemaSql(dialect) {
       created_at text not null,
       UNIQUE (project_id, source_asset_id, target_asset_id, relation_type)
     )`,
+    `CREATE TABLE IF NOT EXISTS document_collections (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      name text not null,
+      description text not null default '',
+      source_type text not null,
+      status text not null,
+      record_count integer not null default 0,
+      node_count integer not null default 0,
+      edge_count integer not null default 0,
+      created_at text not null,
+      updated_at text not null,
+      imported_at text null,
+      metadata_json ${json} null,
+      UNIQUE (project_id, name)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_sources (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      role text not null,
+      file_name text not null,
+      mime_group text not null,
+      mime_type text not null,
+      extension text not null,
+      size_bytes integer not null default 0,
+      hash_sha256 text null,
+      encoding text not null default 'utf-8',
+      created_at text not null,
+      metadata_json ${json} null,
+      UNIQUE (project_id, collection_id, role, file_name)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_records (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      source_id text not null references document_sources(id) on delete cascade,
+      external_id text not null,
+      record_type text not null default '',
+      title text not null,
+      description text not null default '',
+      category_1 text null,
+      category_2 text null,
+      category_3 text null,
+      place_path text null,
+      book_title text null,
+      chapter_title text null,
+      version_title text null,
+      usage_text text null,
+      effect_text text null,
+      source_url text null,
+      search_text text not null default '',
+      created_at text not null,
+      updated_at text not null,
+      metadata_json ${json} null,
+      UNIQUE (project_id, collection_id, external_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_nodes (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      external_id text not null,
+      node_type text not null,
+      label text not null,
+      description text not null default '',
+      search_text text not null default '',
+      created_at text not null,
+      updated_at text not null,
+      metadata_json ${json} null,
+      UNIQUE (project_id, collection_id, external_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_edges (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      external_id text not null,
+      source_node_id text not null references document_nodes(id) on delete cascade,
+      target_node_id text not null references document_nodes(id) on delete cascade,
+      edge_type text not null,
+      label text not null default '',
+      weight real not null default 1,
+      source_kind text not null default '',
+      created_at text not null,
+      metadata_json ${json} null,
+      UNIQUE (project_id, collection_id, external_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_node_record_links (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      node_id text not null references document_nodes(id) on delete cascade,
+      record_id text not null references document_records(id) on delete cascade,
+      link_role text not null default 'related',
+      created_at text not null,
+      UNIQUE (project_id, node_id, record_id, link_role)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_edge_record_links (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      edge_id text not null references document_edges(id) on delete cascade,
+      record_id text not null references document_records(id) on delete cascade,
+      created_at text not null,
+      UNIQUE (project_id, edge_id, record_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS document_import_runs (
+      id text primary key,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text null references document_collections(id) on delete set null,
+      source_type text not null,
+      status text not null,
+      started_at text not null,
+      finished_at text null,
+      total_records integer not null default 0,
+      total_nodes integer not null default 0,
+      total_edges integer not null default 0,
+      imported_records integer not null default 0,
+      imported_nodes integer not null default 0,
+      imported_edges integer not null default 0,
+      error_message text null,
+      report_json ${json} null
+    )`,
     `CREATE TABLE IF NOT EXISTS project_migrations (
       id text primary key,
       project_id text not null references projects(id) on delete cascade,
@@ -251,6 +373,27 @@ function createProjectSchemaSql(dialect) {
     'CREATE INDEX IF NOT EXISTS idx_storyboard_voice_project_storyboard ON storyboard_voice_entries(project_id, storyboard_id, sort_order)',
     'CREATE INDEX IF NOT EXISTS idx_asset_relations_source ON asset_relations(project_id, source_asset_id)',
     'CREATE INDEX IF NOT EXISTS idx_asset_relations_target ON asset_relations(project_id, target_asset_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_collections_project_status ON document_collections(project_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_document_collections_project_source_type ON document_collections(project_id, source_type)',
+    'CREATE INDEX IF NOT EXISTS idx_document_sources_project_collection ON document_sources(project_id, collection_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_sources_project_role ON document_sources(project_id, role)',
+    'CREATE INDEX IF NOT EXISTS idx_document_records_project_type ON document_records(project_id, collection_id, record_type)',
+    'CREATE INDEX IF NOT EXISTS idx_document_records_project_title ON document_records(project_id, collection_id, title)',
+    'CREATE INDEX IF NOT EXISTS idx_document_records_project_category_1 ON document_records(project_id, collection_id, category_1)',
+    'CREATE INDEX IF NOT EXISTS idx_document_records_project_category_2 ON document_records(project_id, collection_id, category_2)',
+    'CREATE INDEX IF NOT EXISTS idx_document_records_project_category_3 ON document_records(project_id, collection_id, category_3)',
+    'CREATE INDEX IF NOT EXISTS idx_document_nodes_project_type ON document_nodes(project_id, collection_id, node_type)',
+    'CREATE INDEX IF NOT EXISTS idx_document_nodes_project_label ON document_nodes(project_id, collection_id, label)',
+    'CREATE INDEX IF NOT EXISTS idx_document_edges_project_source ON document_edges(project_id, collection_id, source_node_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_edges_project_target ON document_edges(project_id, collection_id, target_node_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_edges_project_type ON document_edges(project_id, collection_id, edge_type)',
+    'CREATE INDEX IF NOT EXISTS idx_document_node_record_links_node ON document_node_record_links(project_id, collection_id, node_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_node_record_links_record ON document_node_record_links(project_id, collection_id, record_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_edge_record_links_edge ON document_edge_record_links(project_id, collection_id, edge_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_edge_record_links_record ON document_edge_record_links(project_id, collection_id, record_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_import_runs_project_status ON document_import_runs(project_id, status)',
+    'CREATE INDEX IF NOT EXISTS idx_document_import_runs_project_collection ON document_import_runs(project_id, collection_id)',
+    'CREATE INDEX IF NOT EXISTS idx_document_import_runs_project_started ON document_import_runs(project_id, started_at)',
   ].map((statement) => statement.trim())
 }
 

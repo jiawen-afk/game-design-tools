@@ -8,6 +8,14 @@ import type {
   AssetRelation,
   Character,
   CharacterAssetLink,
+  DocumentCollection,
+  DocumentEdge,
+  DocumentEdgeRecordLink,
+  DocumentImportRun,
+  DocumentNode,
+  DocumentNodeRecordLink,
+  DocumentRecord,
+  DocumentSource,
   Project,
   ProjectDatabaseProvider,
   ProjectCleanupTask,
@@ -73,6 +81,14 @@ export class MemoryProjectRepository implements ProjectRepository {
   private storyboardGroups = new Map<string, StoryboardGroup[]>()
   private storyboardVoiceEntries = new Map<string, StoryboardVoiceEntry[]>()
   private assetRelations = new Map<string, AssetRelation[]>()
+  private documentCollections = new Map<string, DocumentCollection[]>()
+  private documentSources = new Map<string, DocumentSource[]>()
+  private documentRecords = new Map<string, DocumentRecord[]>()
+  private documentNodes = new Map<string, DocumentNode[]>()
+  private documentEdges = new Map<string, DocumentEdge[]>()
+  private documentNodeRecordLinks = new Map<string, DocumentNodeRecordLink[]>()
+  private documentEdgeRecordLinks = new Map<string, DocumentEdgeRecordLink[]>()
+  private documentImportRuns = new Map<string, DocumentImportRun[]>()
   private cleanupTasks = new Map<string, ProjectCleanupTask[]>()
 
   async initializeSchema() {
@@ -114,6 +130,14 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.storyboardGroups.set(id, [])
     this.storyboardVoiceEntries.set(id, [])
     this.assetRelations.set(id, [])
+    this.documentCollections.set(id, [])
+    this.documentSources.set(id, [])
+    this.documentRecords.set(id, [])
+    this.documentNodes.set(id, [])
+    this.documentEdges.set(id, [])
+    this.documentNodeRecordLinks.set(id, [])
+    this.documentEdgeRecordLinks.set(id, [])
+    this.documentImportRuns.set(id, [])
     return { project, settings }
   }
 
@@ -151,6 +175,14 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.storyboardGroups.set(id, [])
     this.storyboardVoiceEntries.set(id, [])
     this.assetRelations.set(id, [])
+    this.documentCollections.set(id, [])
+    this.documentSources.set(id, [])
+    this.documentRecords.set(id, [])
+    this.documentNodes.set(id, [])
+    this.documentEdges.set(id, [])
+    this.documentNodeRecordLinks.set(id, [])
+    this.documentEdgeRecordLinks.set(id, [])
+    this.documentImportRuns.set(id, [])
     return { project, settings }
   }
 
@@ -197,6 +229,14 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.storyboardGroups.set(rows.project.id, [...rows.storyboardGroups])
     this.storyboardVoiceEntries.set(rows.project.id, [...rows.storyboardVoiceEntries])
     this.assetRelations.set(rows.project.id, [...rows.assetRelations])
+    this.documentCollections.set(rows.project.id, [...(rows.documentCollections ?? [])])
+    this.documentSources.set(rows.project.id, [...(rows.documentSources ?? [])])
+    this.documentRecords.set(rows.project.id, [...(rows.documentRecords ?? [])])
+    this.documentNodes.set(rows.project.id, [...(rows.documentNodes ?? [])])
+    this.documentEdges.set(rows.project.id, [...(rows.documentEdges ?? [])])
+    this.documentNodeRecordLinks.set(rows.project.id, [...(rows.documentNodeRecordLinks ?? [])])
+    this.documentEdgeRecordLinks.set(rows.project.id, [...(rows.documentEdgeRecordLinks ?? [])])
+    this.documentImportRuns.set(rows.project.id, [...(rows.documentImportRuns ?? [])])
   }
 
   async exportProjectRows(projectId: string) {
@@ -213,6 +253,14 @@ export class MemoryProjectRepository implements ProjectRepository {
       storyboardGroups: [...(this.storyboardGroups.get(projectId) ?? [])],
       storyboardVoiceEntries: [...(this.storyboardVoiceEntries.get(projectId) ?? [])],
       assetRelations: [...(this.assetRelations.get(projectId) ?? [])],
+      documentCollections: [...(this.documentCollections.get(projectId) ?? [])],
+      documentSources: [...(this.documentSources.get(projectId) ?? [])],
+      documentRecords: [...(this.documentRecords.get(projectId) ?? [])],
+      documentNodes: [...(this.documentNodes.get(projectId) ?? [])],
+      documentEdges: [...(this.documentEdges.get(projectId) ?? [])],
+      documentNodeRecordLinks: [...(this.documentNodeRecordLinks.get(projectId) ?? [])],
+      documentEdgeRecordLinks: [...(this.documentEdgeRecordLinks.get(projectId) ?? [])],
+      documentImportRuns: [...(this.documentImportRuns.get(projectId) ?? [])],
     }
   }
 
@@ -241,6 +289,14 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.storyboardGroups.delete(projectId)
     this.storyboardVoiceEntries.delete(projectId)
     this.assetRelations.delete(projectId)
+    this.documentCollections.delete(projectId)
+    this.documentSources.delete(projectId)
+    this.documentRecords.delete(projectId)
+    this.documentNodes.delete(projectId)
+    this.documentEdges.delete(projectId)
+    this.documentNodeRecordLinks.delete(projectId)
+    this.documentEdgeRecordLinks.delete(projectId)
+    this.documentImportRuns.delete(projectId)
   }
 }
 

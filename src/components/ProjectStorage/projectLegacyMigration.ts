@@ -7,6 +7,14 @@ import type {
   AssetRelation,
   Character,
   CharacterAssetLink,
+  DocumentCollection,
+  DocumentEdge,
+  DocumentEdgeRecordLink,
+  DocumentImportRun,
+  DocumentNode,
+  DocumentNodeRecordLink,
+  DocumentRecord,
+  DocumentSource,
   Project,
   ProjectAssetGroupKind,
   ProjectSettings,
@@ -33,6 +41,14 @@ export interface LegacyProjectRows {
   storyboardGroups: StoryboardGroup[]
   storyboardVoiceEntries: StoryboardVoiceEntry[]
   assetRelations: AssetRelation[]
+  documentCollections: DocumentCollection[]
+  documentSources: DocumentSource[]
+  documentRecords: DocumentRecord[]
+  documentNodes: DocumentNode[]
+  documentEdges: DocumentEdge[]
+  documentNodeRecordLinks: DocumentNodeRecordLink[]
+  documentEdgeRecordLinks: DocumentEdgeRecordLink[]
+  documentImportRuns: DocumentImportRun[]
 }
 
 function createIdMap(sourceIds: string[], preserveSourceIds = false) {
@@ -167,6 +183,14 @@ export function migratePersonalSpaceStateToProjectRows(
     storyboardGroups,
     storyboardVoiceEntries,
     assetRelations,
+    documentCollections: [],
+    documentSources: [],
+    documentRecords: [],
+    documentNodes: [],
+    documentEdges: [],
+    documentNodeRecordLinks: [],
+    documentEdgeRecordLinks: [],
+    documentImportRuns: [],
   }
 }
 

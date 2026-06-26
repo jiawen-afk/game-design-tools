@@ -12,6 +12,14 @@ const rowSetTables = [
   ['storyboardGroups', 'storyboard_groups'],
   ['storyboardVoiceEntries', 'storyboard_voice_entries'],
   ['assetRelations', 'asset_relations'],
+  ['documentCollections', 'document_collections'],
+  ['documentSources', 'document_sources'],
+  ['documentRecords', 'document_records'],
+  ['documentNodes', 'document_nodes'],
+  ['documentEdges', 'document_edges'],
+  ['documentNodeRecordLinks', 'document_node_record_links'],
+  ['documentEdgeRecordLinks', 'document_edge_record_links'],
+  ['documentImportRuns', 'document_import_runs'],
 ]
 
 let sqlModulePromise = null

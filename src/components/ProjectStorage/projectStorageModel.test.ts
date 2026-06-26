@@ -170,3 +170,32 @@ test('schema SQL includes required tables and excludes removed tags and resource
     assert.match(sql, /UNIQUE\s*\(\s*project_id,\s*kind,\s*name\s*\)/i)
   }
 })
+
+test('schema SQL includes normalized document knowledge tables without raw JSON content columns', () => {
+  const documentTables = [
+    'document_collections',
+    'document_sources',
+    'document_records',
+    'document_nodes',
+    'document_edges',
+    'document_node_record_links',
+    'document_edge_record_links',
+    'document_import_runs',
+  ]
+
+  for (const dialect of ['sqlite', 'postgresql', 'mysql'] as const) {
+    const sql = createProjectSchemaSql(dialect).join('\n')
+    for (const table of documentTables) {
+      assert.match(sql, new RegExp(`CREATE TABLE [^;]*${table}`, 'i'))
+      assert.equal((PROJECT_SCHEMA_TABLES as readonly string[]).includes(table), true)
+    }
+    assert.match(sql, /record_count integer not null default 0/i)
+    assert.match(sql, /document_records/)
+    assert.match(sql, /document_node_record_links/)
+    assert.match(sql, /document_edge_record_links/)
+    assert.doesNotMatch(sql, /content_text/i)
+    assert.doesNotMatch(sql, /content_blob/i)
+    assert.doesNotMatch(sql, /record_ids_json/i)
+    assert.doesNotMatch(sql, /record_json/i)
+  }
+})
