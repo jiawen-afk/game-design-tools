@@ -51,6 +51,10 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
     return findAvailableProfileId(binding?.storageProfileId ?? null, options.getStorageProfileIds())
   }
 
+  const selectedStorageProfileId = () => (
+    options.getSelectedStorageProfileId().trim()
+  )
+
   const hydrateCurrentDeviceBindings = () => hydrateProjectDeviceBindingsFromLocalPersistence({
     storage: options.storage,
     persistence: options.persistence,
@@ -89,10 +93,10 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
   )
 
   const getRemoteStorageProfileId = (objectKey?: string, projectId?: string) => {
-    if (projectId) return storageProfileIdForProject(projectId)
-    if (!objectKey) return options.getSelectedStorageProfileId()
+    if (projectId) return storageProfileIdForProject(projectId) || selectedStorageProfileId()
+    if (!objectKey) return selectedStorageProfileId()
     const objectProjectName = objectProjectNameFromPrefix(objectKey)
-    if (!objectProjectName) return options.getSelectedStorageProfileId()
+    if (!objectProjectName) return selectedStorageProfileId()
     const mappedProjectId = objectProjectName ? projectIdByObjectProjectName[objectProjectName] : ''
     return mappedProjectId ? storageProfileIdForProject(mappedProjectId) : ''
   }

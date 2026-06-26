@@ -27,7 +27,7 @@ function createMemoryStorage(): Storage {
   }
 }
 
-test('remote device binding resolver maps project object keys to current device storage profiles', () => {
+test('remote device binding resolver maps project object keys to current device storage profiles', async () => {
   const storage = createMemoryStorage()
   const resolver = createProjectRemoteDeviceBindingResolver({
     storage,
@@ -37,7 +37,7 @@ test('remote device binding resolver maps project object keys to current device 
     getSelectedStorageProfileId: () => 'kodo-selected',
   })
 
-  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
   resolver.rememberRemoteProject({
     id: 'project-a',
     name: '山海 再就业',
@@ -54,7 +54,7 @@ test('remote device binding resolver maps project object keys to current device 
   assert.equal(resolver.getRemoteStorageProfileId(), 'kodo-selected')
 })
 
-test('remote device binding resolver ignores stale local profile bindings', () => {
+test('remote device binding resolver ignores stale local profile bindings', async () => {
   const storage = createMemoryStorage()
   const resolver = createProjectRemoteDeviceBindingResolver({
     storage,
@@ -64,13 +64,13 @@ test('remote device binding resolver ignores stale local profile bindings', () =
     getSelectedStorageProfileId: () => '',
   })
 
-  resolver.bindProjectToCurrentDevice('project-a', 'db-old', 'kodo-old')
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-old', 'kodo-old')
 
   assert.equal(resolver.currentDeviceBindingForProject('project-a'), null)
   assert.equal(resolver.getRemoteDatabaseProfileId('project-a'), '')
 })
 
-test('remote device binding resolver resolves database and storage bindings independently', () => {
+test('remote device binding resolver resolves database and storage bindings independently', async () => {
   const storage = createMemoryStorage()
   const resolver = createProjectRemoteDeviceBindingResolver({
     storage,
@@ -80,7 +80,7 @@ test('remote device binding resolver resolves database and storage bindings inde
     getSelectedStorageProfileId: () => '',
   })
 
-  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-missing')
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-missing')
   resolver.rememberRemoteProject({
     id: 'project-a',
     name: '山海再就业',
@@ -104,7 +104,7 @@ test('remote device binding resolver does not fallback to selected storage profi
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业/audio_wav/r1.wav'), '')
 })
 
-test('remote device binding resolver remembers historical asset object key prefixes for renamed projects', () => {
+test('remote device binding resolver remembers historical asset object key prefixes for renamed projects', async () => {
   const storage = createMemoryStorage()
   const resolver = createProjectRemoteDeviceBindingResolver({
     storage,
@@ -114,7 +114,7 @@ test('remote device binding resolver remembers historical asset object key prefi
     getSelectedStorageProfileId: () => '',
   })
 
-  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
   resolver.rememberRemoteProject({
     id: 'project-a',
     name: '山海再就业 新名',
@@ -132,7 +132,7 @@ test('remote device binding resolver remembers historical asset object key prefi
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_新名/image_png/sprite-2.png'), 'kodo-current')
 })
 
-test('remote device binding resolver can resolve storage profile from explicit project id', () => {
+test('remote device binding resolver can resolve storage profile from explicit project id', async () => {
   const storage = createMemoryStorage()
   const resolver = createProjectRemoteDeviceBindingResolver({
     storage,
@@ -146,12 +146,33 @@ test('remote device binding resolver can resolve storage profile from explicit p
     projectId?: string,
   ) => string
 
-  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
 
   assert.equal(
     getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png', 'project-a'),
     'kodo-current',
   )
+  assert.equal(resolver.getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png'), '')
+})
+
+test('remote device binding resolver falls back to selected storage profile for explicit project reads only', () => {
+  const resolver = createProjectRemoteDeviceBindingResolver({
+    storage: createMemoryStorage(),
+    getDatabaseProfileIds: () => ['db-current'],
+    getStorageProfileIds: () => ['kodo-selected'],
+    getSelectedDatabaseProfileId: () => 'db-current',
+    getSelectedStorageProfileId: () => 'kodo-selected',
+  })
+  const getRemoteStorageProfileId = resolver.getRemoteStorageProfileId as (
+    objectKey?: string,
+    projectId?: string,
+  ) => string
+
+  assert.equal(
+    getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png', 'project-a'),
+    'kodo-selected',
+  )
+  assert.equal(resolver.currentDeviceBindingForProject('project-a'), null)
   assert.equal(resolver.getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png'), '')
 })
 
