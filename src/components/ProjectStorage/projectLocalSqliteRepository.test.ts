@@ -227,7 +227,7 @@ test('local sqlite repository persists document graph rows and deletes collectio
     assert.equal(projected.nodes[graph.nodes[0]!.id]?.label, graph.nodes[0]!.label)
     assert.equal(projected.edges[graph.edges[0]!.id]?.source, graph.edges[0]!.source_node_id)
     assert.deepEqual(projected.nodes[graph.nodes[0]!.id]?.records, [graph.records[0]!.id])
-    assert.equal((projected.nodes[graph.nodes[0]!.id]?.data.term_record as { title?: string }).title, graph.records[0]!.title)
+    assert.equal((projected.nodes[graph.nodes[0]!.id]?.data.record as { title?: string }).title, graph.records[0]!.title)
 
     await reopened.deleteDocumentCollection(created.project.id, graph.collection.id)
     assert.deepEqual(await reopened.listDocumentCollections(created.project.id), [])

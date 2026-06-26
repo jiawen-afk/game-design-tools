@@ -433,7 +433,7 @@ export class MemoryProjectRepository implements ProjectRepository {
           records: recordIds,
           data: {
             ...parseMetadataJson(node.metadata_json),
-            ...(firstRecord ? { term_record: documentRecordGraphData(firstRecord) } : {}),
+            ...(firstRecord ? { record: documentRecordGraphData(firstRecord) } : {}),
           },
         }]
       }))

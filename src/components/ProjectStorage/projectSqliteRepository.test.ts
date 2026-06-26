@@ -253,7 +253,7 @@ test('local project repository exports normalized document knowledge row sets', 
   const graph = await repository.getDocumentCollectionGraph('p1', 'collection-1')
   assert.equal(graph.nodes['node-1']?.label, '傲徕')
   assert.deepEqual(graph.nodes['node-1']?.records, ['record-1'])
-  assert.equal((graph.nodes['node-1']?.data.term_record as { title?: string }).title, '傲徕')
+  assert.equal((graph.nodes['node-1']?.data.record as { title?: string }).title, '傲徕')
   assert.equal(graph.edges['edge-1']?.source, 'node-1')
   assert.deepEqual(graph.edges['edge-1']?.record_ids, ['record-1'])
 })

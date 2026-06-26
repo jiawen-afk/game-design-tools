@@ -594,7 +594,7 @@ test('remote project repository reads document source content and projects colle
   assert.equal(content?.hash_sha256, 'hash-1')
   assert.equal(graph.nodes['node-1']?.label, '傲徕')
   assert.deepEqual(graph.nodes['node-1']?.records, ['record-1'])
-  assert.equal((graph.nodes['node-1']?.data.term_record as { title?: string }).title, '傲徕')
+  assert.equal((graph.nodes['node-1']?.data.record as { title?: string }).title, '傲徕')
   assert.equal(graph.edges['edge-1']?.source, 'node-1')
   assert.deepEqual(graph.edges['edge-1']?.record_ids, ['record-1'])
   assert.ok(queries.some((query) => /FROM document_source_contents WHERE project_id = \$1 AND source_id = \$2/i.test(query.statement)))

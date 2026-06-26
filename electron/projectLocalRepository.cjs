@@ -859,7 +859,7 @@ class LocalProjectRepository {
           records: recordIds,
           data: {
             ...parseJsonObject(node.metadata_json),
-            ...(firstRecord ? { term_record: documentRecordGraphData(firstRecord) } : {}),
+            ...(firstRecord ? { record: documentRecordGraphData(firstRecord) } : {}),
           },
         }]
       }))
