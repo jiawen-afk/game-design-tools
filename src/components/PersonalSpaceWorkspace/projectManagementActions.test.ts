@@ -164,6 +164,7 @@ test('saving remote project links keeps the current database provider in project
       bindProjectToCurrentDevice: (projectId: string, databaseProfileId: string, storageProfileId: string) => {
         bindings.push([projectId, databaseProfileId, storageProfileId])
       },
+      clearProjectFromCurrentDevice: () => {},
     },
     messageApi: {
       success: (content: string) => { messages.push({ type: 'success', content }) },

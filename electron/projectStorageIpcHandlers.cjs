@@ -207,6 +207,20 @@ function registerProjectStorageIpcHandlers({ app, ipcMain }) {
     return true
   })
 
+  ipcMain.handle('project-device-bindings:list', async () => (
+    getLocalProjectRepository(app).list()
+  ))
+
+  ipcMain.handle('project-device-bindings:write', async (_event, projectId, binding = {}) => {
+    await getLocalProjectRepository(app).write(String(projectId || ''), binding)
+    return true
+  })
+
+  ipcMain.handle('project-device-bindings:clear', async (_event, projectId) => {
+    await getLocalProjectRepository(app).clear(String(projectId || ''))
+    return true
+  })
+
   ipcMain.handle('project-local-object:put', async (_event, objectKey, data, mimeType) => (
     createLocalProjectObjectStorage(resolveProjectLocalObjectRootPath(app))
       .putObject(String(objectKey || ''), Buffer.from(data), { mimeType })

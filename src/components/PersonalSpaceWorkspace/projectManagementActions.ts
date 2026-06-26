@@ -1,5 +1,4 @@
 import {
-  clearProjectDeviceBinding,
   hardDeleteProjectWithObjects,
   migrateLocalProjectToRemote,
   readActiveProjectId,
@@ -47,7 +46,8 @@ interface RemoteDeviceBindingResolverForManagement {
     projectId: string,
     databaseProfileId: string,
     storageProfileId: string,
-  ) => void
+  ) => Promise<void> | void
+  clearProjectFromCurrentDevice: (projectId: string) => Promise<void> | void
 }
 
 export interface ProjectManagementActionsOptions {
@@ -124,7 +124,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
     ) {
       throw new Error('远程项目数据库类型无效。')
     }
-    options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
+    await options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
       created.project.id,
       settingsWorkspace.selectedDatabaseProfileId,
       settingsWorkspace.selectedKodoProfileId,
@@ -187,7 +187,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
       void options.messageApi.warning('远程项目不存在，无法保存连接')
       return false
     }
-    options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
+    await options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
       projectId,
       settingsWorkspace.selectedDatabaseProfileId,
       settingsWorkspace.selectedKodoProfileId,
@@ -221,7 +221,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
       now: new Date().toISOString(),
     })
     deleteProjectSpaceState(projectId)
-    clearProjectDeviceBinding(projectId)
+    await options.remoteDeviceBindingResolver.clearProjectFromCurrentDevice(projectId)
     const wasActive = options.getActiveProjectId() === projectId
     if (wasActive) options.activateProjectState('')
     const nextProjects = await options.refreshProjectList('')
@@ -279,7 +279,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
         return
       }
 
-      options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
+      await options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
         migrationProjectId,
         settingsWorkspace.selectedDatabaseProfileId,
         settingsWorkspace.selectedKodoProfileId,

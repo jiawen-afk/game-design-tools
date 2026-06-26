@@ -131,3 +131,53 @@ test('remote device binding resolver remembers historical asset object key prefi
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_旧名/image_png/sprite-1.png'), 'kodo-current')
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_新名/image_png/sprite-2.png'), 'kodo-current')
 })
+
+test('remote device binding resolver hydrates and writes through local device binding persistence', async () => {
+  const storage = createMemoryStorage()
+  const writes: Array<[string, { databaseProfileId: string, storageProfileId: string }]> = []
+  const clears: string[] = []
+  const resolver = createProjectRemoteDeviceBindingResolver({
+    storage,
+    persistence: {
+      async list() {
+        return {
+          'project-a': {
+            databaseProfileId: 'db-sqlite',
+            storageProfileId: 'kodo-sqlite',
+          },
+        }
+      },
+      async write(projectId, binding) {
+        writes.push([projectId, binding])
+      },
+      async clear(projectId) {
+        clears.push(projectId)
+      },
+    },
+    getDatabaseProfileIds: () => ['db-sqlite', 'db-new'],
+    getStorageProfileIds: () => ['kodo-sqlite', 'kodo-new'],
+    getSelectedDatabaseProfileId: () => '',
+    getSelectedStorageProfileId: () => '',
+  })
+
+  await resolver.hydrateCurrentDeviceBindings()
+
+  assert.deepEqual(resolver.currentDeviceBindingForProject('project-a'), {
+    databaseProfileId: 'db-sqlite',
+    storageProfileId: 'kodo-sqlite',
+  })
+
+  await resolver.bindProjectToCurrentDevice('project-a', 'db-new', 'kodo-new')
+  assert.deepEqual(writes, [[
+    'project-a',
+    { databaseProfileId: 'db-new', storageProfileId: 'kodo-new' },
+  ]])
+  assert.deepEqual(resolver.currentDeviceBindingForProject('project-a'), {
+    databaseProfileId: 'db-new',
+    storageProfileId: 'kodo-new',
+  })
+
+  await resolver.clearProjectFromCurrentDevice('project-a')
+  assert.deepEqual(clears, ['project-a'])
+  assert.equal(resolver.currentDeviceBindingForProject('project-a'), null)
+})

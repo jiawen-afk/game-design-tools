@@ -65,6 +65,7 @@ export function useProjectStorageInfrastructure(settingsWorkspace: ProjectStorag
     remoteProjectSettingsByIdRef.current[projectId] ?? selectedRemoteSettingsSnapshot()
   )
   const ensureRemoteProjectSettings = async (projectId: string) => {
+    await remoteDeviceBindingResolver.hydrateCurrentDeviceBindings()
     if (remoteProjectSettingsByIdRef.current[projectId]) return
     const localSnapshot = await projectRepository.getProject(projectId)
     if (localSnapshot?.project.mode === 'remote') {

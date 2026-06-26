@@ -13,12 +13,13 @@ import type {
   ProjectRepository,
   CreateRemoteProjectInput,
 } from './projectSqliteRepository'
+import type { ProjectDeviceBindingPersistence } from './projectDeviceBindings'
 
 const require = createRequire(import.meta.url)
 const {
   createLocalProjectRepository,
 } = require('../../../electron/projectLocalRepository.cjs') as {
-  createLocalProjectRepository: (databasePath: string) => ProjectRepository
+  createLocalProjectRepository: (databasePath: string) => ProjectRepository & ProjectDeviceBindingPersistence
 }
 
 async function createSqlJsDatabase() {
@@ -108,6 +109,55 @@ test('local sqlite repository keeps updated device profile ids out of shared set
     assert.equal(updated?.settings.remote_database_profile_id, null)
     assert.equal(updated?.settings.remote_storage_profile_id, null)
     assert.equal(updated?.settings.updated_at, '2026-06-24T00:00:00.000Z')
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('local sqlite repository persists current-device bindings outside exported project rows', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
+  try {
+    const databasePath = path.join(tempDir, 'projects.sqlite')
+    const repository = createLocalProjectRepository(databasePath)
+    await repository.initializeSchema()
+    await repository.write('remote-p1', {
+      databaseProfileId: 'db-current-device',
+      storageProfileId: 'kodo-current-device',
+    })
+
+    const reopened = createLocalProjectRepository(databasePath)
+    assert.deepEqual(await reopened.list(), {
+      'remote-p1': {
+        databaseProfileId: 'db-current-device',
+        storageProfileId: 'kodo-current-device',
+      },
+    })
+
+    const rows = migratePersonalSpaceStateToProjectRows(defaultPersonalSpaceState, {
+      projectId: 'remote-p1',
+      projectName: '远程项目',
+      now: '2026-06-23T00:00:00.000Z',
+      localObjectRoot: '',
+    })
+    await reopened.importProjectRows({
+      ...rows,
+      project: { ...rows.project, mode: 'remote' },
+      settings: {
+        ...rows.settings,
+        storage_provider: 'qiniu_kodo',
+        database_provider: 'postgresql',
+        local_object_root: null,
+        remote_database_profile_id: null,
+        remote_storage_profile_id: null,
+      },
+    })
+
+    const exportedRows = await reopened.exportProjectRows('remote-p1')
+    assert.ok(exportedRows)
+    assert.equal('projectDeviceBindings' in exportedRows, false)
+
+    await reopened.clear('remote-p1')
+    assert.deepEqual(await createLocalProjectRepository(databasePath).list(), {})
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }

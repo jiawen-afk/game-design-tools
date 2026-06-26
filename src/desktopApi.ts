@@ -8,6 +8,7 @@ import type {
   ProjectCleanupTask,
   ProjectDatabaseProvider,
   ProjectAssetResourceRef,
+  ProjectDeviceBinding,
   ProjectWithSettings,
   UpdateProjectInput,
 } from './components/ProjectStorage'
@@ -181,6 +182,9 @@ export interface GameDesignToolsDesktopApi {
   addLocalProjectCleanupTasks(tasks: ProjectCleanupTask[]): Promise<boolean>
   listLocalProjectCleanupTasks(projectId: string): Promise<ProjectCleanupTask[]>
   deleteLocalProject(projectId: string): Promise<boolean>
+  listProjectDeviceBindings(): Promise<Record<string, ProjectDeviceBinding>>
+  writeProjectDeviceBinding(projectId: string, binding: ProjectDeviceBinding): Promise<boolean>
+  clearProjectDeviceBinding(projectId: string): Promise<boolean>
   putLocalProjectObject(objectKey: string, data: ArrayBuffer, mimeType?: string): Promise<boolean>
   getLocalProjectObject(objectKey: string): Promise<DesktopProjectObjectReadResult>
   deleteLocalProjectObject(objectKey: string): Promise<boolean>

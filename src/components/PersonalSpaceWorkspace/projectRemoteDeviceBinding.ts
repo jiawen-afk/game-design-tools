@@ -1,8 +1,11 @@
 import {
   readProjectDeviceBinding,
   sanitizeObjectKeyPart,
-  writeProjectDeviceBinding,
+  hydrateProjectDeviceBindingsFromLocalPersistence,
+  writeProjectDeviceBindingToLocalPersistence,
+  clearProjectDeviceBindingFromLocalPersistence,
   type Project,
+  type ProjectDeviceBindingPersistence,
 } from '../ProjectStorage'
 
 type RemoteProjectForDeviceBinding = Pick<Project, 'id' | 'name' | 'object_key_prefix'> & {
@@ -16,6 +19,7 @@ export interface ProjectRemoteDeviceBindingResolverOptions {
   getStorageProfileIds: () => string[]
   getSelectedDatabaseProfileId: () => string
   getSelectedStorageProfileId: () => string
+  persistence?: ProjectDeviceBindingPersistence | null
 }
 
 export function objectProjectNameFromPrefix(prefix: string) {
@@ -47,8 +51,27 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
     return findAvailableProfileId(binding?.storageProfileId ?? null, options.getStorageProfileIds())
   }
 
-  const bindProjectToCurrentDevice = (projectId: string, databaseProfileId: string, storageProfileId: string) => {
-    writeProjectDeviceBinding(projectId, { databaseProfileId, storageProfileId }, options.storage)
+  const hydrateCurrentDeviceBindings = () => hydrateProjectDeviceBindingsFromLocalPersistence({
+    storage: options.storage,
+    persistence: options.persistence,
+  })
+
+  const bindProjectToCurrentDevice = async (projectId: string, databaseProfileId: string, storageProfileId: string) => {
+    await writeProjectDeviceBindingToLocalPersistence(
+      projectId,
+      { databaseProfileId, storageProfileId },
+      {
+        storage: options.storage,
+        persistence: options.persistence,
+      },
+    )
+  }
+
+  const clearProjectFromCurrentDevice = async (projectId: string) => {
+    await clearProjectDeviceBindingFromLocalPersistence(projectId, {
+      storage: options.storage,
+      persistence: options.persistence,
+    })
   }
 
   const rememberRemoteProject = (project: RemoteProjectForDeviceBinding) => {
@@ -75,9 +98,11 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
 
   return {
     bindProjectToCurrentDevice,
+    clearProjectFromCurrentDevice,
     currentDeviceBindingForProject,
     getRemoteDatabaseProfileId,
     getRemoteStorageProfileId,
+    hydrateCurrentDeviceBindings,
     rememberRemoteProject,
   }
 }

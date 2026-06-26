@@ -1206,16 +1206,20 @@ test('remote project profile ids stay local and shared settings are not used as 
 
 test('remote project current-device bindings stay local to each installation', () => {
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
+  const infrastructureSource = readFileSync('src/components/PersonalSpaceWorkspace/useProjectStorageInfrastructure.ts', 'utf8')
   const actionsSource = readFileSync('src/components/PersonalSpaceWorkspace/projectManagementActions.ts', 'utf8')
   const bindingsSource = readFileSync('src/components/ProjectStorage/projectDeviceBindings.ts', 'utf8')
   const resolverSource = readFileSync('src/components/PersonalSpaceWorkspace/projectRemoteDeviceBinding.ts', 'utf8')
 
   assert.match(bindingsSource, /project-space\.device-bindings\.v1/)
+  assert.match(bindingsSource, /hydrateProjectDeviceBindingsFromLocalPersistence/)
+  assert.match(bindingsSource, /writeProjectDeviceBindingToLocalPersistence/)
+  assert.match(infrastructureSource, /remoteDeviceBindingResolver\.hydrateCurrentDeviceBindings\(\)/)
   assert.match(resolverSource, /readProjectDeviceBinding\(projectId, options\.storage\)/)
-  assert.match(resolverSource, /writeProjectDeviceBinding\(projectId, \{ databaseProfileId, storageProfileId \}, options\.storage\)/)
+  assert.match(resolverSource, /writeProjectDeviceBindingToLocalPersistence/)
   assert.match(workspaceSource, /createProjectManagementActions/)
   assert.match(actionsSource, /remoteDeviceBindingResolver\.bindProjectToCurrentDevice\(\s*projectId,\s*settingsWorkspace\.selectedDatabaseProfileId,\s*settingsWorkspace\.selectedKodoProfileId/s)
-  assert.match(actionsSource, /clearProjectDeviceBinding\(projectId\)/)
+  assert.match(actionsSource, /remoteDeviceBindingResolver\.clearProjectFromCurrentDevice\(projectId\)/)
 })
 
 test('remote project connection rebinding and sync errors use current device context', () => {
@@ -1247,7 +1251,7 @@ test('personal space workspace delegates project management actions', () => {
   assert.match(actionsSource, /hardDeleteProjectWithObjects/)
   assert.match(actionsSource, /migrateLocalProjectToRemote/)
   assert.match(actionsSource, /remoteDeviceBindingResolver\.bindProjectToCurrentDevice/)
-  assert.match(actionsSource, /clearProjectDeviceBinding\(projectId\)/)
+  assert.match(actionsSource, /remoteDeviceBindingResolver\.clearProjectFromCurrentDevice\(projectId\)/)
   assert.doesNotMatch(workspaceSource, /const createLocalProject = async/)
   assert.doesNotMatch(workspaceSource, /const createRemoteProject = async/)
   assert.doesNotMatch(workspaceSource, /const renameProject = async/)
