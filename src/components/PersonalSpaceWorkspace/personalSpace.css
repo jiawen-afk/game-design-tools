@@ -159,6 +159,17 @@
   white-space: nowrap;
 }
 
+.project-sync-task-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.project-sync-task-actions .ant-tag {
+  margin-inline-end: 0;
+}
+
 .space-panel {
   display: grid;
   gap: 14px;

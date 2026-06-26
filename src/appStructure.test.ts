@@ -1285,10 +1285,11 @@ test('personal space workspace delegates project session activation and navigati
   assert.doesNotMatch(workspaceSource, /const changeActiveModule = \(/)
 })
 
-test('project workspace exposes manual sync status and blocks repeated sync clicks', () => {
+test('project workspace keeps manual sync retry in the status panel instead of the header', () => {
   const workspaceSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const remoteSyncSource = readFileSync('src/components/PersonalSpaceWorkspace/useProjectRemoteSync.ts', 'utf8')
   const indexSource = readFileSync('src/components/PersonalSpaceWorkspace/index.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectRemoteSyncStatusPanel.tsx', 'utf8')
 
   assert.match(workspaceSource, /useProjectRemoteSync/)
   assert.doesNotMatch(workspaceSource, /manualSyncInFlightProjectIdRef/)
@@ -1300,18 +1301,23 @@ test('project workspace exposes manual sync status and blocks repeated sync clic
   assert.match(remoteSyncSource, /messageApi\.success\('已同步项目空间'\)/)
   assert.match(workspaceSource, /syncingProjectId/)
   assert.match(workspaceSource, /syncActiveProjectNow/)
-  assert.match(indexSource, /SyncOutlined/)
-  assert.match(indexSource, /loading=\{workspace\.syncingProjectId === workspace\.enabledProjectId\}/)
-  assert.match(indexSource, /onClick=\{\(\) => void workspace\.syncActiveProjectNow\(\)\}/)
-  assert.match(indexSource, /同步项目/)
+  assert.doesNotMatch(indexSource, /SyncOutlined/)
+  assert.doesNotMatch(indexSource, /同步项目/)
+  assert.match(indexSource, /onRetryActiveProject=\{workspace\.syncActiveProjectNow\}/)
+  assert.match(panelSource, /重试同步/)
+  assert.match(panelSource, /loading=\{Boolean\(activeProjectId\) && retryingProjectId === activeProjectId\}/)
 })
 
-test('project remote sync status panel only renders for pending upload assets', () => {
+test('project remote sync status panel renders for pending upload, active sync, and failed retry states', () => {
   const panelSource = readFileSync('src/components/PersonalSpaceWorkspace/ProjectRemoteSyncStatusPanel.tsx', 'utf8')
+  const modelSource = readFileSync('src/components/PersonalSpaceWorkspace/projectRemoteSyncStatusModel.ts', 'utf8')
 
   assert.match(panelSource, /shouldShowProjectRemoteSyncStatus/)
   assert.match(panelSource, /if \(!shouldShowProjectRemoteSyncStatus\(status\)\) return null/)
   assert.match(panelSource, /status\.pendingUploadCount/)
+  assert.match(modelSource, /status\.pendingUploadCount > 0/)
+  assert.match(modelSource, /status\.activeTaskCount > 0/)
+  assert.match(modelSource, /task\.status === 'failed'/)
 })
 
 test('personal space workspace delegates asset upload and export actions', () => {

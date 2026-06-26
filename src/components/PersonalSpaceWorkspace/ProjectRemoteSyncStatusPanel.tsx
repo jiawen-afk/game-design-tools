@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button, Progress, Tag } from 'antd'
 import {
   CheckCircleOutlined,
@@ -13,6 +13,13 @@ import {
   type ProjectRemoteSyncStatus,
   type ProjectRemoteSyncTask,
 } from './projectRemoteSyncStatusModel'
+
+interface ProjectRemoteSyncStatusPanelProps {
+  status: ProjectRemoteSyncStatus
+  activeProjectId?: string
+  retryingProjectId?: string
+  onRetryActiveProject?: () => void | Promise<void>
+}
 
 function taskStatusLabel(task: ProjectRemoteSyncTask) {
   if (task.status === 'pending') return '等待'
@@ -34,12 +41,26 @@ function taskProgressStatus(task: ProjectRemoteSyncTask) {
   return 'active' as const
 }
 
-export function ProjectRemoteSyncStatusPanel({ status }: { status: ProjectRemoteSyncStatus }) {
+export function ProjectRemoteSyncStatusPanel({
+  status,
+  activeProjectId = '',
+  retryingProjectId = '',
+  onRetryActiveProject,
+}: ProjectRemoteSyncStatusPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const active = status.activeTaskCount > 0
   const latestTask = status.tasks[0]
+  const hasFailedTask = status.tasks.some((task) => task.status === 'failed')
+
+  useEffect(() => {
+    if (hasFailedTask) setExpanded(true)
+  }, [hasFailedTask])
 
   if (!shouldShowProjectRemoteSyncStatus(status)) return null
+
+  const statusLabel = latestTask?.status === 'failed' && status.pendingUploadCount === 0
+    ? '失败'
+    : status.pendingUploadCount
 
   return (
     <aside className={`project-sync-status${expanded ? ' is-expanded' : ''}`} aria-label="同步状态">
@@ -50,7 +71,7 @@ export function ProjectRemoteSyncStatusPanel({ status }: { status: ProjectRemote
       >
         <span>同步状态</span>
         <Tag color={active ? 'processing' : latestTask?.status === 'failed' ? 'error' : 'warning'}>
-          {status.pendingUploadCount}
+          {statusLabel}
         </Tag>
         {expanded ? <DownOutlined /> : <UpOutlined />}
       </Button>
@@ -62,7 +83,20 @@ export function ProjectRemoteSyncStatusPanel({ status }: { status: ProjectRemote
             <div className="project-sync-task" key={task.projectId}>
               <div className="project-sync-task-head">
                 <strong>{task.projectName}</strong>
-                <Tag color={taskStatusColor(task)}>{taskStatusLabel(task)}</Tag>
+                <div className="project-sync-task-actions">
+                  <Tag color={taskStatusColor(task)}>{taskStatusLabel(task)}</Tag>
+                  {task.status === 'failed' && onRetryActiveProject && (
+                    <Button
+                      size="small"
+                      icon={<SyncOutlined />}
+                      loading={Boolean(activeProjectId) && retryingProjectId === activeProjectId}
+                      disabled={task.projectId !== activeProjectId || (Boolean(activeProjectId) && retryingProjectId === activeProjectId)}
+                      onClick={() => void onRetryActiveProject()}
+                    >
+                      重试同步
+                    </Button>
+                  )}
+                </div>
               </div>
               <Progress
                 percent={task.progress}

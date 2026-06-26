@@ -1,5 +1,5 @@
 import { Button, message, Tabs, Tag } from 'antd'
-import { SwapOutlined, SyncOutlined } from '@ant-design/icons'
+import { SwapOutlined } from '@ant-design/icons'
 
 import { PersonalCharacterPanel } from './PersonalCharacterPanel'
 import { ProjectManagementPanel } from './ProjectManagementPanel'
@@ -93,14 +93,6 @@ export default function PersonalSpaceWorkspace() {
             </Tag>
           </div>
           <span className="project-current-path">{workspace.draftStorageDirectory || '未设置资源存储目录'}</span>
-          <Button
-            icon={<SyncOutlined />}
-            loading={workspace.syncingProjectId === workspace.enabledProjectId}
-            disabled={!workspace.enabledProjectId || workspace.syncingProjectId === workspace.enabledProjectId}
-            onClick={() => void workspace.syncActiveProjectNow()}
-          >
-            同步项目
-          </Button>
           <Button icon={<SwapOutlined />} onClick={workspace.openProjectManagement}>
             切换项目空间
           </Button>
@@ -262,7 +254,12 @@ export default function PersonalSpaceWorkspace() {
           },
         ]}
       />
-      <ProjectRemoteSyncStatusPanel status={workspace.syncStatus} />
+      <ProjectRemoteSyncStatusPanel
+        status={workspace.syncStatus}
+        activeProjectId={workspace.enabledProjectId}
+        retryingProjectId={workspace.syncingProjectId}
+        onRetryActiveProject={workspace.syncActiveProjectNow}
+      />
     </section>
   )
 }

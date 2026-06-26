@@ -104,4 +104,6 @@ export function removePendingProjectRemoteSyncTask(
 
 export function shouldShowProjectRemoteSyncStatus(status: ProjectRemoteSyncStatus) {
   return status.pendingUploadCount > 0
+    || status.activeTaskCount > 0
+    || status.tasks.some((task) => task.status === 'failed')
 }

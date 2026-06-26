@@ -123,7 +123,7 @@ test('remote sync status model counts pending uploads and preserves latest proje
   status = removePendingProjectRemoteSyncTask(status, 'project-alpha')
   assert.equal(status.pendingUploadCount, 0)
   assert.equal(status.activeTaskCount, 0)
-  assert.equal(shouldShowProjectRemoteSyncStatus(status), false)
+  assert.equal(shouldShowProjectRemoteSyncStatus(status), true)
 })
 
 test('remote sync status keeps failed upload tasks visible while assets remain pending', () => {
@@ -138,6 +138,49 @@ test('remote sync status keeps failed upload tasks visible while assets remain p
 
   assert.equal(status.pendingUploadCount, 2)
   assert.equal(status.activeTaskCount, 0)
+  assert.equal(shouldShowProjectRemoteSyncStatus(status), true)
+})
+
+test('remote sync status keeps failed tasks visible even when no assets are pending upload', () => {
+  const status = upsertProjectRemoteSyncTask(createEmptyProjectRemoteSyncStatus(), {
+    projectId: 'project-alpha',
+    projectName: '山海再就业',
+    status: 'failed',
+    progress: 100,
+    pendingAssetCount: 0,
+    errorMessage: '远程数据库不可用',
+  })
+
+  assert.equal(status.pendingUploadCount, 0)
+  assert.equal(status.activeTaskCount, 0)
+  assert.equal(shouldShowProjectRemoteSyncStatus(status), true)
+})
+
+test('remote sync status hides completed tasks when there is nothing left to upload', () => {
+  const status = upsertProjectRemoteSyncTask(createEmptyProjectRemoteSyncStatus(), {
+    projectId: 'project-alpha',
+    projectName: '山海再就业',
+    status: 'succeeded',
+    progress: 100,
+    pendingAssetCount: 0,
+  })
+
+  assert.equal(status.pendingUploadCount, 0)
+  assert.equal(status.activeTaskCount, 0)
+  assert.equal(shouldShowProjectRemoteSyncStatus(status), false)
+})
+
+test('remote sync status shows active sync tasks even when no assets are pending upload', () => {
+  const status = upsertProjectRemoteSyncTask(createEmptyProjectRemoteSyncStatus(), {
+    projectId: 'project-alpha',
+    projectName: '山海再就业',
+    status: 'syncing',
+    progress: 50,
+    pendingAssetCount: 0,
+  })
+
+  assert.equal(status.pendingUploadCount, 0)
+  assert.equal(status.activeTaskCount, 1)
   assert.equal(shouldShowProjectRemoteSyncStatus(status), true)
 })
 
