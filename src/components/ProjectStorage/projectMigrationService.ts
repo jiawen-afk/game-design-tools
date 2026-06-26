@@ -153,42 +153,167 @@ function replaceAssetInRows(rows: LegacyProjectRows, asset: Asset) {
   rows.assets = rows.assets.map((item) => (item.id === asset.id ? asset : item))
 }
 
-async function writeAssetObjects(input: ProjectSpaceStateSyncInput, rows: LegacyProjectRows) {
+function normalizeNullable(value: string | null | undefined) {
+  return value?.trim() || null
+}
+
+function canReuseExistingAssetResources(asset: Asset, existingAsset: Asset | undefined) {
+  if (!existingAsset) return false
+  return asset.kind === existingAsset.kind
+    && normalizeNullable(asset.source_key) === normalizeNullable(existingAsset.source_key)
+}
+
+function assetHashForRole(asset: Asset, role: ProjectResourceRole) {
+  if (role === 'sprite_index') return asset.sprite_index_hash_sha256
+  if (role === 'cover') return asset.cover_hash_sha256
+  return asset.primary_hash_sha256
+}
+
+function assetSizeForRole(asset: Asset, role: ProjectResourceRole) {
+  if (role === 'sprite_index') return asset.sprite_index_size_bytes
+  if (role === 'cover') return asset.cover_size_bytes
+  return asset.primary_size_bytes
+}
+
+function assetObjectKeyForRole(asset: Asset, role: ProjectResourceRole) {
+  if (role === 'sprite_index') return asset.sprite_index_object_key
+  if (role === 'cover') return asset.cover_object_key
+  return asset.primary_object_key
+}
+
+function copyAssetResourceFields(asset: Asset, existingAsset: Asset, role: ProjectResourceRole): Asset {
+  if (role === 'sprite_index') {
+    return {
+      ...asset,
+      sprite_index_resource_id: existingAsset.sprite_index_resource_id,
+      sprite_index_object_key: existingAsset.sprite_index_object_key,
+      sprite_index_file_name: existingAsset.sprite_index_file_name,
+      sprite_index_mime_type: existingAsset.sprite_index_mime_type,
+      sprite_index_size_bytes: existingAsset.sprite_index_size_bytes,
+      sprite_index_hash_sha256: existingAsset.sprite_index_hash_sha256,
+    }
+  }
+  if (role === 'cover') {
+    return {
+      ...asset,
+      cover_resource_id: existingAsset.cover_resource_id,
+      cover_object_key: existingAsset.cover_object_key,
+      cover_file_name: existingAsset.cover_file_name,
+      cover_mime_type: existingAsset.cover_mime_type,
+      cover_size_bytes: existingAsset.cover_size_bytes,
+      cover_hash_sha256: existingAsset.cover_hash_sha256,
+    }
+  }
+  return {
+    ...asset,
+    primary_resource_id: existingAsset.primary_resource_id,
+    primary_object_key: existingAsset.primary_object_key,
+    primary_file_name: existingAsset.primary_file_name,
+    primary_mime_group: existingAsset.primary_mime_group,
+    primary_mime_type: existingAsset.primary_mime_type,
+    primary_extension: existingAsset.primary_extension,
+    primary_size_bytes: existingAsset.primary_size_bytes,
+    primary_hash_sha256: existingAsset.primary_hash_sha256,
+  }
+}
+
+function setAssetResourceBlobMetadata(
+  asset: Asset,
+  role: ProjectResourceRole,
+  blob: Blob,
+  hashSha256: string | null,
+): Asset {
+  if (role === 'sprite_index') {
+    return {
+      ...asset,
+      sprite_index_size_bytes: blob.size,
+      sprite_index_hash_sha256: hashSha256,
+    }
+  }
+  if (role === 'cover') {
+    return {
+      ...asset,
+      cover_size_bytes: blob.size,
+      cover_hash_sha256: hashSha256,
+    }
+  }
+  return {
+    ...asset,
+    primary_size_bytes: blob.size,
+    primary_hash_sha256: hashSha256,
+  }
+}
+
+function resourceMatchesExistingBlob(existingAsset: Asset, role: ProjectResourceRole, blob: Blob, hashSha256: string | null) {
+  if (!assetObjectKeyForRole(existingAsset, role)) return false
+  const existingHash = assetHashForRole(existingAsset, role)
+  if (hashSha256 && existingHash) return hashSha256 === existingHash
+  return assetSizeForRole(existingAsset, role) === blob.size
+}
+
+async function hashBlobSha256(blob: Blob) {
+  try {
+    if (!globalThis.crypto?.subtle) return null
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return null
+  }
+}
+
+async function writeAssetResourceObject(
+  input: ProjectSpaceStateSyncInput,
+  asset: Asset,
+  existingAsset: Asset | undefined,
+  role: ProjectResourceRole,
+  blob: Blob,
+) {
+  const hashSha256 = await hashBlobSha256(blob)
+  if (existingAsset && resourceMatchesExistingBlob(existingAsset, role, blob, hashSha256)) {
+    return copyAssetResourceFields(asset, existingAsset, role)
+  }
+  const nextAsset = setAssetResourceBlobMetadata(asset, role, blob, hashSha256)
+  await putAssetResourceObject(input, nextAsset, role, blob)
+  return nextAsset
+}
+
+async function writeAssetObjects(
+  input: ProjectSpaceStateSyncInput,
+  rows: LegacyProjectRows,
+  existingRows?: LegacyProjectRows | null,
+) {
   const objectStorage = input.objectStorage ?? input.localObjectStorage
   if (!objectStorage && !input.assetManager) throw new Error('缺少项目对象存储。')
+  const existingAssets = new Map((existingRows?.assets ?? []).map((asset) => [asset.id, asset]))
   for (let index = 0; index < rows.assets.length; index += 1) {
     let asset = rows.assets[index]!
     const sourceAsset = input.state.assets[index]
     if (!sourceAsset) continue
+    const existingAsset = existingAssets.get(asset.id)
+    const reusableExistingAsset = canReuseExistingAssetResources(asset, existingAsset) ? existingAsset : undefined
 
     if (!isProjectObjectKey(sourceAsset.storageResourcePaths[0]) || !isProjectObjectKey(sourceAsset.resourcePaths[0])) {
       const primaryBlob = await readAssetResourceBlob(sourceAsset, 0, input.directoryHandle)
-      asset = {
-        ...asset,
-        primary_size_bytes: primaryBlob.size,
-      }
-      await putAssetResourceObject(input, asset, 'primary', primaryBlob)
+      asset = await writeAssetResourceObject(input, asset, reusableExistingAsset, 'primary', primaryBlob)
+    } else if (reusableExistingAsset && assetObjectKeyForRole(asset, 'primary') === assetObjectKeyForRole(reusableExistingAsset, 'primary')) {
+      asset = copyAssetResourceFields(asset, reusableExistingAsset, 'primary')
     }
 
     if (asset.sprite_index_object_key) {
       if (!isProjectObjectKey(sourceAsset.storageResourcePaths[1]) || !isProjectObjectKey(sourceAsset.resourcePaths[1])) {
         const spriteIndexBlob = await readAssetResourceBlob(sourceAsset, 1, input.directoryHandle)
-        asset = {
-          ...asset,
-          sprite_index_size_bytes: spriteIndexBlob.size,
-        }
-        await putAssetResourceObject(input, asset, 'sprite_index', spriteIndexBlob)
+        asset = await writeAssetResourceObject(input, asset, reusableExistingAsset, 'sprite_index', spriteIndexBlob)
+      } else if (reusableExistingAsset && assetObjectKeyForRole(asset, 'sprite_index') === assetObjectKeyForRole(reusableExistingAsset, 'sprite_index')) {
+        asset = copyAssetResourceFields(asset, reusableExistingAsset, 'sprite_index')
       }
     }
 
     if (asset.cover_object_key) {
       if (!isProjectObjectKey(sourceAsset.coverStorageResourcePath) || !isProjectObjectKey(sourceAsset.coverResourcePath)) {
         const coverBlob = await readAssetCoverBlob(sourceAsset, input.directoryHandle)
-        asset = {
-          ...asset,
-          cover_size_bytes: coverBlob.size,
-        }
-        await putAssetResourceObject(input, asset, 'cover', coverBlob)
+        asset = await writeAssetResourceObject(input, asset, reusableExistingAsset, 'cover', coverBlob)
+      } else if (reusableExistingAsset && assetObjectKeyForRole(asset, 'cover') === assetObjectKeyForRole(reusableExistingAsset, 'cover')) {
+        asset = copyAssetResourceFields(asset, reusableExistingAsset, 'cover')
       }
     }
 
@@ -200,6 +325,7 @@ export async function syncProjectSpaceStateToLocalProjectStorage(input: ProjectS
   const repository = input.repository ?? input.localRepository
   if (!repository) throw new Error('缺少项目数据库仓储。')
   const existing = await repository.getProject(input.projectId)
+  const existingRows = existing ? await repository.exportProjectRows(input.projectId) : null
   const projectName = input.projectName.trim() || existing?.project.name || '默认项目'
   const localObjectRoot = input.localObjectRoot.trim()
     || existing?.settings.local_object_root
@@ -241,7 +367,7 @@ export async function syncProjectSpaceStateToLocalProjectStorage(input: ProjectS
     }
   }
 
-  await writeAssetObjects(input, rows)
+  await writeAssetObjects(input, rows, existingRows)
   await repository.importProjectRows(rows)
   return rows
 }

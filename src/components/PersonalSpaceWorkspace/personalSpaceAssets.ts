@@ -153,7 +153,7 @@ export function hashedResourceFileName(asset: PersonalSpaceAsset, path: string, 
 
 function coverExtension(path: string): string {
   const clean = path.split(/[\\/]/).pop()?.trim()
-  return clean?.match(/\.[^.\\/]+$/)?.[0]?.toLowerCase() || '.png'
+  return clean?.match(/\.[^.\\/]+$/)?.[0]?.toLowerCase() || '.webp'
 }
 
 function hashedCoverFileName(asset: PersonalSpaceAsset, path: string): string {

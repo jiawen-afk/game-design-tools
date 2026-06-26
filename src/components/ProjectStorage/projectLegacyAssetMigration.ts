@@ -24,6 +24,14 @@ function mimeTypeForAsset(asset: PersonalSpaceAsset, index: number) {
   return 'image/png'
 }
 
+function mimeTypeForImagePath(path: string | undefined, fallback = 'image/png') {
+  const extension = path?.split(/[\\/]/).pop()?.trim().match(/\.([^.\\/]+)$/)?.[1]?.toLowerCase()
+  if (extension === 'webp') return 'image/webp'
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
+  if (extension === 'gif') return 'image/gif'
+  return fallback
+}
+
 function fileNameFromPath(path: string, fallback: string) {
   return path.split(/[\\/]/).pop()?.trim() || fallback
 }
@@ -83,7 +91,7 @@ export function migrateLegacyAssetsToProjectRows(input: LegacyAssetMigrationInpu
       } : undefined,
       cover: coverPath ? {
         fileName: fileNameFromPath(coverPath, `${asset.name}-cover.png`),
-        mimeType: 'image/png',
+        mimeType: mimeTypeForImagePath(coverPath),
         sizeBytes: 0,
         resourceId: coverResourceId,
       } : undefined,

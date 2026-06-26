@@ -9,9 +9,9 @@ export interface PersonalSpaceAssetCoverOptions {
 }
 
 function coverFileName(fileName: string) {
-  const cleanName = fileName.trim() || 'cover.png'
+  const cleanName = fileName.trim() || 'cover.webp'
   const withoutExt = cleanName.replace(/\.[^.\\/]+$/, '') || 'cover'
-  return `${withoutExt}-cover.png`
+  return `${withoutExt}-cover.webp`
 }
 
 function loadImageElement(source: string) {
@@ -28,7 +28,7 @@ function canvasToBlob(canvas: HTMLCanvasElement) {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob)
       else reject(new Error('封面图片生成失败。'))
-    }, 'image/png')
+    }, 'image/webp', 0.72)
   })
 }
 
@@ -39,7 +39,7 @@ export async function createDefaultImageAssetCover(file: File): Promise<Personal
   const sourceUrl = URL.createObjectURL(file)
   try {
     const image = await loadImageElement(sourceUrl)
-    const maxSide = 256
+    const maxSide = 160
     const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
     const width = Math.max(1, Math.round(image.naturalWidth * scale))
     const height = Math.max(1, Math.round(image.naturalHeight * scale))

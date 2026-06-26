@@ -41,6 +41,7 @@ import {
   unassignAssetFromCharacterColumn,
   unassignVoiceFromStoryboardGroup,
 } from './personalSpaceModel'
+import { createDefaultImageAssetCover } from './personalSpaceAssetCoverService'
 import { spriteFrameModalStyle } from './personalSpacePreviewModel'
 
 function createMemoryStorage(seed: Record<string, string> = {}): Storage {
@@ -54,6 +55,57 @@ function createMemoryStorage(seed: Record<string, string> = {}): Storage {
     setItem: (key, value) => { values.set(key, value) },
   }
 }
+
+test('default image asset covers are compact 160px webp thumbnails', async () => {
+  const originalDocument = (globalThis as unknown as { document?: unknown }).document
+  const originalImage = (globalThis as unknown as { Image?: unknown }).Image
+  const originalCreateObjectUrl = URL.createObjectURL
+  const originalRevokeObjectUrl = URL.revokeObjectURL
+  const canvasCalls: Array<{ type?: string; quality?: number; width: number; height: number }> = []
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: () => ({
+      drawImage: () => {},
+    }),
+    toBlob: (callback: (blob: Blob | null) => void, type?: string, quality?: number) => {
+      canvasCalls.push({ type, quality, width: canvas.width, height: canvas.height })
+      callback(new Blob(['cover'], { type }))
+    },
+  }
+  class MockImage {
+    naturalWidth = 800
+    naturalHeight = 400
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    set src(_value: string) {
+      queueMicrotask(() => this.onload?.())
+    }
+  }
+
+  ;(globalThis as unknown as { document?: unknown }).document = {
+    createElement: (tagName: string) => {
+      assert.equal(tagName, 'canvas')
+      return canvas
+    },
+  }
+  ;(globalThis as unknown as { Image?: unknown }).Image = MockImage
+  URL.createObjectURL = () => 'blob:cover-source'
+  URL.revokeObjectURL = () => {}
+  try {
+    const cover = await createDefaultImageAssetCover(new File(['image'], 'hero.png', { type: 'image/png' }))
+
+    assert.ok(cover)
+    assert.equal(cover.name, 'hero-cover.webp')
+    assert.equal(cover.data.type, 'image/webp')
+    assert.deepEqual(canvasCalls, [{ type: 'image/webp', quality: 0.72, width: 160, height: 80 }])
+  } finally {
+    ;(globalThis as unknown as { document?: unknown }).document = originalDocument
+    ;(globalThis as unknown as { Image?: unknown }).Image = originalImage
+    URL.createObjectURL = originalCreateObjectUrl
+    URL.revokeObjectURL = originalRevokeObjectUrl
+  }
+})
 
 test('creates personal space voice asset from a generated voice record', () => {
   const record: VoiceGenerationRecord = {
@@ -193,13 +245,17 @@ test('personal space derived state groups assets and workspace options', () => {
   )
   const derived = createPersonalSpaceDerivedState(toggleAssetGroupStar(space, 'voice', '对白'))
 
-  assert.deepEqual(derived.imageAssets.map((asset) => asset.name), ['森林'])
+  assert.deepEqual(derived.imageAssets.map((asset) => asset.name), ['森林', '主角头像'])
   assert.deepEqual(derived.portraitAssets.map((asset) => asset.name), ['主角头像'])
   assert.deepEqual(derived.spriteAssets.map((asset) => asset.name), ['主角行走'])
   assert.deepEqual(derived.voiceAssets.map((asset) => asset.name), ['开场对白'])
   assert.deepEqual(derived.characterOptions, [{ label: '商人', value: derived.characterOptions[0]!.value }])
-  assert.deepEqual(derived.assetCounts, { image: 1, sprite: 1, voice: 1 })
+  assert.deepEqual(derived.assetCounts, { image: 2, sprite: 1, voice: 1 })
   assert.deepEqual(derived.resourceSections.map((section) => section.kind), ['image', 'sprite', 'voice'])
+  assert.deepEqual(
+    derived.resourceSections.find((section) => section.kind === 'image')?.assets.map((asset) => asset.groupName),
+    ['地图', '角色肖像'],
+  )
   assert.deepEqual(derived.resourceSections.find((section) => section.kind === 'voice')?.starredGroupNames, ['对白'])
 })
 

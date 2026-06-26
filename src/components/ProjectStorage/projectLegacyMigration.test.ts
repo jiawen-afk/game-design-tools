@@ -48,7 +48,7 @@ test('legacy migration converts assets, groups, character links, storyboard entr
     }),
     storageResourcePaths: ['ProjectRoot/图片/2026-06-23/fire.png'],
     coverResourcePath: 'blob:fire-cover',
-    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.png',
+    coverStorageResourcePath: 'ProjectRoot/图片/2026-06-23/fire-cover.webp',
   }
   const state: PersonalSpaceState = {
     ...defaultPersonalSpaceState,
@@ -117,8 +117,9 @@ test('legacy migration converts assets, groups, character links, storyboard entr
   assert.equal(migratedEffect.kind, 'image')
   assert.equal(migratedEffect.group_id, migrated.assetGroups.find((group) => group.kind === 'image' && group.name === '特效')!.id)
   assert.ok(migratedEffect.cover_object_key)
-  assert.equal(migratedEffect.cover_object_key.startsWith('objects/默认项目/image_png/'), true)
-  assert.equal(migratedEffect.cover_file_name, 'fire-cover.png')
+  assert.equal(migratedEffect.cover_object_key.startsWith('objects/默认项目/image_webp/'), true)
+  assert.equal(migratedEffect.cover_file_name, 'fire-cover.webp')
+  assert.equal(migratedEffect.cover_mime_type, 'image/webp')
   assert.equal(migratedVoice.dialogue_text, '欢迎来到我的商店。')
   assert.equal(migratedVoice.primary_object_key.startsWith('objects/默认项目/audio_wav/'), true)
   assert.equal(migratedEffect.primary_object_key.startsWith('objects/默认项目/image_png/'), true)
