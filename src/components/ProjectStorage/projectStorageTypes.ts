@@ -192,6 +192,18 @@ export interface DocumentSource {
   metadata_json: string | null
 }
 
+export interface DocumentSourceContent {
+  source_id: string
+  project_id: string
+  collection_id: string
+  content_text: string
+  content_encoding: string
+  size_bytes: number
+  hash_sha256: string | null
+  created_at: string
+  metadata_json: string | null
+}
+
 export interface DocumentRecord {
   id: string
   project_id: string
@@ -281,4 +293,28 @@ export interface DocumentImportRun {
   imported_edges: number
   error_message: string | null
   report_json: string | null
+}
+
+export interface DocumentGraphNode {
+  id: string
+  label: string
+  type: string
+  records: string[]
+  data: Record<string, unknown>
+}
+
+export interface DocumentGraphEdge {
+  id: string
+  source: string
+  target: string
+  type: string
+  label: string
+  weight: number
+  record_ids: string[]
+  source_kind: string
+}
+
+export interface DocumentCollectionGraph {
+  nodes: Record<string, DocumentGraphNode>
+  edges: Record<string, DocumentGraphEdge>
 }

@@ -15,6 +15,7 @@ import type {
   DocumentNodeRecordLink,
   DocumentRecord,
   DocumentSource,
+  DocumentSourceContent,
   Project,
   ProjectAssetGroupKind,
   ProjectSettings,
@@ -43,6 +44,7 @@ export interface LegacyProjectRows {
   assetRelations: AssetRelation[]
   documentCollections?: DocumentCollection[]
   documentSources?: DocumentSource[]
+  documentSourceContents?: DocumentSourceContent[]
   documentRecords?: DocumentRecord[]
   documentNodes?: DocumentNode[]
   documentEdges?: DocumentEdge[]
@@ -185,6 +187,7 @@ export function migratePersonalSpaceStateToProjectRows(
     assetRelations,
     documentCollections: [],
     documentSources: [],
+    documentSourceContents: [],
     documentRecords: [],
     documentNodes: [],
     documentEdges: [],

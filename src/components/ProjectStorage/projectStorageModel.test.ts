@@ -171,7 +171,7 @@ test('schema SQL includes required tables and excludes removed tags and resource
   }
 })
 
-test('schema SQL includes normalized document knowledge tables without raw JSON content columns', () => {
+test('schema SQL includes normalized document knowledge tables', () => {
   const documentTables = [
     'document_collections',
     'document_sources',
@@ -193,9 +193,28 @@ test('schema SQL includes normalized document knowledge tables without raw JSON 
     assert.match(sql, /document_records/)
     assert.match(sql, /document_node_record_links/)
     assert.match(sql, /document_edge_record_links/)
-    assert.doesNotMatch(sql, /content_text/i)
     assert.doesNotMatch(sql, /content_blob/i)
     assert.doesNotMatch(sql, /record_ids_json/i)
     assert.doesNotMatch(sql, /record_json/i)
   }
+})
+
+test('schema SQL stores document source contents outside source metadata', () => {
+  const sqliteSql = createProjectSchemaSql('sqlite').join('\n')
+  const postgresSql = createProjectSchemaSql('postgresql').join('\n')
+  const mysqlSql = createProjectSchemaSql('mysql').join('\n')
+
+  for (const table of ['document_sources', 'document_source_contents']) {
+    assert.equal((PROJECT_SCHEMA_TABLES as readonly string[]).includes(table), true)
+  }
+
+  assert.match(sqliteSql, /CREATE TABLE IF NOT EXISTS document_source_contents/i)
+  assert.match(sqliteSql, /content_text text not null/i)
+  assert.match(sqliteSql, /source_id text primary key references document_sources\(id\) on delete cascade/i)
+  assert.match(postgresSql, /content_text text not null/i)
+  assert.match(mysqlSql, /content_text longtext not null/i)
+
+  const sourceTable = sqliteSql.match(/CREATE TABLE IF NOT EXISTS document_sources[\s\S]*?\)/i)?.[0] ?? ''
+  assert.doesNotMatch(sourceTable, /content_text/i)
+  assert.doesNotMatch(sourceTable, /content_blob/i)
 })

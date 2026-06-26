@@ -9,13 +9,17 @@ import type {
   Character,
   CharacterAssetLink,
   DocumentCollection,
+  DocumentCollectionGraph,
   DocumentEdge,
   DocumentEdgeRecordLink,
+  DocumentGraphEdge,
+  DocumentGraphNode,
   DocumentImportRun,
   DocumentNode,
   DocumentNodeRecordLink,
   DocumentRecord,
   DocumentSource,
+  DocumentSourceContent,
   Project,
   ProjectDatabaseProvider,
   ProjectCleanupTask,
@@ -59,6 +63,7 @@ export interface ReplaceDocumentGraphInput {
   projectId: string
   collection: DocumentCollection
   sources: DocumentSource[]
+  sourceContents: DocumentSourceContent[]
   records: DocumentRecord[]
   nodes: DocumentNode[]
   edges: DocumentEdge[]
@@ -124,7 +129,9 @@ export interface ProjectRepository {
   getDocumentCollection(projectId: string, collectionId: string): Promise<DocumentCollection | null>
   deleteDocumentCollection(projectId: string, collectionId: string): Promise<void>
   listDocumentSources(projectId: string, collectionId: string): Promise<DocumentSource[]>
+  getDocumentSourceContent(projectId: string, sourceId: string): Promise<DocumentSourceContent | null>
   replaceDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
+  getDocumentCollectionGraph(projectId: string, collectionId: string): Promise<DocumentCollectionGraph>
   searchDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult>
   searchDocumentNodes(input: DocumentNodeSearchInput): Promise<DocumentNodeSearchResult>
   getDocumentNode(projectId: string, nodeId: string): Promise<DocumentNodeDetails | null>
@@ -145,6 +152,7 @@ export class MemoryProjectRepository implements ProjectRepository {
   private assetRelations = new Map<string, AssetRelation[]>()
   private documentCollections = new Map<string, DocumentCollection[]>()
   private documentSources = new Map<string, DocumentSource[]>()
+  private documentSourceContents = new Map<string, DocumentSourceContent[]>()
   private documentRecords = new Map<string, DocumentRecord[]>()
   private documentNodes = new Map<string, DocumentNode[]>()
   private documentEdges = new Map<string, DocumentEdge[]>()
@@ -194,6 +202,7 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.assetRelations.set(id, [])
     this.documentCollections.set(id, [])
     this.documentSources.set(id, [])
+    this.documentSourceContents.set(id, [])
     this.documentRecords.set(id, [])
     this.documentNodes.set(id, [])
     this.documentEdges.set(id, [])
@@ -239,6 +248,7 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.assetRelations.set(id, [])
     this.documentCollections.set(id, [])
     this.documentSources.set(id, [])
+    this.documentSourceContents.set(id, [])
     this.documentRecords.set(id, [])
     this.documentNodes.set(id, [])
     this.documentEdges.set(id, [])
@@ -293,6 +303,7 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.assetRelations.set(rows.project.id, [...rows.assetRelations])
     this.documentCollections.set(rows.project.id, [...(rows.documentCollections ?? [])])
     this.documentSources.set(rows.project.id, [...(rows.documentSources ?? [])])
+    this.documentSourceContents.set(rows.project.id, [...(rows.documentSourceContents ?? [])])
     this.documentRecords.set(rows.project.id, [...(rows.documentRecords ?? [])])
     this.documentNodes.set(rows.project.id, [...(rows.documentNodes ?? [])])
     this.documentEdges.set(rows.project.id, [...(rows.documentEdges ?? [])])
@@ -317,6 +328,7 @@ export class MemoryProjectRepository implements ProjectRepository {
       assetRelations: [...(this.assetRelations.get(projectId) ?? [])],
       documentCollections: [...(this.documentCollections.get(projectId) ?? [])],
       documentSources: [...(this.documentSources.get(projectId) ?? [])],
+      documentSourceContents: [...(this.documentSourceContents.get(projectId) ?? [])],
       documentRecords: [...(this.documentRecords.get(projectId) ?? [])],
       documentNodes: [...(this.documentNodes.get(projectId) ?? [])],
       documentEdges: [...(this.documentEdges.get(projectId) ?? [])],
@@ -363,14 +375,23 @@ export class MemoryProjectRepository implements ProjectRepository {
       .sort((left, right) => left.created_at.localeCompare(right.created_at))
   }
 
+  async getDocumentSourceContent(projectId: string, sourceId: string) {
+    return (this.documentSourceContents.get(projectId) ?? [])
+      .find((content) => content.source_id === sourceId) ?? null
+  }
+
   async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
+    this.deleteDocumentCollectionChildren(input.projectId, input.collection.id)
     this.documentCollections.set(input.projectId, [
       ...(this.documentCollections.get(input.projectId) ?? [])
         .filter((collection) => collection.id !== input.collection.id),
       input.collection,
     ])
-    this.deleteDocumentCollectionChildren(input.projectId, input.collection.id)
     this.documentSources.set(input.projectId, [...(this.documentSources.get(input.projectId) ?? []), ...input.sources])
+    this.documentSourceContents.set(input.projectId, [
+      ...(this.documentSourceContents.get(input.projectId) ?? []),
+      ...input.sourceContents,
+    ])
     this.documentRecords.set(input.projectId, [...(this.documentRecords.get(input.projectId) ?? []), ...input.records])
     this.documentNodes.set(input.projectId, [...(this.documentNodes.get(input.projectId) ?? []), ...input.nodes])
     this.documentEdges.set(input.projectId, [...(this.documentEdges.get(input.projectId) ?? []), ...input.edges])
@@ -384,6 +405,51 @@ export class MemoryProjectRepository implements ProjectRepository {
     ])
     this.documentImportRuns.set(input.projectId, [...(this.documentImportRuns.get(input.projectId) ?? []), input.importRun])
     return { collection: input.collection, importRun: input.importRun }
+  }
+
+  async getDocumentCollectionGraph(projectId: string, collectionId: string): Promise<DocumentCollectionGraph> {
+    const records = (this.documentRecords.get(projectId) ?? [])
+      .filter((record) => record.collection_id === collectionId)
+    const recordsById = new Map(records.map((record) => [record.id, record]))
+    const recordIdsByNodeId = groupValuesByKey(
+      (this.documentNodeRecordLinks.get(projectId) ?? []).filter((link) => link.collection_id === collectionId),
+      (link) => link.node_id,
+      (link) => link.record_id,
+    )
+    const recordIdsByEdgeId = groupValuesByKey(
+      (this.documentEdgeRecordLinks.get(projectId) ?? []).filter((link) => link.collection_id === collectionId),
+      (link) => link.edge_id,
+      (link) => link.record_id,
+    )
+    const nodes = Object.fromEntries((this.documentNodes.get(projectId) ?? [])
+      .filter((node) => node.collection_id === collectionId)
+      .map((node): [string, DocumentGraphNode] => {
+        const recordIds = recordIdsByNodeId.get(node.id) ?? []
+        const firstRecord = recordIds.map((recordId) => recordsById.get(recordId)).find(Boolean)
+        return [node.id, {
+          id: node.id,
+          label: node.label,
+          type: node.node_type,
+          records: recordIds,
+          data: {
+            ...parseMetadataJson(node.metadata_json),
+            ...(firstRecord ? { term_record: documentRecordGraphData(firstRecord) } : {}),
+          },
+        }]
+      }))
+    const edges = Object.fromEntries((this.documentEdges.get(projectId) ?? [])
+      .filter((edge) => edge.collection_id === collectionId)
+      .map((edge): [string, DocumentGraphEdge] => [edge.id, {
+        id: edge.id,
+        source: edge.source_node_id,
+        target: edge.target_node_id,
+        type: edge.edge_type,
+        label: edge.label,
+        weight: edge.weight,
+        record_ids: recordIdsByEdgeId.get(edge.id) ?? [],
+        source_kind: edge.source_kind,
+      }]))
+    return { nodes, edges }
   }
 
   async searchDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult> {
@@ -448,6 +514,7 @@ export class MemoryProjectRepository implements ProjectRepository {
     this.assetRelations.delete(projectId)
     this.documentCollections.delete(projectId)
     this.documentSources.delete(projectId)
+    this.documentSourceContents.delete(projectId)
     this.documentRecords.delete(projectId)
     this.documentNodes.delete(projectId)
     this.documentEdges.delete(projectId)
@@ -459,6 +526,8 @@ export class MemoryProjectRepository implements ProjectRepository {
   private deleteDocumentCollectionChildren(projectId: string, collectionId: string) {
     this.documentSources.set(projectId, (this.documentSources.get(projectId) ?? [])
       .filter((source) => source.collection_id !== collectionId))
+    this.documentSourceContents.set(projectId, (this.documentSourceContents.get(projectId) ?? [])
+      .filter((content) => content.collection_id !== collectionId))
     this.documentRecords.set(projectId, (this.documentRecords.get(projectId) ?? [])
       .filter((record) => record.collection_id !== collectionId))
     this.documentNodes.set(projectId, (this.documentNodes.get(projectId) ?? [])
@@ -471,6 +540,50 @@ export class MemoryProjectRepository implements ProjectRepository {
       .filter((link) => link.collection_id !== collectionId))
     this.documentImportRuns.set(projectId, (this.documentImportRuns.get(projectId) ?? [])
       .filter((run) => run.collection_id !== collectionId))
+  }
+}
+
+function groupValuesByKey<TItem, TKey, TValue>(
+  items: TItem[],
+  keyFor: (item: TItem) => TKey,
+  valueFor: (item: TItem) => TValue,
+) {
+  const grouped = new Map<TKey, TValue[]>()
+  for (const item of items) {
+    const key = keyFor(item)
+    grouped.set(key, [...(grouped.get(key) ?? []), valueFor(item)])
+  }
+  return grouped
+}
+
+function parseMetadataJson(value: string | null): Record<string, unknown> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function documentRecordGraphData(record: DocumentRecord): Record<string, unknown> {
+  return {
+    ...parseMetadataJson(record.metadata_json),
+    id: record.id,
+    external_id: record.external_id,
+    record_type: record.record_type,
+    title: record.title,
+    description: record.description,
+    category_1: record.category_1,
+    category_2: record.category_2,
+    category_3: record.category_3,
+    place_path: record.place_path,
+    book_title: record.book_title,
+    chapter_title: record.chapter_title,
+    version_title: record.version_title,
+    usage: record.usage_text,
+    effect: record.effect_text,
+    source_url: record.source_url,
   }
 }
 
