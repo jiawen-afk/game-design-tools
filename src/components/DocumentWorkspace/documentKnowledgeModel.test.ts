@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  buildDocumentGraphChartOption,
   buildDocumentGraphView,
   createDocumentSearchText,
   getDefaultKnowledgeBaseAdapter,
@@ -126,4 +127,70 @@ test('graph view limits edges to visible nodes and exposes stable coordinates', 
     maxNodes: 2,
   })
   assert.deepEqual(secondView.nodes.map((node) => [node.id, node.x, node.y]), view.nodes.map((node) => [node.id, node.x, node.y]))
+})
+
+test('graph view can be converted to an echarts graph option', () => {
+  const nodes: DocumentNode[] = [
+    {
+      id: 'node-a',
+      project_id: 'p1',
+      collection_id: 'collection-1',
+      external_id: 'entity:傲徕',
+      node_type: 'entity',
+      label: '傲徕',
+      description: '其状如牛',
+      search_text: '傲徕 其状如牛',
+      created_at: '2026-06-26T00:00:00.000Z',
+      updated_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    },
+    {
+      id: 'node-b',
+      project_id: 'p1',
+      collection_id: 'collection-1',
+      external_id: 'descriptor:四角',
+      node_type: 'descriptor',
+      label: '四角',
+      description: '',
+      search_text: '四角',
+      created_at: '2026-06-26T00:00:00.000Z',
+      updated_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    },
+  ]
+  const edges: DocumentEdge[] = [
+    {
+      id: 'edge-a-b',
+      project_id: 'p1',
+      collection_id: 'collection-1',
+      external_id: 'edge:a:b',
+      source_node_id: 'node-a',
+      target_node_id: 'node-b',
+      edge_type: 'site_relation',
+      label: '描述',
+      weight: 1,
+      source_kind: 'record',
+      created_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    },
+  ]
+  const view = buildDocumentGraphView({
+    nodes,
+    edges,
+    selectedNodeId: 'node-a',
+    width: 800,
+    height: 480,
+    maxNodes: 2,
+  })
+
+  const option = buildDocumentGraphChartOption(view)
+  const series = option.series[0]
+
+  assert.equal(series.type, 'graph')
+  assert.equal(series.layout, 'force')
+  assert.equal(series.roam, true)
+  assert.deepEqual(series.data.map((node) => node.id), ['node-a', 'node-b'])
+  assert.deepEqual(series.links.map((link) => [link.source, link.target, link.name]), [['node-a', 'node-b', '描述']])
+  assert.equal(series.data.find((node) => node.id === 'node-a')?.selected, true)
+  assert.ok((series.data.find((node) => node.id === 'node-a')?.symbolSize ?? 0) > (series.data.find((node) => node.id === 'node-b')?.symbolSize ?? 0))
 })

@@ -3183,6 +3183,9 @@ test('document knowledge workspace keeps panels free of storage adapters and wor
 
   assert.deepEqual(panelPaths.sort(), [
     'src/components/DocumentWorkspace/DocumentBrowserPanel.tsx',
+    'src/components/DocumentWorkspace/DocumentGraphCanvasPanel.tsx',
+    'src/components/DocumentWorkspace/DocumentGraphControlsPanel.tsx',
+    'src/components/DocumentWorkspace/DocumentGraphDetailsPanel.tsx',
     'src/components/DocumentWorkspace/DocumentGraphPanel.tsx',
   ])
 
@@ -3191,8 +3194,17 @@ test('document knowledge workspace keeps panels free of storage adapters and wor
     assert.doesNotMatch(source, /projectSqliteRepository|projectLocalRepositoryProxy|projectRemoteRepositoryProxy/)
     assert.doesNotMatch(source, /\.\.\/\.\.\/desktopApi|electron/)
     assert.doesNotMatch(source, /shjGraphImportAdapter/)
+    assert.doesNotMatch(source, /document_source_contents|content_text/)
     assert.doesNotMatch(source, /useDocumentWorkspace/)
   }
+})
+
+test('document graph view model stays pure and free of UI runtime dependencies', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/documentGraphViewModel.ts', 'utf8')
+
+  assert.doesNotMatch(source, /from 'react'|from "react"|React\./)
+  assert.doesNotMatch(source, /from 'antd'|from "antd"|antd/)
+  assert.doesNotMatch(source, /getDesktopApi|desktopApi|gameDesignToolsDesktop|electron/)
 })
 
 test('document knowledge concrete adapters are only wired through the adapter registry', () => {
@@ -3214,6 +3226,47 @@ test('document knowledge browser uses tabbed results and skeleton loading states
   assert.match(source, /Skeleton/)
   assert.match(source, /<Tabs/)
   assert.match(source, /<Skeleton/)
+})
+
+test('app shell labels the project space entry directly and shows current project space', () => {
+  const source = appSource()
+  const workspaceShellStart = source.indexOf('if (activeSurface !== null)')
+  const workspaceShellSource = source.slice(workspaceShellStart, source.indexOf('<main className="tool-surface">', workspaceShellStart))
+
+  assert.notEqual(workspaceShellStart, -1)
+  assert.match(workspaceShellSource, /className="topbar-current-project"/)
+  assert.match(workspaceShellSource, /当前项目空间/)
+  assert.match(source, /readActiveProjectId/)
+  assert.doesNotMatch(workspaceShellSource, /打开项目空间/)
+  assert.match(workspaceShellSource, />\s*项目空间\s*</)
+})
+
+test('document knowledge collection controls sit with statistics and omit source file badges', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/DocumentBrowserPanel.tsx', 'utf8')
+  const toolbarStart = source.indexOf('className="document-collection-summary-bar"')
+  const searchStart = source.indexOf('<Space.Compact', toolbarStart)
+  const toolbarSource = source.slice(toolbarStart, searchStart)
+
+  assert.notEqual(toolbarStart, -1)
+  assert.notEqual(searchStart, -1)
+  assert.match(toolbarSource, /当前集合/)
+  assert.match(toolbarSource, /className="document-summary-row"/)
+  assert.match(toolbarSource, /className="document-collection-actions"/)
+  assert.doesNotMatch(source, /<span className="field-label">项目<\/span>/)
+  assert.doesNotMatch(source, /document-source-list/)
+  assert.doesNotMatch(source, /workspace\.sources|hash_sha256|size_bytes|file_name/)
+})
+
+test('document graph panel renders through echarts instead of handwritten svg', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/DocumentGraphPanel.tsx', 'utf8')
+  const packageSource = packageJsonSource()
+
+  assert.match(packageSource, /"echarts"/)
+  assert.match(source, /echarts\/core/)
+  assert.match(source, /GraphChart/)
+  assert.match(source, /buildDocumentGraphChartOption/)
+  assert.match(source, /className="document-graph-echarts"/)
+  assert.doesNotMatch(source, /<svg|<line|<circle|<text/)
 })
 
 test('document knowledge workspace uses Ant Design v6 alert title prop', () => {

@@ -40,6 +40,85 @@ export interface DocumentGraphView {
   edges: DocumentGraphViewEdge[]
 }
 
+export interface DocumentGraphChartNode {
+  id: string
+  name: string
+  value: string
+  category: string
+  selected: boolean
+  symbolSize: number
+  x: number
+  y: number
+  itemStyle: {
+    color: string
+    borderColor: string
+    borderWidth: number
+  }
+  label: {
+    show: boolean
+    color: string
+    fontWeight: number
+  }
+}
+
+export interface DocumentGraphChartLink {
+  source: string
+  target: string
+  name: string
+  value: number
+  lineStyle: {
+    width: number
+  }
+}
+
+export interface DocumentGraphChartOption {
+  backgroundColor: string
+  animationDurationUpdate: number
+  tooltip: {
+    trigger: string
+  }
+  series: [{
+    type: 'graph'
+    layout: 'force'
+    roam: boolean
+    draggable: boolean
+    focusNodeAdjacency: boolean
+    data: DocumentGraphChartNode[]
+    links: DocumentGraphChartLink[]
+    categories: Array<{ name: string }>
+    edgeSymbol: string[]
+    edgeSymbolSize: number
+    label: {
+      show: boolean
+      position: string
+      overflow: string
+      width: number
+    }
+    edgeLabel: {
+      show: boolean
+      formatter: string
+      color: string
+      fontSize: number
+    }
+    lineStyle: {
+      color: string
+      curveness: number
+      opacity: number
+    }
+    force: {
+      repulsion: number
+      edgeLength: number | [number, number]
+      gravity: number
+    }
+    emphasis: {
+      focus: string
+      lineStyle: {
+        width: number
+      }
+    }
+  }]
+}
+
 function flattenSearchParts(parts: unknown[]): string[] {
   return parts.flatMap((part) => {
     if (part == null) return []
@@ -128,4 +207,82 @@ export function buildDocumentGraphView(input: DocumentGraphViewInput): DocumentG
 
 function clampGraphCoordinate(value: number, max: number) {
   return Math.max(16, Math.min(Math.max(16, max - 16), value))
+}
+
+export function buildDocumentGraphChartOption(view: DocumentGraphView): DocumentGraphChartOption {
+  const categories = Array.from(new Set(view.nodes.map((node) => node.nodeType || '节点')))
+  return {
+    backgroundColor: '#f5f7fb',
+    animationDurationUpdate: 180,
+    tooltip: {
+      trigger: 'item',
+    },
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      roam: true,
+      draggable: true,
+      focusNodeAdjacency: true,
+      data: view.nodes.map((node) => ({
+        id: node.id,
+        name: node.label,
+        value: node.nodeType,
+        category: node.nodeType || '节点',
+        selected: node.selected,
+        symbolSize: node.selected ? 52 : 38,
+        x: node.x,
+        y: node.y,
+        itemStyle: {
+          color: node.selected ? '#dbe7ff' : '#ffffff',
+          borderColor: node.selected ? '#2456c7' : '#3b66c4',
+          borderWidth: node.selected ? 3 : 1.6,
+        },
+        label: {
+          show: true,
+          color: '#263247',
+          fontWeight: node.selected ? 700 : 600,
+        },
+      })),
+      links: view.edges.map((edge) => ({
+        source: edge.sourceNodeId,
+        target: edge.targetNodeId,
+        name: edge.label,
+        value: edge.weight,
+        lineStyle: {
+          width: Math.max(1, Math.min(4, edge.weight || 1)),
+        },
+      })),
+      categories: categories.map((name) => ({ name })),
+      edgeSymbol: ['none', 'arrow'],
+      edgeSymbolSize: 8,
+      label: {
+        show: true,
+        position: 'bottom',
+        overflow: 'truncate',
+        width: 96,
+      },
+      edgeLabel: {
+        show: true,
+        formatter: '{b}',
+        color: '#5f6f86',
+        fontSize: 11,
+      },
+      lineStyle: {
+        color: '#8794a8',
+        curveness: 0.12,
+        opacity: 0.78,
+      },
+      force: {
+        repulsion: 170,
+        edgeLength: [78, 140],
+        gravity: 0.08,
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: {
+          width: 3,
+        },
+      },
+    }],
+  }
 }

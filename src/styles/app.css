@@ -410,6 +410,8 @@ h1 {
 .topbar-title {
   min-width: 0;
   flex: 1;
+  display: grid;
+  gap: 4px;
 }
 
 .topbar-space {
@@ -426,6 +428,26 @@ h1 {
 .topbar .kicker {
   margin-bottom: 2px;
   font-size: 0.78rem;
+}
+
+.topbar-current-project {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+.topbar-current-project strong {
+  min-width: 0;
+  max-width: min(32rem, 52vw);
+  overflow: hidden;
+  color: var(--color-ink);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-surface {
@@ -573,6 +595,10 @@ h1 {
 
   .topbar-space {
     margin-left: 0;
+  }
+
+  .topbar-current-project strong {
+    max-width: calc(100vw - 44px);
   }
 
   .tool-meta {

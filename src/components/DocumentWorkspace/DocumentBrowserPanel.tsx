@@ -1,4 +1,4 @@
-import { Button, Descriptions, Empty, Input, Popconfirm, Select, Skeleton, Space, Table, Tabs, Tag, Upload } from 'antd'
+import { Button, Descriptions, Empty, Input, Popconfirm, Progress, Select, Skeleton, Space, Table, Tabs, Tag, Upload } from 'antd'
 import {
   DeleteOutlined,
   FileSearchOutlined,
@@ -42,28 +42,16 @@ export function DocumentBrowserPanel({ workspace }: DocumentBrowserPanelProps) {
       <div className="document-panel-heading">
         <div>
           <h2>知识库</h2>
-          <p>{workspace.activeProject ? workspace.activeProject.name : '未选择项目'}</p>
+          <p>按集合检索节点、记录与邻域图谱。</p>
         </div>
         <Button icon={<ReloadOutlined />} loading={workspace.loading} onClick={workspace.loadProjects}>
           刷新
         </Button>
       </div>
 
-      <div className="document-control-grid">
-        <label>
-          <span className="field-label">项目</span>
-          <Select
-            value={workspace.selectedProjectId || undefined}
-            placeholder="选择项目"
-            options={workspace.projects.map((project) => ({
-              label: project.name,
-              value: project.id,
-            }))}
-            onChange={workspace.changeProject}
-          />
-        </label>
-        <label>
-          <span className="field-label">集合</span>
+      <div className="document-collection-summary-bar">
+        <label className="document-current-collection">
+          <span className="field-label">当前集合</span>
           <Select
             value={workspace.selectedCollectionId || undefined}
             placeholder="暂无集合"
@@ -75,51 +63,69 @@ export function DocumentBrowserPanel({ workspace }: DocumentBrowserPanelProps) {
             onChange={workspace.changeCollection}
           />
         </label>
+
+        <div className="document-summary-row">
+          <div>
+            <span>记录</span>
+            <strong>{workspace.selectedCollection?.record_count ?? 0}</strong>
+          </div>
+          <div>
+            <span>节点</span>
+            <strong>{workspace.selectedCollection?.node_count ?? 0}</strong>
+          </div>
+          <div>
+            <span>关系</span>
+            <strong>{workspace.selectedCollection?.edge_count ?? 0}</strong>
+          </div>
+        </div>
+
+        <div className="document-collection-actions">
+          <Upload
+            accept=".json,application/json"
+            beforeUpload={(file) => {
+              void workspace.importFile(file)
+              return Upload.LIST_IGNORE
+            }}
+            disabled={!workspace.activeProject || workspace.importing}
+            maxCount={1}
+            showUploadList={false}
+          >
+            <Button type="primary" icon={<ImportOutlined />} loading={workspace.importing}>
+              导入
+            </Button>
+          </Upload>
+          <Popconfirm
+            title="删除知识库集合"
+            description="删除后将移除该集合的记录、节点和关系。"
+            okText="删除集合"
+            cancelText="取消"
+            disabled={!workspace.selectedCollection}
+            onConfirm={workspace.deleteSelectedCollection}
+          >
+            <Button danger icon={<DeleteOutlined />} disabled={!workspace.selectedCollection}>
+              删除集合
+            </Button>
+          </Popconfirm>
+        </div>
       </div>
 
-      <div className="document-import-row">
-        <Upload
-          accept=".json,application/json"
-          beforeUpload={(file) => {
-            void workspace.importFile(file)
-            return Upload.LIST_IGNORE
-          }}
-          disabled={!workspace.activeProject || workspace.importing}
-          maxCount={1}
-          showUploadList={false}
-        >
-          <Button type="primary" icon={<ImportOutlined />} loading={workspace.importing}>
-            导入 entity_graph.json
-          </Button>
-        </Upload>
-        <Popconfirm
-          title="删除知识库集合"
-          description="删除后将移除该集合的记录、节点和关系。"
-          okText="删除集合"
-          cancelText="取消"
-          disabled={!workspace.selectedCollection}
-          onConfirm={workspace.deleteSelectedCollection}
-        >
-          <Button danger icon={<DeleteOutlined />} disabled={!workspace.selectedCollection}>
-            删除集合
-          </Button>
-        </Popconfirm>
-      </div>
-
-      <div className="document-summary-row">
-        <div>
-          <span>记录</span>
-          <strong>{workspace.selectedCollection?.record_count ?? 0}</strong>
+      {workspace.importProgress ? (
+        <div className="document-import-progress" role="status" aria-live="polite">
+          <div>
+            <strong>{workspace.importProgress.message}</strong>
+            <span>
+              {workspace.importProgress.counts
+                ? `${workspace.importProgress.counts.records} 条记录 / ${workspace.importProgress.counts.nodes} 个节点 / ${workspace.importProgress.counts.edges} 条关系`
+                : '准备知识库导入'}
+            </span>
+          </div>
+          <Progress
+            percent={workspace.importProgress.percent}
+            size="small"
+            status={workspace.importProgress.stage === 'failed' ? 'exception' : workspace.importing ? 'active' : 'success'}
+          />
         </div>
-        <div>
-          <span>节点</span>
-          <strong>{workspace.selectedCollection?.node_count ?? 0}</strong>
-        </div>
-        <div>
-          <span>关系</span>
-          <strong>{workspace.selectedCollection?.edge_count ?? 0}</strong>
-        </div>
-      </div>
+      ) : null}
 
       <Space.Compact className="document-search">
         <Input
@@ -134,16 +140,6 @@ export function DocumentBrowserPanel({ workspace }: DocumentBrowserPanelProps) {
           搜索
         </Button>
       </Space.Compact>
-
-      {workspace.sources.length > 0 ? (
-        <div className="document-source-list">
-          {workspace.sources.map((source) => (
-            <span key={source.id}>
-              {source.file_name} · {Math.round(source.size_bytes / 1024)} KB · {source.hash_sha256?.slice(0, 10) ?? '无指纹'}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       <Skeleton active loading={resultsLoading} paragraph={{ rows: 8 }} className="document-result-skeleton">
         <Tabs

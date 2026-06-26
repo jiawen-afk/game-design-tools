@@ -1,8 +1,11 @@
 import { useEffect } from 'react'
-import { Alert, message } from 'antd'
+import { Alert, message, Progress } from 'antd'
 
-import { DocumentBrowserPanel } from './DocumentBrowserPanel'
-import { DocumentGraphPanel } from './DocumentGraphPanel'
+import { DocumentCollectionToolbar } from './DocumentCollectionToolbar'
+import { DocumentGraphCanvasPanel } from './DocumentGraphCanvasPanel'
+import { DocumentGraphControlsPanel } from './DocumentGraphControlsPanel'
+import { DocumentGraphDetailsPanel } from './DocumentGraphDetailsPanel'
+import { contextActionForDocumentNode } from './documentGraphViewModel'
 import { useDocumentWorkspace } from './useDocumentWorkspace'
 import './documentWorkspace.css'
 
@@ -13,6 +16,11 @@ export function DocumentWorkspace() {
   useEffect(() => {
     void workspace.loadProjects()
   }, [])
+
+  const focusedNodeId = workspace.graphFilter.focusNodeId
+  const focusedNode = focusedNodeId
+    ? workspace.collectionGraph.nodes[focusedNodeId] ?? workspace.visibleGraph.nodes[focusedNodeId]
+    : undefined
 
   return (
     <section className="document-workspace" aria-labelledby="document-workspace-title">
@@ -33,9 +41,59 @@ export function DocumentWorkspace() {
         <Alert type="warning" showIcon title="未选择项目" description="请先在项目空间启用或选择一个项目。" />
       ) : null}
 
-      <div className="document-workspace-layout">
-        <DocumentBrowserPanel workspace={workspace} />
-        <DocumentGraphPanel view={workspace.graphView} onSelectNode={(nodeId) => void workspace.selectNode(nodeId)} />
+      <DocumentCollectionToolbar workspace={workspace} />
+
+      {workspace.importProgress ? (
+        <div className="document-import-progress" role="status" aria-live="polite">
+          <div>
+            <strong>{workspace.importProgress.message}</strong>
+            <span>
+              {workspace.importProgress.counts
+                ? `${workspace.importProgress.counts.records} 条记录 / ${workspace.importProgress.counts.nodes} 个节点 / ${workspace.importProgress.counts.edges} 条关系`
+                : '准备知识库导入'}
+            </span>
+          </div>
+          <Progress
+            percent={workspace.importProgress.percent}
+            size="small"
+            status={workspace.importProgress.stage === 'failed' ? 'exception' : workspace.importing ? 'active' : 'success'}
+          />
+        </div>
+      ) : null}
+
+      <div className="document-graph-workspace">
+        <DocumentGraphControlsPanel
+          graph={workspace.collectionGraph}
+          visibleGraph={workspace.visibleGraph}
+          filter={workspace.graphFilter}
+          searchDraft={workspace.searchDraft}
+          categoryTreeQuery={workspace.categoryTreeQuery}
+          onSearchDraftChange={workspace.setSearchDraft}
+          onSearchSubmit={workspace.submitGraphSearch}
+          onCategoryTreeQueryChange={workspace.setCategoryTreeQuery}
+          onFilterChange={workspace.setGraphFilter}
+          onReset={workspace.resetGraphView}
+        />
+        <DocumentGraphCanvasPanel
+          mode={workspace.viewMode}
+          graph={workspace.visibleGraph}
+          focusNodeId={workspace.graphFilter.focusNodeId}
+          onFocusNode={workspace.focusNode}
+          onContextNode={(nodeId) => {
+            const action = contextActionForDocumentNode(
+              workspace.collectionGraph,
+              workspace.visibleGraph,
+              nodeId,
+              workspace.graphFilter.focusRecordId,
+            )
+            if (action) workspace.applyNodeAction(action)
+          }}
+        />
+        <DocumentGraphDetailsPanel
+          graph={workspace.visibleGraph}
+          node={focusedNode}
+          onFocusNode={workspace.focusNode}
+        />
       </div>
     </section>
   )

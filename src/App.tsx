@@ -10,6 +10,12 @@ import {
 
 import { SiteFooter } from './components/SiteFooter'
 import { DocumentHomeKnowledgeSection } from './components/DocumentWorkspace/DocumentHomeKnowledgeSection'
+import {
+  createDesktopLocalProjectRepository,
+  createProjectWorkspaceBootstrapper,
+  readActiveProjectId,
+  resolveEnabledProjectId,
+} from './components/ProjectStorage'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
@@ -21,6 +27,8 @@ type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment'
 type ActiveSurface = ToolId | 'personal-space' | 'document-knowledge'
 
 const personalSpaceShortcut = '4'
+const appProjectRepository = createDesktopLocalProjectRepository()
+const appProjectBootstrapper = createProjectWorkspaceBootstrapper(appProjectRepository)
 
 const tools: Array<{
   id: ToolId
@@ -66,9 +74,46 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
 }
 
+function useCurrentProjectSpaceLabel(activeSurface: ActiveSurface | null) {
+  const [currentProjectSpaceLabel, setCurrentProjectSpaceLabel] = useState('未启用项目空间')
+
+  useEffect(() => {
+    if (activeSurface === null) return undefined
+    let alive = true
+
+    const refreshCurrentProject = async () => {
+      const activeProjectId = readActiveProjectId()
+
+      try {
+        const projects = await appProjectBootstrapper.listProjects('')
+        const currentProjectId = resolveEnabledProjectId(projects, activeProjectId)
+        const currentProject = projects.find((project) => project.id === currentProjectId)
+        if (alive) setCurrentProjectSpaceLabel(currentProject?.name ?? '已选择项目空间')
+      } catch {
+        if (alive) setCurrentProjectSpaceLabel('无法读取项目空间')
+      }
+    }
+    const handleFocus = () => {
+      void refreshCurrentProject()
+    }
+
+    void refreshCurrentProject()
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('storage', handleFocus)
+    return () => {
+      alive = false
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('storage', handleFocus)
+    }
+  }, [activeSurface])
+
+  return currentProjectSpaceLabel
+}
+
 export default function App() {
   const [activeSurface, setActiveSurface] = useState<ActiveSurface | null>(null)
   const activeToolMeta = tools.find((tool) => tool.id === activeSurface)
+  const currentProjectSpaceLabel = useCurrentProjectSpaceLabel(activeSurface)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -124,10 +169,14 @@ export default function App() {
           <div className="topbar-title">
             <p className="kicker">{surfaceKicker}</p>
             <h1>{surfaceTitle}</h1>
+            <div className="topbar-current-project" aria-label="当前项目空间">
+              <span>当前项目空间</span>
+              <strong>{currentProjectSpaceLabel}</strong>
+            </div>
           </div>
           {activeSurface !== 'personal-space' && (
             <Button className="topbar-space" icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
-              打开项目空间
+              项目空间
             </Button>
           )}
         </header>
