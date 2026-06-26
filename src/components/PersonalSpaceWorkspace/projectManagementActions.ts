@@ -18,6 +18,7 @@ import {
   writeProjectSpaceState,
 } from './projectSpaceState'
 import { isRemoteProjectConfigurationReady } from './projectManagementModel'
+import { projectAssetObjectKeys } from './currentProjectSpacePersistence'
 
 interface ProjectManagementMessageApi {
   success: (content: string) => void
@@ -178,6 +179,8 @@ export function createProjectManagementActions(options: ProjectManagementActions
       description: project.description,
       updatedAt: new Date().toISOString(),
       databaseProvider: settingsWorkspace.databaseProfileDraft.provider,
+      databaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
+      storageProfileId: settingsWorkspace.selectedKodoProfileId,
     }
     const updated = await options.remoteRepository.updateProject(projectId, input)
     if (!updated) {
@@ -189,7 +192,12 @@ export function createProjectManagementActions(options: ProjectManagementActions
       settingsWorkspace.selectedDatabaseProfileId,
       settingsWorkspace.selectedKodoProfileId,
     )
-    options.rememberRemoteProjectSettings(updated.project, updated.settings)
+    const remoteRows = await options.remoteRepository.exportProjectRows(projectId)
+    options.rememberRemoteProjectSettings(
+      updated.project,
+      updated.settings,
+      remoteRows ? projectAssetObjectKeys(remoteRows) : undefined,
+    )
     const localSnapshot = await options.localRepository.getProject(projectId)
     if (localSnapshot?.project.mode === 'remote') {
       await options.localRepository.updateProject(projectId, input)

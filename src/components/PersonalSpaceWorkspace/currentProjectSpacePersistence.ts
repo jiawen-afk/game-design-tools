@@ -103,7 +103,7 @@ function remoteDatabaseProvider(settingsProvider?: ProjectDatabaseProvider | nul
   return settingsProvider === 'mysql' ? 'mysql' : 'postgresql'
 }
 
-function projectAssetObjectKeys(rows: LegacyProjectRows) {
+export function projectAssetObjectKeys(rows: LegacyProjectRows) {
   return rows.assets.flatMap((asset) => [
     asset.primary_object_key,
     asset.sprite_index_object_key,

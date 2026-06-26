@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createProjectManagementActions } from './projectManagementActions'
-import type { Project } from '../ProjectStorage'
+import { createAssetResourceFields, type Project } from '../ProjectStorage'
+import type { LegacyProjectRows } from '../ProjectStorage/projectLegacyMigration'
 
 function createProject(id = 'project-a'): Project {
   return {
@@ -20,9 +21,63 @@ function createProject(id = 'project-a'): Project {
 
 test('saving remote project links keeps the current database provider in project settings', async () => {
   const project = createProject()
+  const resourceFields = createAssetResourceFields({
+    projectId: project.id,
+    projectName: '默认项目',
+    fileName: 'hero.png',
+    mimeType: 'image/png',
+    sizeBytes: 10,
+    resourceId: 'primary-resource',
+    cover: {
+      fileName: 'hero-cover.png',
+      mimeType: 'image/png',
+      sizeBytes: 5,
+      resourceId: 'cover-resource',
+    },
+  })
+  const remoteRows: LegacyProjectRows = {
+    project,
+    settings: {
+      project_id: project.id,
+      storage_provider: 'qiniu_kodo',
+      database_provider: 'mysql',
+      local_object_root: null,
+      remote_database_profile_id: null,
+      remote_storage_profile_id: null,
+      last_verified_at: '2026-06-25T00:00:00.000Z',
+      updated_at: '2026-06-25T00:00:00.000Z',
+    },
+    assetGroups: [],
+    assets: [{
+      id: 'asset-a',
+      project_id: project.id,
+      kind: 'image',
+      asset_subtype: 'portrait',
+      group_id: null,
+      name: 'hero.png',
+      dialogue_text: null,
+      source_key: null,
+      ...resourceFields,
+      sprite_frame_width: null,
+      sprite_frame_height: null,
+      sprite_sheet_width: null,
+      sprite_sheet_height: null,
+      sprite_fps: null,
+      sprite_frame_count: null,
+      created_at: '2026-06-25T00:00:00.000Z',
+      updated_at: '2026-06-25T00:00:00.000Z',
+      metadata_json: null,
+    }],
+    characters: [],
+    characterAssetLinks: [],
+    storyboardGroups: [],
+    storyboardVoiceEntries: [],
+    assetRelations: [],
+  }
   const remoteUpdateInputs: Array<Record<string, unknown>> = []
   const localUpdateInputs: Array<Record<string, unknown>> = []
   const bindings: Array<[string, string, string]> = []
+  const remembered: Array<{ projectId: string; assetObjectKeys?: string[] }> = []
   const messages: Array<{ type: 'success' | 'warning'; content: string }> = []
 
   const actions = createProjectManagementActions({
@@ -54,7 +109,7 @@ test('saving remote project links keeps the current database provider in project
       listProjects: async () => [project],
       getProject: async () => ({ project, settings: { database_provider: 'mysql' } as never }),
       importProjectRows: async () => {},
-      exportProjectRows: async () => null,
+      exportProjectRows: async () => remoteRows,
       listAssets: async () => [],
       addCleanupTasks: async () => {},
       listCleanupTasks: async () => [],
@@ -147,7 +202,9 @@ test('saving remote project links keeps the current database provider in project
     activateProjectState: () => {},
     activateProjectStateFromStorage: async () => true,
     ensureRemoteProjectSettings: async () => {},
-    rememberRemoteProjectSettings: () => {},
+    rememberRemoteProjectSettings: (rememberedProject: Project, _settings: unknown, assetObjectKeys?: string[]) => {
+      remembered.push({ projectId: rememberedProject.id, assetObjectKeys })
+    },
     findProject: (projectId: string) => (projectId === project.id ? project : undefined),
   } as any)
 
@@ -156,6 +213,15 @@ test('saving remote project links keeps the current database provider in project
   assert.equal(result, true)
   assert.deepEqual(bindings, [[project.id, 'db-profile', 'kodo-profile']])
   assert.equal(remoteUpdateInputs[0]?.databaseProvider, 'mysql')
+  assert.equal(remoteUpdateInputs[0]?.databaseProfileId, 'db-profile')
+  assert.equal(remoteUpdateInputs[0]?.storageProfileId, 'kodo-profile')
   assert.equal(localUpdateInputs[0]?.databaseProvider, 'mysql')
+  assert.deepEqual(remembered, [{
+    projectId: project.id,
+    assetObjectKeys: [
+      resourceFields.primary_object_key,
+      resourceFields.cover_object_key,
+    ],
+  }])
   assert.ok(messages.some((message) => message.type === 'success'))
 })
