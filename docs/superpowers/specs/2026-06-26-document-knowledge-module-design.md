@@ -95,7 +95,7 @@ interface KnowledgeBaseImportAdapter {
 shj_nlc_graph
 ```
 
-`shj_nlc_graph` 负责导入 `entity_graph.json` 或 `graph.json`，并把山海经图谱转换为统一文档表。后续其他知识库只要实现同一 adapter 契约，就可以复用首页知识库栏目、数据库表、搜索、详情和图谱画布。
+`shj_nlc_graph` 负责导入 `entity_graph.json`，并把山海经实体图谱转换为统一文档表。第一版不兼容 `graph.json`。后续其他知识库只要实现同一 adapter 契约，就可以复用首页知识库栏目、数据库表、搜索、详情和图谱画布。
 
 结构要求：
 
@@ -431,7 +431,7 @@ listDocumentNeighbors(projectId, nodeId): Promise<DocumentNeighbor[]>
 流程：
 
 1. 用户打开首页“知识库”栏目。
-2. 用户导入 `entity_graph.json` 或 `graph.json`。
+2. 用户导入 `entity_graph.json`。
 3. 知识库导入服务选择 `shj_nlc_graph` adapter。
 4. 导入服务读取 JSON，计算文件大小和 hash，把源文件元数据写入 `document_sources`。
 5. 导入 model 验证图谱结构。
@@ -439,7 +439,7 @@ listDocumentNeighbors(projectId, nodeId): Promise<DocumentNeighbor[]>
 7. repository 在事务中写入规范化行。
 8. UI 把导入结果显示为一个 ready 的知识库集合，包括记录数、节点数、边数、搜索入口和图谱画布入口。
 
-对 `shj_graph`，优先导入 `entity_graph.json`，没有时再导入 `graph.json`。
+对 `shj_graph`，第一版只接受 `entity_graph.json`。如果用户选择 `graph.json`，导入应明确失败并提示选择实体图谱文件。
 
 ## `shj_graph` Adapter
 
@@ -487,7 +487,7 @@ src/components/DocumentWorkspace/shjGraphImportAdapter.ts
 
 如果边引用了未知节点，导入应失败并生成报告，不要静默丢弃边。
 
-导入禁止把整份 `graph.json` 或 `entity_graph.json` 原样写入任何 JSON/text/blob 字段。`metadata_json` 只保存已解析实体的补充字段，不保存完整源文件。
+导入禁止把整份 `entity_graph.json` 原样写入任何 JSON/text/blob 字段。`metadata_json` 只保存已解析实体的补充字段，不保存完整源文件。
 
 ## UI 形态
 
