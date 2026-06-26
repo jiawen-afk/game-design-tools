@@ -1,7 +1,7 @@
 # 文档知识库模块设计
 
 日期：2026-06-26
-状态：草稿，待用户审阅
+状态：已确认，进入实现计划
 
 ## 目标
 
@@ -10,7 +10,8 @@
 已确认的存储决策：
 
 - 结构化文档知识数据存入新的项目数据库表。
-- 源文件和导入的图谱 JSON 也存入新的项目数据库表。
+- 导入的图谱 JSON 只作为输入文件使用；导入服务解析 JSON 后，把规范化的记录、节点、边和关系写入数据库。
+- 数据库保存源文件元数据和指纹，不保存整份原始 JSON 内容。
 - 后续渲染预览、导出包和生成产物可以继续使用项目对象资源，但它们不是权威源文档。
 - 第一版不做角色关联。后续再通过显式关系表把角色关联到文档知识记录。
 
@@ -61,7 +62,7 @@ src/components/DocumentWorkspace/
 - `documentKnowledgeModel.ts`：纯映射、搜索文本、过滤器和关系标签。
 - `documentKnowledgeImportModel.ts`：导入图谱 JSON 的验证和转换。
 - `documentKnowledgeRepository.ts`：文档表 repository 接口。
-- `documentKnowledgeImportService.ts`：导入编排和数据库源文件写入。
+- `documentKnowledgeImportService.ts`：导入编排、源文件元数据写入和规范化知识行写入。
 - `useDocumentWorkspace.ts`：React 工作流状态。
 - `DocumentWorkspace.tsx`：工作区组合入口。
 - `DocumentBrowserPanel.tsx`：密集列表、过滤器和详情面板。
@@ -99,22 +100,24 @@ shj_nlc_graph
 结构要求：
 
 - UI 不直接判断某个知识库是不是山海经。
-- 文档表不增加山海经专用字段；专用数据进入 `metadata_json`、`record_json` 或 adapter 生成的过滤元数据。
+- 文档表不增加山海经专用字段；通用记录字段进入 `document_records`，低频补充字段进入对应行的 `metadata_json`，过滤能力由 adapter 生成的过滤元数据描述。
 - 首页知识库栏目从 `document_collections.source_type` 找到对应 adapter，用 adapter 提供的标签和过滤元数据渲染。
 - 未识别的 `source_type` 可以显示基础列表、详情和原始关系，但不显示 adapter 专属过滤器。
 
 ## 数据归属
 
-项目数据库是文档知识和导入源文件的事实来源：
+项目数据库是解析后的文档知识和导入源文件元数据的事实来源：
 
 - 知识集合。
-- 源文件内容。
 - 源文件指纹和导入元数据。
+- 规范化源记录。
 - 节点。
 - 边。
+- 节点到源记录的关系。
+- 边到源记录的关系。
 - 导入状态。
 
-第一版源文件不使用项目对象存储。项目对象存储保留给后续派生产物，例如渲染页图、导出包或预览缓存。
+第一版不把原始 JSON 存入数据库，也不把原始 JSON 存入项目对象存储。导入文件是一次性输入；导入后，数据库保存可查询、可迁移的规范化结果。项目对象存储保留给后续派生产物，例如渲染页图、导出包或预览缓存。
 
 这个设计把文档数据保持在现有项目归属边界内，同时避免引入 `assets.kind = document` 这种混用。
 
@@ -135,6 +138,7 @@ name text not null
 description text not null default ''
 source_type text not null
 status text not null
+record_count integer not null default 0
 node_count integer not null default 0
 edge_count integer not null default 0
 created_at text not null
@@ -169,7 +173,7 @@ index(project_id, source_type)
 
 ### `document_sources`
 
-存储在数据库中的源文件内容。集合由这些源文件生成。
+存储导入源文件的元数据和指纹。集合由这些源文件解析生成，但原始文件内容不入库。
 
 ```text
 id text primary key
@@ -183,9 +187,6 @@ extension text not null
 size_bytes integer not null default 0
 hash_sha256 text null
 encoding text not null default 'utf-8'
-compression text not null default 'none'
-content_text longtext/text null
-content_blob blob/bytea/longblob null
 created_at text not null
 metadata_json json/text null
 ```
@@ -200,10 +201,9 @@ raw_package
 
 第一版存储规则：
 
-- JSON 源文件以 UTF-8 文本存入 `content_text`。
-- `content_blob` 预留给后续二进制源文件格式。
-- 第一版 `compression = none`。后续可以增加压缩，但内容仍然归属数据库表。
-- PostgreSQL 可使用 `text` 和 `bytea`。MySQL 应使用 `longtext` 和 `longblob`。SQLite 可使用 `text` 和 `blob`。
+- JSON 源文件只在导入时读取和解析。
+- 数据库只保存文件名、大小、hash、mime、role、encoding 和导入元数据。
+- 如果后续需要归档原始源文件，应另行设计归档策略，不把整份 JSON 混入第一版业务表。
 
 建议约束和索引：
 
@@ -211,6 +211,46 @@ raw_package
 unique(project_id, collection_id, role, file_name)
 index(project_id, collection_id)
 index(project_id, role)
+```
+
+### `document_records`
+
+从源文件中解析出的规范化源记录。对 `shj_graph`，它对应词条详情或实体记录，而不是原始 JSON blob。
+
+```text
+id text primary key
+project_id text not null references projects(id) on delete cascade
+collection_id text not null references document_collections(id) on delete cascade
+source_id text not null references document_sources(id) on delete cascade
+external_id text not null
+record_type text not null default ''
+title text not null
+description text not null default ''
+category_1 text null
+category_2 text null
+category_3 text null
+place_path text null
+book_title text null
+chapter_title text null
+version_title text null
+usage_text text null
+effect_text text null
+source_url text null
+search_text text not null default ''
+created_at text not null
+updated_at text not null
+metadata_json json/text null
+```
+
+建议约束和索引：
+
+```text
+unique(project_id, collection_id, external_id)
+index(project_id, collection_id, record_type)
+index(project_id, collection_id, title)
+index(project_id, collection_id, category_1)
+index(project_id, collection_id, category_2)
+index(project_id, collection_id, category_3)
 ```
 
 ### `document_nodes`
@@ -226,8 +266,6 @@ node_type text not null
 label text not null
 description text not null default ''
 search_text text not null default ''
-record_ids_json json/text null
-record_json json/text null
 created_at text not null
 updated_at text not null
 metadata_json json/text null
@@ -259,7 +297,6 @@ target_node_id text not null references document_nodes(id) on delete cascade
 edge_type text not null
 label text not null default ''
 weight real not null default 1
-record_ids_json json/text null
 source_kind text not null default ''
 created_at text not null
 metadata_json json/text null
@@ -274,6 +311,49 @@ index(project_id, collection_id, target_node_id)
 index(project_id, collection_id, edge_type)
 ```
 
+### `document_node_record_links`
+
+节点到源记录的关系。它替代在节点行里保存 `record_ids_json`。
+
+```text
+id text primary key
+project_id text not null references projects(id) on delete cascade
+collection_id text not null references document_collections(id) on delete cascade
+node_id text not null references document_nodes(id) on delete cascade
+record_id text not null references document_records(id) on delete cascade
+link_role text not null default 'related'
+created_at text not null
+```
+
+建议约束和索引：
+
+```text
+unique(project_id, node_id, record_id, link_role)
+index(project_id, collection_id, node_id)
+index(project_id, collection_id, record_id)
+```
+
+### `document_edge_record_links`
+
+边到源记录的关系。它替代在边行里保存 `record_ids_json`。
+
+```text
+id text primary key
+project_id text not null references projects(id) on delete cascade
+collection_id text not null references document_collections(id) on delete cascade
+edge_id text not null references document_edges(id) on delete cascade
+record_id text not null references document_records(id) on delete cascade
+created_at text not null
+```
+
+建议约束和索引：
+
+```text
+unique(project_id, edge_id, record_id)
+index(project_id, collection_id, edge_id)
+index(project_id, collection_id, record_id)
+```
+
 ### `document_import_runs`
 
 记录导入过程和失败信息。
@@ -286,8 +366,10 @@ source_type text not null
 status text not null
 started_at text not null
 finished_at text null
+total_records integer not null default 0
 total_nodes integer not null default 0
 total_edges integer not null default 0
+imported_records integer not null default 0
 imported_nodes integer not null default 0
 imported_edges integer not null default 0
 error_message text null
@@ -322,9 +404,9 @@ getDocumentCollection(projectId, collectionId): Promise<DocumentCollection | nul
 createDocumentCollection(input): Promise<DocumentCollection>
 deleteDocumentCollection(projectId, collectionId): Promise<void>
 listDocumentSources(projectId, collectionId): Promise<DocumentSourceSummary[]>
-getDocumentSourceContent(projectId, sourceId): Promise<DocumentSourceContent | null>
 
 replaceDocumentGraph(input): Promise<DocumentImportResult>
+searchDocumentRecords(input): Promise<DocumentRecordSearchResult>
 searchDocumentNodes(input): Promise<DocumentNodeSearchResult>
 getDocumentNode(projectId, nodeId): Promise<DocumentNodeDetails | null>
 listDocumentNeighbors(projectId, nodeId): Promise<DocumentNeighbor[]>
@@ -333,12 +415,14 @@ listDocumentNeighbors(projectId, nodeId): Promise<DocumentNeighbor[]>
 `replaceDocumentGraph` 应在事务中执行：
 
 1. 创建或更新 collection。
-2. 插入 source 行。
-3. 如果是替换集合，先删除旧节点和旧边。
-4. 插入节点。
-5. 在节点 ID 映射确定后插入边。
-6. 更新节点数和边数。
-7. 标记导入任务成功或失败。
+2. 插入 source 元数据行。
+3. 如果是替换集合，先删除旧 records、nodes、edges 和 link 行。
+4. 插入规范化 records。
+5. 插入节点。
+6. 在节点 ID 映射确定后插入边。
+7. 插入 node-record 和 edge-record link 行。
+8. 更新记录数、节点数和边数。
+9. 标记导入任务成功或失败。
 
 ## 导入流程
 
@@ -349,11 +433,11 @@ listDocumentNeighbors(projectId, nodeId): Promise<DocumentNeighbor[]>
 1. 用户打开首页“知识库”栏目。
 2. 用户导入 `entity_graph.json` 或 `graph.json`。
 3. 知识库导入服务选择 `shj_nlc_graph` adapter。
-4. 导入服务把原始 JSON 文件存入 `document_sources.content_text`。
+4. 导入服务读取 JSON，计算文件大小和 hash，把源文件元数据写入 `document_sources`。
 5. 导入 model 验证图谱结构。
-6. adapter 把图谱节点和边转换为 `document_nodes` 和 `document_edges`。
-7. repository 在事务中写入行。
-8. UI 把导入结果显示为一个 ready 的知识库集合，包括节点数、边数、搜索入口和图谱画布入口。
+6. adapter 分析图谱 JSON，转换为 `document_records`、`document_nodes`、`document_edges`、`document_node_record_links` 和 `document_edge_record_links`。
+7. repository 在事务中写入规范化行。
+8. UI 把导入结果显示为一个 ready 的知识库集合，包括记录数、节点数、边数、搜索入口和图谱画布入口。
 
 对 `shj_graph`，优先导入 `entity_graph.json`，没有时再导入 `graph.json`。
 
@@ -372,11 +456,24 @@ src/components/DocumentWorkspace/shjGraphImportAdapter.ts
 - `GraphNode.id` -> `document_nodes.external_id`
 - `GraphNode.type` -> `document_nodes.node_type`
 - `GraphNode.label` -> `document_nodes.label`
-- `GraphNode.records` -> `document_nodes.record_ids_json`
-- `GraphNode.data.term_record ?? GraphNode.data.record` -> `document_nodes.record_json`
+- `GraphNode.records` -> `document_node_record_links`
 - 选定展示字段 -> `document_nodes.description`
 - 归一化字段 -> `document_nodes.search_text`
 - 剩余 data -> `document_nodes.metadata_json`
+
+源记录映射：
+
+- `GraphNode.data.term_record ?? GraphNode.data.record` -> `document_records`
+- 词条 ID 或 record ID -> `document_records.external_id`
+- 标题/名称 -> `document_records.title`
+- 描述 -> `document_records.description`
+- 一级/二级/三级类目 -> `category_1`、`category_2`、`category_3`
+- 属地 -> `place_path`
+- 出处 -> `book_title`、`chapter_title`、`version_title`
+- 利用方法和功效 -> `usage_text`、`effect_text`
+- 原站链接 -> `source_url`
+- 参与搜索的文本 -> `search_text`
+- 未建模的低频字段 -> `metadata_json`
 
 边映射：
 
@@ -385,10 +482,12 @@ src/components/DocumentWorkspace/shjGraphImportAdapter.ts
 - `GraphEdge.type` -> `document_edges.edge_type`
 - `GraphEdge.label` -> `document_edges.label`
 - `GraphEdge.weight` -> `document_edges.weight`
-- `GraphEdge.record_ids` -> `document_edges.record_ids_json`
+- `GraphEdge.record_ids` -> `document_edge_record_links`
 - `GraphEdge.source_kind` -> `document_edges.source_kind`
 
 如果边引用了未知节点，导入应失败并生成报告，不要静默丢弃边。
+
+导入禁止把整份 `graph.json` 或 `entity_graph.json` 原样写入任何 JSON/text/blob 字段。`metadata_json` 只保存已解析实体的补充字段，不保存完整源文件。
 
 ## UI 形态
 
@@ -406,7 +505,7 @@ src/components/DocumentWorkspace/shjGraphImportAdapter.ts
 首页知识库栏目：
 
 - 标题：知识库。
-- 集合列表：名称、来源类型、节点数、边数、最近导入时间、状态。
+- 集合列表：名称、来源类型、记录数、节点数、边数、最近导入时间、状态。
 - 主操作：导入知识库。
 - 集合操作：打开、替换导入、删除。
 
@@ -425,26 +524,26 @@ src/components/DocumentWorkspace/shjGraphImportAdapter.ts
 本地项目：
 
 - 文档表存于本地 SQLite DB。
-- 导入源文件存于本地 SQLite DB 的 `document_sources` 行。
+- 导入源文件元数据、规范化记录、节点、边和 link 行存于本地 SQLite DB。
 
 远程项目：
 
 - 文档表存于远程 DB。
-- 导入源文件存于远程 DB 的 `document_sources` 行。
-- 第一版文档源文件不使用 Qiniu Kodo。
-- 普通集合列表不选取完整源内容。
-- 节点和边从 DB 查询。
+- 导入源文件元数据、规范化记录、节点、边和 link 行存于远程 DB。
+- 第一版文档源 JSON 不使用 Qiniu Kodo，也不原样保存到远程 DB。
+- 普通集合列表只读取集合摘要和计数字段。
+- 记录、节点和边从 DB 查询。
 
-远程同步和迁移必须包含所有新文档表，包括 `document_sources.content_text` 和未来的 `document_sources.content_blob`。第一版必须更新导出/导入行结构和 repository proxy，让本地到远程迁移保留文档集合、源内容、节点、边和导入任务。
+远程同步和迁移必须包含所有新文档表。第一版必须更新导出/导入行结构和 repository proxy，让本地到远程迁移保留文档集合、源文件元数据、规范化记录、节点、边、link 行和导入任务。
 
-Repository 列表方法默认不得选取 `content_text` 和 `content_blob`。只有用户导出原始源、查看 raw source，或者替换/重建集合时，才读取源内容。
+Repository 不提供原始源 JSON 读取方法。用户如果需要重新导入，必须重新选择源文件。
 
 ## 删除行为
 
 文档集合删除是硬删除：
 
 1. 删除 collection 行。
-2. 级联删除 `document_sources`、节点、边和相关导入任务。
+2. 级联删除 `document_sources`、records、nodes、edges、link 行和相关导入任务。
 3. 如果后续版本增加派生对象资源，派生对象资源使用现有项目 cleanup task 策略。
 
 第一版不支持单独删除节点。节点只通过集合替换或集合删除而删除。
@@ -473,22 +572,26 @@ Schema 测试：
 
 Model 和 adapter 测试：
 
-- `shj_graph` 节点转换保留 external ID、type、label、records 和源记录数据。
-- 搜索文本包含 label、description、类目路径、属地路径、书名、章节、利用方法和功效。
+- `shj_graph` 转换会从图谱 JSON 生成规范化 records、nodes、edges 和 link 行。
+- 节点转换保留 external ID、type、label 和搜索字段。
+- 源记录转换保留 title、description、类目路径、属地路径、书名、章节、利用方法、功效和 source URL。
+- 搜索文本来自规范化字段，不依赖原始 JSON blob。
 - 边转换映射 source 和 target 节点 ID。
+- `GraphNode.records` 转换为 `document_node_record_links`。
+- `GraphEdge.record_ids` 转换为 `document_edge_record_links`。
 - 边引用缺失节点时，导入验证失败。
 - 写数据库前报告重复 external ID。
+- 不允许 adapter 输出完整源 JSON 到 `metadata_json`。
 - adapter 契约测试覆盖 `sourceType`、文件名匹配、节点标签、边标签和过滤元数据。
 
 Repository 测试：
 
-- 导入图谱会创建一个 collection、source 行、节点和边。
-- 源 JSON 内容持久化到 `document_sources.content_text`。
-- collection/source 列表方法不选取 `content_text` 或 `content_blob`。
-- 源内容只通过显式内容读取方法加载。
-- 替换集合时先删除旧节点和旧边，再插入新行。
-- 删除集合会删除节点、边和 sources。
-- 项目行导出/导入包含文档表和源内容，用于迁移。
+- 导入图谱会创建一个 collection、source 元数据行、records、nodes、edges 和 link 行。
+- `document_sources` 只保存源文件元数据和 hash，不保存完整 JSON 内容。
+- repository 不暴露原始源 JSON 读取方法。
+- 替换集合时先删除旧 records、nodes、edges 和 link 行，再插入新行。
+- 删除集合会删除 sources、records、nodes、edges 和 link 行。
+- 项目行导出/导入包含文档规范化表，用于迁移。
 
 UI model 测试：
 
@@ -512,18 +615,12 @@ git status --short --branch
 2. 增加 repository 接口和内存测试实现。
 3. 增加 SQLite、本地 Electron 和远程 DB schema 支持。
 4. 增加 `shj_graph` 导入 adapter 测试和纯转换代码。
-5. 增加导入 service，把源 JSON 存入 `document_sources.content_text`，并在事务中写入 DB 行。
+5. 增加导入 service，读取并分析源 JSON，把源文件元数据和规范化知识行在事务中写入 DB。
 6. 增加首页“知识库”栏目和集合列表。
 7. 增加文档工作区浏览、搜索、详情和图谱画布 UI。
 8. 更新项目导出/导入、远程同步和本地到远程迁移。
 9. 增加结构守卫。
 10. 运行完整验证。
-
-## 待决问题
-
-实现前需要确认：
-
-1. 导入第一版只接受 `entity_graph.json`，还是同时接受 `entity_graph.json` 和 `graph.json`。推荐两者都接受，存在 `entity_graph.json` 时优先使用。
 
 ## 后续阶段：角色关联
 
