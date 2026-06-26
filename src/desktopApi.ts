@@ -4,6 +4,7 @@ import type {
   CreateLocalProjectInput,
   CreateRemoteProjectInput,
   DocumentCollection,
+  DocumentCollectionGraph,
   DocumentImportResult,
   DocumentNeighbor,
   DocumentNodeDetails,
@@ -12,6 +13,7 @@ import type {
   DocumentRecordSearchInput,
   DocumentRecordSearchResult,
   DocumentSource,
+  DocumentSourceContent,
   LegacyProjectRows,
   Project,
   ProjectCleanupTask,
@@ -195,6 +197,8 @@ export interface GameDesignToolsDesktopApi {
   getLocalDocumentCollection(projectId: string, collectionId: string): Promise<DocumentCollection | null>
   deleteLocalDocumentCollection(projectId: string, collectionId: string): Promise<boolean>
   listLocalDocumentSources(projectId: string, collectionId: string): Promise<DocumentSource[]>
+  getLocalDocumentSourceContent(projectId: string, sourceId: string): Promise<DocumentSourceContent | null>
+  getLocalDocumentCollectionGraph(projectId: string, collectionId: string): Promise<DocumentCollectionGraph>
   replaceLocalDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
   searchLocalDocumentRecords(input: DocumentRecordSearchInput): Promise<DocumentRecordSearchResult>
   searchLocalDocumentNodes(input: DocumentNodeSearchInput): Promise<DocumentNodeSearchResult>
@@ -232,6 +236,8 @@ export interface GameDesignToolsDesktopApi {
   getRemoteDocumentCollection(projectId: string, collectionId: string, databaseProfileId?: string): Promise<DocumentCollection | null>
   deleteRemoteDocumentCollection(projectId: string, collectionId: string, databaseProfileId?: string): Promise<boolean>
   listRemoteDocumentSources(projectId: string, collectionId: string, databaseProfileId?: string): Promise<DocumentSource[]>
+  getRemoteDocumentSourceContent(projectId: string, sourceId: string, databaseProfileId?: string): Promise<DocumentSourceContent | null>
+  getRemoteDocumentCollectionGraph(projectId: string, collectionId: string, databaseProfileId?: string): Promise<DocumentCollectionGraph>
   replaceRemoteDocumentGraph(input: ReplaceDocumentGraphInput, databaseProfileId?: string): Promise<DocumentImportResult>
   searchRemoteDocumentRecords(input: DocumentRecordSearchInput, databaseProfileId?: string): Promise<DocumentRecordSearchResult>
   searchRemoteDocumentNodes(input: DocumentNodeSearchInput, databaseProfileId?: string): Promise<DocumentNodeSearchResult>

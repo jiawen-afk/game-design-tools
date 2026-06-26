@@ -120,9 +120,21 @@ export class DesktopRemoteProjectRepository implements ProjectRepository {
     return desktopApi.listRemoteDocumentSources(projectId, collectionId, this.requireProjectDatabaseProfileId(projectId))
   }
 
+  async getDocumentSourceContent(projectId: string, sourceId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return null
+    return desktopApi.getRemoteDocumentSourceContent(projectId, sourceId, this.requireProjectDatabaseProfileId(projectId))
+  }
+
   async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
     const desktopApi = this.requireDesktopApi()
     return desktopApi.replaceRemoteDocumentGraph(input, this.requireProjectDatabaseProfileId(input.projectId))
+  }
+
+  async getDocumentCollectionGraph(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return { nodes: {}, edges: {} }
+    return desktopApi.getRemoteDocumentCollectionGraph(projectId, collectionId, this.requireProjectDatabaseProfileId(projectId))
   }
 
   async searchDocumentRecords(input: DocumentRecordSearchInput) {

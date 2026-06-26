@@ -219,6 +219,14 @@ function registerProjectStorageIpcHandlers({ app, ipcMain }) {
     getLocalProjectRepository(app).listDocumentSources(String(projectId || ''), String(collectionId || ''))
   ))
 
+  ipcMain.handle('project-local-repository:get-document-source-content', async (_event, projectId, sourceId) => (
+    getLocalProjectRepository(app).getDocumentSourceContent(String(projectId || ''), String(sourceId || ''))
+  ))
+
+  ipcMain.handle('project-local-repository:get-document-collection-graph', async (_event, projectId, collectionId) => (
+    getLocalProjectRepository(app).getDocumentCollectionGraph(String(projectId || ''), String(collectionId || ''))
+  ))
+
   ipcMain.handle('project-local-repository:replace-document-graph', async (_event, input = {}) => (
     getLocalProjectRepository(app).replaceDocumentGraph(input)
   ))
@@ -360,6 +368,16 @@ function registerProjectStorageIpcHandlers({ app, ipcMain }) {
   ipcMain.handle('project-remote-repository:list-document-sources', async (_event, projectId, collectionId, databaseProfileId) => {
     const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
     return repository.listDocumentSources(String(projectId || ''), String(collectionId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:get-document-source-content', async (_event, projectId, sourceId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.getDocumentSourceContent(String(projectId || ''), String(sourceId || ''))
+  })
+
+  ipcMain.handle('project-remote-repository:get-document-collection-graph', async (_event, projectId, collectionId, databaseProfileId) => {
+    const repository = await getRemoteDatabaseRepository(app, String(databaseProfileId || ''))
+    return repository.getDocumentCollectionGraph(String(projectId || ''), String(collectionId || ''))
   })
 
   ipcMain.handle('project-remote-repository:replace-document-graph', async (_event, input = {}, databaseProfileId) => {

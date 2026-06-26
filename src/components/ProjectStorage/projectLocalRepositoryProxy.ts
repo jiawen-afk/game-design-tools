@@ -117,10 +117,22 @@ export class DesktopLocalProjectRepository implements ProjectRepository {
     return desktopApi.listLocalDocumentSources(projectId, collectionId)
   }
 
+  async getDocumentSourceContent(projectId: string, sourceId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.getDocumentSourceContent(projectId, sourceId)
+    return desktopApi.getLocalDocumentSourceContent(projectId, sourceId)
+  }
+
   async replaceDocumentGraph(input: ReplaceDocumentGraphInput) {
     const desktopApi = getDesktopApi()
     if (!desktopApi) return this.fallbackRepository.replaceDocumentGraph(input)
     return desktopApi.replaceLocalDocumentGraph(input)
+  }
+
+  async getDocumentCollectionGraph(projectId: string, collectionId: string) {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi) return this.fallbackRepository.getDocumentCollectionGraph(projectId, collectionId)
+    return desktopApi.getLocalDocumentCollectionGraph(projectId, collectionId)
   }
 
   async searchDocumentRecords(input: DocumentRecordSearchInput) {

@@ -1,4 +1,8 @@
-const { normalizeDatabasePayload } = require('./projectRemoteDatabase.cjs')
+const {
+  createProjectRemoteSchemaMigrationSql,
+  createProjectRemoteSchemaSql,
+  normalizeDatabasePayload,
+} = require('./projectRemoteDatabase.cjs')
 const {
   attachPostgresConnectionErrorSink,
   throwIfPostgresConnectionErrored,
@@ -185,6 +189,20 @@ const tableDefinitions = {
       'metadata_json',
     ],
   },
+  document_source_contents: {
+    conflictColumns: ['source_id'],
+    columns: [
+      'source_id',
+      'project_id',
+      'collection_id',
+      'content_text',
+      'content_encoding',
+      'size_bytes',
+      'hash_sha256',
+      'created_at',
+      'metadata_json',
+    ],
+  },
   document_records: {
     conflictColumns: ['id'],
     columns: [
@@ -313,6 +331,7 @@ const rowSetTables = [
   ['assetRelations', 'asset_relations'],
   ['documentCollections', 'document_collections'],
   ['documentSources', 'document_sources'],
+  ['documentSourceContents', 'document_source_contents'],
   ['documentRecords', 'document_records'],
   ['documentNodes', 'document_nodes'],
   ['documentEdges', 'document_edges'],
@@ -320,6 +339,8 @@ const rowSetTables = [
   ['documentEdgeRecordLinks', 'document_edge_record_links'],
   ['documentImportRuns', 'document_import_runs'],
 ]
+
+const maxBatchParameters = 12000
 
 function requireNodeModule(moduleName, installHint) {
   try {
@@ -372,18 +393,25 @@ function parameter(dialect, index) {
 }
 
 function buildUpsertSql(dialect, tableName, definition) {
+  return buildBulkUpsertSql(dialect, tableName, definition, 1)
+}
+
+function buildBulkUpsertSql(dialect, tableName, definition, rowCount) {
   const columns = definition.columns
-  const values = columns.map((_column, index) => parameter(dialect, index + 1)).join(', ')
+  const values = Array.from({ length: rowCount }, (_row, rowIndex) => {
+    const offset = rowIndex * columns.length
+    return `(${columns.map((_column, columnIndex) => parameter(dialect, offset + columnIndex + 1)).join(', ')})`
+  }).join(', ')
   const updateColumns = columns.filter((column) => !definition.conflictColumns.includes(column))
   if (dialect === 'postgresql') {
     return [
-      `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${values})`,
+      `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${values}`,
       `ON CONFLICT (${definition.conflictColumns.join(', ')}) DO UPDATE SET`,
       updateColumns.map((column) => `${column} = EXCLUDED.${column}`).join(', '),
     ].join(' ')
   }
   return [
-    `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${values})`,
+    `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${values}`,
     'ON DUPLICATE KEY UPDATE',
     updateColumns.map((column) => `${column} = VALUES(${column})`).join(', '),
   ].join(' ')
@@ -512,9 +540,33 @@ async function upsertRow(runner, tableName, row) {
 }
 
 async function upsertRows(runner, tableName, rows) {
-  for (const row of rows) {
-    await upsertRow(runner, tableName, row)
+  if (!Array.isArray(rows) || rows.length === 0) return
+  const definition = tableDefinitions[tableName]
+  const batchSize = Math.max(1, Math.floor(maxBatchParameters / definition.columns.length))
+  for (let index = 0; index < rows.length; index += batchSize) {
+    const batch = rows.slice(index, index + batchSize)
+    await runner.execute(
+      buildBulkUpsertSql(runner.dialect, tableName, definition, batch.length),
+      batch.flatMap((row) => rowValues(definition, row)),
+    )
   }
+}
+
+function isMysqlIdempotentSchemaError(error, statement) {
+  const code = String(error?.code || '')
+  return (code === 'ER_DUP_KEYNAME' && /^CREATE\s+INDEX\b/i.test(statement))
+    || (code === 'ER_DUP_FIELDNAME' && /^ALTER\s+TABLE\s+\S+\s+ADD\s+COLUMN\b/i.test(statement))
+}
+
+function isMissingSchemaError(error) {
+  const code = String(error?.code || '')
+  const errno = Number(error?.errno || 0)
+  const message = String(error?.message || error || '')
+  return code === '42P01'
+    || code === 'ER_NO_SUCH_TABLE'
+    || errno === 1146
+    || /relation\s+"?[\w_]+"?\s+does not exist/i.test(message)
+    || /table\s+'.+'\s+doesn't exist/i.test(message)
 }
 
 async function deleteProjectRows(runner, projectId) {
@@ -578,6 +630,46 @@ function documentSearchWhere(dialect, input) {
   return { where: where.join(' AND '), params }
 }
 
+function groupRowsByKey(rows, keyColumn, valueColumn) {
+  const grouped = new Map()
+  for (const row of rows) {
+    const key = row[keyColumn]
+    grouped.set(key, [...(grouped.get(key) || []), row[valueColumn]])
+  }
+  return grouped
+}
+
+function parseJsonObject(value) {
+  if (!value) return {}
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function documentRecordGraphData(record) {
+  return {
+    ...parseJsonObject(record.metadata_json),
+    id: record.id,
+    external_id: record.external_id,
+    record_type: record.record_type,
+    title: record.title,
+    description: record.description,
+    category_1: record.category_1,
+    category_2: record.category_2,
+    category_3: record.category_3,
+    place_path: record.place_path,
+    book_title: record.book_title,
+    chapter_title: record.chapter_title,
+    version_title: record.version_title,
+    usage: record.usage_text,
+    effect: record.effect_text,
+    source_url: record.source_url,
+  }
+}
+
 async function deleteDocumentCollectionRows(runner, projectId, collectionId) {
   for (const tableName of [
     'document_edge_record_links',
@@ -585,6 +677,7 @@ async function deleteDocumentCollectionRows(runner, projectId, collectionId) {
     'document_edges',
     'document_nodes',
     'document_records',
+    'document_source_contents',
     'document_sources',
     'document_import_runs',
     'document_collections',
@@ -603,7 +696,33 @@ class RemoteProjectRepository {
     this.options = options
   }
 
-  async initializeSchema() {}
+  async initializeSchema() {
+    const payload = normalizeDatabasePayload(this.profile)
+    const statements = [
+      ...createProjectRemoteSchemaSql(payload.provider),
+      ...createProjectRemoteSchemaMigrationSql(payload.provider),
+    ]
+    await withRunner(this.profile, this.options, async (runner) => {
+      for (const statement of statements) {
+        try {
+          await runner.execute(statement)
+        } catch (error) {
+          if (runner.dialect === 'mysql' && isMysqlIdempotentSchemaError(error, statement)) continue
+          throw error
+        }
+      }
+    })
+  }
+
+  async withSchemaRepair(callback) {
+    try {
+      return await callback()
+    } catch (error) {
+      if (!isMissingSchemaError(error)) throw error
+      await this.initializeSchema()
+      return callback()
+    }
+  }
 
   async createProject() {
     throw new Error('远程仓库不支持创建本地项目。')
@@ -713,56 +832,120 @@ class RemoteProjectRepository {
   }
 
   async listDocumentCollections(projectId) {
-    return withRunner(this.profile, this.options, async (runner) => (
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => (
       runner.queryRows(
         `SELECT ${tableDefinitions.document_collections.columns.join(', ')} FROM document_collections WHERE project_id = ${parameter(runner.dialect, 1)} ORDER BY created_at ASC`,
         [projectId],
       )
-    ))
+    )))
   }
 
   async getDocumentCollection(projectId, collectionId) {
-    return withRunner(this.profile, this.options, async (runner) => {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
       const rows = await runner.queryRows(
         `SELECT ${tableDefinitions.document_collections.columns.join(', ')} FROM document_collections WHERE project_id = ${parameter(runner.dialect, 1)} AND id = ${parameter(runner.dialect, 2)}`,
         [projectId, collectionId],
       )
       return rows[0] || null
-    })
+    }))
   }
 
   async deleteDocumentCollection(projectId, collectionId) {
-    await withTransaction(this.profile, this.options, async (runner) => {
+    await this.withSchemaRepair(() => withTransaction(this.profile, this.options, async (runner) => {
       await deleteDocumentCollectionRows(runner, projectId, collectionId)
-    })
+    }))
   }
 
   async listDocumentSources(projectId, collectionId) {
-    return withRunner(this.profile, this.options, async (runner) => (
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => (
       runner.queryRows(
         `SELECT ${tableDefinitions.document_sources.columns.join(', ')} FROM document_sources WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY created_at ASC`,
         [projectId, collectionId],
       )
-    ))
+    )))
+  }
+
+  async getDocumentSourceContent(projectId, sourceId) {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
+      const rows = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_source_contents.columns.join(', ')} FROM document_source_contents WHERE project_id = ${parameter(runner.dialect, 1)} AND source_id = ${parameter(runner.dialect, 2)}`,
+        [projectId, sourceId],
+      )
+      return rows[0] || null
+    }))
   }
 
   async replaceDocumentGraph(input) {
-    await withTransaction(this.profile, this.options, async (runner) => {
+    await this.withSchemaRepair(() => withTransaction(this.profile, this.options, async (runner) => {
       await deleteDocumentCollectionRows(runner, input.projectId, input.collection.id)
       await upsertRow(runner, 'document_collections', input.collection)
       await upsertRows(runner, 'document_sources', input.sources || [])
+      await upsertRows(runner, 'document_source_contents', input.sourceContents || [])
       await upsertRows(runner, 'document_records', input.records || [])
       await upsertRows(runner, 'document_nodes', input.nodes || [])
       await upsertRows(runner, 'document_edges', input.edges || [])
       await upsertRows(runner, 'document_node_record_links', input.nodeRecordLinks || [])
       await upsertRows(runner, 'document_edge_record_links', input.edgeRecordLinks || [])
       await upsertRow(runner, 'document_import_runs', input.importRun)
-    })
+    }))
     return { collection: input.collection, importRun: input.importRun }
   }
 
+  async getDocumentCollectionGraph(projectId, collectionId) {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
+      const records = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_records.columns.join(', ')} FROM document_records WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)}`,
+        [projectId, collectionId],
+      )
+      const recordsById = new Map(records.map((record) => [record.id, record]))
+      const nodeLinks = await runner.queryRows(
+        `SELECT node_id, record_id FROM document_node_record_links WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY created_at ASC`,
+        [projectId, collectionId],
+      )
+      const edgeLinks = await runner.queryRows(
+        `SELECT edge_id, record_id FROM document_edge_record_links WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY created_at ASC`,
+        [projectId, collectionId],
+      )
+      const recordIdsByNodeId = groupRowsByKey(nodeLinks, 'node_id', 'record_id')
+      const recordIdsByEdgeId = groupRowsByKey(edgeLinks, 'edge_id', 'record_id')
+      const nodeRows = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_nodes.columns.join(', ')} FROM document_nodes WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY label ASC`,
+        [projectId, collectionId],
+      )
+      const edgeRows = await runner.queryRows(
+        `SELECT ${tableDefinitions.document_edges.columns.join(', ')} FROM document_edges WHERE project_id = ${parameter(runner.dialect, 1)} AND collection_id = ${parameter(runner.dialect, 2)} ORDER BY label ASC`,
+        [projectId, collectionId],
+      )
+      const nodes = Object.fromEntries(nodeRows.map((node) => {
+        const recordIds = recordIdsByNodeId.get(node.id) || []
+        const firstRecord = recordIds.map((recordId) => recordsById.get(recordId)).find(Boolean)
+        return [node.id, {
+          id: node.id,
+          label: node.label,
+          type: node.node_type,
+          records: recordIds,
+          data: {
+            ...parseJsonObject(node.metadata_json),
+            ...(firstRecord ? { term_record: documentRecordGraphData(firstRecord) } : {}),
+          },
+        }]
+      }))
+      const edges = Object.fromEntries(edgeRows.map((edge) => [edge.id, {
+        id: edge.id,
+        source: edge.source_node_id,
+        target: edge.target_node_id,
+        type: edge.edge_type,
+        label: edge.label,
+        weight: edge.weight,
+        record_ids: recordIdsByEdgeId.get(edge.id) || [],
+        source_kind: edge.source_kind,
+      }]))
+      return { nodes, edges }
+    }))
+  }
+
   async searchDocumentRecords(input) {
-    return withRunner(this.profile, this.options, async (runner) => {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
       const search = documentSearchWhere(runner.dialect, input)
       const totalRows = await runner.queryRows(
         `SELECT COUNT(*) AS total FROM document_records WHERE ${search.where}`,
@@ -774,11 +957,11 @@ class RemoteProjectRepository {
         [...search.params, normalizeDocumentLimit(input.limit)],
       )
       return { items, total: Number(totalRows[0]?.total ?? 0) }
-    })
+    }))
   }
 
   async searchDocumentNodes(input) {
-    return withRunner(this.profile, this.options, async (runner) => {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
       const search = documentSearchWhere(runner.dialect, input)
       const totalRows = await runner.queryRows(
         `SELECT COUNT(*) AS total FROM document_nodes WHERE ${search.where}`,
@@ -790,11 +973,11 @@ class RemoteProjectRepository {
         [...search.params, normalizeDocumentLimit(input.limit)],
       )
       return { items, total: Number(totalRows[0]?.total ?? 0) }
-    })
+    }))
   }
 
   async getDocumentNode(projectId, nodeId) {
-    return withRunner(this.profile, this.options, async (runner) => {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
       const nodes = await runner.queryRows(
         `SELECT ${tableDefinitions.document_nodes.columns.join(', ')} FROM document_nodes WHERE project_id = ${parameter(runner.dialect, 1)} AND id = ${parameter(runner.dialect, 2)}`,
         [projectId, nodeId],
@@ -811,11 +994,11 @@ class RemoteProjectRepository {
         [projectId, nodeId],
       )
       return { node: nodes[0], records }
-    })
+    }))
   }
 
   async listDocumentNeighbors(projectId, nodeId) {
-    return withRunner(this.profile, this.options, async (runner) => {
+    return this.withSchemaRepair(() => withRunner(this.profile, this.options, async (runner) => {
       const edges = await runner.queryRows(
         `SELECT ${tableDefinitions.document_edges.columns.join(', ')} FROM document_edges WHERE project_id = ${parameter(runner.dialect, 1)} AND (source_node_id = ${parameter(runner.dialect, 2)} OR target_node_id = ${parameter(runner.dialect, 3)}) ORDER BY label ASC`,
         [projectId, nodeId, nodeId],
@@ -831,7 +1014,7 @@ class RemoteProjectRepository {
         if (nodes[0]) neighbors.push({ edge, node: nodes[0], direction })
       }
       return neighbors
-    })
+    }))
   }
 
   async deleteProject(projectId) {

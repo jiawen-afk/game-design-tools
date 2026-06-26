@@ -14,6 +14,7 @@ const rowSetTables = [
   ['assetRelations', 'asset_relations'],
   ['documentCollections', 'document_collections'],
   ['documentSources', 'document_sources'],
+  ['documentSourceContents', 'document_source_contents'],
   ['documentRecords', 'document_records'],
   ['documentNodes', 'document_nodes'],
   ['documentEdges', 'document_edges'],
@@ -232,6 +233,17 @@ function createProjectSchemaSql() {
       metadata_json ${json} null,
       UNIQUE (project_id, collection_id, role, file_name)
     )`,
+    `CREATE TABLE IF NOT EXISTS document_source_contents (
+      source_id text primary key references document_sources(id) on delete cascade,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      content_text text not null,
+      content_encoding text not null default 'utf-8',
+      size_bytes integer not null default 0,
+      hash_sha256 text null,
+      created_at text not null,
+      metadata_json ${json} null
+    )`,
     `CREATE TABLE IF NOT EXISTS document_records (
       id text primary key,
       project_id text not null references projects(id) on delete cascade,
@@ -360,6 +372,7 @@ function createProjectSchemaSql() {
     'CREATE INDEX IF NOT EXISTS idx_document_collections_project_source_type ON document_collections(project_id, source_type)',
     'CREATE INDEX IF NOT EXISTS idx_document_sources_project_collection ON document_sources(project_id, collection_id)',
     'CREATE INDEX IF NOT EXISTS idx_document_sources_project_role ON document_sources(project_id, role)',
+    'CREATE INDEX IF NOT EXISTS idx_document_source_contents_project_collection ON document_source_contents(project_id, collection_id)',
     'CREATE INDEX IF NOT EXISTS idx_document_records_project_type ON document_records(project_id, collection_id, record_type)',
     'CREATE INDEX IF NOT EXISTS idx_document_records_project_title ON document_records(project_id, collection_id, title)',
     'CREATE INDEX IF NOT EXISTS idx_document_nodes_project_type ON document_nodes(project_id, collection_id, node_type)',
@@ -483,6 +496,46 @@ function documentSearchWhere(input, extra = []) {
   }
 }
 
+function groupRowsByKey(rows, keyColumn, valueColumn) {
+  const grouped = new Map()
+  for (const row of rows) {
+    const key = row[keyColumn]
+    grouped.set(key, [...(grouped.get(key) || []), row[valueColumn]])
+  }
+  return grouped
+}
+
+function parseJsonObject(value) {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function documentRecordGraphData(record) {
+  return {
+    ...parseJsonObject(record.metadata_json),
+    id: record.id,
+    external_id: record.external_id,
+    record_type: record.record_type,
+    title: record.title,
+    description: record.description,
+    category_1: record.category_1,
+    category_2: record.category_2,
+    category_3: record.category_3,
+    place_path: record.place_path,
+    book_title: record.book_title,
+    chapter_title: record.chapter_title,
+    version_title: record.version_title,
+    usage: record.usage_text,
+    effect: record.effect_text,
+    source_url: record.source_url,
+  }
+}
+
 function deleteDocumentCollectionRows(database, projectId, collectionId) {
   for (const tableName of [
     'document_edge_record_links',
@@ -490,6 +543,7 @@ function deleteDocumentCollectionRows(database, projectId, collectionId) {
     'document_edges',
     'document_nodes',
     'document_records',
+    'document_source_contents',
     'document_sources',
     'document_import_runs',
     'document_collections',
@@ -745,11 +799,23 @@ class LocalProjectRepository {
     })
   }
 
+  async getDocumentSourceContent(projectId, sourceId) {
+    return withDatabase(this.databasePath, {}, async (database) => {
+      initializeSchemaInDatabase(database)
+      return firstRow(
+        database,
+        `SELECT ${selectColumns('document_source_contents')} FROM document_source_contents WHERE project_id = ? AND source_id = ?`,
+        [projectId, sourceId],
+      )
+    })
+  }
+
   async replaceDocumentGraph(input) {
     await withWriteTransaction(this.databasePath, async (database) => {
       deleteDocumentCollectionRows(database, input.projectId, input.collection.id)
       upsertRow(database, 'document_collections', input.collection)
       upsertRows(database, 'document_sources', input.sources || [])
+      upsertRows(database, 'document_source_contents', input.sourceContents || [])
       upsertRows(database, 'document_records', input.records || [])
       upsertRows(database, 'document_nodes', input.nodes || [])
       upsertRows(database, 'document_edges', input.edges || [])
@@ -758,6 +824,61 @@ class LocalProjectRepository {
       upsertRow(database, 'document_import_runs', input.importRun)
     })
     return { collection: input.collection, importRun: input.importRun }
+  }
+
+  async getDocumentCollectionGraph(projectId, collectionId) {
+    return withDatabase(this.databasePath, {}, async (database) => {
+      initializeSchemaInDatabase(database)
+      const records = allRows(
+        database,
+        `SELECT ${selectColumns('document_records')} FROM document_records WHERE project_id = ? AND collection_id = ?`,
+        [projectId, collectionId],
+      )
+      const recordsById = new Map(records.map((record) => [record.id, record]))
+      const recordIdsByNodeId = groupRowsByKey(allRows(
+        database,
+        'SELECT node_id, record_id FROM document_node_record_links WHERE project_id = ? AND collection_id = ? ORDER BY rowid ASC',
+        [projectId, collectionId],
+      ), 'node_id', 'record_id')
+      const recordIdsByEdgeId = groupRowsByKey(allRows(
+        database,
+        'SELECT edge_id, record_id FROM document_edge_record_links WHERE project_id = ? AND collection_id = ? ORDER BY rowid ASC',
+        [projectId, collectionId],
+      ), 'edge_id', 'record_id')
+      const nodes = Object.fromEntries(allRows(
+        database,
+        `SELECT ${selectColumns('document_nodes')} FROM document_nodes WHERE project_id = ? AND collection_id = ? ORDER BY rowid ASC`,
+        [projectId, collectionId],
+      ).map((node) => {
+        const recordIds = recordIdsByNodeId.get(node.id) || []
+        const firstRecord = recordIds.map((recordId) => recordsById.get(recordId)).find(Boolean)
+        return [node.id, {
+          id: node.id,
+          label: node.label,
+          type: node.node_type,
+          records: recordIds,
+          data: {
+            ...parseJsonObject(node.metadata_json),
+            ...(firstRecord ? { term_record: documentRecordGraphData(firstRecord) } : {}),
+          },
+        }]
+      }))
+      const edges = Object.fromEntries(allRows(
+        database,
+        `SELECT ${selectColumns('document_edges')} FROM document_edges WHERE project_id = ? AND collection_id = ? ORDER BY rowid ASC`,
+        [projectId, collectionId],
+      ).map((edge) => [edge.id, {
+        id: edge.id,
+        source: edge.source_node_id,
+        target: edge.target_node_id,
+        type: edge.edge_type,
+        label: edge.label,
+        weight: edge.weight,
+        record_ids: recordIdsByEdgeId.get(edge.id) || [],
+        source_kind: edge.source_kind,
+      }]))
+      return { nodes, edges }
+    })
   }
 
   async searchDocumentRecords(input) {

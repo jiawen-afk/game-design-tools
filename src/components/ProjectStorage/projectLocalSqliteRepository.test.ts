@@ -114,6 +114,17 @@ function documentGraphInput(projectId: string) {
       error_message: null,
       report_json: null,
     },
+    sourceContents: [{
+      source_id: 'source-1',
+      project_id: projectId,
+      collection_id: 'collection-1',
+      content_text: text,
+      content_encoding: 'utf-8',
+      size_bytes: text.length,
+      hash_sha256: 'hash-1',
+      created_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    }],
     ...rows,
   }
 }
@@ -187,6 +198,7 @@ test('local sqlite repository persists document graph rows and deletes collectio
       projectId: created.project.id,
       collection: graph.collection,
       sources: graph.sources,
+      sourceContents: graph.sourceContents,
       records: graph.records,
       nodes: graph.nodes,
       edges: graph.edges,
@@ -200,6 +212,10 @@ test('local sqlite repository persists document graph rows and deletes collectio
     assert.equal((await reopened.listDocumentSources(created.project.id, graph.collection.id))[0]?.file_name, 'entity_graph.json')
     assert.equal((await reopened.searchDocumentRecords({ projectId: created.project.id, query: '西山经' })).total, 1)
 
+    const content = await reopened.getDocumentSourceContent(created.project.id, graph.sources[0]!.id)
+    assert.equal(content?.content_text, graph.sourceContents[0]!.content_text)
+    assert.equal(content?.hash_sha256, graph.sources[0]!.hash_sha256)
+
     const nodeSearch = await reopened.searchDocumentNodes({ projectId: created.project.id, query: '四角' })
     assert.equal(nodeSearch.total, 1)
     const nodeDetails = await reopened.getDocumentNode(created.project.id, nodeSearch.items[0]!.id)
@@ -207,10 +223,17 @@ test('local sqlite repository persists document graph rows and deletes collectio
     assert.equal(nodeDetails?.records[0]?.title, '傲徕')
     assert.deepEqual((await reopened.listDocumentNeighbors(created.project.id, nodeDetails!.node.id)).map((item) => item.node.label), ['傲徕'])
 
+    const projected = await reopened.getDocumentCollectionGraph(created.project.id, graph.collection.id)
+    assert.equal(projected.nodes[graph.nodes[0]!.id]?.label, graph.nodes[0]!.label)
+    assert.equal(projected.edges[graph.edges[0]!.id]?.source, graph.edges[0]!.source_node_id)
+    assert.deepEqual(projected.nodes[graph.nodes[0]!.id]?.records, [graph.records[0]!.id])
+    assert.equal((projected.nodes[graph.nodes[0]!.id]?.data.term_record as { title?: string }).title, graph.records[0]!.title)
+
     await reopened.deleteDocumentCollection(created.project.id, graph.collection.id)
     assert.deepEqual(await reopened.listDocumentCollections(created.project.id), [])
     assert.equal((await reopened.searchDocumentNodes({ projectId: created.project.id, query: '傲徕' })).total, 0)
     assert.equal((await reopened.searchDocumentRecords({ projectId: created.project.id, query: '傲徕' })).total, 0)
+    assert.equal(await reopened.getDocumentSourceContent(created.project.id, graph.sources[0]!.id), null)
   } finally {
     await rm(tempDir, { recursive: true, force: true })
   }

@@ -85,9 +85,14 @@ function jsonType(dialect) {
   return 'text'
 }
 
+function documentContentType(dialect) {
+  return dialect === 'mysql' ? 'longtext' : 'text'
+}
+
 function createProjectSchemaSql(dialect) {
   const boolean = boolType(dialect)
   const json = jsonType(dialect)
+  const documentContent = documentContentType(dialect)
   return [
     `CREATE TABLE IF NOT EXISTS schema_migrations (
       version text primary key,
@@ -249,6 +254,17 @@ function createProjectSchemaSql(dialect) {
       metadata_json ${json} null,
       UNIQUE (project_id, collection_id, role, file_name)
     )`,
+    `CREATE TABLE IF NOT EXISTS document_source_contents (
+      source_id text primary key references document_sources(id) on delete cascade,
+      project_id text not null references projects(id) on delete cascade,
+      collection_id text not null references document_collections(id) on delete cascade,
+      content_text ${documentContent} not null,
+      content_encoding text not null default 'utf-8',
+      size_bytes integer not null default 0,
+      hash_sha256 text null,
+      created_at text not null,
+      metadata_json ${json} null
+    )`,
     `CREATE TABLE IF NOT EXISTS document_records (
       id text primary key,
       project_id text not null references projects(id) on delete cascade,
@@ -377,6 +393,7 @@ function createProjectSchemaSql(dialect) {
     'CREATE INDEX IF NOT EXISTS idx_document_collections_project_source_type ON document_collections(project_id, source_type)',
     'CREATE INDEX IF NOT EXISTS idx_document_sources_project_collection ON document_sources(project_id, collection_id)',
     'CREATE INDEX IF NOT EXISTS idx_document_sources_project_role ON document_sources(project_id, role)',
+    'CREATE INDEX IF NOT EXISTS idx_document_source_contents_project_collection ON document_source_contents(project_id, collection_id)',
     'CREATE INDEX IF NOT EXISTS idx_document_records_project_type ON document_records(project_id, collection_id, record_type)',
     'CREATE INDEX IF NOT EXISTS idx_document_records_project_title ON document_records(project_id, collection_id, title)',
     'CREATE INDEX IF NOT EXISTS idx_document_records_project_category_1 ON document_records(project_id, collection_id, category_1)',

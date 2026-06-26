@@ -12,12 +12,15 @@ import type {
   DocumentNodeSearchResult,
   ReplaceDocumentGraphInput,
 } from './projectSqliteRepository'
+import type { DocumentCollectionGraph } from './projectStorageTypes'
 
 const require = createRequire(import.meta.url)
 const {
   createRemoteProjectRepository,
+  tableDefinitions,
 } = require('../../../electron/projectRemoteRepository.cjs') as {
   createRemoteProjectRepository: (profile: unknown, options: RemoteRepositoryTestOptions) => RemoteProjectRepository
+  tableDefinitions: Record<string, { columns: string[] }>
 }
 
 interface RemoteRepositoryTestOptions {
@@ -58,7 +61,14 @@ interface RemoteProjectRepository {
   getProject(projectId: string): Promise<unknown>
   importProjectRows(rows: ReturnType<typeof migratePersonalSpaceStateToProjectRows>): Promise<void>
   listAssets(projectId: string): Promise<Array<{ id: string; primary_object_key: string }>>
+  listDocumentCollections(projectId: string): Promise<Array<{ id: string; name: string }>>
   replaceDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
+  getDocumentSourceContent(projectId: string, sourceId: string): Promise<{
+    source_id: string
+    content_text: string
+    hash_sha256: string | null
+  } | null>
+  getDocumentCollectionGraph(projectId: string, collectionId: string): Promise<DocumentCollectionGraph>
   searchDocumentNodes(input: {
     projectId: string
     collectionId?: string
@@ -179,6 +189,17 @@ function documentGraphInput(projectId: string) {
       error_message: null,
       report_json: null,
     },
+    sourceContents: [{
+      source_id: 'source-1',
+      project_id: projectId,
+      collection_id: 'collection-1',
+      content_text: text,
+      content_encoding: 'utf-8',
+      size_bytes: text.length,
+      hash_sha256: 'hash-1',
+      created_at: '2026-06-26T00:00:00.000Z',
+      metadata_json: null,
+    }],
     ...rows,
   }
 }
@@ -371,6 +392,7 @@ test('remote project repository replaces document graph rows with parameterized 
     projectId: 'p1',
     collection: graph.collection,
     sources: graph.sources,
+    sourceContents: graph.sourceContents,
     records: graph.records,
     nodes: graph.nodes,
     edges: graph.edges,
@@ -386,8 +408,10 @@ test('remote project repository replaces document graph rows with parameterized 
   assert.match(sql, /DELETE FROM document_edge_record_links WHERE project_id = \$1 AND collection_id = \$2/i)
   assert.match(sql, /DELETE FROM document_node_record_links WHERE project_id = \$1 AND collection_id = \$2/i)
   assert.match(sql, /DELETE FROM document_edges WHERE project_id = \$1 AND collection_id = \$2/i)
+  assert.match(sql, /DELETE FROM document_source_contents WHERE project_id = \$1 AND collection_id = \$2/i)
   assert.match(sql, /INSERT INTO document_collections/i)
   assert.match(sql, /INSERT INTO document_sources/i)
+  assert.match(sql, /INSERT INTO document_source_contents/i)
   assert.match(sql, /INSERT INTO document_records/i)
   assert.match(sql, /INSERT INTO document_nodes/i)
   assert.match(sql, /INSERT INTO document_edges/i)
@@ -395,6 +419,185 @@ test('remote project repository replaces document graph rows with parameterized 
   assert.match(sql, /INSERT INTO document_edge_record_links/i)
   assert.match(sql, /INSERT INTO document_import_runs/i)
   assert.ok(queries.every((query) => Array.isArray(query.params)))
+})
+
+test('remote project repository initializes schema and retries when document collection table is missing', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  let collectionReadCount = 0
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        if (/FROM document_collections/i.test(statement)) {
+          collectionReadCount += 1
+          if (collectionReadCount === 1) {
+            const error = new Error('relation "document_collections" does not exist') as Error & { code?: string }
+            error.code = '42P01'
+            throw error
+          }
+        }
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+
+  const collections = await repository.listDocumentCollections('p1')
+
+  assert.deepEqual(collections, [])
+  assert.equal(collectionReadCount, 2)
+  assert.ok(queries.some((query) => /CREATE TABLE IF NOT EXISTS document_collections/i.test(query.statement)))
+})
+
+test('remote project repository batches document graph row upserts', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+  const graph = documentGraphInput('p1')
+  const recordTemplate = graph.records[0]!
+  graph.records = Array.from({ length: 3 }, (_item, index) => ({
+    ...recordTemplate,
+    id: `record-${index}`,
+    external_id: `external-${index}`,
+    title: `记录${index}`,
+  }))
+
+  await repository.replaceDocumentGraph({
+    projectId: 'p1',
+    collection: graph.collection,
+    sources: graph.sources,
+    sourceContents: graph.sourceContents,
+    records: graph.records,
+    nodes: graph.nodes,
+    edges: graph.edges,
+    nodeRecordLinks: graph.nodeRecordLinks,
+    edgeRecordLinks: graph.edgeRecordLinks,
+    importRun: graph.importRun,
+  })
+
+  const recordInserts = queries.filter((query) => /INSERT INTO document_records/i.test(query.statement))
+  assert.equal(recordInserts.length, 1)
+  assert.match(recordInserts[0]!.statement, /VALUES \(\$1, \$2/i)
+  assert.equal(recordInserts[0]!.params.length, graph.records.length * tableDefinitions.document_records.columns.length)
+})
+
+test('remote project repository reads document source content and projects collection graph', async () => {
+  const queries: Array<{ statement: string; params: unknown[] }> = []
+  const repository = createRemoteProjectRepository(databaseProfile(postgresqlPayload), {
+    createPostgresClient: () => ({
+      connect: async () => {},
+      query: async (statement, params = []) => {
+        queries.push({ statement, params })
+        if (/FROM document_source_contents/i.test(statement)) {
+          return {
+            rows: [{
+              source_id: 'source-1',
+              project_id: 'p1',
+              collection_id: 'collection-1',
+              content_text: '{"nodes":{},"edges":{}}',
+              content_encoding: 'utf-8',
+              size_bytes: 22,
+              hash_sha256: 'hash-1',
+              created_at: '2026-06-26T00:00:00.000Z',
+              metadata_json: null,
+            }],
+          }
+        }
+        if (/FROM document_records/i.test(statement)) {
+          return {
+            rows: [{
+              id: 'record-1',
+              project_id: 'p1',
+              collection_id: 'collection-1',
+              source_id: 'source-1',
+              external_id: '830',
+              record_type: 'term',
+              title: '傲徕',
+              description: '其状如牛',
+              category_1: '动物',
+              category_2: '兽名',
+              category_3: null,
+              place_path: '西山经',
+              book_title: '山海经',
+              chapter_title: '西山经',
+              version_title: null,
+              usage_text: null,
+              effect_text: null,
+              source_url: null,
+              search_text: '傲徕 西山经',
+              created_at: '2026-06-26T00:00:00.000Z',
+              updated_at: '2026-06-26T00:00:00.000Z',
+              metadata_json: '{"roles":["term"]}',
+            }],
+          }
+        }
+        if (/FROM document_node_record_links/i.test(statement)) {
+          return { rows: [{ node_id: 'node-1', record_id: 'record-1' }] }
+        }
+        if (/FROM document_edge_record_links/i.test(statement)) {
+          return { rows: [{ edge_id: 'edge-1', record_id: 'record-1' }] }
+        }
+        if (/FROM document_nodes/i.test(statement)) {
+          return {
+            rows: [{
+              id: 'node-1',
+              project_id: 'p1',
+              collection_id: 'collection-1',
+              external_id: 'entity:傲徕',
+              node_type: 'entity',
+              label: '傲徕',
+              description: '其状如牛',
+              search_text: '傲徕 西山经',
+              created_at: '2026-06-26T00:00:00.000Z',
+              updated_at: '2026-06-26T00:00:00.000Z',
+              metadata_json: '{"category_paths":[["动物","兽名"]]}',
+            }],
+          }
+        }
+        if (/FROM document_edges/i.test(statement)) {
+          return {
+            rows: [{
+              id: 'edge-1',
+              project_id: 'p1',
+              collection_id: 'collection-1',
+              external_id: 'edge:1',
+              source_node_id: 'node-1',
+              target_node_id: 'node-2',
+              edge_type: 'site_relation',
+              label: '描述',
+              weight: 1,
+              source_kind: 'record',
+              created_at: '2026-06-26T00:00:00.000Z',
+              metadata_json: null,
+            }],
+          }
+        }
+        return { rows: [] }
+      },
+      end: async () => {},
+    }),
+  })
+
+  const content = await repository.getDocumentSourceContent('p1', 'source-1')
+  const graph = await repository.getDocumentCollectionGraph('p1', 'collection-1')
+
+  assert.equal(content?.content_text, '{"nodes":{},"edges":{}}')
+  assert.equal(content?.hash_sha256, 'hash-1')
+  assert.equal(graph.nodes['node-1']?.label, '傲徕')
+  assert.deepEqual(graph.nodes['node-1']?.records, ['record-1'])
+  assert.equal((graph.nodes['node-1']?.data.term_record as { title?: string }).title, '傲徕')
+  assert.equal(graph.edges['edge-1']?.source, 'node-1')
+  assert.deepEqual(graph.edges['edge-1']?.record_ids, ['record-1'])
+  assert.ok(queries.some((query) => /FROM document_source_contents WHERE project_id = \$1 AND source_id = \$2/i.test(query.statement)))
 })
 
 test('remote project repository searches document nodes and deletes collections through parameterized SQL', async () => {

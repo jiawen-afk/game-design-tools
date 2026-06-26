@@ -79,6 +79,14 @@ test('desktop remote project repository resolves database profile for document k
         events.push(`sources:${projectId}:${collectionId}:${databaseProfileId}`)
         return []
       },
+      getRemoteDocumentSourceContent: async (projectId: string, sourceId: string, databaseProfileId: string) => {
+        events.push(`sourceContent:${projectId}:${sourceId}:${databaseProfileId}`)
+        return null
+      },
+      getRemoteDocumentCollectionGraph: async (projectId: string, collectionId: string, databaseProfileId: string) => {
+        events.push(`collectionGraph:${projectId}:${collectionId}:${databaseProfileId}`)
+        return { nodes: {}, edges: {} }
+      },
       replaceRemoteDocumentGraph: async (input: { projectId: string }, databaseProfileId: string) => {
         events.push(`replace:${input.projectId}:${databaseProfileId}`)
         return { collection: { id: 'collection-1' }, importRun: { id: 'import-1' } }
@@ -129,6 +137,7 @@ test('desktop remote project repository resolves database profile for document k
         metadata_json: null,
       },
       sources: [],
+      sourceContents: [],
       records: [],
       nodes: [],
       edges: [],
@@ -156,6 +165,8 @@ test('desktop remote project repository resolves database profile for document k
     await repository.listDocumentCollections('project-a')
     await repository.getDocumentCollection('project-a', 'collection-1')
     await repository.listDocumentSources('project-b', 'collection-1')
+    await repository.getDocumentSourceContent('project-a', 'source-1')
+    await repository.getDocumentCollectionGraph('project-b', 'collection-1')
     await repository.replaceDocumentGraph(replaceInput)
     await repository.searchDocumentRecords({ projectId: 'project-a', query: '傲徕' })
     await repository.searchDocumentNodes({ projectId: 'project-b', query: '四角' })
@@ -167,6 +178,8 @@ test('desktop remote project repository resolves database profile for document k
       'collections:project-a:db-a',
       'collection:project-a:collection-1:db-a',
       'sources:project-b:collection-1:db-b',
+      'sourceContent:project-a:source-1:db-a',
+      'collectionGraph:project-b:collection-1:db-b',
       'replace:project-b:db-b',
       'records:project-a:db-a',
       'nodes:project-b:db-b',
