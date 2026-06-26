@@ -589,7 +589,7 @@ test('remote project migration uploads objects through qiniu kodo storage', () =
   assert.match(kodoStorageSource, /putProjectKodoObject/)
   assert.match(kodoStorageSource, /getProjectKodoObject/)
   assert.match(kodoStorageSource, /deleteProjectKodoObject/)
-  assert.match(kodoStorageSource, /requireProfileId\(objectKey\)/)
+  assert.match(kodoStorageSource, /requireProfileId\(objectKey,\s*context\.projectId\)/)
   assert.match(preloadSource, /project-kodo-object:put/)
   assert.match(preloadSource, /project-kodo-object:get/)
   assert.match(projectIpcSource, /project-kodo-object:put/)

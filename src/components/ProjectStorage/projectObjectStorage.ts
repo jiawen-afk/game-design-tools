@@ -3,10 +3,14 @@ export interface ProjectObjectDeleteResult {
   failed: Array<{ objectKey: string; errorMessage: string }>
 }
 
+export interface ProjectObjectStorageContext {
+  projectId?: string
+}
+
 export interface ProjectObjectStorage {
-  putObject(objectKey: string, data: Blob): Promise<void>
-  getObject(objectKey: string): Promise<Blob>
-  deleteObject(objectKey: string): Promise<void>
+  putObject(objectKey: string, data: Blob, context?: ProjectObjectStorageContext): Promise<void>
+  getObject(objectKey: string, context?: ProjectObjectStorageContext): Promise<Blob>
+  deleteObject(objectKey: string, context?: ProjectObjectStorageContext): Promise<void>
   deleteObjects(objectKeys: string[]): Promise<ProjectObjectDeleteResult>
 }
 

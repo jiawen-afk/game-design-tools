@@ -88,12 +88,13 @@ export function createProjectRemoteDeviceBindingResolver(options: ProjectRemoteD
       : options.getSelectedDatabaseProfileId()
   )
 
-  const getRemoteStorageProfileId = (objectKey?: string) => {
+  const getRemoteStorageProfileId = (objectKey?: string, projectId?: string) => {
+    if (projectId) return storageProfileIdForProject(projectId)
     if (!objectKey) return options.getSelectedStorageProfileId()
     const objectProjectName = objectProjectNameFromPrefix(objectKey)
     if (!objectProjectName) return options.getSelectedStorageProfileId()
-    const projectId = objectProjectName ? projectIdByObjectProjectName[objectProjectName] : ''
-    return projectId ? storageProfileIdForProject(projectId) : ''
+    const mappedProjectId = objectProjectName ? projectIdByObjectProjectName[objectProjectName] : ''
+    return mappedProjectId ? storageProfileIdForProject(mappedProjectId) : ''
   }
 
   return {

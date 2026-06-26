@@ -71,6 +71,28 @@ test('remote manager downloads and caches when cache is missing', async () => {
   assert.equal(await cached!.text(), 'remote')
 })
 
+test('remote manager passes project id to remote object storage reads', async () => {
+  const localObjectStorage = createMemoryProjectObjectStorage()
+  const remoteObjectStorage = createMemoryProjectObjectStorage()
+  const cacheStorage = createMemoryProjectAssetCacheStorage()
+  const seenProjectIds: string[] = []
+  const originalGetObject = remoteObjectStorage.getObject.bind(remoteObjectStorage)
+  remoteObjectStorage.getObject = async (objectKey: string, context?: { projectId?: string }) => {
+    seenProjectIds.push(context?.projectId ?? '')
+    return originalGetObject(objectKey)
+  }
+  const manager = createProjectAssetManager({ localObjectStorage, remoteObjectStorage, cacheStorage })
+  const ref = remoteRef({
+    projectId: 'project-a',
+    objectKey: 'objects/旧项目名/image_png/r1.png',
+  })
+  await remoteObjectStorage.putObject(ref.objectKey, new Blob(['remote'], { type: 'image/png' }))
+
+  await manager.getResourceBlob(ref)
+
+  assert.deepEqual(seenProjectIds, ['project-a'])
+})
+
 test('remote manager replaces stale cache when fingerprint changes', async () => {
   const localObjectStorage = createMemoryProjectObjectStorage()
   const remoteObjectStorage = createMemoryProjectObjectStorage()

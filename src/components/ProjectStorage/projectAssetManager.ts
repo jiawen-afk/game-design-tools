@@ -83,7 +83,7 @@ export class DefaultProjectAssetManager implements ProjectAssetManager {
       await this.localObjectStorage.putObject(ref.objectKey, blob)
       return
     }
-    await this.remoteObjectStorage.putObject(ref.objectKey, blob)
+    await this.remoteObjectStorage.putObject(ref.objectKey, blob, { projectId: ref.projectId })
     await this.cacheStorage.putCachedResource(ref, createProjectAssetFingerprint(ref), blob)
   }
 
@@ -116,7 +116,7 @@ export class DefaultProjectAssetManager implements ProjectAssetManager {
   async deleteResources(refs: ProjectAssetResourceRef[]) {
     await Promise.all(refs.map(async (ref) => {
       const objectStorage = ref.projectMode === 'local' ? this.localObjectStorage : this.remoteObjectStorage
-      await objectStorage.deleteObject(ref.objectKey)
+      await objectStorage.deleteObject(ref.objectKey, { projectId: ref.projectId })
       await this.cacheStorage.deleteCachedResource(ref)
     }))
   }
@@ -127,7 +127,7 @@ export class DefaultProjectAssetManager implements ProjectAssetManager {
 
   private async downloadAndCache(ref: ProjectAssetResourceRef, fingerprint: string) {
     await this.cacheStorage.deleteCachedResource(ref)
-    const blob = await this.remoteObjectStorage.getObject(ref.objectKey)
+    const blob = await this.remoteObjectStorage.getObject(ref.objectKey, { projectId: ref.projectId })
     await this.cacheStorage.putCachedResource(ref, fingerprint, blob)
     return blob
   }

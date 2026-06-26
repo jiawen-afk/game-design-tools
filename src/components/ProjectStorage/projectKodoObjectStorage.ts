@@ -1,33 +1,37 @@
 import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
-import { deleteProjectObjectsIndividually, type ProjectObjectStorage } from './projectObjectStorage'
+import {
+  deleteProjectObjectsIndividually,
+  type ProjectObjectStorage,
+  type ProjectObjectStorageContext,
+} from './projectObjectStorage'
 
 export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
-  private readonly getProfileId: (objectKey?: string) => string
+  private readonly getProfileId: (objectKey?: string, projectId?: string) => string
 
-  constructor(getProfileId: (objectKey?: string) => string) {
+  constructor(getProfileId: (objectKey?: string, projectId?: string) => string) {
     this.getProfileId = getProfileId
   }
 
-  async putObject(objectKey: string, data: Blob) {
+  async putObject(objectKey: string, data: Blob, context: ProjectObjectStorageContext = {}) {
     const desktopApi = this.requireDesktopApi()
     await desktopApi.putProjectKodoObject(
-      this.requireProfileId(objectKey),
+      this.requireProfileId(objectKey, context.projectId),
       objectKey,
       await data.arrayBuffer(),
       data.type || 'application/octet-stream',
     )
   }
 
-  async getObject(objectKey: string): Promise<Blob> {
+  async getObject(objectKey: string, context: ProjectObjectStorageContext = {}): Promise<Blob> {
     const desktopApi = this.requireDesktopApi()
-    const result = await desktopApi.getProjectKodoObject(this.requireProfileId(objectKey), objectKey)
+    const result = await desktopApi.getProjectKodoObject(this.requireProfileId(objectKey, context.projectId), objectKey)
     return blobFromDesktopBinaryData(result.data, result.mimeType || 'application/octet-stream')
   }
 
-  async deleteObject(objectKey: string) {
+  async deleteObject(objectKey: string, context: ProjectObjectStorageContext = {}) {
     const desktopApi = this.requireDesktopApi()
-    await desktopApi.deleteProjectKodoObject(this.requireProfileId(objectKey), objectKey)
+    await desktopApi.deleteProjectKodoObject(this.requireProfileId(objectKey, context.projectId), objectKey)
   }
 
   async deleteObjects(objectKeys: string[]) {
@@ -40,13 +44,13 @@ export class DesktopKodoProjectObjectStorage implements ProjectObjectStorage {
     return desktopApi
   }
 
-  private requireProfileId(objectKey?: string) {
-    const profileId = this.getProfileId(objectKey).trim()
+  private requireProfileId(objectKey?: string, projectId?: string) {
+    const profileId = this.getProfileId(objectKey, projectId).trim()
     if (!profileId) throw new Error('缺少七牛 Kodo 配置。')
     return profileId
   }
 }
 
-export function createDesktopKodoProjectObjectStorage(getProfileId: (objectKey?: string) => string) {
+export function createDesktopKodoProjectObjectStorage(getProfileId: (objectKey?: string, projectId?: string) => string) {
   return new DesktopKodoProjectObjectStorage(getProfileId)
 }

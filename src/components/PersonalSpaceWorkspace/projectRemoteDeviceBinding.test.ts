@@ -132,6 +132,29 @@ test('remote device binding resolver remembers historical asset object key prefi
   assert.equal(resolver.getRemoteStorageProfileId('objects/山海再就业_新名/image_png/sprite-2.png'), 'kodo-current')
 })
 
+test('remote device binding resolver can resolve storage profile from explicit project id', () => {
+  const storage = createMemoryStorage()
+  const resolver = createProjectRemoteDeviceBindingResolver({
+    storage,
+    getDatabaseProfileIds: () => ['db-current'],
+    getStorageProfileIds: () => ['kodo-current'],
+    getSelectedDatabaseProfileId: () => '',
+    getSelectedStorageProfileId: () => '',
+  })
+  const getRemoteStorageProfileId = resolver.getRemoteStorageProfileId as (
+    objectKey?: string,
+    projectId?: string,
+  ) => string
+
+  resolver.bindProjectToCurrentDevice('project-a', 'db-current', 'kodo-current')
+
+  assert.equal(
+    getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png', 'project-a'),
+    'kodo-current',
+  )
+  assert.equal(resolver.getRemoteStorageProfileId('objects/旧项目名/image_png/portrait.png'), '')
+})
+
 test('remote device binding resolver hydrates and writes through local device binding persistence', async () => {
   const storage = createMemoryStorage()
   const writes: Array<[string, { databaseProfileId: string, storageProfileId: string }]> = []
