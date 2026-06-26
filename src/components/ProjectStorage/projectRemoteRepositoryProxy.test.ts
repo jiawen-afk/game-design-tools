@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { DesktopRemoteProjectRepository } from './projectRemoteRepositoryProxy'
+import type { ReplaceDocumentGraphInput } from './projectSqliteRepository'
 
 test('desktop remote project repository resolves database profile per project operation', async () => {
   const previousWindow = (globalThis as { window?: unknown }).window
@@ -110,16 +111,46 @@ test('desktop remote project repository resolves database profile for document k
       if (!projectId) return 'current-ui-db'
       return projectId === 'project-a' ? 'db-a' : 'db-b'
     })
-    const replaceInput = {
+    const replaceInput: ReplaceDocumentGraphInput = {
       projectId: 'project-b',
-      collection: {},
+      collection: {
+        id: 'collection-1',
+        project_id: 'project-b',
+        name: '知识库',
+        description: '',
+        source_type: 'shj_nlc_graph',
+        status: 'ready',
+        record_count: 0,
+        node_count: 0,
+        edge_count: 0,
+        created_at: '2026-06-26T00:00:00.000Z',
+        updated_at: '2026-06-26T00:00:00.000Z',
+        imported_at: '2026-06-26T00:00:00.000Z',
+        metadata_json: null,
+      },
       sources: [],
       records: [],
       nodes: [],
       edges: [],
       nodeRecordLinks: [],
       edgeRecordLinks: [],
-      importRun: {},
+      importRun: {
+        id: 'import-1',
+        project_id: 'project-b',
+        collection_id: 'collection-1',
+        source_type: 'shj_nlc_graph',
+        status: 'succeeded',
+        started_at: '2026-06-26T00:00:00.000Z',
+        finished_at: '2026-06-26T00:00:00.000Z',
+        total_records: 0,
+        total_nodes: 0,
+        total_edges: 0,
+        imported_records: 0,
+        imported_nodes: 0,
+        imported_edges: 0,
+        error_message: null,
+        report_json: null,
+      },
     }
 
     await repository.listDocumentCollections('project-a')

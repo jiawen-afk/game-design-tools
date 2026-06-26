@@ -34,9 +34,9 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 
 Download the Windows x64 package from the [GitHub Releases page](https://github.com/jiawen-afk/game-design-tools/releases), then choose one artifact:
 
-- `Game-Design-Tools-{version}-x64-setup.exe`: installer with Start Menu and desktop shortcut options
-- `Game-Design-Tools-{version}-x64-portable.exe`: portable app
-- `Game-Design-Tools-{version}-x64-win.zip`: zipped desktop app
+- `Game Design Tools-{version}-x64-setup.exe`: installer with Start Menu and desktop shortcut options
+- `Game Design Tools-{version}-x64-portable.exe`: portable app
+- `Game Design Tools-{version}-x64-win.zip`: zipped desktop app
 
 ## First Run
 

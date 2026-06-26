@@ -67,6 +67,15 @@ function createRepositoryStub(overrides: Partial<ProjectRepository> = {}): Proje
     listAssets: async () => [],
     addCleanupTasks: async () => {},
     listCleanupTasks: async () => [],
+    listDocumentCollections: async () => [],
+    getDocumentCollection: async () => null,
+    deleteDocumentCollection: async () => {},
+    listDocumentSources: async () => [],
+    replaceDocumentGraph: async (input) => ({ collection: input.collection, importRun: input.importRun }),
+    searchDocumentRecords: async () => ({ items: [], total: 0 }),
+    searchDocumentNodes: async () => ({ items: [], total: 0 }),
+    getDocumentNode: async () => null,
+    listDocumentNeighbors: async () => [],
     deleteProject: async () => {},
     ...overrides,
   }
@@ -237,42 +246,10 @@ test('enabling a remote project without cached state does not report success', a
     projectBootstrapper: {
       listProjects: async () => [],
     },
-    localRepository: {
-      initializeSchema: async () => {},
-      createProject: async () => {
-        throw new Error('unexpected createProject')
-      },
-      createRemoteProject: async () => {
-        throw new Error('unexpected createRemoteProject')
-      },
-      updateProject: async () => null,
-      listProjects: async () => [],
-      getProject: async () => null,
-      importProjectRows: async () => {},
-      exportProjectRows: async () => null,
-      listAssets: async () => [],
-      addCleanupTasks: async () => {},
-      listCleanupTasks: async () => [],
-      deleteProject: async () => {},
-    },
-    remoteRepository: {
-      initializeSchema: async () => {},
-      createProject: async () => {
-        throw new Error('unexpected createProject')
-      },
-      createRemoteProject: async () => {
-        throw new Error('unexpected createRemoteProject')
-      },
-      updateProject: async () => null,
+    localRepository: createRepositoryStub(),
+    remoteRepository: createRepositoryStub({
       listProjects: async () => [project],
-      getProject: async () => null,
-      importProjectRows: async () => {},
-      exportProjectRows: async () => null,
-      listAssets: async () => [],
-      addCleanupTasks: async () => {},
-      listCleanupTasks: async () => [],
-      deleteProject: async () => {},
-    },
+    }),
     messageApi: {
       success: (content) => messages.push({ type: 'success', content }),
       warning: (content) => messages.push({ type: 'warning', content }),

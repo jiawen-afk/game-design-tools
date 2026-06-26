@@ -7,6 +7,11 @@ import { inspect } from 'node:util'
 import { createPersonalSpaceAsset, defaultPersonalSpaceState } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
 import { shjGraphImportAdapter } from '../DocumentWorkspace/shjGraphImportAdapter'
+import type {
+  DocumentImportResult,
+  DocumentNodeSearchResult,
+  ReplaceDocumentGraphInput,
+} from './projectSqliteRepository'
 
 const require = createRequire(import.meta.url)
 const {
@@ -53,22 +58,12 @@ interface RemoteProjectRepository {
   getProject(projectId: string): Promise<unknown>
   importProjectRows(rows: ReturnType<typeof migratePersonalSpaceStateToProjectRows>): Promise<void>
   listAssets(projectId: string): Promise<Array<{ id: string; primary_object_key: string }>>
-  replaceDocumentGraph(input: {
-    projectId: string
-    collection: Record<string, unknown>
-    sources: Record<string, unknown>[]
-    records: Record<string, unknown>[]
-    nodes: Record<string, unknown>[]
-    edges: Record<string, unknown>[]
-    nodeRecordLinks: Record<string, unknown>[]
-    edgeRecordLinks: Record<string, unknown>[]
-    importRun: Record<string, unknown>
-  }): Promise<{ collection: Record<string, unknown>; importRun: Record<string, unknown> }>
+  replaceDocumentGraph(input: ReplaceDocumentGraphInput): Promise<DocumentImportResult>
   searchDocumentNodes(input: {
     projectId: string
     collectionId?: string
     query?: string
-  }): Promise<{ items: Array<{ id: string; label: string }>; total: number }>
+  }): Promise<DocumentNodeSearchResult>
   deleteDocumentCollection(projectId: string, collectionId: string): Promise<void>
   deleteProject(projectId: string): Promise<void>
 }

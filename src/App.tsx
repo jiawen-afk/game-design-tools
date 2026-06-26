@@ -9,14 +9,16 @@ import {
 } from '@ant-design/icons'
 
 import { SiteFooter } from './components/SiteFooter'
+import { DocumentHomeKnowledgeSection } from './components/DocumentWorkspace/DocumentHomeKnowledgeSection'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
 const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWorkspace'))
+const DocumentWorkspace = lazy(() => import('./components/DocumentWorkspace'))
 
 type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment'
-type ActiveSurface = ToolId | 'personal-space'
+type ActiveSurface = ToolId | 'personal-space' | 'document-knowledge'
 
 const personalSpaceShortcut = '4'
 
@@ -93,15 +95,25 @@ export default function App() {
   }, [activeSurface])
 
   if (activeSurface !== null) {
-    const activeWorkspace = activeSurface === 'multi-frame-sprite'
-      ? <MultiFrameSpriteWorkspace />
-      : activeSurface === 'image-processing'
-        ? <ImageProcessingWorkspace />
-        : activeSurface === 'voice-deployment'
-          ? <VoiceDeploymentWorkspace />
-          : <PersonalSpaceWorkspace />
-    const surfaceTitle = activeSurface === 'personal-space' ? '项目空间' : activeToolMeta?.name
-    const surfaceKicker = activeSurface === 'personal-space' ? '项目工作台' : '工作台'
+      const activeWorkspace = activeSurface === 'multi-frame-sprite'
+        ? <MultiFrameSpriteWorkspace />
+        : activeSurface === 'image-processing'
+          ? <ImageProcessingWorkspace />
+          : activeSurface === 'voice-deployment'
+            ? <VoiceDeploymentWorkspace />
+            : activeSurface === 'document-knowledge'
+              ? <DocumentWorkspace />
+              : <PersonalSpaceWorkspace />
+    const surfaceTitle = activeSurface === 'personal-space'
+      ? '项目空间'
+      : activeSurface === 'document-knowledge'
+        ? '知识库'
+        : activeToolMeta?.name
+    const surfaceKicker = activeSurface === 'personal-space'
+      ? '项目工作台'
+      : activeSurface === 'document-knowledge'
+        ? '项目知识库'
+        : '工作台'
 
     return (
       <div className="app-shell">
@@ -197,6 +209,7 @@ export default function App() {
             </article>
           ))}
         </section>
+        <DocumentHomeKnowledgeSection onOpen={() => setActiveSurface('document-knowledge')} />
       </main>
 
       <SiteFooter />

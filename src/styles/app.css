@@ -140,6 +140,13 @@ h1 {
   overflow: hidden;
 }
 
+.knowledge-home-section {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  overflow: hidden;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -246,6 +253,44 @@ h1 {
 .tool-row .ant-btn {
   align-self: center;
   min-width: 120px;
+}
+
+.knowledge-home-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.knowledge-home-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.knowledge-home-main h3 {
+  margin: 0 0 4px;
+  font-size: 1.08rem;
+}
+
+.knowledge-home-main p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.knowledge-home-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--color-brand) 30%, var(--color-line));
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-brand) 8%, var(--color-panel));
+  color: var(--color-brand-dark);
 }
 
 .tool-detail {
@@ -512,6 +557,11 @@ h1 {
   }
 
   .tool-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .knowledge-home-body {
     align-items: stretch;
     flex-direction: column;
   }
