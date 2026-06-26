@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   buildDocumentGraphView,
   createDocumentSearchText,
+  getDefaultKnowledgeBaseAdapter,
   getKnowledgeBaseAdapter,
   listKnowledgeBaseAdapters,
 } from './documentKnowledgeModel'
@@ -19,8 +20,10 @@ test('document search text flattens values and removes duplicate whitespace', ()
 test('knowledge base adapter registry exposes shj entity graph without graph json compatibility', () => {
   const adapters = listKnowledgeBaseAdapters()
   const adapter = getKnowledgeBaseAdapter('shj_nlc_graph')
+  const defaultAdapter = getDefaultKnowledgeBaseAdapter()
 
   assert.equal(adapter?.displayName, '山海经实体图谱')
+  assert.equal(defaultAdapter?.sourceType, 'shj_nlc_graph')
   assert.deepEqual(adapter?.acceptedFileNames, ['entity_graph.json'])
   assert.equal(adapters.some((item) => item.sourceType === 'shj_nlc_graph'), true)
   assert.equal(getKnowledgeBaseAdapter('unknown_source'), null)

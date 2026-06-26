@@ -18,9 +18,8 @@ import {
   type ProjectDeviceBinding,
   type ProjectRepository,
 } from '../ProjectStorage'
-import { buildDocumentGraphView } from './documentKnowledgeModel'
+import { buildDocumentGraphView, getDefaultKnowledgeBaseAdapter } from './documentKnowledgeModel'
 import { importKnowledgeBaseFile, type KnowledgeBaseFileLike } from './documentKnowledgeImportService'
-import { shjGraphImportAdapter } from './shjGraphImportAdapter'
 import type { DocumentWorkspaceState } from './documentWorkspaceTypes'
 
 interface DocumentWorkspaceMessageApi {
@@ -31,6 +30,7 @@ interface DocumentWorkspaceMessageApi {
 
 const localRepository = createDesktopLocalProjectRepository()
 const projectBootstrapper = createProjectWorkspaceBootstrapper(localRepository)
+const defaultKnowledgeBaseName = getDefaultKnowledgeBaseAdapter()?.displayName ?? '项目知识库'
 
 export function useDocumentWorkspace(messageApi: DocumentWorkspaceMessageApi): DocumentWorkspaceState {
   const [projects, setProjects] = useState<Project[]>([])
@@ -218,7 +218,7 @@ export function useDocumentWorkspace(messageApi: DocumentWorkspaceMessageApi): D
       const result = await importKnowledgeBaseFile({
         repository,
         projectId: activeProject.id,
-        collectionName: selectedCollection?.name ?? shjGraphImportAdapter.displayName,
+        collectionName: selectedCollection?.name ?? defaultKnowledgeBaseName,
         file,
       })
       messageApi.success('知识库导入完成。')

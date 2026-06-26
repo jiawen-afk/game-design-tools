@@ -61,6 +61,10 @@ export function listKnowledgeBaseAdapters() {
   return [...knowledgeBaseAdapters]
 }
 
+export function getDefaultKnowledgeBaseAdapter() {
+  return knowledgeBaseAdapters[0] ?? null
+}
+
 export function getKnowledgeBaseAdapter(sourceType: string) {
   return knowledgeBaseAdapters.find((adapter) => adapter.sourceType === sourceType) ?? null
 }

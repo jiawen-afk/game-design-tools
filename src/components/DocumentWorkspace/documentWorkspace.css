@@ -129,8 +129,8 @@
 
 .document-search,
 .document-source-list,
-.document-node-table,
-.document-detail-panel {
+.document-result-skeleton,
+.document-result-tabs {
   margin-inline: 16px;
 }
 
@@ -160,6 +160,47 @@
 
 .document-node-table .ant-table-row {
   cursor: pointer;
+}
+
+.document-result-tabs .ant-tabs-content {
+  min-width: 0;
+}
+
+.document-record-list {
+  display: grid;
+  gap: 8px;
+}
+
+.document-record-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 46%, white);
+}
+
+.document-record-item > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.document-record-item strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-record-item span,
+.document-record-item p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
 }
 
 .document-node-row-selected > td {

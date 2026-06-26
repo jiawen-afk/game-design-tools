@@ -3195,6 +3195,35 @@ test('document knowledge workspace keeps panels free of storage adapters and wor
   }
 })
 
+test('document knowledge concrete adapters are only wired through the adapter registry', () => {
+  const allowedPaths = new Set([
+    'src/components/DocumentWorkspace/documentKnowledgeModel.ts',
+    'src/components/DocumentWorkspace/shjGraphImportAdapter.ts',
+  ])
+  const offenders = productionSourceFiles('src/components/DocumentWorkspace')
+    .filter((path) => !allowedPaths.has(path))
+    .filter((path) => /shjGraphImportAdapter/.test(readFileSync(path, 'utf8')))
+
+  assert.deepEqual(offenders, [])
+})
+
+test('document knowledge browser uses tabbed results and skeleton loading states', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/DocumentBrowserPanel.tsx', 'utf8')
+
+  assert.match(source, /Tabs/)
+  assert.match(source, /Skeleton/)
+  assert.match(source, /<Tabs/)
+  assert.match(source, /<Skeleton/)
+})
+
+test('document knowledge workspace uses Ant Design v6 alert title prop', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/DocumentWorkspace.tsx', 'utf8')
+
+  assert.match(source, /<Alert/)
+  assert.match(source, /title=/)
+  assert.doesNotMatch(source, /\smessage=/)
+})
+
 test('document knowledge import and repository modules do not depend on UI panels', () => {
   const source = readSources([
     'src/components/DocumentWorkspace/documentKnowledgeImportService.ts',

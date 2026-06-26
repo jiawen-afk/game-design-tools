@@ -1,4 +1,4 @@
-import { shjGraphImportAdapter } from './shjGraphImportAdapter'
+import { listKnowledgeBaseAdapters } from './documentKnowledgeModel'
 import type { ProjectRepository, DocumentImportResult } from '../ProjectStorage/projectSqliteRepository'
 
 export interface KnowledgeBaseFileLike {
@@ -19,18 +19,19 @@ const textEncoder = new TextEncoder()
 
 export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInput): Promise<DocumentImportResult> {
   const fileName = input.file.name
-  if (!shjGraphImportAdapter.acceptedFileNames.includes(fileName)) {
+  const adapter = listKnowledgeBaseAdapters().find((item) => item.acceptedFileNames.includes(fileName))
+  if (!adapter) {
     throw new Error(`第一版只支持导入 entity_graph.json，请选择实体图谱文件。`)
   }
 
   const now = input.now ?? new Date().toISOString()
   const text = await input.file.text()
   const hashSha256 = await sha256Hex(text)
-  const collectionName = input.collectionName.trim() || shjGraphImportAdapter.displayName
+  const collectionName = input.collectionName.trim() || adapter.displayName
   const existingCollection = (await input.repository.listDocumentCollections(input.projectId))
-    .find((collection) => collection.name === collectionName && collection.source_type === shjGraphImportAdapter.sourceType)
+    .find((collection) => collection.name === collectionName && collection.source_type === adapter.sourceType)
   const collectionId = existingCollection?.id
-    ?? stableDocumentId('collection', input.projectId, shjGraphImportAdapter.sourceType, collectionName)
+    ?? stableDocumentId('collection', input.projectId, adapter.sourceType, collectionName)
   const sourceId = stableDocumentId('source', collectionId, fileName, hashSha256)
   const importRunId = stableDocumentId('import', collectionId, hashSha256, now)
   const sourceInput = {
@@ -43,16 +44,16 @@ export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInpu
     hashSha256,
     now,
   }
-  const validation = shjGraphImportAdapter.validateSource(sourceInput)
+  const validation = adapter.validateSource(sourceInput)
   if (!validation.ok) throw new Error(validation.errors.join('\n'))
 
-  const rows = shjGraphImportAdapter.convertSource(sourceInput)
+  const rows = adapter.convertSource(sourceInput)
   const collection = {
     id: collectionId,
     project_id: input.projectId,
     name: collectionName,
     description: existingCollection?.description ?? '',
-    source_type: shjGraphImportAdapter.sourceType,
+    source_type: adapter.sourceType,
     status: 'ready',
     record_count: rows.records.length,
     node_count: rows.nodes.length,
@@ -60,13 +61,13 @@ export async function importKnowledgeBaseFile(input: ImportKnowledgeBaseFileInpu
     created_at: existingCollection?.created_at ?? now,
     updated_at: now,
     imported_at: now,
-    metadata_json: JSON.stringify({ adapter: shjGraphImportAdapter.displayName }),
+    metadata_json: JSON.stringify({ adapter: adapter.displayName }),
   }
   const importRun = {
     id: importRunId,
     project_id: input.projectId,
     collection_id: collectionId,
-    source_type: shjGraphImportAdapter.sourceType,
+    source_type: adapter.sourceType,
     status: 'succeeded',
     started_at: now,
     finished_at: now,

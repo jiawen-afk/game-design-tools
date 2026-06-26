@@ -30,7 +30,7 @@ export function DocumentWorkspace() {
       </div>
 
       {!workspace.activeProject ? (
-        <Alert type="warning" showIcon message="未选择项目" description="请先在项目空间启用或选择一个项目。" />
+        <Alert type="warning" showIcon title="未选择项目" description="请先在项目空间启用或选择一个项目。" />
       ) : null}
 
       <div className="document-workspace-layout">
