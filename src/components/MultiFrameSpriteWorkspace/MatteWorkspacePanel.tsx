@@ -1,5 +1,7 @@
-import { Button, Card, Space, Typography } from 'antd'
-import { DeleteOutlined, DownloadOutlined, StarOutlined } from '@ant-design/icons'
+import { useState } from 'react'
+import { Button, Card, Modal, Space, Typography, Upload } from 'antd'
+import type { UploadFile, UploadProps } from 'antd'
+import { DeleteOutlined, DownloadOutlined, StarOutlined, UploadOutlined } from '@ant-design/icons'
 
 import { MatteFrameCard, type MatteFrameCardProps } from './MatteFrameCard'
 import { buildMatteFrameGroups } from './model'
@@ -9,9 +11,12 @@ const { Text } = Typography
 
 export interface MatteWorkspacePanelProps {
   frames: FrameItem[]
+  imageAccept: string[]
+  uploadFileList: UploadFile[]
   activeFrameId: string | null
   onOpenDefaults: () => void
   onRemoveAll: () => void
+  onBatchUploadChange: UploadProps['onChange']
   onExportMatteGroup: (groupId: string) => void
   onImportMatteGroupToPersonalSpace: (groupId: string) => void
   personalSpaceCollectEnabled: boolean
@@ -29,9 +34,12 @@ export interface MatteWorkspacePanelProps {
 
 export function MatteWorkspacePanel({
   frames,
+  imageAccept,
+  uploadFileList,
   activeFrameId,
   onOpenDefaults,
   onRemoveAll,
+  onBatchUploadChange,
   onExportMatteGroup,
   onImportMatteGroupToPersonalSpace,
   personalSpaceCollectEnabled,
@@ -47,70 +55,100 @@ export function MatteWorkspacePanel({
   applyingGroupId,
 }: MatteWorkspacePanelProps) {
   const groups = buildMatteFrameGroups(frames)
+  const [batchUploadOpen, setBatchUploadOpen] = useState(false)
 
   return (
-    <Card
-      title="2. 抠图去背"
-      extra={
-        <Space wrap>
-          <Button onClick={onOpenDefaults}>抠图参数配置</Button>
-          <Button danger icon={<DeleteOutlined />} disabled={frames.length === 0} onClick={onRemoveAll}>
-            移除所有图片
-          </Button>
-        </Space>
-      }
-    >
-      {groups.length > 0 ? (
-        <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
-          <Text type="secondary">
-            每个任务组仅显示第 1 帧用于调试去背参数。确认后只会应用到该任务组内的图片帧。
-          </Text>
-          {groups.map((group) => (
-            <div key={group.id} style={{ maxWidth: 620 }}>
-              <MatteFrameCard
-                key={group.firstFrame.id}
-                item={group.firstFrame}
-                title={(
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span>{group.name} · 第 1 帧</span>
-                    <Space size={6} wrap>
-                      <Text type="secondary">共 {group.frameCount} 帧</Text>
-                      <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
-                        导出组图片
-                      </Button>
-                      <Button
-                        size="small"
-                        icon={<StarOutlined />}
-                        disabled={!personalSpaceCollectEnabled}
-                        title={personalSpaceCollectDisabledReason}
-                        onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
-                      >
-                        收藏到项目空间
-                      </Button>
-                    </Space>
-                  </div>
-                )}
-                index={0}
-                frameCount={group.frameCount}
-                active={activeFrameId === group.firstFrame.id}
-                onActivate={onActivate}
-                onRemove={() => onRemoveGroup(group.id)}
-                onSampleColor={onSampleColor}
-                onPreview={onPreview}
-                onMatteParamChange={onMatteParamChange}
-                onApplyToFollowing={onConfirmApplyToAll}
-                onCustomSpillPickerColor={onCustomSpillPickerColor}
-                onCustomSpillColor={onCustomSpillColor}
-                applyButtonLabel="应用到组所有帧"
-                applyButtonLoading={applyingGroupId === group.id}
-                applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0}
-              />
-            </div>
-          ))}
-        </Space>
-      ) : (
-        <Text type="secondary">请先在流程 1 上传多张图片，或上传精灵图切分后添加到这里。</Text>
-      )}
-    </Card>
+    <>
+      <Card
+        title="2. 抠图去背"
+        extra={
+          <Space wrap>
+            <Button icon={<UploadOutlined />} onClick={() => setBatchUploadOpen(true)}>
+              批量添加图片
+            </Button>
+            <Button onClick={onOpenDefaults}>抠图参数配置</Button>
+            <Button danger icon={<DeleteOutlined />} disabled={frames.length === 0} onClick={onRemoveAll}>
+              移除所有图片
+            </Button>
+          </Space>
+        }
+      >
+        {groups.length > 0 ? (
+          <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
+            <Text type="secondary">
+              每个任务组仅显示第 1 帧用于调试去背参数。确认后只会应用到该任务组内的图片帧。
+            </Text>
+            {groups.map((group) => (
+              <div key={group.id} style={{ maxWidth: 620 }}>
+                <MatteFrameCard
+                  key={group.firstFrame.id}
+                  item={group.firstFrame}
+                  title={(
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span>{group.name} · 第 1 帧</span>
+                      <Space size={6} wrap>
+                        <Text type="secondary">共 {group.frameCount} 帧</Text>
+                        <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
+                          导出组图片
+                        </Button>
+                        <Button
+                          size="small"
+                          icon={<StarOutlined />}
+                          disabled={!personalSpaceCollectEnabled}
+                          title={personalSpaceCollectDisabledReason}
+                          onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
+                        >
+                          收藏到项目空间
+                        </Button>
+                      </Space>
+                    </div>
+                  )}
+                  index={0}
+                  frameCount={group.frameCount}
+                  active={activeFrameId === group.firstFrame.id}
+                  onActivate={onActivate}
+                  onRemove={() => onRemoveGroup(group.id)}
+                  onSampleColor={onSampleColor}
+                  onPreview={onPreview}
+                  onMatteParamChange={onMatteParamChange}
+                  onApplyToFollowing={onConfirmApplyToAll}
+                  onCustomSpillPickerColor={onCustomSpillPickerColor}
+                  onCustomSpillColor={onCustomSpillColor}
+                  applyButtonLabel="应用到组所有帧"
+                  applyButtonLoading={applyingGroupId === group.id}
+                  applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0}
+                />
+              </div>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">请先在流程 1 上传单个素材并添加到这里，或从标题栏批量添加图片。</Text>
+        )}
+      </Card>
+
+      <Modal
+        title="批量添加图片"
+        open={batchUploadOpen}
+        footer={null}
+        onCancel={() => setBatchUploadOpen(false)}
+      >
+        <div className="batch-image-upload-area">
+          <Upload.Dragger
+            className="sprite-upload-dragger"
+            accept={imageAccept.join(',')}
+            multiple
+            fileList={uploadFileList}
+            beforeUpload={() => false}
+            onChange={onBatchUploadChange}
+            showUploadList={false}
+          >
+            <p className="ant-upload-drag-icon"><UploadOutlined /></p>
+            <p className="ant-upload-text">拖拽多张图片到这里</p>
+            <p className="ant-upload-hint">支持一次添加多张图片进入流程 2。</p>
+            <Button icon={<UploadOutlined />}>批量添加图片</Button>
+          </Upload.Dragger>
+        </div>
+      </Modal>
+    </>
   )
 }

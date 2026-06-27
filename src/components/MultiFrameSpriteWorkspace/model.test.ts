@@ -9,6 +9,8 @@ import {
   applyCanvasRatioToFrameLayouts,
   applyLayoutPresetToFrames,
   advancePlaybackCursor,
+  applyFrameVisibilityStride,
+  selectFramesByVisibilityStride,
   batchHideSelectedFrames,
   buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
@@ -401,8 +403,10 @@ test('upload and matte panels own staged card view details', () => {
   assert.match(source, /from '\.\/MatteWorkspacePanel'/)
   assert.match(uploadPanel, /SpriteSheetUploadPanel/)
   assert.match(uploadPanel, /VideoUploadPanel/)
-  assert.match(uploadPanel, /<Tabs/)
-  assert.match(uploadPanel, /<Upload\s/)
+  assert.match(uploadPanel, /sprite-single-upload-drop/)
+  assert.match(uploadPanel, /sprite-active-upload-panel/)
+  assert.doesNotMatch(uploadPanel, /<Tabs/)
+  assert.match(uploadPanel, /<Upload(?:\.Dragger|\s)/)
   assert.match(mattePanel, /MatteFrameCard/)
 })
 
@@ -751,6 +755,70 @@ test('batch hide only hides selected frames', () => {
   ])
 })
 
+test('frame visibility stride keeps the first frame in each group and hides the rest', () => {
+  const frames = [
+    { id: 'a', hidden: true },
+    { id: 'b', hidden: false },
+    { id: 'c', hidden: false },
+    { id: 'd', hidden: false },
+    { id: 'e', hidden: true },
+    { id: 'f', hidden: false },
+  ]
+
+  assert.deepEqual(applyFrameVisibilityStride(frames, 1), [
+    { id: 'a', hidden: false },
+    { id: 'b', hidden: false },
+    { id: 'c', hidden: false },
+    { id: 'd', hidden: false },
+    { id: 'e', hidden: false },
+    { id: 'f', hidden: false },
+  ])
+  assert.deepEqual(applyFrameVisibilityStride(frames, 2), [
+    { id: 'a', hidden: false },
+    { id: 'b', hidden: true },
+    { id: 'c', hidden: false },
+    { id: 'd', hidden: true },
+    { id: 'e', hidden: false },
+    { id: 'f', hidden: true },
+  ])
+  assert.deepEqual(applyFrameVisibilityStride(frames, 3), [
+    { id: 'a', hidden: false },
+    { id: 'b', hidden: true },
+    { id: 'c', hidden: true },
+    { id: 'd', hidden: false },
+    { id: 'e', hidden: true },
+    { id: 'f', hidden: true },
+  ])
+  assert.deepEqual(applyFrameVisibilityStride(frames, 4), [
+    { id: 'a', hidden: false },
+    { id: 'b', hidden: true },
+    { id: 'c', hidden: true },
+    { id: 'd', hidden: true },
+    { id: 'e', hidden: false },
+    { id: 'f', hidden: true },
+  ])
+  assert.deepEqual(applyFrameVisibilityStride(frames, 99), applyFrameVisibilityStride(frames, 4))
+  assert.deepEqual(applyFrameVisibilityStride(frames, 0), applyFrameVisibilityStride(frames, 1))
+})
+
+test('video visibility stride selects only the first extracted frame in each group', () => {
+  const frames = [
+    { id: 'a' },
+    { id: 'b' },
+    { id: 'c' },
+    { id: 'd' },
+    { id: 'e' },
+    { id: 'f' },
+  ]
+
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 1).map((frame) => frame.id), ['a', 'b', 'c', 'd', 'e', 'f'])
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 2).map((frame) => frame.id), ['a', 'c', 'e'])
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 3).map((frame) => frame.id), ['a', 'd'])
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 4).map((frame) => frame.id), ['a', 'e'])
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 99).map((frame) => frame.id), ['a', 'e'])
+  assert.deepEqual(selectFramesByVisibilityStride(frames, 0).map((frame) => frame.id), ['a', 'b', 'c', 'd', 'e', 'f'])
+})
+
 test('clear frame collection revokes every frame before returning an empty list', () => {
   const revoked: string[] = []
   const frames = [
@@ -1078,6 +1146,7 @@ test('matte defaults are clamped and keep expected fallback values', () => {
     spillColorMode: 'blue',
     customSpillHex: '#123abc',
   })
+  assert.equal(coerceMatteDefaults({ smoothness: 120 }).smoothness, 50)
 })
 
 test('matte params can be applied to all following frames without changing earlier frames', () => {

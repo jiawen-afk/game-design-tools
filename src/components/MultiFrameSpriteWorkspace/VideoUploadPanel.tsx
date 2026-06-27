@@ -1,5 +1,5 @@
 import type { MouseEvent, RefObject } from 'react'
-import { Button, Card, InputNumber, Slider, Space, Typography, Upload } from 'antd'
+import { Button, InputNumber, Slider, Space, Typography, Upload } from 'antd'
 import {
   PauseCircleOutlined,
   PlayCircleOutlined,
@@ -44,7 +44,10 @@ export interface VideoUploadPanelProps {
   cropBox: CropBoxRect | null
   cropOutputSize: { width: number; height: number } | null
   extractedFrames: ExtractedVideoFrame[]
+  visibleExtractedFrames: ExtractedVideoFrame[]
   framePreviewIndex: number
+  visibilityStride: number
+  visibleFrameCount: number
   adding: boolean
   onUpload: (file: File) => void
   onLoadedMetadata: () => void
@@ -59,9 +62,11 @@ export interface VideoUploadPanelProps {
   onResetSegmentPreview: () => void
   onExtractFrames: () => void
   onSelectPreviewFrame: (index: number) => void
+  onVisibilityStrideChange: (stride: number) => void
   onCropModeChange: (updater: (active: boolean) => boolean) => void
   onConfirmFrames: () => void
   onStartCropDrag: (event: MouseEvent<HTMLElement>, handle: VideoCropHandle) => void
+  showUploadIntake?: boolean
 }
 
 export function VideoUploadPanel({
@@ -87,7 +92,10 @@ export function VideoUploadPanel({
   cropBox,
   cropOutputSize,
   extractedFrames,
+  visibleExtractedFrames,
   framePreviewIndex,
+  visibilityStride,
+  visibleFrameCount,
   adding,
   onUpload,
   onLoadedMetadata,
@@ -102,32 +110,41 @@ export function VideoUploadPanel({
   onResetSegmentPreview,
   onExtractFrames,
   onSelectPreviewFrame,
+  onVisibilityStrideChange,
   onCropModeChange,
   onConfirmFrames,
   onStartCropDrag,
+  showUploadIntake = true,
 }: VideoUploadPanelProps) {
   return (
-    <Card size="small">
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        <Space wrap align="center">
-          <Upload
-            accept={videoAccept.join(',')}
-            maxCount={1}
-            showUploadList={false}
-            beforeUpload={(file) => {
-              onUpload(file as File)
-              return false
-            }}
-          >
-            <Button icon={<VideoCameraOutlined />}>上传视频</Button>
-          </Upload>
+    <div className="video-upload-panel">
+      {showUploadIntake && (
+        <div className="video-upload-intake">
+          <div className="video-upload-drop">
+            <Upload.Dragger
+              className="sprite-upload-dragger"
+              accept={videoAccept.join(',')}
+              maxCount={1}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                onUpload(file as File)
+                return false
+              }}
+            >
+              <p className="ant-upload-drag-icon"><VideoCameraOutlined /></p>
+              <p className="ant-upload-text">拖拽视频到这里</p>
+              <p className="ant-upload-hint">支持点击选择或拖拽单个视频文件。</p>
+              <Button icon={<VideoCameraOutlined />}>上传视频</Button>
+            </Upload.Dragger>
+          </div>
           <Text type="secondary">使用浏览器原生 video 预览与提帧，兼容性取决于当前浏览器解码能力。</Text>
-        </Space>
+        </div>
+      )}
 
-        {loading ? (
-          <Text type="secondary">{operationLabel || '正在加载视频'}</Text>
-        ) : draft ? (
-          <div className="video-workspace-grid">
+      {loading ? (
+        <Text type="secondary">{operationLabel || '正在加载视频'}</Text>
+      ) : draft ? (
+        <div className="video-workspace-grid">
             <div className="video-controls-column">
               <div className="video-source-panel">
                 <div className="video-source-box">
@@ -270,18 +287,21 @@ export function VideoUploadPanel({
               cropBox={cropBox}
               cropOutputSize={cropOutputSize}
               extractedFrames={extractedFrames}
+              previewFrames={visibleExtractedFrames}
               framePreviewIndex={framePreviewIndex}
+              visibilityStride={visibilityStride}
+              visibleFrameCount={visibleFrameCount}
               adding={adding}
               onSelectPreviewFrame={onSelectPreviewFrame}
+              onVisibilityStrideChange={onVisibilityStrideChange}
               onCropModeChange={onCropModeChange}
               onConfirmFrames={onConfirmFrames}
               onStartCropDrag={onStartCropDrag}
             />
-          </div>
-        ) : (
-          <Text type="secondary">上传浏览器可播放的视频后，拖动时间范围并按 FPS 提取帧，再确认添加到流程 2。</Text>
-        )}
-      </Space>
-    </Card>
+        </div>
+      ) : (
+        <Text type="secondary">上传浏览器可播放的视频后，拖动时间范围并按 FPS 提取帧，再确认添加到流程 2。</Text>
+      )}
+    </div>
   )
 }

@@ -455,6 +455,49 @@ h1 {
   margin: 18px auto 48px;
 }
 
+.workspace-loading,
+.workspace-error {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.workspace-loading div,
+.workspace-error {
+  text-align: center;
+}
+
+.workspace-loading strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1rem;
+}
+
+.workspace-loading span,
+.workspace-error p {
+  color: var(--color-muted);
+}
+
+.workspace-error {
+  gap: 18px;
+}
+
+.workspace-error h2 {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+}
+
+.workspace-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .ant-btn-primary {
   background: var(--color-brand);
 }

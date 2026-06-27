@@ -14,12 +14,14 @@ export interface UseVideoFramePreviewWorkspaceParams {
   videoDraft: VideoDraft | null
   videoFps: number
   videoExtractedFrames: ExtractedVideoFrame[]
+  videoPreviewFrames?: ExtractedVideoFrame[]
 }
 
 export function useVideoFramePreviewWorkspace({
   videoDraft,
   videoFps,
   videoExtractedFrames,
+  videoPreviewFrames,
 }: UseVideoFramePreviewWorkspaceParams) {
   const [videoFramePreviewPlaying, setVideoFramePreviewPlaying] = useState(false)
   const [videoFramePreviewIndex, setVideoFramePreviewIndex] = useState(0)
@@ -28,10 +30,9 @@ export function useVideoFramePreviewWorkspace({
   const [videoCropDrag, setVideoCropDrag] = useState<VideoCropDragState | null>(null)
   const [videoPreviewBoxSize, setVideoPreviewBoxSize] = useState({ width: 0, height: 0 })
   const videoFramePreviewBoxRef = useRef<HTMLDivElement | null>(null)
+  const previewFrames = videoPreviewFrames ?? videoExtractedFrames
 
-  const previewVideoFrame = videoExtractedFrames[
-    Math.min(videoFramePreviewIndex, Math.max(0, videoExtractedFrames.length - 1))
-  ]
+  const previewVideoFrame = previewFrames.find((frame) => frame.index === videoFramePreviewIndex) ?? previewFrames[0]
   const videoCropPreview = computeVideoPreviewCropState(
     previewVideoFrame,
     videoPreviewBoxSize,
@@ -54,15 +55,29 @@ export function useVideoFramePreviewWorkspace({
     const observer = new ResizeObserver(updateSize)
     observer.observe(box)
     return () => observer.disconnect()
-  }, [videoDraft, videoExtractedFrames.length])
+  }, [videoDraft, previewFrames.length])
 
   useEffect(() => {
-    if (!videoFramePreviewPlaying || videoExtractedFrames.length === 0) return
+    if (!videoFramePreviewPlaying || previewFrames.length === 0) return
     const timer = window.setInterval(() => {
-      setVideoFramePreviewIndex((index) => (index + 1) % videoExtractedFrames.length)
+      setVideoFramePreviewIndex((index) => {
+        const currentPosition = previewFrames.findIndex((frame) => frame.index === index)
+        const nextPosition = currentPosition < 0 ? 0 : (currentPosition + 1) % previewFrames.length
+        return previewFrames[nextPosition]?.index ?? 0
+      })
     }, 1000 / Math.max(1, videoFps))
     return () => window.clearInterval(timer)
-  }, [videoExtractedFrames.length, videoFps, videoFramePreviewPlaying])
+  }, [previewFrames, videoFps, videoFramePreviewPlaying])
+
+  useEffect(() => {
+    if (previewFrames.length === 0) {
+      if (videoFramePreviewIndex !== 0) setVideoFramePreviewIndex(0)
+      return
+    }
+    if (!previewFrames.some((frame) => frame.index === videoFramePreviewIndex)) {
+      setVideoFramePreviewIndex(previewFrames[0]?.index ?? 0)
+    }
+  }, [previewFrames, videoFramePreviewIndex])
 
   useEffect(() => {
     if (!videoCropDrag) return

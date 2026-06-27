@@ -4,6 +4,9 @@ import test from 'node:test'
 import {
   buildDocumentCategoryTree,
   contextActionForDocumentNode,
+  documentGraphEdgeTypeLabel,
+  documentGraphEntityRoleLabel,
+  documentGraphNodeTypeLabel,
   filterDocumentGraph,
 } from './documentGraphViewModel'
 import type { DocumentCollectionGraph } from '../ProjectStorage'
@@ -119,6 +122,104 @@ test('turns category context action into category filter action', () => {
     category: '鸟名',
     parent: '动物',
   })
+})
+
+test('turns category-like entity context action into category filter action from record path', () => {
+  const graph: DocumentCollectionGraph = {
+    nodes: {
+      'entity:槐江之山': {
+        id: 'entity:槐江之山',
+        label: '槐江之山',
+        type: 'entity',
+        records: ['807'],
+        data: {
+          category_1: '地名',
+          category_2: '山名',
+          categoryPathGroups: [['地名', '山名']],
+        },
+      },
+      'entity:山名': {
+        id: 'entity:山名',
+        label: '山名',
+        type: 'entity',
+        records: ['807'],
+        data: {},
+      },
+    },
+    edges: {
+      'edge:category': {
+        id: 'edge:category',
+        source: 'entity:槐江之山',
+        target: 'entity:山名',
+        type: 'site_relation',
+        label: '类目',
+        weight: 1,
+        record_ids: ['807'],
+        source_kind: 'detail_graph',
+      },
+    },
+  }
+
+  assert.deepEqual(contextActionForDocumentNode(graph, graph, 'entity:山名', '807'), {
+    type: 'category_filter',
+    categoryLevel: 2,
+    category: '山名',
+    parent: '地名',
+  })
+})
+
+test('keeps same-label ordinary entity context action focused without category relation', () => {
+  const graph: DocumentCollectionGraph = {
+    nodes: {
+      'entity:槐江之山': {
+        id: 'entity:槐江之山',
+        label: '槐江之山',
+        type: 'entity',
+        records: ['807'],
+        data: {
+          category_1: '地名',
+          category_2: '山名',
+          categoryPathGroups: [['地名', '山名']],
+        },
+      },
+      'entity:山名': {
+        id: 'entity:山名',
+        label: '山名',
+        type: 'entity',
+        records: ['807'],
+        data: {},
+      },
+    },
+    edges: {
+      'edge:alias': {
+        id: 'edge:alias',
+        source: 'entity:槐江之山',
+        target: 'entity:山名',
+        type: 'detail_relation',
+        label: '别称',
+        weight: 1,
+        record_ids: ['807'],
+        source_kind: 'detail_graph',
+      },
+    },
+  }
+
+  assert.deepEqual(contextActionForDocumentNode(graph, graph, 'entity:山名', '807'), {
+    type: 'focus',
+    nodeId: 'entity:山名',
+    recordId: undefined,
+  })
+})
+
+test('document graph filter labels use Chinese names', () => {
+  assert.equal(documentGraphEntityRoleLabel('term'), '词条')
+  assert.equal(documentGraphEntityRoleLabel('place'), '属地')
+  assert.equal(documentGraphEntityRoleLabel('category'), '类目')
+  assert.equal(documentGraphNodeTypeLabel('entity'), '词条实体')
+  assert.equal(documentGraphNodeTypeLabel('descriptor'), '描述特征')
+  assert.equal(documentGraphNodeTypeLabel('description_group'), '描述')
+  assert.equal(documentGraphEdgeTypeLabel('HAS_CATEGORY_2'), '二级类目')
+  assert.equal(documentGraphEdgeTypeLabel('site_relation'), '详情页关系')
 })
 
 test('focused entity shows incoming and outgoing relationship chains up to three levels', () => {

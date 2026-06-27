@@ -15,6 +15,13 @@ export interface MatteParamsState extends MatteDefaults {
   keyColor: [number, number, number]
 }
 
+export const MATTE_PARAM_MAX = {
+  tolerance: 100,
+  smoothness: 50,
+  spill: 100,
+  erosion: 100,
+} as const
+
 export interface MatteFrameState {
   id: string
   matte: MatteParamsState
@@ -269,10 +276,10 @@ function isSpillColorMode(value: unknown): value is SpillColorMode {
 
 export function coerceMatteDefaults(input: Partial<MatteDefaults>): MatteDefaults {
   return {
-    tolerance: clampInt(input.tolerance ?? 5, 0, 100),
-    smoothness: clampInt(input.smoothness ?? 5, 0, 100),
-    spill: clampInt(input.spill ?? 0, 0, 100),
-    erosion: clampInt(input.erosion ?? 5, 0, 100),
+    tolerance: clampInt(input.tolerance ?? 5, 0, MATTE_PARAM_MAX.tolerance),
+    smoothness: clampInt(input.smoothness ?? 5, 0, MATTE_PARAM_MAX.smoothness),
+    spill: clampInt(input.spill ?? 0, 0, MATTE_PARAM_MAX.spill),
+    erosion: clampInt(input.erosion ?? 5, 0, MATTE_PARAM_MAX.erosion),
     spillColorMode: isSpillColorMode(input.spillColorMode) ? input.spillColorMode : 'key',
     customSpillHex: normalizeHexColor(input.customSpillHex, '#00ff00'),
   }

@@ -3,7 +3,7 @@ import { Button, Card, ColorPicker, Input, Select, Slider, Space, Typography } f
 import { DeleteOutlined } from '@ant-design/icons'
 
 import { hexToRgb, rgbToHex } from './imagePipeline'
-import { getSpillColorHex, normalizePickerColor, type SpillColorMode } from './matteModel'
+import { getSpillColorHex, MATTE_PARAM_MAX, normalizePickerColor, type SpillColorMode } from './matteModel'
 import { spillOptionLabel } from './matteControls'
 import type { FrameItem, MatteParams } from './types'
 
@@ -124,7 +124,7 @@ export function MatteFrameCard({
             <Text>{label}</Text>
             <Slider
               min={0}
-              max={100}
+              max={MATTE_PARAM_MAX[key]}
               value={item.matte[key]}
               onChange={(value) => onMatteParamChange(item.id, key, value)}
             />

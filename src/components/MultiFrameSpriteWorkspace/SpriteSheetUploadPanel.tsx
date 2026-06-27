@@ -1,4 +1,5 @@
-import { Button, Card, InputNumber, Space, Typography, Upload } from 'antd'
+import { Button, InputNumber, Space, Typography, Upload } from 'antd'
+import { UploadOutlined } from '@ant-design/icons'
 
 import { clampInt } from './numberUtils'
 import type { SpriteSheetDraft, SpriteSlicePreview } from './types'
@@ -16,6 +17,7 @@ export interface SpriteSheetUploadPanelProps {
   onRowsChange: (rows: number) => void
   onColumnsChange: (columns: number) => void
   onConfirm: () => void
+  showUploadIntake?: boolean
 }
 
 export function SpriteSheetUploadPanel({
@@ -29,22 +31,32 @@ export function SpriteSheetUploadPanel({
   onRowsChange,
   onColumnsChange,
   onConfirm,
+  showUploadIntake = true,
 }: SpriteSheetUploadPanelProps) {
   return (
-    <Card className="video-tab-card" size="small">
-      <Space className="video-tab-content" direction="vertical" size={12} style={{ width: '100%' }}>
-        <Space wrap align="center">
-          <Upload
-            accept={imageAccept.join(',')}
-            maxCount={1}
-            showUploadList={false}
-            beforeUpload={(file) => {
-              onUpload(file as File)
-              return false
-            }}
-          >
-            <Button>上传精灵图</Button>
-          </Upload>
+    <div className="sprite-sheet-upload-panel">
+      <div className="sprite-sheet-upload-grid">
+        {showUploadIntake && (
+          <div className="sprite-sheet-upload-drop">
+            <Upload.Dragger
+              className="sprite-upload-dragger"
+              accept={imageAccept.join(',')}
+              maxCount={1}
+              showUploadList={false}
+              beforeUpload={(file) => {
+                onUpload(file as File)
+                return false
+              }}
+            >
+              <p className="ant-upload-drag-icon"><UploadOutlined /></p>
+              <p className="ant-upload-text">拖拽精灵图到这里</p>
+              <p className="ant-upload-hint">支持点击选择或拖拽单张图片。</p>
+              <Button>上传精灵图</Button>
+            </Upload.Dragger>
+          </div>
+        )}
+        <div className="sprite-sheet-upload-controls">
+          <Space wrap align="center">
           <Text>行数</Text>
           <InputNumber min={1} max={128} value={rows} onChange={(value) => onRowsChange(clampInt(value ?? 1, 1, 128))} />
           <Text>列数</Text>
@@ -57,9 +69,11 @@ export function SpriteSheetUploadPanel({
           >
             确认切分并添加到流程 2
           </Button>
-        </Space>
-        {draft ? (
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          </Space>
+        </div>
+      </div>
+      {draft ? (
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
             <Text type="secondary">
               {draft.sourceName}，{draft.width} × {draft.height}，预计切分 {slices.length} 帧
             </Text>
@@ -95,11 +109,10 @@ export function SpriteSheetUploadPanel({
                 </div>
               ))}
             </div>
-          </Space>
-        ) : (
-          <Text type="secondary">上传整张精灵图后，输入行数和列数进行网格切分预览。</Text>
-        )}
-      </Space>
-    </Card>
+        </Space>
+      ) : (
+        <Text type="secondary">上传整张精灵图后，输入行数和列数进行网格切分预览。</Text>
+      )}
+    </div>
   )
 }

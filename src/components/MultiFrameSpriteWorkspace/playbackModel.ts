@@ -100,6 +100,23 @@ export function batchHideSelectedFrames<T extends { id: string; hidden?: boolean
   return frames.map((frame) => (selected.has(frame.id) ? { ...frame, hidden: true } : frame))
 }
 
+function normalizeFrameVisibilityStride(stride: number): number {
+  return Math.min(4, Math.max(1, Math.round(Number.isFinite(stride) ? stride : 1)))
+}
+
+export function selectFramesByVisibilityStride<T>(frames: T[], stride: number): T[] {
+  const safeStride = normalizeFrameVisibilityStride(stride)
+  return frames.filter((_, index) => index % safeStride === 0)
+}
+
+export function applyFrameVisibilityStride<T extends { hidden?: boolean }>(frames: T[], stride: number): T[] {
+  const safeStride = normalizeFrameVisibilityStride(stride)
+  return frames.map((frame, index) => {
+    const hidden = index % safeStride !== 0
+    return frame.hidden === hidden ? frame : { ...frame, hidden }
+  })
+}
+
 export function clearFrameCollection<T>(frames: T[], revokeFrame: (frame: T) => void): T[] {
   frames.forEach(revokeFrame)
   return []

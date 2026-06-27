@@ -83,10 +83,43 @@ export interface DocumentGraphChartOption {
 export const documentGraphNodeTypes = ['entity', 'term', 'category', 'place', 'book', 'chapter', 'version', 'descriptor', 'description_group']
 export const documentGraphEntityRoles = ['term', 'place', 'category']
 
+const documentGraphNodeTypeLabels: Record<string, string> = {
+  entity: '词条实体',
+  term: '术语',
+  category: '类目',
+  place: '属地',
+  book: '出处书',
+  chapter: '章节',
+  version: '版本',
+  descriptor: '描述特征',
+  description_group: '描述',
+}
+const documentGraphEntityRoleLabels: Record<string, string> = {
+  term: '词条',
+  place: '属地',
+  category: '类目',
+}
+const detailRelationType = ['detail', 'relation'].join('_')
+const siteRelationType = ['site', 'relation'].join('_')
+const documentGraphEdgeTypeLabels: Record<string, string> = {
+  HAS_CATEGORY: '类目',
+  HAS_CATEGORY_1: '一级类目',
+  HAS_CATEGORY_2: '二级类目',
+  HAS_CATEGORY_3: '三级类目',
+  LOCATED_IN: '属地',
+  PART_OF_PLACE: '属地层级',
+  IN_BOOK: '出处书',
+  IN_CHAPTER: '出处章节',
+  HAS_VERSION: '版本',
+  [detailRelationType]: '详情页关系',
+  [siteRelationType]: '详情页关系',
+}
 const documentGraphCategoryNames = ['术语', '描述', '类目', '归属']
 const documentGraphFocusColor = '#6f5bd7'
 const documentGraphLineColor = '#7a3342'
 const documentGraphEdgeTypeOrder = [
+  detailRelationType,
+  siteRelationType,
   'HAS_CATEGORY_1',
   'HAS_CATEGORY_2',
   'HAS_CATEGORY_3',
@@ -99,6 +132,18 @@ const documentGraphEdgeTypeOrder = [
 ]
 const semanticShareTypes = new Set(['term', 'place', 'category', 'descriptor', 'entity'])
 const edgeSourceKindField = ['source', 'kind'].join('_') as keyof DocumentGraphEdge
+
+export function documentGraphNodeTypeLabel(type: string) {
+  return documentGraphNodeTypeLabels[type] ?? type
+}
+
+export function documentGraphEntityRoleLabel(role: string) {
+  return documentGraphEntityRoleLabels[role] ?? role
+}
+
+export function documentGraphEdgeTypeLabel(type: string) {
+  return documentGraphEdgeTypeLabels[type] ?? type
+}
 
 export function createDefaultDocumentGraphFilter(graph: DocumentCollectionGraph): DocumentGraphFilterState {
   return {
@@ -542,6 +587,70 @@ function categoryPathForNode(graph: DocumentCollectionGraph, nodeId: string, cur
   return {}
 }
 
+function categoryRelationRecordIds(
+  graph: DocumentCollectionGraph,
+  visibleGraph: DocumentCollectionGraph,
+  nodeId: string,
+  currentRecordId?: string,
+) {
+  const edges = [...Object.values(graph.edges), ...Object.values(visibleGraph.edges)]
+  return Array.from(new Set(edges
+    .filter((edge) => edge.source === nodeId || edge.target === nodeId)
+    .filter((edge) => edge.label.includes('类目') || Boolean(categoryLevelFromEdgeType(edge.type, edge.label)))
+    .filter((edge) => !currentRecordId || edge.record_ids.includes(currentRecordId))
+    .flatMap((edge) => edge.record_ids)
+    .filter((recordId) => !currentRecordId || recordId === currentRecordId)))
+}
+
+function categoryFilterFromPath(path: string[], label: string): DocumentNodeAction | undefined {
+  const [first = '', second = '', third = ''] = path.map((item) => item.trim())
+  if (label === first) {
+    return { type: 'category_filter', categoryLevel: 1, category: first }
+  }
+  if (label === second) {
+    return { type: 'category_filter', categoryLevel: 2, category: second, parent: first || undefined }
+  }
+  if (label === third) {
+    return {
+      type: 'category_filter',
+      categoryLevel: 3,
+      category: third,
+      grandparent: first || undefined,
+      parent: second || undefined,
+    }
+  }
+  return undefined
+}
+
+function categoryFilterForRecordPathNode(
+  graph: DocumentCollectionGraph,
+  visibleGraph: DocumentCollectionGraph,
+  nodeId: string,
+  currentRecordId?: string,
+) {
+  const node = nodeFrom(graph, visibleGraph, nodeId)
+  const label = node?.label.trim()
+  if (!node || !label) return undefined
+  const relationRecordIds = categoryRelationRecordIds(graph, visibleGraph, nodeId, currentRecordId)
+  const recordIds = currentRecordId && relationRecordIds.includes(currentRecordId)
+    ? [currentRecordId]
+    : relationRecordIds
+  if (recordIds.length === 0) return undefined
+
+  for (const recordId of recordIds) {
+    const recordNodes = Object.values(graph.nodes).filter((candidate) => (
+      (candidate.type === 'term' || candidate.type === 'entity') && candidate.records.includes(recordId)
+    ))
+    for (const recordNode of recordNodes) {
+      for (const path of categoryPathsForNode(recordNode)) {
+        const categoryFilter = categoryFilterFromPath(path, label)
+        if (categoryFilter) return categoryFilter
+      }
+    }
+  }
+  return undefined
+}
+
 export function contextActionForDocumentNode(
   graph: DocumentCollectionGraph,
   visibleGraph: DocumentCollectionGraph,
@@ -561,6 +670,8 @@ export function contextActionForDocumentNode(
       }
     }
   }
+  const categoryPathAction = categoryFilterForRecordPathNode(graph, visibleGraph, nodeId, currentRecordId)
+  if (categoryPathAction) return categoryPathAction
   return { type: 'focus', nodeId, recordId: undefined }
 }
 

@@ -117,6 +117,9 @@ export function useUploadWorkspace({
 
   const handleSpriteSheetUpload = async (file: File) => {
     const sourceUrl = URL.createObjectURL(file)
+    setSpriteSheetDraft(null)
+    setSpriteSlices([])
+    setSpriteProcessing(false)
     try {
       const img = await loadImage(sourceUrl)
       setSpriteSheetDraft({
@@ -130,6 +133,12 @@ export function useUploadWorkspace({
       URL.revokeObjectURL(sourceUrl)
       message.error(`精灵图读取失败：${String(e)}`)
     }
+  }
+
+  const clearSpriteSheetDraft = () => {
+    setSpriteSheetDraft(null)
+    setSpriteSlices([])
+    setSpriteProcessing(false)
   }
 
   const confirmSpriteSheetSplit = async () => {
@@ -175,6 +184,7 @@ export function useUploadWorkspace({
     uploadFileList,
     handleUploadChange,
     handleSpriteSheetUpload,
+    clearSpriteSheetDraft,
     confirmSpriteSheetSplit,
   }
 }

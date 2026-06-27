@@ -3,9 +3,14 @@ import { ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import { Alert, Button, Checkbox, Input, Radio, Space, Tag } from 'antd'
 
 import {
+  allDocumentEdgeTypes,
   buildDocumentCategoryTree,
   documentGraphEntityRoles,
+  documentGraphEdgeTypeLabel,
+  documentGraphEntityRoleLabel,
+  documentGraphNodeTypeLabel,
   documentGraphNodeTypes,
+  type DocumentCategoryBranch,
   type DocumentCategoryFilter,
   type DocumentDescriptionFilter,
   type DocumentGraphFilterState,
@@ -46,18 +51,34 @@ function categoryFilterLabel(filter: DocumentCategoryFilter) {
   return [filter.grandparent, filter.parent, filter.value].filter(Boolean).join(' / ')
 }
 
-function visibleCategoryFilters(graph: DocumentCollectionGraph, query: string) {
-  const keyword = query.trim()
-  return buildDocumentCategoryTree(graph).flatMap((branch) => {
-    const filters: DocumentCategoryFilter[] = [{ level: 1, value: branch.name }]
-    branch.children.forEach((second) => {
-      filters.push({ level: 2, parent: branch.name, value: second.name })
-      second.children.forEach((third) => {
-        filters.push({ level: 3, grandparent: branch.name, parent: second.name, value: third })
-      })
+function categoryFilterKey(filter: DocumentCategoryFilter) {
+  return `${filter.level}:${filter.grandparent ?? ''}:${filter.parent ?? ''}:${filter.value}`
+}
+
+function categoryTreeMatches(branch: DocumentCategoryBranch, keyword: string): DocumentCategoryBranch | undefined {
+  if (!keyword) return branch
+  const branchMatches = branch.name.includes(keyword)
+  const children = branch.children
+    .map((second) => {
+      const secondMatches = second.name.includes(keyword)
+      const thirds = branchMatches || secondMatches
+        ? second.children
+        : second.children.filter((third) => third.includes(keyword))
+      if (branchMatches || secondMatches || thirds.length > 0) {
+        return { ...second, children: thirds }
+      }
+      return undefined
     })
-    return filters
-  }).filter((filter) => !keyword || categoryFilterLabel(filter).includes(keyword))
+    .filter((item): item is DocumentCategoryBranch['children'][number] => Boolean(item))
+  if (branchMatches || children.length > 0) return { ...branch, children }
+  return undefined
+}
+
+function visibleCategoryTree(graph: DocumentCollectionGraph, query: string) {
+  const keyword = query.trim()
+  return buildDocumentCategoryTree(graph)
+    .map((branch) => categoryTreeMatches(branch, keyword))
+    .filter((item): item is DocumentCategoryBranch => Boolean(item))
 }
 
 export function DocumentGraphControlsPanel({
@@ -75,9 +96,37 @@ export function DocumentGraphControlsPanel({
   const nodeTypes = documentGraphNodeTypes.filter((type) => (
     Object.values(graph.nodes).some((node) => node.type === type) || type === 'description_group'
   ))
-  const edgeTypes = Array.from(new Set(Object.values(graph.edges).map((edge) => edge.type))).sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'))
-  const categories = visibleCategoryFilters(graph, categoryTreeQuery)
+  const edgeTypes = allDocumentEdgeTypes(graph)
+  const categoryTree = visibleCategoryTree(graph, categoryTreeQuery)
   const activeCategoryFilters = filter.categoryFilters ?? []
+  const categoryTreeExpanded = Boolean(categoryTreeQuery.trim())
+  const hasActiveCategory = (category: DocumentCategoryFilter) => activeCategoryFilters.some((item) => sameCategoryFilter(item, category))
+  const hasActiveDescendant = (branch: DocumentCategoryBranch, secondName?: string) => activeCategoryFilters.some((item) => {
+    if (secondName) {
+      return (item.parent === branch.name && item.value === secondName)
+        || (item.grandparent === branch.name && item.parent === secondName)
+    }
+    return item.value === branch.name || item.parent === branch.name || item.grandparent === branch.name
+  })
+  const updateCategoryFilters = (nextCategoryFilters: DocumentCategoryFilter[]) => {
+    onFilterChange({
+      ...filter,
+      focusNodeId: undefined,
+      focusRecordId: undefined,
+      categoryLevel: nextCategoryFilters.at(-1)?.level,
+      categories: nextCategoryFilters.map((item) => item.value),
+      categoryFilters: nextCategoryFilters,
+    })
+  }
+  const toggleCategoryFilter = (category: DocumentCategoryFilter) => {
+    const active = hasActiveCategory(category)
+    updateCategoryFilters(active
+      ? activeCategoryFilters.filter((item) => !sameCategoryFilter(item, category))
+      : [...activeCategoryFilters, category])
+  }
+  const stopSummaryToggle = (event: React.MouseEvent) => {
+    event.stopPropagation()
+  }
 
   return (
     <aside className="document-graph-controls" aria-label="图谱筛选">
@@ -124,31 +173,88 @@ export function DocumentGraphControlsPanel({
           placeholder="筛选类目"
           onChange={(event) => onCategoryTreeQueryChange(event.target.value)}
         />
-        <div className="document-category-filter-list">
-          {categories.length > 0 ? categories.slice(0, 80).map((category) => {
-            const active = activeCategoryFilters.some((item) => sameCategoryFilter(item, category))
+        {activeCategoryFilters.length > 0 ? (
+          <div className="document-active-category-filters">
+            <div>
+              <span>已筛选类目</span>
+              <Button size="small" type="link" onClick={() => updateCategoryFilters([])}>
+                清空类目筛选
+              </Button>
+            </div>
+            <div className="document-active-category-tags">
+              {activeCategoryFilters.map((category) => (
+                <Tag key={categoryFilterKey(category)}>{categoryFilterLabel(category)}</Tag>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="document-category-tree">
+          {categoryTree.length > 0 ? categoryTree.map((branch) => {
+            const branchFilter: DocumentCategoryFilter = { level: 1, value: branch.name }
             return (
-              <button
-                type="button"
-                className={active ? 'document-category-filter document-category-filter-active' : 'document-category-filter'}
-                key={`${category.level}:${category.grandparent ?? ''}:${category.parent ?? ''}:${category.value}`}
-                onClick={() => {
-                  const nextCategoryFilters = active
-                    ? activeCategoryFilters.filter((item) => !sameCategoryFilter(item, category))
-                    : [...activeCategoryFilters, category]
-                  onFilterChange({
-                    ...filter,
-                    focusNodeId: undefined,
-                    focusRecordId: undefined,
-                    categoryLevel: category.level,
-                    categories: nextCategoryFilters.map((item) => item.value),
-                    categoryFilters: nextCategoryFilters,
-                  })
-                }}
+              <details
+                className="document-category-branch"
+                key={branch.name}
+                open={categoryTreeExpanded || hasActiveDescendant(branch)}
               >
-                <span>{categoryFilterLabel(category)}</span>
-                <Tag>{category.level}级</Tag>
-              </button>
+                <summary className="document-category-summary">
+                  <span onClick={stopSummaryToggle}>
+                    <Checkbox
+                      checked={hasActiveCategory(branchFilter)}
+                      onChange={() => toggleCategoryFilter(branchFilter)}
+                    >
+                      {branch.name}
+                    </Checkbox>
+                  </span>
+                  <Tag>{branch.children.length} 类</Tag>
+                </summary>
+                <div className="document-category-children">
+                  {branch.children.map((second) => {
+                    const secondFilter: DocumentCategoryFilter = { level: 2, parent: branch.name, value: second.name }
+                    return (
+                      <details
+                        className="document-category-branch document-category-branch-nested"
+                        key={`${branch.name}:${second.name}`}
+                        open={categoryTreeExpanded || hasActiveDescendant(branch, second.name)}
+                      >
+                        <summary className="document-category-summary">
+                          <span onClick={stopSummaryToggle}>
+                            <Checkbox
+                              checked={hasActiveCategory(secondFilter)}
+                              onChange={() => toggleCategoryFilter(secondFilter)}
+                            >
+                              {second.name}
+                            </Checkbox>
+                          </span>
+                          <Tag>{second.children.length} 项</Tag>
+                        </summary>
+                        {second.children.length > 0 ? (
+                          <div className="document-category-leaves">
+                            {second.children.map((third) => {
+                              const thirdFilter: DocumentCategoryFilter = {
+                                level: 3,
+                                grandparent: branch.name,
+                                parent: second.name,
+                                value: third,
+                              }
+                              return (
+                                <div className="document-category-leaf" key={`${branch.name}:${second.name}:${third}`}>
+                                  <Checkbox
+                                    checked={hasActiveCategory(thirdFilter)}
+                                    onChange={() => toggleCategoryFilter(thirdFilter)}
+                                  >
+                                    {third}
+                                  </Checkbox>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : null}
+                      </details>
+                    )
+                  })}
+                </div>
+              </details>
             )
           }) : <span className="document-muted">暂无类目</span>}
         </div>
@@ -163,7 +269,7 @@ export function DocumentGraphControlsPanel({
               checked={(filter.entityRoles ?? []).includes(role)}
               onChange={() => onFilterChange({ ...filter, entityRoles: toggleValue(filter.entityRoles ?? [], role) })}
             >
-              {role}
+              {documentGraphEntityRoleLabel(role)}
             </Checkbox>
           ))}
         </div>
@@ -178,7 +284,7 @@ export function DocumentGraphControlsPanel({
               checked={filter.nodeTypes.includes(type)}
               onChange={() => onFilterChange({ ...filter, nodeTypes: toggleValue(filter.nodeTypes, type) })}
             >
-              {type}
+              {documentGraphNodeTypeLabel(type)}
             </Checkbox>
           ))}
         </div>
@@ -193,7 +299,7 @@ export function DocumentGraphControlsPanel({
               checked={filter.edgeTypes.includes(type)}
               onChange={() => onFilterChange({ ...filter, edgeTypes: toggleValue(filter.edgeTypes, type) })}
             >
-              {type}
+              {documentGraphEdgeTypeLabel(type)}
             </Checkbox>
           ))}
         </div>

@@ -36,6 +36,9 @@ export default defineConfig({
           if (id.includes('/rc-') || id.includes('/@rc-component/')) {
             return 'antd-rc'
           }
+          if (id.includes('/echarts/') || id.includes('/zrender/')) {
+            return 'chart-vendor'
+          }
           if (id.includes('/jszip/') || id.includes('/pako/') || id.includes('/readable-stream/')) {
             return 'zip-vendor'
           }

@@ -63,6 +63,7 @@ export {
 export { clampInt } from './numberUtils'
 export {
   advancePlaybackCursor,
+  applyFrameVisibilityStride,
   applyFrameTagSelection,
   batchHideSelectedFrames,
   buildPlaybackFrameIds,
@@ -70,6 +71,7 @@ export {
   countPlayableFrames,
   filterLivePlaybackFrameIds,
   filterVisibleFrames,
+  selectFramesByVisibilityStride,
   type ApplyFrameTagSelectionInput,
   type FrameTagSelectionGesture,
   type PlaybackFrameState,

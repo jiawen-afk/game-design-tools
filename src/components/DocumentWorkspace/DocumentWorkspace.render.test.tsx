@@ -6,7 +6,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { DocumentGraphCanvasPanel } from './DocumentGraphCanvasPanel'
 import { DocumentGraphControlsPanel } from './DocumentGraphControlsPanel'
 import { DocumentGraphDetailsPanel } from './DocumentGraphDetailsPanel'
-import { createDefaultDocumentGraphFilter, filterDocumentGraph } from './documentGraphViewModel'
+import {
+  createDefaultDocumentGraphFilter,
+  filterDocumentGraph,
+  type DocumentGraphFilterState,
+} from './documentGraphViewModel'
 import type { DocumentCollectionGraph } from '../ProjectStorage'
 
 const graph: DocumentCollectionGraph = {
@@ -53,7 +57,13 @@ const graph: DocumentCollectionGraph = {
 }
 
 test('document graph panels render admin-style controls, list, graph mode, and details', () => {
-  const filter = { ...createDefaultDocumentGraphFilter(graph), focusNodeId: undefined }
+  const filter: DocumentGraphFilterState = {
+    ...createDefaultDocumentGraphFilter(graph),
+    focusNodeId: undefined,
+    categoryLevel: 2,
+    categories: ['鸟名'],
+    categoryFilters: [{ level: 2, parent: '动物', value: '鸟名' }],
+  }
   const visible = filterDocumentGraph(graph, filter)
 
   const controls = renderToStaticMarkup(
@@ -72,7 +82,15 @@ test('document graph panels render admin-style controls, list, graph mode, and d
   )
   assert.match(controls, /山海经图谱/)
   assert.match(controls, /层级类目关联展示筛选/)
+  assert.match(controls, /<details/)
+  assert.match(controls, /已筛选类目/)
+  assert.match(controls, /动物 \/ 鸟名/)
+  assert.match(controls, /清空类目筛选/)
   assert.match(controls, /是否有描述/)
+  assert.match(controls, /词条/)
+  assert.match(controls, /词条实体/)
+  assert.match(controls, /描述特征/)
+  assert.match(controls, /详情页关系/)
 
   const list = renderToStaticMarkup(
     <DocumentGraphCanvasPanel
@@ -81,6 +99,7 @@ test('document graph panels render admin-style controls, list, graph mode, and d
       focusNodeId={undefined}
       onFocusNode={() => undefined}
       onContextNode={() => undefined}
+      onOpenListNode={() => undefined}
     />,
   )
   assert.match(list, /筛选结果/)
@@ -94,5 +113,7 @@ test('document graph panels render admin-style controls, list, graph mode, and d
     />,
   )
   assert.match(details, /畢方/)
+  assert.match(details, /词条实体/)
+  assert.match(details, /词条/)
   assert.match(details, /相邻节点/)
 })

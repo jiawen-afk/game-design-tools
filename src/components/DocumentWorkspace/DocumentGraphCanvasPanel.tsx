@@ -9,6 +9,7 @@ import type { ECElementEvent, EChartsCoreOption } from 'echarts/core'
 
 import {
   buildDocumentGraphChartOption,
+  documentGraphNodeTypeLabel,
   filterDocumentTermList,
 } from './documentGraphViewModel'
 import type { DocumentCollectionGraph } from '../ProjectStorage'
@@ -21,6 +22,7 @@ interface DocumentGraphCanvasPanelProps {
   focusNodeId?: string
   onFocusNode: (nodeId: string) => void
   onContextNode: (nodeId: string) => void
+  onOpenListNode: (nodeId: string) => void
 }
 
 function nodeRecord(nodeData: Record<string, unknown>) {
@@ -44,16 +46,29 @@ function eventNodeId(event: ECElementEvent) {
   return typeof nodeId === 'string' ? nodeId : ''
 }
 
+function nativePointerEvent(event: ECElementEvent) {
+  return (event.event as { event?: MouseEvent } | undefined)?.event
+}
+
+function preventNativeContextMenu(event: ECElementEvent) {
+  const nativeEvent = nativePointerEvent(event)
+  nativeEvent?.preventDefault()
+  nativeEvent?.stopPropagation()
+}
+
 export function DocumentGraphCanvasPanel({
   mode,
   graph,
   focusNodeId,
   onFocusNode,
   onContextNode,
+  onOpenListNode,
 }: DocumentGraphCanvasPanelProps) {
   const chartElementRef = useRef<HTMLDivElement | null>(null)
+  const chartRef = useRef<ReturnType<typeof echarts.init> | null>(null)
   const onFocusNodeRef = useRef(onFocusNode)
   const onContextNodeRef = useRef(onContextNode)
+  const hasGraphNodes = Object.keys(graph.nodes).length > 0
 
   useEffect(() => {
     onFocusNodeRef.current = onFocusNode
@@ -61,9 +76,10 @@ export function DocumentGraphCanvasPanel({
   }, [onContextNode, onFocusNode])
 
   useEffect(() => {
-    if (mode !== 'graph' || !chartElementRef.current || Object.keys(graph.nodes).length === 0) return undefined
+    if (mode !== 'graph' || !chartElementRef.current || !hasGraphNodes) return undefined
 
     const chart = echarts.init(chartElementRef.current, undefined, { renderer: 'canvas' })
+    chartRef.current = chart
     const resizeChart = () => chart.resize()
     const resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
@@ -73,13 +89,20 @@ export function DocumentGraphCanvasPanel({
       if (nodeId) onFocusNodeRef.current(nodeId)
     }
     const handleContextMenu = (event: ECElementEvent) => {
+      preventNativeContextMenu(event)
+      const nodeId = eventNodeId(event)
+      if (nodeId) onContextNodeRef.current(nodeId)
+    }
+    const handleMouseDown = (event: ECElementEvent) => {
+      if (nativePointerEvent(event)?.button !== 2) return
+      preventNativeContextMenu(event)
       const nodeId = eventNodeId(event)
       if (nodeId) onContextNodeRef.current(nodeId)
     }
 
-    chart.setOption(buildDocumentGraphChartOption(graph, focusNodeId) as unknown as EChartsCoreOption, true)
     chart.on('click', handleClick)
     chart.on('contextmenu', handleContextMenu)
+    chart.on('mousedown', handleMouseDown)
     if (resizeObserver) {
       resizeObserver.observe(chartElementRef.current)
     } else {
@@ -89,11 +112,18 @@ export function DocumentGraphCanvasPanel({
     return () => {
       chart.off('click', handleClick)
       chart.off('contextmenu', handleContextMenu)
+      chart.off('mousedown', handleMouseDown)
       resizeObserver?.disconnect()
       window.removeEventListener('resize', resizeChart)
       chart.dispose()
+      if (chartRef.current === chart) chartRef.current = null
     }
-  }, [focusNodeId, graph, mode])
+  }, [hasGraphNodes, mode])
+
+  useEffect(() => {
+    if (mode !== 'graph' || !hasGraphNodes || !chartRef.current) return
+    chartRef.current.setOption(buildDocumentGraphChartOption(graph, focusNodeId) as unknown as EChartsCoreOption, true)
+  }, [focusNodeId, graph, hasGraphNodes, mode])
 
   const terms = filterDocumentTermList(graph)
 
@@ -114,10 +144,10 @@ export function DocumentGraphCanvasPanel({
                 <article className="document-term-item" role="listitem" key={node.id}>
                   <div>
                     <h3>{node.label}</h3>
-                    <Tag>{node.type}</Tag>
+                    <Tag>{documentGraphNodeTypeLabel(node.type)}</Tag>
                   </div>
                   <p>{recordLine(node.data) || '无补充字段'}</p>
-                  <Button icon={<EyeOutlined />} onClick={() => onFocusNode(node.id)}>
+                  <Button icon={<EyeOutlined />} onClick={() => onOpenListNode(node.id)}>
                     查看详情
                   </Button>
                 </article>
@@ -137,6 +167,7 @@ export function DocumentGraphCanvasPanel({
           className="document-graph-echarts"
           role="img"
           aria-label="知识库图谱画布"
+          onContextMenu={(event) => event.preventDefault()}
         />
       )}
     </main>

@@ -3,6 +3,7 @@ import { ColorPicker, Input, InputNumber, Modal, Select, Slider, Space, Typograp
 
 import {
   getSpillColorHex,
+  MATTE_PARAM_MAX,
   normalizeHexColor,
   normalizePickerColor,
   type MatteDefaults,
@@ -44,13 +45,13 @@ export function MatteDefaultsModal({ open, draft, onDraftChange, onSave, onCance
             <Text>{label}</Text>
             <Slider
               min={0}
-              max={100}
+              max={MATTE_PARAM_MAX[key]}
               value={draft[key]}
               onChange={(value) => onDraftChange((prev) => ({ ...prev, [key]: value }))}
             />
             <InputNumber
               min={0}
-              max={100}
+              max={MATTE_PARAM_MAX[key]}
               value={draft[key]}
               onChange={(value) => onDraftChange((prev) => ({ ...prev, [key]: value ?? 0 }))}
             />

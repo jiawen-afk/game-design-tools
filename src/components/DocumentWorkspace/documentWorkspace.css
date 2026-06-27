@@ -121,7 +121,7 @@
   width: 100%;
 }
 
-.document-category-filter-list,
+.document-category-tree,
 .document-check-list,
 .document-neighbor-list,
 .document-term-list {
@@ -130,37 +130,101 @@
   min-width: 0;
 }
 
-.document-category-filter-list {
-  max-height: 210px;
+.document-active-category-filters,
+.document-category-tree {
+  max-height: 260px;
   overflow: auto;
 }
 
-.document-category-filter {
+.document-active-category-filters {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--color-panel) 72%, var(--color-panel-strong));
+}
+
+.document-active-category-filters > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  width: 100%;
-  min-height: 34px;
-  padding: 6px 8px;
+}
+
+.document-active-category-filters > div:first-child > span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.document-active-category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.document-category-tree {
+  padding-right: 2px;
+}
+
+.document-category-branch {
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: var(--color-panel);
   color: var(--color-ink);
-  cursor: pointer;
-  text-align: left;
 }
 
-.document-category-filter span {
+.document-category-branch[open] {
+  background: color-mix(in oklch, var(--color-panel) 68%, var(--color-panel-strong));
+}
+
+.document-category-branch-nested {
+  border-radius: 6px;
+}
+
+.document-category-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.document-category-summary::marker {
+  color: var(--color-muted);
+}
+
+.document-category-summary > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.document-category-filter-active {
-  border-color: color-mix(in oklch, var(--color-brand) 54%, var(--color-line));
-  background: color-mix(in oklch, var(--color-brand) 10%, var(--color-panel));
+.document-category-children,
+.document-category-leaves {
+  display: grid;
+  gap: 6px;
+  padding: 0 8px 8px 20px;
+}
+
+.document-category-leaf {
+  display: block;
+  min-height: 28px;
+  padding: 3px 0;
+}
+
+.document-category-tree .ant-checkbox-wrapper {
+  min-width: 0;
+}
+
+.document-category-tree .ant-checkbox + span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-muted {

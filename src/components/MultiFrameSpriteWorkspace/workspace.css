@@ -6,6 +6,117 @@
   min-height: 640px;
 }
 
+.sprite-active-upload-panel {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.sprite-active-upload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.sprite-active-upload-meta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.video-upload-panel,
+.sprite-sheet-upload-panel {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.video-upload-intake,
+.sprite-sheet-upload-controls {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sprite-sheet-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.95fr) minmax(168px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.video-upload-drop,
+.sprite-sheet-upload-drop,
+.batch-image-upload-area {
+  min-width: 0;
+}
+
+.batch-image-upload-area {
+  display: grid;
+}
+
+.sprite-single-upload-drop,
+.sprite-upload-dragger {
+  width: 100%;
+}
+
+.sprite-upload-dragger {
+  max-width: 520px;
+}
+
+.batch-image-upload-area .sprite-upload-dragger,
+.sprite-active-upload-panel .sprite-upload-dragger {
+  max-width: none;
+}
+
+.sprite-single-upload-drop .ant-upload,
+.sprite-upload-dragger .ant-upload {
+  padding: 16px 18px;
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.sprite-single-upload-drop .ant-upload {
+  min-height: 224px;
+  display: grid;
+  align-content: center;
+}
+
+.sprite-upload-dragger .ant-upload {
+  min-height: 136px;
+}
+
+.sprite-single-upload-drop .ant-upload-drag-icon,
+.sprite-upload-dragger .ant-upload-drag-icon {
+  margin-bottom: 6px;
+  color: var(--color-brand);
+  font-size: 1.7rem;
+}
+
+.sprite-single-upload-drop .ant-upload-text,
+.sprite-upload-dragger .ant-upload-text {
+  margin-bottom: 4px;
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.sprite-single-upload-drop .ant-upload-hint,
+.sprite-upload-dragger .ant-upload-hint {
+  margin-bottom: 10px;
+  color: var(--color-muted);
+}
+
+.sprite-active-upload-panel .sprite-sheet-upload-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .video-controls-column {
   display: grid;
   grid-template-rows: auto auto;
@@ -166,12 +277,25 @@
 
 .video-confirm-action {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr) minmax(0, 1.3fr);
   gap: 8px;
 }
 
 .video-confirm-action .ant-btn {
   width: 100%;
+}
+
+.video-stride-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid #d8cabc;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .playback-workspace-grid {

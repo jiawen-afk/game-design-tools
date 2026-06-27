@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type * as React from 'react'
 import { message } from 'antd'
 
@@ -18,6 +18,7 @@ import {
 } from './videoModel'
 import type { MatteDefaults } from './matteModel'
 import { getInitialMatteFrameIds, getNextMatteGroupName } from './model'
+import { selectFramesByVisibilityStride } from './playbackModel'
 import type { ExtractedVideoFrame, FrameItem, VideoDraft } from './types'
 import { useVideoFramePreviewWorkspace } from './useVideoFramePreviewWorkspace'
 
@@ -43,11 +44,21 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
   const [videoExtractProgress, setVideoExtractProgress] = useState(0)
   const [videoOperationLabel, setVideoOperationLabel] = useState('')
   const [videoExtractedFrames, setVideoExtractedFrames] = useState<ExtractedVideoFrame[]>([])
+  const [videoVisibilityStride, setVideoVisibilityStrideState] = useState(1)
   const [videoError, setVideoError] = useState<string | null>(null)
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null)
   const videoClipRangeRef = useRef<[number, number]>([0, 0])
   const videoSourceUrlRef = useRef<string | null>(null)
-  const videoPreview = useVideoFramePreviewWorkspace({ videoDraft, videoFps, videoExtractedFrames })
+  const visibleVideoExtractedFrames = useMemo(
+    () => selectFramesByVisibilityStride(videoExtractedFrames, videoVisibilityStride),
+    [videoExtractedFrames, videoVisibilityStride]
+  )
+  const videoPreview = useVideoFramePreviewWorkspace({
+    videoDraft,
+    videoFps,
+    videoExtractedFrames,
+    videoPreviewFrames: visibleVideoExtractedFrames,
+  })
 
   useEffect(() => {
     const nextUrl = videoDraft?.sourceUrl ?? null
@@ -68,6 +79,7 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
 
   const resetVideoExtraction = () => {
     setVideoExtractedFrames([])
+    setVideoVisibilityStrideState(1)
     setVideoExtractProgress(0)
     videoPreview.resetVideoFramePreview()
   }
@@ -78,15 +90,19 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
     setVideoLooping(false)
   }
 
-  const handleVideoUpload = (file: File) => {
-    setVideoError(null)
+  const clearVideoDraft = () => {
     resetVideoExtraction()
     resetVideoSegmentPreview()
+    setVideoError(null)
     setVideoLoading(false)
     setVideoOperationLabel('')
     setVideoDraft(null)
     setVideoClipStart(0)
     setVideoClipEnd(0)
+  }
+
+  const handleVideoUpload = (file: File) => {
+    clearVideoDraft()
     setVideoDraft({
       file,
       sourceUrl: URL.createObjectURL(file),
@@ -199,6 +215,7 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
           })
         : []
       setVideoExtractedFrames(created)
+      setVideoVisibilityStrideState(1)
       videoPreview.setVideoFramePreviewPlaying(created.length > 1)
       message.success(`已提取 ${created.length} 帧`)
     } catch (e) {
@@ -210,11 +227,11 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
   }
 
   const confirmVideoFrames = async () => {
-    if (videoExtractedFrames.length === 0) return
+    if (visibleVideoExtractedFrames.length === 0) return
     setVideoAdding(true)
     try {
       const files = await Promise.all(
-        videoExtractedFrames.map((frame) => makeCroppedVideoFrameFile(frame, videoPreview.videoCrop, MIN_VIDEO_CROP_SIZE))
+        visibleVideoExtractedFrames.map((frame) => makeCroppedVideoFrameFile(frame, videoPreview.videoCrop, MIN_VIDEO_CROP_SIZE))
       )
       const existingFrameCount = framesRef.current.length
       const group = {
@@ -236,6 +253,14 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
     }
   }
 
+  const setVideoVisibilityStride = (stride: number) => {
+    const safeStride = Math.min(4, Math.max(1, Math.round(Number.isFinite(stride) ? stride : 1)))
+    const nextVisibleFrames = selectFramesByVisibilityStride(videoExtractedFrames, safeStride)
+    setVideoVisibilityStrideState(safeStride)
+    videoPreview.setVideoFramePreviewIndex(nextVisibleFrames[0]?.index ?? 0)
+    videoPreview.setVideoFramePreviewPlaying(nextVisibleFrames.length > 1)
+  }
+
   return {
     videoDraft,
     videoClipStart,
@@ -249,6 +274,8 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
     videoExtractProgress,
     videoOperationLabel,
     videoExtractedFrames,
+    visibleVideoExtractedFrames,
+    videoVisibilityStride,
     videoFramePreviewPlaying: videoPreview.videoFramePreviewPlaying,
     videoFramePreviewIndex: videoPreview.videoFramePreviewIndex,
     videoCropMode: videoPreview.videoCropMode,
@@ -265,6 +292,7 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
     videoCropOutputSize: videoPreview.videoCropOutputSize,
     videoCropBox: videoPreview.videoCropBox,
     handleVideoUpload,
+    clearVideoDraft,
     applyNativeVideoMetadata,
     handleVideoTimeUpdate,
     handleVideoPreviewError,
@@ -278,6 +306,7 @@ export function useVideoWorkspace({ framesRef, matteDefaults, appendFrames, sche
     extractVideoFrames,
     setVideoFramePreviewIndex: videoPreview.setVideoFramePreviewIndex,
     setVideoFramePreviewPlaying: videoPreview.setVideoFramePreviewPlaying,
+    setVideoVisibilityStride,
     confirmVideoFrames,
     startVideoCropDrag: videoPreview.startVideoCropDrag,
   }

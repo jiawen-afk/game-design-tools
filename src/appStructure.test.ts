@@ -1691,6 +1691,16 @@ test('production build uses relative asset paths for Electron file loading', () 
   assert.match(source, /base:\s*'\.\/'/)
 })
 
+test('production build splits chart dependencies instead of raising chunk warning limit', () => {
+  const source = viteConfigSource()
+
+  assert.match(source, /manualChunks\(id\)/)
+  assert.match(source, /id\.includes\('\/echarts\/'\)/)
+  assert.match(source, /id\.includes\('\/zrender\/'\)/)
+  assert.match(source, /return 'chart-vendor'/)
+  assert.doesNotMatch(source, /chunkSizeWarningLimit/)
+})
+
 test('Windows desktop package uses Electron with x64 installer and portable targets', () => {
   const pkg = JSON.parse(packageJsonSource())
 
@@ -3043,6 +3053,17 @@ test('matte pipeline reports key color sampling failures instead of leaking reje
   assert.match(source, /message\.error\(`取色失败：\$\{String\(error\)\}`\)/)
 })
 
+test('sprite matte smoothness controls cap edge smoothing at 50', () => {
+  const model = readFileSync('src/components/MultiFrameSpriteWorkspace/matteModel.ts', 'utf8')
+  const card = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteFrameCard.tsx', 'utf8')
+  const defaultsModal = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteDefaultsModal.tsx', 'utf8')
+
+  assert.match(model, /smoothness:\s*50/)
+  assert.match(card, /MATTE_PARAM_MAX\[key\]/)
+  assert.match(defaultsModal, /MATTE_PARAM_MAX\[key\]/)
+  assert.doesNotMatch(card, /max=\{100\}/)
+})
+
 test('video workspace delegates extracted frame preview and crop interactions to a focused hook', () => {
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
   const previewSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
@@ -3207,6 +3228,14 @@ test('document graph view model stays pure and free of UI runtime dependencies',
   assert.doesNotMatch(source, /getDesktopApi|desktopApi|gameDesignToolsDesktop|electron/)
 })
 
+test('document graph canvas keeps echarts instance stable across graph option updates', () => {
+  const source = readFileSync('src/components/DocumentWorkspace/DocumentGraphCanvasPanel.tsx', 'utf8')
+
+  assert.match(source, /chartRef/)
+  assert.match(source, /setOption\(buildDocumentGraphChartOption/)
+  assert.doesNotMatch(source, /chart\.dispose\(\)[\s\S]*\}, \[focusNodeId, graph, mode\]\)/)
+})
+
 test('document knowledge concrete adapters are only wired through the adapter registry', () => {
   const allowedPaths = new Set([
     'src/components/DocumentWorkspace/documentKnowledgeModel.ts',
@@ -3328,4 +3357,129 @@ test('production import paths only advertise entity graph json support', () => {
   assert.match(source, /entity_graph\.json/)
   assert.doesNotMatch(source, /acceptedFileNames:\s*\[[^\]]*graph\.json/)
   assert.doesNotMatch(source, /支持导入 graph\.json|接受 graph\.json|兼容 graph\.json/)
+})
+
+test('sprite workspace upload entries support drag upload', () => {
+  const spriteSheetPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/SpriteSheetUploadPanel.tsx', 'utf8')
+  const videoPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoUploadPanel.tsx', 'utf8')
+  const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+
+  assert.match(uploadPanel, /<Upload\.Dragger/)
+  assert.match(uploadPanel, /拖拽或点击上传单个素材/)
+  assert.match(spriteSheetPanel, /<Upload\.Dragger/)
+  assert.match(spriteSheetPanel, /拖拽精灵图到这里/)
+  assert.match(videoPanel, /<Upload\.Dragger/)
+  assert.match(videoPanel, /拖拽视频到这里/)
+  assert.doesNotMatch(uploadPanel, /拖拽多张图片到这里/)
+  assert.match(mattePanel, /<Upload\.Dragger/)
+  assert.match(mattePanel, /拖拽多张图片到这里/)
+  assert.match(css, /\.sprite-upload-dragger/)
+})
+
+test('sprite workspace upload defaults to one asset and switches processing mode by file type', () => {
+  const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const css = readFileSync('src/components/MultiFrameSpriteWorkspace/workspace.css', 'utf8')
+
+  assert.match(uploadPanel, /singleUploadAccept/)
+  assert.match(uploadPanel, /className="sprite-single-upload-drop"/)
+  assert.match(uploadPanel, /maxCount=\{1\}/)
+  assert.match(uploadPanel, /handleSingleUpload/)
+  assert.match(uploadPanel, /videoAccept\.includes\(file\.type\)|isVideoFile/)
+  assert.match(uploadPanel, /imageAccept\.includes\(file\.type\)|isImageFile/)
+  assert.match(uploadPanel, /video\.videoDraft\s*\?/)
+  assert.match(uploadPanel, /upload\.spriteSheetDraft\s*\?/)
+  assert.match(uploadPanel, /更换素材/)
+  assert.doesNotMatch(uploadPanel, /<Tabs/)
+  assert.doesNotMatch(uploadPanel, /<Divider/)
+
+  assert.match(css, /\.sprite-single-upload-drop/)
+  assert.match(css, /\.sprite-active-upload-panel/)
+})
+
+test('sprite batch image upload is launched from matte workspace title actions', () => {
+  const workspaceSource = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const uploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.doesNotMatch(uploadPanel, /batch-image-upload-area/)
+  assert.doesNotMatch(uploadPanel, /批量添加图片/)
+  assert.match(workspaceSource, /imageAccept=\{IMAGE_ACCEPT\}/)
+  assert.match(workspaceSource, /uploadFileList=\{workspace\.upload\.uploadFileList\}/)
+  assert.match(workspaceSource, /onBatchUploadChange=\{workspace\.upload\.handleUploadChange\}/)
+  assert.match(mattePanel, /批量添加图片/)
+  assert.match(mattePanel, /batchUploadOpen/)
+  assert.match(mattePanel, /<Modal/)
+  assert.match(mattePanel, /className="batch-image-upload-area"/)
+})
+
+test('video processing owns one-in-n frame stride before adding frames to matte flow', () => {
+  const model = readFileSync('src/components/MultiFrameSpriteWorkspace/playbackModel.ts', 'utf8')
+  const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')
+  const previewHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoFramePreviewWorkspace.ts', 'utf8')
+  const uploadWorkspacePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/UploadWorkspacePanel.tsx', 'utf8')
+  const videoUploadPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoUploadPanel.tsx', 'utf8')
+  const videoPreviewPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoFramePreviewPanel.tsx', 'utf8')
+  const playbackHook = readFileSync('src/components/MultiFrameSpriteWorkspace/usePlaybackWorkspace.ts', 'utf8')
+  const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/PlaybackPanel.tsx', 'utf8')
+
+  const cropButtonIndex = videoPreviewPanel.indexOf('调整裁剪范围')
+  const strideControlIndex = videoPreviewPanel.indexOf('抽帧隐藏')
+  const confirmButtonIndex = videoPreviewPanel.indexOf('确认添加到流程 2')
+
+  assert.match(model, /selectFramesByVisibilityStride/)
+  assert.match(videoHook, /videoVisibilityStride/)
+  assert.match(videoHook, /visibleVideoExtractedFrames/)
+  assert.match(videoHook, /selectFramesByVisibilityStride\(videoExtractedFrames, videoVisibilityStride\)/)
+  assert.match(videoHook, /visibleVideoExtractedFrames\.map\(\(frame\) => makeCroppedVideoFrameFile/)
+  assert.match(previewHook, /videoPreviewFrames/)
+  assert.match(uploadWorkspacePanel, /visibilityStride=\{video\.videoVisibilityStride\}/)
+  assert.match(uploadWorkspacePanel, /visibleFrameCount=\{video\.visibleVideoExtractedFrames\.length\}/)
+  assert.match(videoUploadPanel, /visibilityStride=\{visibilityStride\}/)
+  assert.match(videoUploadPanel, /visibleFrameCount=\{visibleFrameCount\}/)
+  assert.notEqual(cropButtonIndex, -1)
+  assert.notEqual(strideControlIndex, -1)
+  assert.notEqual(confirmButtonIndex, -1)
+  assert.ok(cropButtonIndex < strideControlIndex)
+  assert.ok(strideControlIndex < confirmButtonIndex)
+  assert.match(videoPreviewPanel, /1选1/)
+  assert.match(videoPreviewPanel, /2选1/)
+  assert.match(videoPreviewPanel, /3选1/)
+  assert.match(videoPreviewPanel, /4选1/)
+  assert.match(videoPreviewPanel, /onVisibilityStrideChange\(Number\(value\)\)/)
+  assert.doesNotMatch(playbackHook, /visibilityStride|applyVisibilityStride|applyFrameVisibilityStride/)
+  assert.doesNotMatch(outputPanel, /visibilityStride=\{playback\.visibilityStride\}|onVisibilityStrideChange=\{playback\.applyVisibilityStride\}/)
+  assert.doesNotMatch(panel, /抽帧隐藏|onVisibilityStrideChange|visibilityStride/)
+})
+
+test('document graph canvas routes graph node clicks through node actions and list opens details directly', () => {
+  const workspaceSource = readFileSync('src/components/DocumentWorkspace/DocumentWorkspace.tsx', 'utf8')
+  const canvasSource = readFileSync('src/components/DocumentWorkspace/DocumentGraphCanvasPanel.tsx', 'utf8')
+
+  assert.match(workspaceSource, /const applyGraphNodeAction = useCallback\(\(nodeId: string\) => \{/)
+  assert.match(workspaceSource, /contextActionForDocumentNode\(/)
+  assert.match(workspaceSource, /workspace\.applyNodeAction\(action\)/)
+  assert.match(workspaceSource, /onFocusNode=\{applyGraphNodeAction\}/)
+  assert.match(workspaceSource, /onContextNode=\{applyGraphNodeAction\}/)
+  assert.match(workspaceSource, /onOpenListNode=\{workspace\.focusNode\}/)
+  assert.match(canvasSource, /onOpenListNode: \(nodeId: string\) => void/)
+  assert.match(canvasSource, /if \(nodeId\) onFocusNodeRef\.current\(nodeId\)/)
+  assert.match(canvasSource, /onClick=\{\(\) => onOpenListNode\(node\.id\)\}/)
+})
+
+test('app shell keeps workspace loading visible and recovers from workspace render errors', () => {
+  const source = appSource()
+
+  assert.doesNotMatch(source, /<Suspense\s+fallback=\{null\}/)
+  assert.match(source, /class AppWorkspaceErrorBoundary extends Component/)
+  assert.match(source, /getDerivedStateFromError/)
+  assert.match(source, /componentDidCatch/)
+  assert.match(source, /工作台加载失败/)
+  assert.match(source, /重新加载工作台/)
+  assert.match(source, /返回工具列表/)
+  assert.match(source, /className="workspace-loading"/)
+  assert.match(source, /<AppWorkspaceErrorBoundary[\s\S]*onBack=\{\(\) => setActiveSurface\(null\)\}/)
+  assert.match(source, /<Suspense fallback=\{<WorkspaceLoadingFallback \/>\}/)
 })

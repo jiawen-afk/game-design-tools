@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { Alert, message, Progress } from 'antd'
 
 import { DocumentCollectionToolbar } from './DocumentCollectionToolbar'
@@ -21,6 +21,20 @@ export function DocumentWorkspace() {
   const focusedNode = focusedNodeId
     ? workspace.collectionGraph.nodes[focusedNodeId] ?? workspace.visibleGraph.nodes[focusedNodeId]
     : undefined
+  const applyGraphNodeAction = useCallback((nodeId: string) => {
+    const action = contextActionForDocumentNode(
+      workspace.collectionGraph,
+      workspace.visibleGraph,
+      nodeId,
+      workspace.graphFilter.focusRecordId,
+    )
+    if (action) workspace.applyNodeAction(action)
+  }, [
+    workspace.applyNodeAction,
+    workspace.collectionGraph,
+    workspace.graphFilter.focusRecordId,
+    workspace.visibleGraph,
+  ])
 
   return (
     <section className="document-workspace" aria-labelledby="document-workspace-title">
@@ -78,16 +92,9 @@ export function DocumentWorkspace() {
           mode={workspace.viewMode}
           graph={workspace.visibleGraph}
           focusNodeId={workspace.graphFilter.focusNodeId}
-          onFocusNode={workspace.focusNode}
-          onContextNode={(nodeId) => {
-            const action = contextActionForDocumentNode(
-              workspace.collectionGraph,
-              workspace.visibleGraph,
-              nodeId,
-              workspace.graphFilter.focusRecordId,
-            )
-            if (action) workspace.applyNodeAction(action)
-          }}
+          onFocusNode={applyGraphNodeAction}
+          onContextNode={applyGraphNodeAction}
+          onOpenListNode={workspace.focusNode}
         />
         <DocumentGraphDetailsPanel
           graph={workspace.visibleGraph}

@@ -25,9 +25,12 @@ export default function MultiFrameSpriteWorkspace() {
 
       <MatteWorkspacePanel
         frames={workspace.frame.frames}
+        imageAccept={IMAGE_ACCEPT}
+        uploadFileList={workspace.upload.uploadFileList}
         activeFrameId={workspace.frame.activeFrame?.id ?? null}
         onOpenDefaults={workspace.matte.openMatteDefaults}
         onRemoveAll={workspace.resetAllFrames}
+        onBatchUploadChange={workspace.upload.handleUploadChange}
         onExportMatteGroup={(groupId) => void workspace.matte.exportMatteGroup(groupId)}
         onImportMatteGroupToPersonalSpace={(groupId) => void workspace.matte.importMatteGroupToPersonalSpace(groupId)}
         personalSpaceCollectEnabled={workspace.personalSpaceCollectEnabled}

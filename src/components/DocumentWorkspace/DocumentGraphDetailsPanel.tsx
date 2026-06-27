@@ -2,7 +2,11 @@ import React from 'react'
 import { LinkOutlined } from '@ant-design/icons'
 import { Button, Descriptions, Empty, Space, Tag } from 'antd'
 
-import { describeDocumentGraphNode } from './documentGraphViewModel'
+import {
+  describeDocumentGraphNode,
+  documentGraphEntityRoleLabel,
+  documentGraphNodeTypeLabel,
+} from './documentGraphViewModel'
 import type { DocumentCollectionGraph, DocumentGraphNode } from '../ProjectStorage'
 
 interface DocumentGraphDetailsPanelProps {
@@ -55,8 +59,8 @@ export function DocumentGraphDetailsPanel({ graph, node, onFocusNode }: Document
         <div>
           <h2>{node.label}</h2>
           <Space size={6} wrap>
-            <Tag color="processing">{node.type}</Tag>
-            {roles.map((role) => <Tag key={role}>{role}</Tag>)}
+            <Tag color="processing">{documentGraphNodeTypeLabel(node.type)}</Tag>
+            {roles.map((role) => <Tag key={role}>{documentGraphEntityRoleLabel(role)}</Tag>)}
           </Space>
         </div>
       </div>
