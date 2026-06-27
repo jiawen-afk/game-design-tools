@@ -19,11 +19,11 @@ Preserve this repository as a set of focused workspaces with explicit boundaries
 
 ## Current Version Snapshot
 
-As of `0.4.44`, the app is a Windows x64 Electron desktop tool with four user-facing surfaces:
+As of `0.5.0`, the app is a Windows x64 Electron desktop tool with four user-facing surfaces:
 
 - Project space: project-scoped characters, portraits, sprite sheets, voice assets, storyboard groups, shared materials, settings, project switching, remote sync status, and failed-sync retry.
-- Sprite workbench: image batches, sprite sheets, video frames, matte/background removal, shared-canvas alignment, playback preview, ordering, and sprite package export.
-- Image processing workbench: single-image upload, matte, crop, result preview, optional upscale flow, and common image export.
+- Sprite workbench: image batches, sprite sheets, video frames, matte/background removal, shared-canvas alignment, playback preview, ordering, batch Upscayl preview, side-by-side original/upscaled playback, and sprite package export. When upscale is enabled in playback, export and project-space collection must use current upscaled frame results instead of original composed frames, while deriving `index.json` frame and sheet sizes from flow 3 canvas parameters multiplied by the selected upscale factor.
+- Image processing workbench: single-image upload, matte, crop, result preview, optional Upscayl flow, and common image export.
 - Voice workbench: local VoxCPM Gradio setup, dependency checks, service control, voice generation, history management, reference cloning, and collection into project assets.
 
 Storage behavior is now project-first:
@@ -62,11 +62,13 @@ Storage behavior is now project-first:
 - Covers must stay small. Current generated covers should be lightweight WebP thumbnails; avoid full-size cover uploads.
 - Keep sync recovery in the sync status surface. Auto-sync owns normal writes, failed tasks stay visible in the floating status panel, and retries happen there.
 - For remote read failures, error messages should use project names, not raw ids, unless the id is the only available diagnostic.
+- Upscayl processing uses the bundled `upscayl-bin.exe` GPU path. The current Windows runtime supports automatic GPU selection and explicit GPU ids, but rejects CPU-style `-g -1`; do not expose CPU upscale mode unless the runtime changes and is verified.
+- Sprite upscale export must not silently fall back to original frames. If upscale is enabled and any visible frame lacks a current upscaled result, block export and tell the user to batch upscale the visible frames first.
 - Prefer GitHub Actions releases. Local Windows packaging is diagnostic only unless the online workflow is unavailable.
 
 ## Module Map
 
-- `src/components/MultiFrameSpriteWorkspace/`: sprite sheet, video frames, matte, layout, playback, export. Keep pipeline/model logic in `model.ts`, `layoutModel.ts`, `matteModel.ts`, `videoModel.ts`, `cropModel.ts`, `guideModel.ts`, `playbackModel.ts`, `imagePipeline.ts`, and `videoFramePipeline.ts`; keep state workflows in the `use*Workspace.ts` hooks.
+- `src/components/MultiFrameSpriteWorkspace/`: sprite sheet, video frames, matte, layout, playback, batch upscale preview, export. Keep pipeline/model logic in `model.ts`, `layoutModel.ts`, `matteModel.ts`, `videoModel.ts`, `cropModel.ts`, `guideModel.ts`, `playbackModel.ts`, `spriteUpscaleModel.ts`, `imagePipeline.ts`, and `videoFramePipeline.ts`; keep state workflows in the `use*Workspace.ts` hooks, including `useSpriteUpscaleWorkspace.ts` for Upscayl orchestration.
 - `src/components/ProjectStorage/`: project creation, editing, enable/disable, local -> remote migration, DB/object-storage validation, and remote sync helpers. Keep persistence and migration rules test-driven and separate from presentation.
 - `src/components/VoiceDeploymentWorkspace/`: VoxCPM setup and voice generation. Keep Gradio/local service IO in `voiceDeploymentService.ts`, payload/model logic in `voiceDeploymentModel.ts`, setup in `useVoiceDeploymentSetup.ts`, generation in `useVoiceGenerationWorkflow.ts`, and personal-space collection in `voicePersonalSpaceCollector.ts` plus `useVoiceCollectLinkDialog.ts`.
 - `src/components/PersonalSpaceWorkspace/`: project space. Keep aggregation in `usePersonalSpaceWorkspace.ts`, settings feedback and directory authorization in `usePersonalSpaceSettingsWorkspace.ts`, pure asset/character/storyboard/state logic in the `personalSpace*.ts` model files, and file/resource IO in storage/action files. Treat the storyboard panel, resource section panel, character panel, and `personalSpace.css` as split candidates whenever a change adds a new workflow or repeats an existing project-space control pattern.
@@ -80,7 +82,7 @@ Storage behavior is now project-first:
 - Changing personal space: write model/storage tests first when behavior changes. Keep `地图素材`, `特效素材`, and `配音素材` managed as distinct resource sections.
 - Refactoring personal space: start with `PersonalStoryboardPanel.tsx`, `PersonalResourceSections.tsx`, `PersonalCharacterPanel.tsx`, `usePersonalSpaceWorkspace.ts`, and `personalSpace.css`. Prefer extracting one workflow at a time: asset preview, storyboard playback, storyboard drag/drop, asset picker modal, resource group controls, or shared recent/starred filter controls.
 - Changing voice workflows: test payload/default/history behavior in `voiceDeploymentModel.test.ts`; keep fetch and Gradio event parsing in the service layer; keep "收藏到个人空间" and association flows connected through the collector/link dialog.
-- Changing sprite/video/matte/layout workflows: keep UI panels thin, keep math and transformation rules in pure models, and test model-level behavior before wiring UI.
+- Changing sprite/video/matte/layout/playback/upscale workflows: keep UI panels thin, keep math and transformation rules in pure models, and test model-level behavior before wiring UI.
 - Changing project asset caching: keep remote fetch, cache selection, and invalidation in `ProjectAssetManager`-style helpers. Fingerprint/sha changes should force a fresh download; list views should not eagerly download payloads.
 - Adding a document module: define the document asset type, resource rows, generated artifacts, and preview/cache strategy before UI work. If documents become project assets, route persistence through `ProjectStorage` and project asset manager instead of introducing a parallel storage path.
 - Changing deployment scripts: preserve Windows and macOS/Linux paths, Python/VoxCPM checks, service-manager behavior, and the Vite build copy to `/scripts`.

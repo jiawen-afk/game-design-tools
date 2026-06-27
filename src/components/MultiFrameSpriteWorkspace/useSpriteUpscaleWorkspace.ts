@@ -1,0 +1,228 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { message } from 'antd'
+
+import { getDesktopApi, type DesktopUpscaleInstallProgress, type DesktopUpscaleRuntimeStatus } from '../../desktopApi'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
+import { revokeImageObjectUrl } from '../ImageProcessingWorkspace/imageProcessingPipeline'
+import {
+  defaultUpscaleOptions,
+  normalizeUpscaleOptions,
+  type UpscaleOptions,
+} from '../ImageProcessingWorkspace/imageUpscaleModel'
+import {
+  collectStaleSpriteUpscaleResultUrls,
+  getCurrentSpriteUpscalePreview,
+  getSpriteUpscaleTargetFrames,
+  isSpriteUpscaleResultCurrent,
+  type SpriteUpscaleResult,
+  type SpriteUpscaleResultMap,
+} from './spriteUpscaleModel'
+import type { FrameItem } from './types'
+
+interface SpriteUpscaleBatchProgress {
+  total: number
+  completed: number
+  activeName: string
+}
+
+interface UseSpriteUpscaleWorkspaceParams {
+  frames: FrameItem[]
+  previewFrame: FrameItem | undefined
+  canvasWidth: number
+  canvasHeight: number
+}
+
+export type SpriteUpscaleWorkspaceViewModel = ReturnType<typeof useSpriteUpscaleWorkspace>
+
+export function useSpriteUpscaleWorkspace({
+  frames,
+  previewFrame,
+  canvasWidth,
+  canvasHeight,
+}: UseSpriteUpscaleWorkspaceParams) {
+  const [upscaleEnabled, setUpscaleEnabled] = useState(false)
+  const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
+  const [upscaleRuntimeStatus, setUpscaleRuntimeStatus] = useState<DesktopUpscaleRuntimeStatus | null>(null)
+  const [upscaleInstallProgress, setUpscaleInstallProgress] = useState<DesktopUpscaleInstallProgress | null>(null)
+  const [upscaleInstalling, setUpscaleInstalling] = useState(false)
+  const [upscaleProcessing, setUpscaleProcessing] = useState(false)
+  const [batchProgress, setBatchProgress] = useState<SpriteUpscaleBatchProgress>({ total: 0, completed: 0, activeName: '' })
+  const [resultByFrameId, setResultByFrameId] = useState<SpriteUpscaleResultMap>({})
+  const resultByFrameIdRef = useRef(resultByFrameId)
+
+  useEffect(() => {
+    resultByFrameIdRef.current = resultByFrameId
+  }, [resultByFrameId])
+
+  useEffect(() => {
+    const api = getDesktopApi()
+    if (!api) return
+    void api.queryUpscaleStatus()
+      .then(setUpscaleRuntimeStatus)
+      .catch((error) => {
+        setUpscaleRuntimeStatus({ installed: false, path: '', models: [], message: String(error) })
+      })
+    return api.onUpscaleInstallProgress((progress) => setUpscaleInstallProgress(progress))
+  }, [])
+
+  const clearUpscaleResults = useCallback(() => {
+    setResultByFrameId((previous) => {
+      Object.values(previous).forEach((result) => revokeImageObjectUrl(result.url))
+      return {}
+    })
+    setBatchProgress({ total: 0, completed: 0, activeName: '' })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      Object.values(resultByFrameIdRef.current).forEach((result) => revokeImageObjectUrl(result.url))
+    }
+  }, [])
+
+  useEffect(() => {
+    setResultByFrameId((previous) => {
+      const staleUrls = new Set(collectStaleSpriteUpscaleResultUrls(frames, previous))
+      if (staleUrls.size === 0) return previous
+      staleUrls.forEach(revokeImageObjectUrl)
+      return Object.fromEntries(
+        Object.entries(previous).filter(([, result]) => !staleUrls.has(result.url))
+      )
+    })
+  }, [frames])
+
+  const targetFrames = useMemo(() => getSpriteUpscaleTargetFrames(frames), [frames])
+  const upscaledFrameCount = useMemo(
+    () => targetFrames.reduce((count, frame) => (
+      isSpriteUpscaleResultCurrent(frame, resultByFrameId[frame.id]) ? count + 1 : count
+    ), 0),
+    [resultByFrameId, targetFrames]
+  )
+  const previewResult = useMemo(
+    () => getCurrentSpriteUpscalePreview(previewFrame, resultByFrameId, upscaleEnabled),
+    [previewFrame, resultByFrameId, upscaleEnabled]
+  )
+  const batchPercent = batchProgress.total > 0
+    ? Math.round((batchProgress.completed / batchProgress.total) * 100)
+    : 0
+
+  const setUpscaleEnabledWithReset = useCallback((enabled: boolean) => {
+    setUpscaleEnabled(enabled)
+    if (!enabled) clearUpscaleResults()
+  }, [clearUpscaleResults])
+
+  const queryUpscaleStatus = useCallback(async () => {
+    const api = getDesktopApi()
+    if (!api) {
+      const status = { installed: false, path: '', models: [], message: '当前不是桌面运行环境，无法执行高清化。' }
+      setUpscaleRuntimeStatus(status)
+      return status
+    }
+    const status = await api.queryUpscaleStatus()
+    setUpscaleRuntimeStatus(status)
+    return status
+  }, [])
+
+  const installUpscaleRuntime = useCallback(async () => {
+    const api = getDesktopApi()
+    if (!api) {
+      message.warning('当前不是桌面运行环境，无法安装 Upscayl 运行包。')
+      return
+    }
+    setUpscaleInstalling(true)
+    try {
+      const status = await api.installUpscaleRuntime()
+      setUpscaleRuntimeStatus(status)
+      if (status.installed) message.success('高清化运行包已安装')
+      else message.error(status.message ?? '运行包安装未完成')
+    } catch (error) {
+      message.error(`高清化运行包安装失败：${String(error)}`)
+    } finally {
+      setUpscaleInstalling(false)
+    }
+  }, [])
+
+  const updateUpscaleOptions = useCallback((patch: Partial<UpscaleOptions>) => {
+    setUpscaleOptions((current) => normalizeUpscaleOptions({ ...current, ...patch }))
+    clearUpscaleResults()
+  }, [clearUpscaleResults])
+
+  const runBatchUpscale = useCallback(async () => {
+    const api = getDesktopApi()
+    if (!api) {
+      message.warning('当前不是桌面运行环境，无法执行高清化。')
+      return
+    }
+    if (!upscaleRuntimeStatus?.installed) {
+      message.warning('请先安装高清化运行包。')
+      return
+    }
+    const targets = getSpriteUpscaleTargetFrames(frames)
+    if (targets.length === 0) {
+      message.warning('没有可高清化的已处理可见帧。')
+      return
+    }
+
+    setUpscaleEnabled(true)
+    setUpscaleProcessing(true)
+    setBatchProgress({ total: targets.length, completed: 0, activeName: targets[0]?.sourceName ?? '' })
+
+    try {
+      for (let index = 0; index < targets.length; index += 1) {
+        const frame = targets[index]!
+        if (!frame.composedUrl) continue
+        setBatchProgress({ total: targets.length, completed: index, activeName: frame.sourceName })
+        const response = await fetch(frame.composedUrl)
+        if (!response.ok) throw new Error(`${frame.sourceName} 读取失败`)
+        const blob = await response.blob()
+        const result = await api.upscaleImage({
+          inputName: frame.sourceName,
+          outputFormat: 'png',
+          data: await blob.arrayBuffer(),
+          options: upscaleOptions,
+        })
+        const upscaledBlob = blobFromDesktopBinaryData(result.data, 'image/png')
+        const upscaledResult: SpriteUpscaleResult = {
+          frameId: frame.id,
+          sourceComposedUrl: frame.composedUrl,
+          composedRevision: frame.composedRevision,
+          url: URL.createObjectURL(upscaledBlob),
+          blob: upscaledBlob,
+          width: Math.max(1, Math.round(canvasWidth * upscaleOptions.scale)),
+          height: Math.max(1, Math.round(canvasHeight * upscaleOptions.scale)),
+        }
+        setResultByFrameId((previous) => {
+          const oldResult = previous[frame.id]
+          if (oldResult) revokeImageObjectUrl(oldResult.url)
+          return { ...previous, [frame.id]: upscaledResult }
+        })
+        setBatchProgress({ total: targets.length, completed: index + 1, activeName: '' })
+      }
+      message.success(`已生成 ${targets.length} 帧高清化预览`)
+    } catch (error) {
+      message.error(`批量高清化失败：${String(error)}`)
+    } finally {
+      setUpscaleProcessing(false)
+    }
+  }, [canvasHeight, canvasWidth, frames, upscaleOptions, upscaleRuntimeStatus])
+
+  return {
+    upscaleEnabled,
+    setUpscaleEnabled: setUpscaleEnabledWithReset,
+    upscaleOptions,
+    updateUpscaleOptions,
+    upscaleRuntimeStatus,
+    upscaleInstallProgress,
+    upscaleInstalling,
+    upscaleProcessing,
+    batchProgress,
+    batchPercent,
+    targetFrameCount: targetFrames.length,
+    upscaledFrameCount,
+    resultByFrameId,
+    previewResult,
+    queryUpscaleStatus,
+    installUpscaleRuntime,
+    runBatchUpscale,
+    clearUpscaleResults,
+  }
+}

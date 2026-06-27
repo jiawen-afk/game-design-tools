@@ -6,7 +6,7 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 
 ## Current Version
 
-- Latest published version: `0.4.44`
+- Latest published version: `0.5.0`
 - Windows x64 packages are published through GitHub Releases.
 - The stable auto-update channel is the `windows-x64-latest` release.
 
@@ -18,8 +18,8 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 - **Remote object storage**: configure and verify Qiniu Kodo profiles. Project objects are stored under project-aware object keys.
 - **Remote asset cache**: remote project lists load metadata and covers from the database. Full images, sprite sheets, sprite indexes, and audio files are downloaded on demand and cached by fingerprint.
 - **Automatic sync with retry**: project changes sync to remote storage automatically. Failed sync tasks stay visible in the bottom-right status panel and can be retried there.
-- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, sort frames, and export sprite packages.
-- **Image processing workbench**: upload a single image, key out backgrounds, crop, preview, and export common image formats.
+- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, batch upscale preview frames, compare original and upscaled playback side by side, sort frames, and export sprite packages from the upscaled frames when upscale is enabled. Upscaled export keeps the flow 3 canvas and alignment parameters, then multiplies frame and sheet size by the selected upscale factor.
+- **Image processing workbench**: upload a single image, key out backgrounds, crop, preview, optionally upscale with the local Upscayl runtime, and export common image formats.
 - **Voice workbench**: connect to a local VoxCPM Gradio service, generate WAV voice assets from text, clone from reference audio, manage voice history, and collect generated audio into project space.
 - **Desktop VoxCPM support**: detect Windows hardware, query dependency installation, run dependency setup, and start, stop, or restart the local VoxCPM service from the app.
 
@@ -28,6 +28,7 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 - Windows 10 / Windows 11
 - x64
 - NVIDIA GPU recommended for VoxCPM service acceleration
+- GPU acceleration is used by the local Upscayl runtime for image and sprite upscale processing
 - Python 3.12 is required by the VoxCPM dependency setup flow
 
 ## Install
@@ -53,8 +54,8 @@ Remote projects are designed for multiple devices. Database and Kodo connection 
 ## Workspaces
 
 - **Project Space**: role assets, portraits, sprite sheets, voice assets, storyboard groups, shared materials, project settings, and project switching.
-- **Sprite Workbench**: background removal, frame alignment, sprite sheet preview, frame ordering, and export.
-- **Image Processing Workbench**: single-image cleanup, crop, matte, optional upscale flow, and export.
+- **Sprite Workbench**: background removal, frame alignment, sprite sheet preview, frame ordering, batch upscale previews, side-by-side original/upscaled playback, and original or upscaled export.
+- **Image Processing Workbench**: single-image cleanup, crop, matte, optional Upscayl upscale flow, and export.
 - **Voice Workbench**: VoxCPM setup, local Gradio service control, voice generation, history, and collection into project assets.
 
 ## Project Storage Model
@@ -115,7 +116,7 @@ gh release view windows-x64-latest --repo jiawen-afk/game-design-tools
 
 ## Project Structure
 
-- `src/components/MultiFrameSpriteWorkspace`: sprite sheet, video frame, matte, layout, playback, and export workflows
+- `src/components/MultiFrameSpriteWorkspace`: sprite sheet, video frame, matte, layout, playback, batch upscale preview, and export workflows
 - `src/components/ImageProcessingWorkspace`: single-image cleanup, crop, matte, upscale, and export workflows
 - `src/components/VoiceDeploymentWorkspace`: VoxCPM setup, service control, voice generation, history, and project collection workflows
 - `src/components/PersonalSpaceWorkspace`: project space UI, project management, characters, storyboards, materials, settings, remote sync status, and project data orchestration

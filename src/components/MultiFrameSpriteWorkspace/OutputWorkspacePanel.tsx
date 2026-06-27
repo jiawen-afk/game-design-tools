@@ -4,13 +4,14 @@ import { ExportPanel } from './ExportPanel'
 import { PlaybackPanel } from './PlaybackPanel'
 import type { PlaybackWorkspaceViewModel } from './usePlaybackWorkspace'
 import type { SpriteExportViewModel } from './useSpriteExport'
+import type { SpriteUpscaleWorkspaceViewModel } from './useSpriteUpscaleWorkspace'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
 
 export interface OutputWorkspacePanelProps {
   frames: FrameItem[]
-  playback: PlaybackWorkspaceViewModel
+  playback: PlaybackWorkspaceViewModel & { upscale: SpriteUpscaleWorkspaceViewModel }
   spriteExport: SpriteExportViewModel
   canvasWidth: number
   canvasHeight: number
@@ -51,6 +52,7 @@ export function OutputWorkspacePanel({
         onDrop={playback.handlePlaybackRowDrop}
         onSelect={playback.selectFrameTag}
         onToggleHidden={playback.handlePlaybackRowToggleHidden}
+        upscale={playback.upscale}
       />
 
       <ExportPanel

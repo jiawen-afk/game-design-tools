@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 
 export interface UseWorkspaceResetParams {
   clearMattePipeline: () => void
+  clearUpscaleResults?: () => void
   setPlaying: Dispatch<SetStateAction<boolean>>
   setPlayIndex: Dispatch<SetStateAction<number>>
   setPlaybackFrameIds: Dispatch<SetStateAction<string[]>>
@@ -11,6 +12,7 @@ export interface UseWorkspaceResetParams {
 
 export function useWorkspaceReset({
   clearMattePipeline,
+  clearUpscaleResults,
   setPlaying,
   setPlayIndex,
   setPlaybackFrameIds,
@@ -18,11 +20,12 @@ export function useWorkspaceReset({
 }: UseWorkspaceResetParams) {
   const resetAllFrames = useCallback(() => {
     clearMattePipeline()
+    clearUpscaleResults?.()
     setPlaying(false)
     setPlayIndex(0)
     setPlaybackFrameIds([])
     clearFrames()
-  }, [clearFrames, clearMattePipeline, setPlayIndex, setPlaybackFrameIds, setPlaying])
+  }, [clearFrames, clearMattePipeline, clearUpscaleResults, setPlayIndex, setPlaybackFrameIds, setPlaying])
 
   return { resetAllFrames }
 }

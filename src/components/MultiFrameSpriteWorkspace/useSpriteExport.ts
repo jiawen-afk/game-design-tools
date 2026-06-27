@@ -7,6 +7,12 @@ import { clampInt } from './numberUtils'
 import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
 import {
+  buildSpriteUpscaleExportPlan,
+  type SpriteUpscaleExportPlan,
+  type SpriteUpscaleResultMap,
+} from './spriteUpscaleModel'
+import type { UpscaleOptions } from '../ImageProcessingWorkspace/imageUpscaleModel'
+import {
   assignAssetToCharacterColumn,
   collectPersonalSpaceAsset,
   createSpriteAssetFromExport,
@@ -31,13 +37,18 @@ export interface UseSpriteExportParams {
   canvasHeight: number
   fps: number
   playbackMode: PlaybackMode
+  upscaleEnabled?: boolean
+  upscaleResultsByFrameId?: SpriteUpscaleResultMap
+  upscaleOptions?: UpscaleOptions
 }
 
 export type SpriteExportViewModel = ReturnType<typeof useSpriteExport>
 
+type SpriteExportFrameSource = Pick<FrameItem, 'id' | 'sourceName'> & { composedUrl: string }
+
 async function buildSpriteExportPackage(input: {
   columns: number
-  visibleFrames: FrameItem[]
+  visibleFrames: SpriteExportFrameSource[]
   canvasWidth: number
   canvasHeight: number
   fps: number
@@ -84,6 +95,9 @@ export function useSpriteExport({
   canvasHeight,
   fps,
   playbackMode,
+  upscaleEnabled = false,
+  upscaleResultsByFrameId = {},
+  upscaleOptions,
 }: UseSpriteExportParams) {
   const [columns, setColumns] = useState(4)
   const [exporting, setExporting] = useState(false)
@@ -91,33 +105,48 @@ export function useSpriteExport({
   const [collectCharacterId, setCollectCharacterId] = useState<string | null>(null)
   const [collectCharacterOptions, setCollectCharacterOptions] = useState<Array<{ label: string; value: string }>>([])
 
+  const buildExportPlan = (): SpriteUpscaleExportPlan<FrameItem> => buildSpriteUpscaleExportPlan(
+    visibleFrames,
+    upscaleResultsByFrameId,
+    upscaleEnabled,
+    canvasWidth,
+    canvasHeight,
+    upscaleOptions?.scale ?? 1
+  )
+
   const validateExportableFrames = () => {
     if (frames.length === 0) {
       message.warning('请先上传图片')
-      return false
+      return null
     }
     if (visibleFrames.length === 0) {
       message.warning('没有可导出的可见帧')
-      return false
+      return null
     }
     const missing = visibleFrames.find((item) => !item.composedUrl)
     if (missing) {
       message.warning('仍有帧未处理完成，请稍后再导出')
-      return false
+      return null
     }
-    return true
+    const exportPlan = buildExportPlan()
+    if (exportPlan.usingUpscale && exportPlan.missingFrameNames.length > 0) {
+      message.warning('高清化已开启，请先批量高清化所有可见帧后再导出')
+      return null
+    }
+    return exportPlan
   }
 
   const exportAll = async () => {
-    if (!validateExportableFrames()) return
+    const exportPlan = validateExportableFrames()
+    if (!exportPlan) return
     setExporting(true)
     try {
       const { default: JSZip } = await import('jszip')
       const { spriteBlob, indexJson } = await buildSpriteExportPackage({
         columns,
-        visibleFrames,
-        canvasWidth,
-        canvasHeight,
+        visibleFrames: exportPlan.visibleFrames,
+        canvasWidth: exportPlan.canvasWidth,
+        canvasHeight: exportPlan.canvasHeight,
         fps,
         playbackMode,
       })
@@ -134,12 +163,25 @@ export function useSpriteExport({
     }
   }
 
-  const spriteExportSourceKey = () => `sprite-export:${hashText(JSON.stringify({
-    canvasWidth,
-    canvasHeight,
+  const spriteExportSourceKey = (exportPlan: SpriteUpscaleExportPlan<FrameItem>) => `sprite-export:${hashText(JSON.stringify({
+    canvasWidth: exportPlan.canvasWidth,
+    canvasHeight: exportPlan.canvasHeight,
     columns: clampInt(columns, 1, Math.max(1, visibleFrames.length)),
     fps,
     playbackMode,
+    upscale: exportPlan.usingUpscale ? {
+      options: upscaleOptions ?? null,
+      frames: visibleFrames.map((item) => {
+        const result = upscaleResultsByFrameId[item.id]
+        return {
+          id: item.id,
+          sourceComposedUrl: result?.sourceComposedUrl,
+          composedRevision: result?.composedRevision,
+          width: result?.width,
+          height: result?.height,
+        }
+      }),
+    } : false,
     frames: visibleFrames.map((item) => ({
       id: item.id,
       sourceName: item.sourceName,
@@ -149,7 +191,8 @@ export function useSpriteExport({
   }))}`
 
   const collectToPersonalSpace = async (characterId?: string) => {
-    if (!validateExportableFrames()) return
+    const exportPlan = validateExportableFrames()
+    if (!exportPlan) return
     const directoryHandle = getPersonalSpaceDirectoryHandle()
     if (!directoryHandle) {
       message.warning(personalSpaceDirectoryRequiredMessage)
@@ -159,9 +202,9 @@ export function useSpriteExport({
     try {
       const { spriteBlob, indexJson } = await buildSpriteExportPackage({
         columns,
-        visibleFrames,
-        canvasWidth,
-        canvasHeight,
+        visibleFrames: exportPlan.visibleFrames,
+        canvasWidth: exportPlan.canvasWidth,
+        canvasHeight: exportPlan.canvasHeight,
         fps,
         playbackMode,
       })
@@ -173,7 +216,7 @@ export function useSpriteExport({
         name: 'sprite.png',
         spritePath,
         indexPath,
-        sourceKey: spriteExportSourceKey(),
+        sourceKey: spriteExportSourceKey(exportPlan),
       })
       const spriteFile = new File([spriteBlob], 'sprite.png', { type: spriteBlob.type || 'image/png' })
       const asset = await writeAssetResourcesWithGeneratedCoverToDirectory(space, directoryHandle, baseAsset, spriteFile, [

@@ -8,6 +8,7 @@ import { useLayoutWorkspace } from './useLayoutWorkspace'
 import { useMattePipeline } from './useMattePipeline'
 import { usePlaybackWorkspace } from './usePlaybackWorkspace'
 import { useSpriteExport } from './useSpriteExport'
+import { useSpriteUpscaleWorkspace } from './useSpriteUpscaleWorkspace'
 import { useUploadWorkspace } from './useUploadWorkspace'
 import { useVideoWorkspace } from './useVideoWorkspace'
 import { useWorkspaceReset } from './useWorkspaceReset'
@@ -39,6 +40,12 @@ export function useSpriteWorkspaceController() {
     reorder: frame.reorder,
     toggleFrameHidden: frame.toggleFrameHidden,
   })
+  const upscale = useSpriteUpscaleWorkspace({
+    frames: frame.frames,
+    previewFrame: playback.previewFrame,
+    canvasWidth: layout.canvasWidth,
+    canvasHeight: layout.canvasHeight,
+  })
   const spriteExport = useSpriteExport({
     frames: frame.frames,
     visibleFrames: playback.visibleFrames,
@@ -46,6 +53,9 @@ export function useSpriteWorkspaceController() {
     canvasHeight: layout.canvasHeight,
     fps: playback.fps,
     playbackMode: playback.playbackMode,
+    upscaleEnabled: upscale.upscaleEnabled,
+    upscaleResultsByFrameId: upscale.resultByFrameId,
+    upscaleOptions: upscale.upscaleOptions,
   })
   const matte = useMattePipeline({
     frames: frame.frames,
@@ -72,6 +82,7 @@ export function useSpriteWorkspaceController() {
   })
   const { resetAllFrames } = useWorkspaceReset({
     clearMattePipeline: matte.clearMattePipeline,
+    clearUpscaleResults: upscale.clearUpscaleResults,
     setPlaying: playback.setPlaying,
     setPlayIndex: playback.setPlayIndex,
     setPlaybackFrameIds: playback.setPlaybackFrameIds,
@@ -81,7 +92,10 @@ export function useSpriteWorkspaceController() {
   return {
     frame,
     layout,
-    playback,
+    playback: {
+      ...playback,
+      upscale,
+    },
     spriteExport,
     matte,
     upload,

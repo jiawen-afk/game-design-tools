@@ -212,8 +212,10 @@ test('playback preview stays bounded when many frame rows are present', () => {
   assert.match(panel, /className="playback-frame-list"/)
   assert.match(panel, /className="playback-preview-box"/)
   assert.match(css, /\.playback-workspace-grid\s*{[^}]*align-items:\s*start/s)
-  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(\d+px,\s*\d+px\)\s+minmax\(\d+px,\s*\d+px\)/s)
-  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column[^}]*grid-template-rows:\s*repeat\(\d+,\s*minmax\(0,\s*max-content\)\)[^}]*grid-auto-columns:\s*minmax\(\d+px,\s*1fr\)[^}]*max-height:\s*\d+px[^}]*overflow:\s*auto/s)
+  assert.match(css, /\.playback-workspace-grid\s*{[^}]*grid-template-columns:\s*minmax\(\d+px,\s*\d+px\)\s+minmax\(0,\s*1fr\)/s)
+  assert.match(css, /\.playback-frame-list\s*{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(\d+px,\s*1fr\)\)[^}]*max-height:\s*\d+px[^}]*overflow:\s*auto/s)
+  assert.doesNotMatch(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column/s)
+  assert.match(css, /\.playback-preview-pair\s*{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(\d+px,\s*1fr\)\)/s)
   assert.match(css, /\.playback-preview-box\s*{[^}]*height:\s*min\(\d+vw,\s*\d+px\)[^}]*max-height:\s*\d+px/s)
 })
 

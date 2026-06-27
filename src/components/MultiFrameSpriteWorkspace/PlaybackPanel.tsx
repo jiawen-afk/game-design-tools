@@ -1,9 +1,11 @@
-import { Button, Card, InputNumber, Segmented, Space, Typography } from 'antd'
-import { EyeInvisibleOutlined, PlayCircleOutlined } from '@ant-design/icons'
+import { Button, Card, InputNumber, Progress, Segmented, Select, Slider, Space, Switch, Typography } from 'antd'
+import { EyeInvisibleOutlined, PlayCircleOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { clampInt } from './numberUtils'
 import { PlaybackFrameRow } from './PlaybackFrameRow'
+import { upscaylModels, type UpscaleModel } from '../ImageProcessingWorkspace/imageUpscaleModel'
 import type { PlaybackMode } from './playbackModel'
+import type { SpriteUpscaleWorkspaceViewModel } from './useSpriteUpscaleWorkspace'
 import type { FrameItem } from './types'
 
 const { Text } = Typography
@@ -20,6 +22,7 @@ export interface PlaybackPanelProps {
   visibleFrameCount: number
   selectedFrameIds: Set<string>
   playbackFrameIds: Set<string>
+  upscale: SpriteUpscaleWorkspaceViewModel
   onStartAll: () => void
   onStartSelected: () => void
   onPause: () => void
@@ -44,6 +47,7 @@ export function PlaybackPanel({
   visibleFrameCount,
   selectedFrameIds,
   playbackFrameIds,
+  upscale,
   onStartAll,
   onStartSelected,
   onPause,
@@ -55,6 +59,11 @@ export function PlaybackPanel({
   onSelect,
   onToggleHidden,
 }: PlaybackPanelProps) {
+  const upscaleInstalled = upscale.upscaleRuntimeStatus?.installed === true
+  const upscaleProgress = upscale.upscaleInstallProgress
+  const frameCounter = `帧 ${Math.min(playIndex + 1, playbackFrameCount)} / ${playbackFrameCount}`
+  const emptyPreviewText = visibleFrameCount === 0 && frames.length > 0 ? '没有可预览的可见帧' : '等待帧处理完成'
+
   return (
     <Card title="4. 预览播放与排序">
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -76,6 +85,85 @@ export function PlaybackPanel({
             ]}
           />
         </Space>
+        <div className="sprite-upscale-panel">
+          <div className="sprite-upscale-heading">
+            <Space size={8}>
+              <Switch
+                checked={upscale.upscaleEnabled}
+                onChange={upscale.setUpscaleEnabled}
+              />
+              <Text strong>高清化</Text>
+            </Space>
+            <Text type="secondary">{upscaleInstalled ? '运行包已安装' : '未安装时仍可普通播放'}</Text>
+          </div>
+          {upscale.upscaleEnabled ? (
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <Text type="secondary">
+                {upscale.upscaleRuntimeStatus?.message ?? '检测 Upscayl 运行包状态。'}
+              </Text>
+              {!upscaleInstalled ? (
+                <>
+                  <Button
+                    icon={<ThunderboltOutlined />}
+                    loading={upscale.upscaleInstalling}
+                    onClick={() => void upscale.installUpscaleRuntime()}
+                  >
+                    安装高清化运行包
+                  </Button>
+                  {upscaleProgress ? (
+                    <Progress
+                      percent={upscaleProgress.percent}
+                      size="small"
+                      status={upscaleProgress.phase === 'error' ? 'exception' : upscaleProgress.phase === 'done' ? 'success' : 'active'}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <div className="sprite-upscale-controls">
+                    <label className="sprite-upscale-field">
+                      <span>模型</span>
+                      <Select
+                        value={upscale.upscaleOptions.model}
+                        options={upscaylModels.map((model) => ({ value: model, label: model }))}
+                        onChange={(model: UpscaleModel) => upscale.updateUpscaleOptions({ model })}
+                      />
+                    </label>
+                    <label className="sprite-upscale-field sprite-upscale-scale">
+                      <span>倍数：{upscale.upscaleOptions.scale}x</span>
+                      <Slider
+                        min={2}
+                        max={4}
+                        step={1}
+                        value={upscale.upscaleOptions.scale}
+                        onChange={(scale) => upscale.updateUpscaleOptions({ scale })}
+                      />
+                    </label>
+                    <Button
+                      icon={<ThunderboltOutlined />}
+                      loading={upscale.upscaleProcessing}
+                      disabled={upscale.targetFrameCount === 0}
+                      onClick={() => void upscale.runBatchUpscale()}
+                    >
+                      批量高清化
+                    </Button>
+                  </div>
+                  {upscale.upscaleProcessing || upscale.batchProgress.total > 0 ? (
+                    <div className="sprite-upscale-progress">
+                      <Progress percent={upscale.batchPercent} size="small" status={upscale.upscaleProcessing ? 'active' : 'success'} />
+                      <Text type="secondary">
+                        已生成 {upscale.upscaledFrameCount} / {upscale.targetFrameCount} 帧
+                        {upscale.batchProgress.activeName ? `，正在处理 ${upscale.batchProgress.activeName}` : ''}
+                      </Text>
+                    </div>
+                  ) : (
+                    <Text type="secondary">已生成 {upscale.upscaledFrameCount} / {upscale.targetFrameCount} 帧高清化预览</Text>
+                  )}
+                </>
+              )}
+            </Space>
+          ) : null}
+        </div>
         <div className="playback-workspace-grid">
           <div className="playback-frame-list">
             {frames.map((item, index) => (
@@ -93,18 +181,39 @@ export function PlaybackPanel({
               />
             ))}
           </div>
-          <div className="playback-preview-box">
-            {previewFrame?.composedUrl ? (
-              <Space direction="vertical" align="center">
-                <img
-                  src={previewFrame.composedUrl}
-                  alt="preview"
-                />
-                <Text type="secondary">帧 {Math.min(playIndex + 1, playbackFrameCount)} / {playbackFrameCount}</Text>
-              </Space>
-            ) : (
-              <Text type="secondary">{visibleFrameCount === 0 && frames.length > 0 ? '没有可预览的可见帧' : '等待帧处理完成'}</Text>
-            )}
+          <div className="playback-preview-pair" data-upscale-enabled={upscale.upscaleEnabled ? 'true' : 'false'}>
+            <div className="playback-preview-box">
+              {previewFrame?.composedUrl ? (
+                <div className="playback-preview-content">
+                  <Text strong>原始播放</Text>
+                  <img
+                    src={previewFrame.composedUrl}
+                    alt="preview"
+                  />
+                  <Text type="secondary">{frameCounter}</Text>
+                </div>
+              ) : (
+                <Text type="secondary">{emptyPreviewText}</Text>
+              )}
+            </div>
+            {upscale.upscaleEnabled ? (
+              <div className="playback-preview-box playback-preview-box-upscale">
+                {upscale.previewResult ? (
+                  <div className="playback-preview-content">
+                    <Text strong>高清化播放</Text>
+                    <img
+                      src={upscale.previewResult.url}
+                      alt="upscaled preview"
+                    />
+                    <Text type="secondary">{frameCounter} · {upscale.previewResult.width} × {upscale.previewResult.height}</Text>
+                  </div>
+                ) : (
+                  <Text type="secondary">
+                    {previewFrame?.composedUrl ? '尚未生成此帧高清化预览' : emptyPreviewText}
+                  </Text>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
         <Space wrap>

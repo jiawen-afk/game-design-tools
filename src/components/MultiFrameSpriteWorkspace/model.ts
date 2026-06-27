@@ -83,6 +83,17 @@ export {
   type VisibleFrameState,
 } from './playbackModel'
 export {
+  collectStaleSpriteUpscaleResultUrls,
+  getCurrentSpriteUpscalePreview,
+  getSpriteUpscaleTargetFrames,
+  isSpriteUpscaleResultCurrent,
+  buildSpriteUpscaleExportPlan,
+  type SpriteUpscaleExportPlan,
+  type SpriteUpscaleFrameState,
+  type SpriteUpscaleResult,
+  type SpriteUpscaleResultMap,
+} from './spriteUpscaleModel'
+export {
   buildVideoFrameTimestamps,
   clampVideoClipRange,
   getVideoExtractionFrameCount,
