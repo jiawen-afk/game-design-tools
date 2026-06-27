@@ -13,8 +13,12 @@ import {
 import {
   collectStaleSpriteUpscaleResultUrls,
   getCurrentSpriteUpscalePreview,
+  getResultUpscaleFrameSize,
+  getSpriteUpscaleModeLabel,
   getSpriteUpscaleTargetFrames,
   isSpriteUpscaleResultCurrent,
+  type ActiveSpriteUpscaleMode,
+  type SpriteUpscaleMode,
   type SpriteUpscaleResult,
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
@@ -43,7 +47,7 @@ export function useSpriteUpscaleWorkspace({
   canvasHeight,
   composeStyle,
 }: UseSpriteUpscaleWorkspaceParams) {
-  const [upscaleEnabled, setUpscaleEnabled] = useState(false)
+  const [upscaleMode, setUpscaleMode] = useState<SpriteUpscaleMode>('off')
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
   const [upscaleRuntimeStatus, setUpscaleRuntimeStatus] = useState<DesktopUpscaleRuntimeStatus | null>(null)
   const [upscaleInstallProgress, setUpscaleInstallProgress] = useState<DesktopUpscaleInstallProgress | null>(null)
@@ -52,6 +56,7 @@ export function useSpriteUpscaleWorkspace({
   const [batchProgress, setBatchProgress] = useState<SpriteUpscaleBatchProgress>({ total: 0, completed: 0, activeName: '' })
   const [resultByFrameId, setResultByFrameId] = useState<SpriteUpscaleResultMap>({})
   const resultByFrameIdRef = useRef(resultByFrameId)
+  const upscaleEnabled = upscaleMode !== 'off'
 
   const revokeUpscaleResult = useCallback((result: SpriteUpscaleResult) => {
     revokeImageObjectUrl(result.url)
@@ -99,24 +104,37 @@ export function useSpriteUpscaleWorkspace({
   }, [frames])
 
   const targetFrames = useMemo(() => getSpriteUpscaleTargetFrames(frames), [frames])
+  const resultUpscaleFrameSize = useMemo(
+    () => getResultUpscaleFrameSize(canvasWidth, canvasHeight, upscaleOptions.scale),
+    [canvasHeight, canvasWidth, upscaleOptions.scale]
+  )
+  const upscaleModeLabel = getSpriteUpscaleModeLabel(upscaleMode)
   const upscaledFrameCount = useMemo(
     () => targetFrames.reduce((count, frame) => (
-      isSpriteUpscaleResultCurrent(frame, resultByFrameId[frame.id]) ? count + 1 : count
+      isSpriteUpscaleResultCurrent(frame, resultByFrameId[frame.id], upscaleMode, upscaleOptions.scale) ? count + 1 : count
     ), 0),
-    [resultByFrameId, targetFrames]
+    [resultByFrameId, targetFrames, upscaleMode, upscaleOptions.scale]
   )
   const previewResult = useMemo(
-    () => getCurrentSpriteUpscalePreview(previewFrame, resultByFrameId, upscaleEnabled),
-    [previewFrame, resultByFrameId, upscaleEnabled]
+    () => getCurrentSpriteUpscalePreview(previewFrame, resultByFrameId, upscaleMode, upscaleOptions.scale),
+    [previewFrame, resultByFrameId, upscaleMode, upscaleOptions.scale]
   )
   const batchPercent = batchProgress.total > 0
     ? Math.round((batchProgress.completed / batchProgress.total) * 100)
     : 0
 
-  const setUpscaleEnabledWithReset = useCallback((enabled: boolean) => {
-    setUpscaleEnabled(enabled)
-    if (!enabled) clearUpscaleResults()
+  const setUpscaleModeWithReset = useCallback((mode: SpriteUpscaleMode) => {
+    setUpscaleMode(mode)
+    clearUpscaleResults()
   }, [clearUpscaleResults])
+
+  const setUpscaleEnabledWithReset = useCallback((enabled: boolean) => {
+    setUpscaleModeWithReset(enabled ? 'input' : 'off')
+  }, [setUpscaleModeWithReset])
+
+  const getBatchMode = useCallback((): ActiveSpriteUpscaleMode => {
+    return upscaleMode === 'off' ? 'input' : upscaleMode
+  }, [upscaleMode])
 
   const queryUpscaleStatus = useCallback(async () => {
     const api = getDesktopApi()
@@ -170,7 +188,10 @@ export function useSpriteUpscaleWorkspace({
       return
     }
 
-    setUpscaleEnabled(true)
+    const batchMode = getBatchMode()
+    const batchModeLabel = getSpriteUpscaleModeLabel(batchMode)
+    const resultFrameSize = getResultUpscaleFrameSize(canvasWidth, canvasHeight, upscaleOptions.scale)
+    setUpscaleMode(batchMode)
     setUpscaleProcessing(true)
     setBatchProgress({ total: targets.length, completed: 0, activeName: targets[0]?.sourceName ?? '' })
 
@@ -179,7 +200,8 @@ export function useSpriteUpscaleWorkspace({
         const frame = targets[index]!
         if (!frame.matteUrl || !frame.composedUrl) continue
         setBatchProgress({ total: targets.length, completed: index, activeName: frame.sourceName })
-        const response = await fetch(frame.matteUrl)
+        const inputUrl = batchMode === 'input' ? frame.matteUrl : frame.composedUrl
+        const response = await fetch(inputUrl)
         if (!response.ok) throw new Error(`${frame.sourceName} 读取失败`)
         const blob = await response.blob()
         const result = await api.upscaleImage({
@@ -189,24 +211,30 @@ export function useSpriteUpscaleWorkspace({
           options: upscaleOptions,
         })
         const upscaledBlob = blobFromDesktopBinaryData(result.data, 'image/png')
-        const upscaledSourceUrl = URL.createObjectURL(upscaledBlob)
-        let composedUrl = ''
+        const upscaledUrl = URL.createObjectURL(upscaledBlob)
+        let upscaledSourceUrl: string | undefined
+        let finalUrl = upscaledUrl
         try {
-          composedUrl = await composeFrame(upscaledSourceUrl, canvasWidth, canvasHeight, frame.layout, composeStyle)
+          if (batchMode === 'input') {
+            upscaledSourceUrl = upscaledUrl
+            finalUrl = await composeFrame(upscaledSourceUrl, canvasWidth, canvasHeight, frame.layout, composeStyle)
+          }
         } catch (error) {
-          revokeImageObjectUrl(upscaledSourceUrl)
+          revokeImageObjectUrl(upscaledUrl)
           throw error
         }
         const upscaledResult: SpriteUpscaleResult = {
           frameId: frame.id,
+          mode: batchMode,
+          scale: upscaleOptions.scale,
           sourceMatteUrl: frame.matteUrl,
           matteRevision: frame.matteRevision,
           sourceComposedUrl: frame.composedUrl,
           composedRevision: frame.composedRevision,
           upscaledSourceUrl,
-          url: composedUrl,
-          width: Math.max(1, Math.round(canvasWidth)),
-          height: Math.max(1, Math.round(canvasHeight)),
+          url: finalUrl,
+          width: batchMode === 'output' ? resultFrameSize.width : Math.max(1, Math.round(canvasWidth)),
+          height: batchMode === 'output' ? resultFrameSize.height : Math.max(1, Math.round(canvasHeight)),
         }
         setResultByFrameId((previous) => {
           const oldResult = previous[frame.id]
@@ -215,19 +243,23 @@ export function useSpriteUpscaleWorkspace({
         })
         setBatchProgress({ total: targets.length, completed: index + 1, activeName: '' })
       }
-      message.success(`已生成 ${targets.length} 帧高清化预览`)
+      message.success(`已生成 ${targets.length} 帧${batchModeLabel}预览`)
     } catch (error) {
       message.error(`批量高清化失败：${String(error)}`)
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [canvasHeight, canvasWidth, composeStyle, frames, revokeUpscaleResult, upscaleOptions, upscaleRuntimeStatus])
+  }, [canvasHeight, canvasWidth, composeStyle, frames, getBatchMode, revokeUpscaleResult, upscaleOptions, upscaleRuntimeStatus])
 
   return {
+    upscaleMode,
+    setUpscaleMode: setUpscaleModeWithReset,
     upscaleEnabled,
     setUpscaleEnabled: setUpscaleEnabledWithReset,
+    upscaleModeLabel,
     upscaleOptions,
     updateUpscaleOptions,
+    resultUpscaleFrameSize,
     upscaleRuntimeStatus,
     upscaleInstallProgress,
     upscaleInstalling,

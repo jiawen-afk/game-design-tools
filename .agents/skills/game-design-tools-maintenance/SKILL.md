@@ -22,7 +22,7 @@ Preserve this repository as a set of focused workspaces with explicit boundaries
 As of `0.5.1`, the app is a Windows x64 Electron desktop tool with four user-facing surfaces:
 
 - Project space: project-scoped characters, portraits, sprite sheets, voice assets, storyboard groups, shared materials, settings, project switching, remote sync status, and failed-sync retry.
-- Sprite workbench: image batches, sprite sheets, video frames, matte/background removal, shared-canvas alignment, playback preview, ordering, batch Upscayl preview, side-by-side original/upscaled playback, and sprite package export. When upscale is enabled in playback, export and project-space collection must use current upscaled processed image results instead of original images, then reapply flow 3 canvas, layout, stroke, and outline parameters for the exported frames.
+- Sprite workbench: image batches, sprite sheets, video frames, matte/background removal, shared-canvas alignment, playback preview, ordering, batch Upscayl preview, side-by-side original/upscaled playback, and sprite package export. Playback upscale is mutually exclusive: input-image upscale fixes blurry matte sources, then reapplies flow 3 canvas, layout, stroke, and outline parameters without enlarging export frame size; result-image upscale enlarges composed flow 3 frames and exports the enlarged frame size.
 - Image processing workbench: single-image upload, matte, crop, result preview, optional Upscayl flow, and common image export.
 - Voice workbench: local VoxCPM Gradio setup, dependency checks, service control, voice generation, history management, reference cloning, and collection into project assets.
 
@@ -63,7 +63,7 @@ Storage behavior is now project-first:
 - Keep sync recovery in the sync status surface. Auto-sync owns normal writes, failed tasks stay visible in the floating status panel, and retries happen there.
 - For remote read failures, error messages should use project names, not raw ids, unless the id is the only available diagnostic.
 - Upscayl processing uses the bundled `upscayl-bin.exe` GPU path. The current Windows runtime supports automatic GPU selection and explicit GPU ids, but rejects CPU-style `-g -1`; do not expose CPU upscale mode unless the runtime changes and is verified.
-- Sprite upscale export must not silently fall back to original frames. If upscale is enabled and any visible frame lacks a current upscaled processed-image result, block export and tell the user to batch upscale the visible frames first.
+- Sprite upscale export must not silently fall back to original frames. If input-image or result-image upscale is enabled and any visible frame lacks a current result for that selected mode, block export and tell the user to batch upscale the visible frames first.
 - Prefer GitHub Actions releases. Local Windows packaging is diagnostic only unless the online workflow is unavailable.
 
 ## Module Map

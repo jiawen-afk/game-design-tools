@@ -84,12 +84,17 @@ export {
 } from './playbackModel'
 export {
   collectStaleSpriteUpscaleResultUrls,
+  getResultUpscaleFrameSize,
   getCurrentSpriteUpscalePreview,
+  getSpriteUpscaleModeLabel,
   getSpriteUpscaleTargetFrames,
   isSpriteUpscaleResultCurrent,
   buildSpriteUpscaleExportPlan,
+  normalizeSpriteUpscaleMode,
+  type ActiveSpriteUpscaleMode,
   type SpriteUpscaleExportPlan,
   type SpriteUpscaleFrameState,
+  type SpriteUpscaleMode,
   type SpriteUpscaleResult,
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'

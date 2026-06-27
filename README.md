@@ -18,7 +18,7 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 - **Remote object storage**: configure and verify Qiniu Kodo profiles. Project objects are stored under project-aware object keys.
 - **Remote asset cache**: remote project lists load metadata and covers from the database. Full images, sprite sheets, sprite indexes, and audio files are downloaded on demand and cached by fingerprint.
 - **Automatic sync with retry**: project changes sync to remote storage automatically. Failed sync tasks stay visible in the bottom-right status panel and can be retried there.
-- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, batch upscale processed frame images, compare original and upscaled playback side by side, sort frames, and export sprite packages from the upscaled images when upscale is enabled. Upscaled export uses the upscaled processed image as the source, then reapplies the flow 3 canvas, layout, stroke, and outline parameters.
+- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, sort frames, and export sprite packages. Flow 4 upscale is mutually exclusive: input-image upscale fixes blurry matte sources and then reapplies flow 3 canvas, layout, stroke, and outline parameters; result-image upscale enlarges the composed flow 3 frames and exports the enlarged frame size.
 - **Image processing workbench**: upload a single image, key out backgrounds, crop, preview, optionally upscale with the local Upscayl runtime, and export common image formats.
 - **Voice workbench**: connect to a local VoxCPM Gradio service, generate WAV voice assets from text, clone from reference audio, manage voice history, and collect generated audio into project space.
 - **Desktop VoxCPM support**: detect Windows hardware, query dependency installation, run dependency setup, and start, stop, or restart the local VoxCPM service from the app.
@@ -54,7 +54,7 @@ Remote projects are designed for multiple devices. Database and Kodo connection 
 ## Workspaces
 
 - **Project Space**: role assets, portraits, sprite sheets, voice assets, storyboard groups, shared materials, project settings, and project switching.
-- **Sprite Workbench**: background removal, frame alignment, sprite sheet preview, frame ordering, batch upscale previews, side-by-side original/upscaled playback, and original or upscaled export.
+- **Sprite Workbench**: background removal, frame alignment, sprite sheet preview, frame ordering, side-by-side original/upscaled playback, mutually exclusive input-image or result-image batch upscale, and original or upscaled export.
 - **Image Processing Workbench**: single-image cleanup, crop, matte, optional Upscayl upscale flow, and export.
 - **Voice Workbench**: VoxCPM setup, local Gradio service control, voice generation, history, and collection into project assets.
 

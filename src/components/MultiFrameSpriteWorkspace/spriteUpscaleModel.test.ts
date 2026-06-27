@@ -126,6 +126,90 @@ test('sprite upscale export dimensions come from flow 3 canvas parameters withou
   assert.equal(plan.canvasHeight, 240)
 })
 
+test('sprite input and result upscale modes use different export frame sizes', () => {
+  const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
+  const visibleFrames = [
+    { id: 'a', sourceName: 'walk-1.png', matteUrl: 'blob:a-matte-v1', matteRevision: 1, composedUrl: 'blob:a-v1', composedRevision: 1 },
+  ]
+  const inputResults = {
+    a: {
+      frameId: 'a',
+      mode: 'input',
+      scale: 2,
+      sourceMatteUrl: 'blob:a-matte-v1',
+      matteRevision: 1,
+      sourceComposedUrl: 'blob:a-v1',
+      composedRevision: 1,
+      url: 'blob:a-input-upscaled',
+      upscaledSourceUrl: 'blob:a-source-upscaled',
+      width: 320,
+      height: 240,
+    },
+  }
+  const outputResults = {
+    a: {
+      frameId: 'a',
+      mode: 'output',
+      scale: 2,
+      sourceMatteUrl: 'blob:a-matte-v1',
+      matteRevision: 1,
+      sourceComposedUrl: 'blob:a-v1',
+      composedRevision: 1,
+      url: 'blob:a-output-upscaled',
+      width: 640,
+      height: 480,
+    },
+  }
+
+  const inputPlan = buildSpriteUpscaleExportPlan(visibleFrames, inputResults, 'input', 320, 240, 2) as {
+    canvasWidth: number
+    canvasHeight: number
+    visibleFrames: Array<{ composedUrl: string }>
+  }
+  const outputPlan = buildSpriteUpscaleExportPlan(visibleFrames, outputResults, 'output', 320, 240, 2) as {
+    canvasWidth: number
+    canvasHeight: number
+    visibleFrames: Array<{ composedUrl: string }>
+  }
+
+  assert.equal(inputPlan.canvasWidth, 320)
+  assert.equal(inputPlan.canvasHeight, 240)
+  assert.deepEqual(inputPlan.visibleFrames.map((frame) => frame.composedUrl), ['blob:a-input-upscaled'])
+  assert.equal(outputPlan.canvasWidth, 640)
+  assert.equal(outputPlan.canvasHeight, 480)
+  assert.deepEqual(outputPlan.visibleFrames.map((frame) => frame.composedUrl), ['blob:a-output-upscaled'])
+})
+
+test('sprite upscale export treats input and result mode results as mutually exclusive', () => {
+  const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
+  const visibleFrames = [
+    { id: 'a', sourceName: 'walk-1.png', matteUrl: 'blob:a-matte-v1', matteRevision: 1, composedUrl: 'blob:a-v1', composedRevision: 1 },
+  ]
+  const inputResults = {
+    a: {
+      frameId: 'a',
+      mode: 'input',
+      scale: 2,
+      sourceMatteUrl: 'blob:a-matte-v1',
+      matteRevision: 1,
+      sourceComposedUrl: 'blob:a-v1',
+      composedRevision: 1,
+      url: 'blob:a-input-upscaled',
+      upscaledSourceUrl: 'blob:a-source-upscaled',
+      width: 320,
+      height: 240,
+    },
+  }
+
+  const plan = buildSpriteUpscaleExportPlan(visibleFrames, inputResults, 'output', 320, 240, 2) as {
+    visibleFrames: Array<{ composedUrl: string }>
+    missingFrameNames: string[]
+  }
+
+  assert.deepEqual(plan.visibleFrames, [])
+  assert.deepEqual(plan.missingFrameNames, ['walk-1.png'])
+})
+
 test('sprite export refuses stale or missing upscale frames instead of falling back to original frames', () => {
   const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
   const visibleFrames = [
@@ -159,8 +243,21 @@ test('sprite playback panel exposes batch upscale controls and a side by side up
   assert.match(controller, /useSpriteUpscaleWorkspace/)
   assert.match(outputPanel, /upscale=\{playback\.upscale\}/)
   assert.match(panel, /批量高清化/)
+  assert.match(panel, /输入图高清化/)
+  assert.match(panel, /结果图高清化/)
+  assert.match(panel, /导出后单帧/)
   assert.match(panel, /高清化播放/)
   assert.match(panel, /upscale\.previewResult/)
+})
+
+test('sprite result upscale resolution hint is visible before runtime install gate', () => {
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/PlaybackPanel.tsx', 'utf8')
+  const hintIndex = panel.indexOf('导出后单帧')
+  const installGateIndex = panel.indexOf('!upscaleInstalled')
+
+  assert.ok(hintIndex > 0, 'result upscale resolution hint should be rendered by the panel')
+  assert.ok(installGateIndex > 0, 'runtime install gate should still be rendered by the panel')
+  assert.ok(hintIndex < installGateIndex, 'resolution hint should not be hidden behind the runtime install gate')
 })
 
 test('sprite export receives upscale results so enabled upscale exports cannot use original frames', () => {
@@ -169,11 +266,13 @@ test('sprite export receives upscale results so enabled upscale exports cannot u
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
 
   assert.match(controller, /upscaleEnabled:\s*upscale\.upscaleEnabled/)
+  assert.match(controller, /upscaleMode:\s*upscale\.upscaleMode/)
   assert.match(controller, /upscaleResultsByFrameId:\s*upscale\.resultByFrameId/)
   assert.match(controller, /composeStyle:\s*layout\.composeStyle/)
   assert.match(exportHook, /buildSpriteUpscaleExportPlan/)
-  assert.match(exportHook, /高清化已开启，请先批量高清化所有可见帧后再导出/)
+  assert.match(exportHook, /已开启，请先批量高清化所有可见帧后再导出/)
   assert.match(upscaleHook, /frame\.matteUrl/)
+  assert.match(upscaleHook, /frame\.composedUrl/)
   assert.match(upscaleHook, /composeFrame\(\s*upscaledSourceUrl,\s*canvasWidth,\s*canvasHeight,\s*frame\.layout,\s*composeStyle\s*\)/s)
 })
 

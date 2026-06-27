@@ -9,6 +9,7 @@ import type { FrameItem } from './types'
 import {
   buildSpriteUpscaleExportPlan,
   type SpriteUpscaleExportPlan,
+  type SpriteUpscaleMode,
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
 import type { UpscaleOptions } from '../ImageProcessingWorkspace/imageUpscaleModel'
@@ -37,6 +38,7 @@ export interface UseSpriteExportParams {
   canvasHeight: number
   fps: number
   playbackMode: PlaybackMode
+  upscaleMode?: SpriteUpscaleMode
   upscaleEnabled?: boolean
   upscaleResultsByFrameId?: SpriteUpscaleResultMap
   upscaleOptions?: UpscaleOptions
@@ -95,6 +97,7 @@ export function useSpriteExport({
   canvasHeight,
   fps,
   playbackMode,
+  upscaleMode,
   upscaleEnabled = false,
   upscaleResultsByFrameId = {},
   upscaleOptions,
@@ -108,9 +111,10 @@ export function useSpriteExport({
   const buildExportPlan = (): SpriteUpscaleExportPlan<FrameItem> => buildSpriteUpscaleExportPlan(
     visibleFrames,
     upscaleResultsByFrameId,
-    upscaleEnabled,
+    upscaleMode ?? upscaleEnabled,
     canvasWidth,
-    canvasHeight
+    canvasHeight,
+    upscaleOptions?.scale ?? 1
   )
 
   const validateExportableFrames = () => {
@@ -129,7 +133,8 @@ export function useSpriteExport({
     }
     const exportPlan = buildExportPlan()
     if (exportPlan.usingUpscale && exportPlan.missingFrameNames.length > 0) {
-      message.warning('高清化已开启，请先批量高清化所有可见帧后再导出')
+      const modeLabel = exportPlan.upscaleMode === 'input' ? '输入图高清化' : '结果图高清化'
+      message.warning(`${modeLabel}已开启，请先批量高清化所有可见帧后再导出`)
       return null
     }
     return exportPlan
@@ -169,11 +174,14 @@ export function useSpriteExport({
     fps,
     playbackMode,
     upscale: exportPlan.usingUpscale ? {
+      mode: exportPlan.upscaleMode,
       options: upscaleOptions ?? null,
       frames: visibleFrames.map((item) => {
         const result = upscaleResultsByFrameId[item.id]
         return {
           id: item.id,
+          mode: result?.mode,
+          scale: result?.scale,
           sourceMatteUrl: result?.sourceMatteUrl,
           matteRevision: result?.matteRevision,
           sourceComposedUrl: result?.sourceComposedUrl,

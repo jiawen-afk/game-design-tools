@@ -54,6 +54,7 @@ export function useSpriteWorkspaceController() {
     canvasHeight: layout.canvasHeight,
     fps: playback.fps,
     playbackMode: playback.playbackMode,
+    upscaleMode: upscale.upscaleMode,
     upscaleEnabled: upscale.upscaleEnabled,
     upscaleResultsByFrameId: upscale.resultByFrameId,
     upscaleOptions: upscale.upscaleOptions,
