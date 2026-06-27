@@ -2,14 +2,19 @@ export interface SpriteUpscaleFrameState {
   id: string
   sourceName?: string
   hidden?: boolean
+  matteUrl?: string | null
+  matteRevision?: number
   composedUrl?: string | null
   composedRevision?: number
 }
 
 export interface SpriteUpscaleResult {
   frameId: string
+  sourceMatteUrl: string
+  matteRevision: number
   sourceComposedUrl: string
   composedRevision: number
+  upscaledSourceUrl: string
   url: string
   blob?: Blob
   width: number
@@ -30,8 +35,12 @@ function getComposedRevision(frame: SpriteUpscaleFrameState): number {
   return frame.composedRevision ?? 0
 }
 
+function getMatteRevision(frame: SpriteUpscaleFrameState): number {
+  return frame.matteRevision ?? 0
+}
+
 export function getSpriteUpscaleTargetFrames<T extends SpriteUpscaleFrameState>(frames: T[]): T[] {
-  return frames.filter((frame) => !frame.hidden && Boolean(frame.composedUrl))
+  return frames.filter((frame) => !frame.hidden && Boolean(frame.matteUrl) && Boolean(frame.composedUrl))
 }
 
 export function isSpriteUpscaleResultCurrent(
@@ -39,9 +48,12 @@ export function isSpriteUpscaleResultCurrent(
   result: SpriteUpscaleResult | null | undefined
 ): boolean {
   return Boolean(
-    frame?.composedUrl
+    frame?.matteUrl
+    && frame.composedUrl
     && result
     && result.frameId === frame.id
+    && result.sourceMatteUrl === frame.matteUrl
+    && result.matteRevision === getMatteRevision(frame)
     && result.sourceComposedUrl === frame.composedUrl
     && result.composedRevision === getComposedRevision(frame)
   )
@@ -68,6 +80,7 @@ export function collectStaleSpriteUpscaleResultUrls(
     const frame = frameById.get(result.frameId)
     if (!isSpriteUpscaleResultCurrent(frame, result)) {
       staleUrls.push(result.url)
+      if (result.upscaledSourceUrl) staleUrls.push(result.upscaledSourceUrl)
     }
   }
 
@@ -79,12 +92,10 @@ export function buildSpriteUpscaleExportPlan<T extends SpriteUpscaleFrameState>(
   resultsByFrameId: SpriteUpscaleResultMap,
   upscaleEnabled: boolean,
   canvasWidth: number,
-  canvasHeight: number,
-  upscaleScale = 1
+  canvasHeight: number
 ): SpriteUpscaleExportPlan<T> {
   const fallbackCanvasWidth = Math.max(1, Math.round(Number(canvasWidth) || 1))
   const fallbackCanvasHeight = Math.max(1, Math.round(Number(canvasHeight) || 1))
-  const safeScale = Math.max(1, Number(upscaleScale) || 1)
 
   if (!upscaleEnabled) {
     return {
@@ -115,8 +126,8 @@ export function buildSpriteUpscaleExportPlan<T extends SpriteUpscaleFrameState>(
       ...frame,
       composedUrl: resultsByFrameId[frame.id]!.url,
     })),
-    canvasWidth: Math.max(1, Math.round(fallbackCanvasWidth * safeScale)),
-    canvasHeight: Math.max(1, Math.round(fallbackCanvasHeight * safeScale)),
+    canvasWidth: fallbackCanvasWidth,
+    canvasHeight: fallbackCanvasHeight,
     usingUpscale: true,
     missingFrameNames: [],
   }

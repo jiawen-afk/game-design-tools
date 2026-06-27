@@ -45,6 +45,7 @@ export function useSpriteWorkspaceController() {
     previewFrame: playback.previewFrame,
     canvasWidth: layout.canvasWidth,
     canvasHeight: layout.canvasHeight,
+    composeStyle: layout.composeStyle,
   })
   const spriteExport = useSpriteExport({
     frames: frame.frames,

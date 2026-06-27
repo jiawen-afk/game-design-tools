@@ -16,10 +16,11 @@ function requireModelFunction(name: string): ExportedFunction {
 test('sprite upscale targets visible composed frames in playback order', () => {
   const getSpriteUpscaleTargetFrames = requireModelFunction('getSpriteUpscaleTargetFrames')
   const frames = [
-    { id: 'a', sourceName: 'walk-1.png', hidden: false, composedUrl: 'blob:a', composedRevision: 1 },
-    { id: 'b', sourceName: 'walk-2.png', hidden: true, composedUrl: 'blob:b', composedRevision: 1 },
-    { id: 'c', sourceName: 'walk-3.png', hidden: false, composedUrl: null, composedRevision: -1 },
-    { id: 'd', sourceName: 'walk-4.png', hidden: false, composedUrl: 'blob:d', composedRevision: 3 },
+    { id: 'a', sourceName: 'walk-1.png', hidden: false, matteUrl: 'blob:a-matte', composedUrl: 'blob:a', composedRevision: 1 },
+    { id: 'b', sourceName: 'walk-2.png', hidden: true, matteUrl: 'blob:b-matte', composedUrl: 'blob:b', composedRevision: 1 },
+    { id: 'c', sourceName: 'walk-3.png', hidden: false, matteUrl: 'blob:c-matte', composedUrl: null, composedRevision: -1 },
+    { id: 'd', sourceName: 'walk-4.png', hidden: false, matteUrl: 'blob:d-matte', composedUrl: 'blob:d', composedRevision: 3 },
+    { id: 'e', sourceName: 'walk-5.png', hidden: false, matteUrl: null, composedUrl: 'blob:e', composedRevision: 3 },
   ]
 
   assert.deepEqual(
@@ -30,13 +31,16 @@ test('sprite upscale targets visible composed frames in playback order', () => {
 
 test('sprite upscale preview follows the current playback frame without replacing the original frame', () => {
   const getCurrentSpriteUpscalePreview = requireModelFunction('getCurrentSpriteUpscalePreview')
-  const currentFrame = { id: 'a', composedUrl: 'blob:a-v2', composedRevision: 2 }
+  const currentFrame = { id: 'a', matteUrl: 'blob:a-matte-v2', matteRevision: 4, composedUrl: 'blob:a-v2', composedRevision: 2 }
   const results = {
     a: {
       frameId: 'a',
+      sourceMatteUrl: 'blob:a-matte-v2',
+      matteRevision: 4,
       sourceComposedUrl: 'blob:a-v2',
       composedRevision: 2,
       url: 'blob:a-upscaled',
+      upscaledSourceUrl: 'blob:a-source-upscaled',
       width: 512,
       height: 512,
     },
@@ -49,6 +53,10 @@ test('sprite upscale preview follows the current playback frame without replacin
     null
   )
   assert.equal(
+    getCurrentSpriteUpscalePreview({ ...currentFrame, matteUrl: 'blob:a-matte-v3' }, results, true),
+    null
+  )
+  assert.equal(
     getCurrentSpriteUpscalePreview({ ...currentFrame, composedRevision: 3 }, results, true),
     null
   )
@@ -57,30 +65,35 @@ test('sprite upscale preview follows the current playback frame without replacin
 test('stale sprite upscale result urls are revoked only when source frames change or disappear', () => {
   const collectStaleSpriteUpscaleResultUrls = requireModelFunction('collectStaleSpriteUpscaleResultUrls')
   const frames = [
-    { id: 'a', hidden: true, composedUrl: 'blob:a-v1', composedRevision: 1 },
-    { id: 'b', hidden: false, composedUrl: 'blob:b-v2', composedRevision: 2 },
+    { id: 'a', hidden: true, matteUrl: 'blob:a-matte-v1', matteRevision: 1, composedUrl: 'blob:a-v1', composedRevision: 1 },
+    { id: 'b', hidden: false, matteUrl: 'blob:b-matte-v2', matteRevision: 2, composedUrl: 'blob:b-v2', composedRevision: 2 },
   ]
   const results = {
-    a: { frameId: 'a', sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled' },
-    b: { frameId: 'b', sourceComposedUrl: 'blob:b-v1', composedRevision: 1, url: 'blob:b-upscaled' },
-    c: { frameId: 'c', sourceComposedUrl: 'blob:c-v1', composedRevision: 1, url: 'blob:c-upscaled' },
+    a: { frameId: 'a', sourceMatteUrl: 'blob:a-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', upscaledSourceUrl: 'blob:a-source-upscaled' },
+    b: { frameId: 'b', sourceMatteUrl: 'blob:b-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:b-v1', composedRevision: 1, url: 'blob:b-upscaled', upscaledSourceUrl: 'blob:b-source-upscaled' },
+    c: { frameId: 'c', sourceMatteUrl: 'blob:c-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:c-v1', composedRevision: 1, url: 'blob:c-upscaled', upscaledSourceUrl: 'blob:c-source-upscaled' },
   }
 
-  assert.deepEqual(collectStaleSpriteUpscaleResultUrls(frames, results), ['blob:b-upscaled', 'blob:c-upscaled'])
+  assert.deepEqual(collectStaleSpriteUpscaleResultUrls(frames, results), [
+    'blob:b-upscaled',
+    'blob:b-source-upscaled',
+    'blob:c-upscaled',
+    'blob:c-source-upscaled',
+  ])
 })
 
-test('sprite export uses current upscaled frame urls and scaled dimensions when upscale is enabled', () => {
+test('sprite export uses current upscaled frame urls and flow 3 canvas dimensions when upscale is enabled', () => {
   const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
   const visibleFrames = [
-    { id: 'a', sourceName: 'walk-1.png', composedUrl: 'blob:a-v1', composedRevision: 1 },
-    { id: 'b', sourceName: 'walk-2.png', composedUrl: 'blob:b-v2', composedRevision: 2 },
+    { id: 'a', sourceName: 'walk-1.png', matteUrl: 'blob:a-matte-v1', matteRevision: 1, composedUrl: 'blob:a-v1', composedRevision: 1 },
+    { id: 'b', sourceName: 'walk-2.png', matteUrl: 'blob:b-matte-v2', matteRevision: 2, composedUrl: 'blob:b-v2', composedRevision: 2 },
   ]
   const results = {
-    a: { frameId: 'a', sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', width: 1024, height: 768 },
-    b: { frameId: 'b', sourceComposedUrl: 'blob:b-v2', composedRevision: 2, url: 'blob:b-upscaled', width: 1024, height: 768 },
+    a: { frameId: 'a', sourceMatteUrl: 'blob:a-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', upscaledSourceUrl: 'blob:a-source-upscaled', width: 1024, height: 768 },
+    b: { frameId: 'b', sourceMatteUrl: 'blob:b-matte-v2', matteRevision: 2, sourceComposedUrl: 'blob:b-v2', composedRevision: 2, url: 'blob:b-upscaled', upscaledSourceUrl: 'blob:b-source-upscaled', width: 1024, height: 768 },
   }
 
-  const plan = buildSpriteUpscaleExportPlan(visibleFrames, results, true, 256, 192, 4) as {
+  const plan = buildSpriteUpscaleExportPlan(visibleFrames, results, true, 256, 192) as {
     visibleFrames: Array<{ id: string; composedUrl: string }>
     canvasWidth: number
     canvasHeight: number
@@ -89,38 +102,38 @@ test('sprite export uses current upscaled frame urls and scaled dimensions when 
   }
 
   assert.equal(plan.usingUpscale, true)
-  assert.equal(plan.canvasWidth, 1024)
-  assert.equal(plan.canvasHeight, 768)
+  assert.equal(plan.canvasWidth, 256)
+  assert.equal(plan.canvasHeight, 192)
   assert.deepEqual(plan.visibleFrames.map((frame) => frame.composedUrl), ['blob:a-upscaled', 'blob:b-upscaled'])
   assert.deepEqual(plan.missingFrameNames, [])
 })
 
-test('sprite upscale export dimensions come from flow 3 canvas parameters multiplied by upscale scale', () => {
+test('sprite upscale export dimensions come from flow 3 canvas parameters without multiplying scale', () => {
   const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
   const visibleFrames = [
-    { id: 'a', sourceName: 'walk-1.png', composedUrl: 'blob:a-v1', composedRevision: 1 },
+    { id: 'a', sourceName: 'walk-1.png', matteUrl: 'blob:a-matte-v1', matteRevision: 1, composedUrl: 'blob:a-v1', composedRevision: 1 },
   ]
   const results = {
-    a: { frameId: 'a', sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', width: 999, height: 777 },
+    a: { frameId: 'a', sourceMatteUrl: 'blob:a-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', upscaledSourceUrl: 'blob:a-source-upscaled', width: 999, height: 777 },
   }
 
-  const plan = buildSpriteUpscaleExportPlan(visibleFrames, results, true, 320, 240, 3) as {
+  const plan = buildSpriteUpscaleExportPlan(visibleFrames, results, true, 320, 240) as {
     canvasWidth: number
     canvasHeight: number
   }
 
-  assert.equal(plan.canvasWidth, 960)
-  assert.equal(plan.canvasHeight, 720)
+  assert.equal(plan.canvasWidth, 320)
+  assert.equal(plan.canvasHeight, 240)
 })
 
 test('sprite export refuses stale or missing upscale frames instead of falling back to original frames', () => {
   const buildSpriteUpscaleExportPlan = requireModelFunction('buildSpriteUpscaleExportPlan')
   const visibleFrames = [
-    { id: 'a', sourceName: 'walk-1.png', composedUrl: 'blob:a-v2', composedRevision: 2 },
-    { id: 'b', sourceName: 'walk-2.png', composedUrl: 'blob:b-v1', composedRevision: 1 },
+    { id: 'a', sourceName: 'walk-1.png', matteUrl: 'blob:a-matte-v2', matteRevision: 2, composedUrl: 'blob:a-v2', composedRevision: 2 },
+    { id: 'b', sourceName: 'walk-2.png', matteUrl: 'blob:b-matte-v1', matteRevision: 1, composedUrl: 'blob:b-v1', composedRevision: 1 },
   ]
   const results = {
-    a: { frameId: 'a', sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', width: 1024, height: 768 },
+    a: { frameId: 'a', sourceMatteUrl: 'blob:a-matte-v1', matteRevision: 1, sourceComposedUrl: 'blob:a-v1', composedRevision: 1, url: 'blob:a-upscaled', upscaledSourceUrl: 'blob:a-source-upscaled', width: 1024, height: 768 },
   }
 
   const plan = buildSpriteUpscaleExportPlan(visibleFrames, results, true, 256, 192) as {
@@ -152,12 +165,16 @@ test('sprite playback panel exposes batch upscale controls and a side by side up
 
 test('sprite export receives upscale results so enabled upscale exports cannot use original frames', () => {
   const exportHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteExport.ts', 'utf8')
+  const upscaleHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteUpscaleWorkspace.ts', 'utf8')
   const controller = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteWorkspaceController.ts', 'utf8')
 
   assert.match(controller, /upscaleEnabled:\s*upscale\.upscaleEnabled/)
   assert.match(controller, /upscaleResultsByFrameId:\s*upscale\.resultByFrameId/)
+  assert.match(controller, /composeStyle:\s*layout\.composeStyle/)
   assert.match(exportHook, /buildSpriteUpscaleExportPlan/)
   assert.match(exportHook, /高清化已开启，请先批量高清化所有可见帧后再导出/)
+  assert.match(upscaleHook, /frame\.matteUrl/)
+  assert.match(upscaleHook, /composeFrame\(\s*upscaledSourceUrl,\s*canvasWidth,\s*canvasHeight,\s*frame\.layout,\s*composeStyle\s*\)/s)
 })
 
 test('sprite playback layout caps the frame playlist at three columns', () => {

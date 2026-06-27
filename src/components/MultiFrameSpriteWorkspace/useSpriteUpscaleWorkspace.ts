@@ -4,6 +4,7 @@ import { message } from 'antd'
 import { getDesktopApi, type DesktopUpscaleInstallProgress, type DesktopUpscaleRuntimeStatus } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import { revokeImageObjectUrl } from '../ImageProcessingWorkspace/imageProcessingPipeline'
+import { composeFrame } from './imagePipeline'
 import {
   defaultUpscaleOptions,
   normalizeUpscaleOptions,
@@ -17,7 +18,7 @@ import {
   type SpriteUpscaleResult,
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
-import type { FrameItem } from './types'
+import type { ComposeStyle, FrameItem } from './types'
 
 interface SpriteUpscaleBatchProgress {
   total: number
@@ -30,6 +31,7 @@ interface UseSpriteUpscaleWorkspaceParams {
   previewFrame: FrameItem | undefined
   canvasWidth: number
   canvasHeight: number
+  composeStyle: ComposeStyle
 }
 
 export type SpriteUpscaleWorkspaceViewModel = ReturnType<typeof useSpriteUpscaleWorkspace>
@@ -39,6 +41,7 @@ export function useSpriteUpscaleWorkspace({
   previewFrame,
   canvasWidth,
   canvasHeight,
+  composeStyle,
 }: UseSpriteUpscaleWorkspaceParams) {
   const [upscaleEnabled, setUpscaleEnabled] = useState(false)
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
@@ -49,6 +52,11 @@ export function useSpriteUpscaleWorkspace({
   const [batchProgress, setBatchProgress] = useState<SpriteUpscaleBatchProgress>({ total: 0, completed: 0, activeName: '' })
   const [resultByFrameId, setResultByFrameId] = useState<SpriteUpscaleResultMap>({})
   const resultByFrameIdRef = useRef(resultByFrameId)
+
+  const revokeUpscaleResult = useCallback((result: SpriteUpscaleResult) => {
+    revokeImageObjectUrl(result.url)
+    if (result.upscaledSourceUrl) revokeImageObjectUrl(result.upscaledSourceUrl)
+  }, [])
 
   useEffect(() => {
     resultByFrameIdRef.current = resultByFrameId
@@ -67,17 +75,17 @@ export function useSpriteUpscaleWorkspace({
 
   const clearUpscaleResults = useCallback(() => {
     setResultByFrameId((previous) => {
-      Object.values(previous).forEach((result) => revokeImageObjectUrl(result.url))
+      Object.values(previous).forEach(revokeUpscaleResult)
       return {}
     })
     setBatchProgress({ total: 0, completed: 0, activeName: '' })
-  }, [])
+  }, [revokeUpscaleResult])
 
   useEffect(() => {
     return () => {
-      Object.values(resultByFrameIdRef.current).forEach((result) => revokeImageObjectUrl(result.url))
+      Object.values(resultByFrameIdRef.current).forEach(revokeUpscaleResult)
     }
-  }, [])
+  }, [revokeUpscaleResult])
 
   useEffect(() => {
     setResultByFrameId((previous) => {
@@ -169,9 +177,9 @@ export function useSpriteUpscaleWorkspace({
     try {
       for (let index = 0; index < targets.length; index += 1) {
         const frame = targets[index]!
-        if (!frame.composedUrl) continue
+        if (!frame.matteUrl || !frame.composedUrl) continue
         setBatchProgress({ total: targets.length, completed: index, activeName: frame.sourceName })
-        const response = await fetch(frame.composedUrl)
+        const response = await fetch(frame.matteUrl)
         if (!response.ok) throw new Error(`${frame.sourceName} 读取失败`)
         const blob = await response.blob()
         const result = await api.upscaleImage({
@@ -181,18 +189,28 @@ export function useSpriteUpscaleWorkspace({
           options: upscaleOptions,
         })
         const upscaledBlob = blobFromDesktopBinaryData(result.data, 'image/png')
+        const upscaledSourceUrl = URL.createObjectURL(upscaledBlob)
+        let composedUrl = ''
+        try {
+          composedUrl = await composeFrame(upscaledSourceUrl, canvasWidth, canvasHeight, frame.layout, composeStyle)
+        } catch (error) {
+          revokeImageObjectUrl(upscaledSourceUrl)
+          throw error
+        }
         const upscaledResult: SpriteUpscaleResult = {
           frameId: frame.id,
+          sourceMatteUrl: frame.matteUrl,
+          matteRevision: frame.matteRevision,
           sourceComposedUrl: frame.composedUrl,
           composedRevision: frame.composedRevision,
-          url: URL.createObjectURL(upscaledBlob),
-          blob: upscaledBlob,
-          width: Math.max(1, Math.round(canvasWidth * upscaleOptions.scale)),
-          height: Math.max(1, Math.round(canvasHeight * upscaleOptions.scale)),
+          upscaledSourceUrl,
+          url: composedUrl,
+          width: Math.max(1, Math.round(canvasWidth)),
+          height: Math.max(1, Math.round(canvasHeight)),
         }
         setResultByFrameId((previous) => {
           const oldResult = previous[frame.id]
-          if (oldResult) revokeImageObjectUrl(oldResult.url)
+          if (oldResult) revokeUpscaleResult(oldResult)
           return { ...previous, [frame.id]: upscaledResult }
         })
         setBatchProgress({ total: targets.length, completed: index + 1, activeName: '' })
@@ -203,7 +221,7 @@ export function useSpriteUpscaleWorkspace({
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [canvasHeight, canvasWidth, frames, upscaleOptions, upscaleRuntimeStatus])
+  }, [canvasHeight, canvasWidth, composeStyle, frames, revokeUpscaleResult, upscaleOptions, upscaleRuntimeStatus])
 
   return {
     upscaleEnabled,

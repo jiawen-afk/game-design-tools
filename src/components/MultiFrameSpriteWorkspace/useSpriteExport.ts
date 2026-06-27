@@ -110,8 +110,7 @@ export function useSpriteExport({
     upscaleResultsByFrameId,
     upscaleEnabled,
     canvasWidth,
-    canvasHeight,
-    upscaleOptions?.scale ?? 1
+    canvasHeight
   )
 
   const validateExportableFrames = () => {
@@ -175,6 +174,8 @@ export function useSpriteExport({
         const result = upscaleResultsByFrameId[item.id]
         return {
           id: item.id,
+          sourceMatteUrl: result?.sourceMatteUrl,
+          matteRevision: result?.matteRevision,
           sourceComposedUrl: result?.sourceComposedUrl,
           composedRevision: result?.composedRevision,
           width: result?.width,

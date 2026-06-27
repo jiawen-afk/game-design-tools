@@ -6,7 +6,7 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 
 ## Current Version
 
-- Latest published version: `0.5.0`
+- Latest published version: `0.5.1`
 - Windows x64 packages are published through GitHub Releases.
 - The stable auto-update channel is the `windows-x64-latest` release.
 
@@ -18,7 +18,7 @@ Game Design Tools is a Windows desktop workbench for game asset production. It c
 - **Remote object storage**: configure and verify Qiniu Kodo profiles. Project objects are stored under project-aware object keys.
 - **Remote asset cache**: remote project lists load metadata and covers from the database. Full images, sprite sheets, sprite indexes, and audio files are downloaded on demand and cached by fingerprint.
 - **Automatic sync with retry**: project changes sync to remote storage automatically. Failed sync tasks stay visible in the bottom-right status panel and can be retried there.
-- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, batch upscale preview frames, compare original and upscaled playback side by side, sort frames, and export sprite packages from the upscaled frames when upscale is enabled. Upscaled export keeps the flow 3 canvas and alignment parameters, then multiplies frame and sheet size by the selected upscale factor.
+- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, batch upscale processed frame images, compare original and upscaled playback side by side, sort frames, and export sprite packages from the upscaled images when upscale is enabled. Upscaled export uses the upscaled processed image as the source, then reapplies the flow 3 canvas, layout, stroke, and outline parameters.
 - **Image processing workbench**: upload a single image, key out backgrounds, crop, preview, optionally upscale with the local Upscayl runtime, and export common image formats.
 - **Voice workbench**: connect to a local VoxCPM Gradio service, generate WAV voice assets from text, clone from reference audio, manage voice history, and collect generated audio into project space.
 - **Desktop VoxCPM support**: detect Windows hardware, query dependency installation, run dependency setup, and start, stop, or restart the local VoxCPM service from the app.
