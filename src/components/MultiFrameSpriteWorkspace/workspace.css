@@ -298,6 +298,15 @@
   background: #fff;
 }
 
+.ai-matting-setup {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8cabc;
+  border-radius: var(--radius-control);
+  background: #fbfaf7;
+}
+
 .playback-workspace-grid {
   display: grid;
   grid-template-columns: minmax(520px, 680px) minmax(240px, 420px);
@@ -348,4 +357,11 @@
   .playback-frame-list {
     max-height: 500px;
   }
+}
+.ai-matting-progress {
+  width: min(100%, 560px);
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
 }

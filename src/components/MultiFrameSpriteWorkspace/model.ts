@@ -39,6 +39,7 @@ export {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
   buildMatteFrameGroups,
+  buildMatteProcessingProgress,
   computeChromaKeyAlpha,
   coerceMatteDefaults,
   dequeueNextInactiveFrameId,
@@ -52,12 +53,15 @@ export {
   resolvePipelineConcurrency,
   resolveSpillColor,
   type ApplyMatteParamsToFollowingFramesResult,
+  type BuildMatteProcessingProgressOptions,
   type MatteFrameGroup,
   type MatteGroupFrameState,
   type MatteDefaults,
   type MatteFrameState,
   type MatteImportGroupKind,
   type MatteParamsState,
+  type MatteProcessingFrameState,
+  type MatteProcessingProgress,
   type SpillColorMode,
 } from './matteModel'
 export { clampInt } from './numberUtils'

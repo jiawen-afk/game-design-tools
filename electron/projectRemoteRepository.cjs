@@ -417,8 +417,19 @@ function buildBulkUpsertSql(dialect, tableName, definition, rowCount) {
   ].join(' ')
 }
 
+function isJsonBindableValue(value) {
+  if (value === null || typeof value !== 'object') return false
+  return Array.isArray(value) || Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function normalizeSqlValue(value) {
+  if (value === undefined) return null
+  if (isJsonBindableValue(value)) return JSON.stringify(value)
+  return value
+}
+
 function rowValues(definition, row) {
-  return definition.columns.map((column) => row[column] ?? null)
+  return definition.columns.map((column) => normalizeSqlValue(row[column]))
 }
 
 function normalizeRows(rows) {

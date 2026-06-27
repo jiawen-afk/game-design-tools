@@ -5,6 +5,7 @@ import { DeleteOutlined } from '@ant-design/icons'
 import { hexToRgb, rgbToHex } from './imagePipeline'
 import { getSpillColorHex, MATTE_PARAM_MAX, normalizePickerColor, type SpillColorMode } from './matteModel'
 import { spillOptionLabel } from './matteControls'
+import type { MatteMode } from './aiMattingService'
 import type { FrameItem, MatteParams } from './types'
 
 const { Text } = Typography
@@ -30,9 +31,11 @@ export interface MatteFrameCardProps {
   onApplyToFollowing: (id: string) => void
   onCustomSpillPickerColor: (id: string, color: unknown, hex: string | undefined) => void
   onCustomSpillColor: (id: string, hex: string) => void
+  matteMode?: MatteMode
   applyButtonLabel?: string
   applyButtonLoading?: boolean
   applyButtonDisabled?: boolean
+  applyButtonTitle?: string
 }
 
 export function MatteFrameCard({
@@ -49,9 +52,11 @@ export function MatteFrameCard({
   onApplyToFollowing,
   onCustomSpillPickerColor,
   onCustomSpillColor,
+  matteMode = 'chroma',
   applyButtonLabel = '应用到后续所有帧',
   applyButtonLoading = false,
   applyButtonDisabled,
+  applyButtonTitle,
 }: MatteFrameCardProps) {
   return (
     <Card
@@ -64,12 +69,14 @@ export function MatteFrameCard({
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>原图（点击取背景色）</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>{matteMode === 'ai' ? '原图' : '原图（点击取背景色）'}</Text>
             <img
               src={item.sourceUrl}
               alt={item.sourceName}
-              onClick={(event) => onSampleColor(item, event)}
-              style={{ width: '100%', height: 120, objectFit: 'contain', background: '#eee', cursor: 'crosshair' }}
+              onClick={(event) => {
+                if (matteMode === 'chroma') onSampleColor(item, event)
+              }}
+              style={{ width: '100%', height: 120, objectFit: 'contain', background: '#eee', cursor: matteMode === 'chroma' ? 'crosshair' : 'default' }}
             />
           </div>
           <div>
@@ -100,64 +107,75 @@ export function MatteFrameCard({
           结果宽高：{item.matteWidth} × {item.matteHeight}
         </Text>
         <Space align="center" wrap>
-          <Text>背景色</Text>
-          <ColorPicker
-            value={rgbToHex(item.matte.keyColor)}
-            onChange={(color, hex) => onMatteParamChange(
-              item.id,
-              'keyColor',
-              hexToRgb(normalizePickerColor(color, hex, rgbToHex(item.matte.keyColor)))
-            )}
-          />
+          {matteMode === 'chroma' ? (
+            <>
+              <Text>背景色</Text>
+              <ColorPicker
+                value={rgbToHex(item.matte.keyColor)}
+                onChange={(color, hex) => onMatteParamChange(
+                  item.id,
+                  'keyColor',
+                  hexToRgb(normalizePickerColor(color, hex, rgbToHex(item.matte.keyColor)))
+                )}
+              />
+            </>
+          ) : (
+            <Text type="secondary">AI 抠图使用 BiRefNet 自动识别主体，不需要取背景色。</Text>
+          )}
           <Button
             type="primary"
             size="small"
             loading={applyButtonLoading}
             disabled={applyButtonDisabled ?? index === frameCount - 1}
+            title={applyButtonTitle}
             onClick={() => onApplyToFollowing(item.id)}
           >
             {applyButtonLabel}
           </Button>
         </Space>
-        {MATTE_SLIDERS.map(([label, key]) => (
-          <div key={key} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 36px', alignItems: 'center', gap: 8 }}>
-            <Text>{label}</Text>
-            <Slider
-              min={0}
-              max={MATTE_PARAM_MAX[key]}
-              value={item.matte[key]}
-              onChange={(value) => onMatteParamChange(item.id, key, value)}
-            />
-            <Text type="secondary">{item.matte[key]}</Text>
-          </div>
-        ))}
-        <Space align="center" wrap>
-          <Text>抑制颜色</Text>
-          <Select<SpillColorMode>
-            value={item.matte.spillColorMode}
-            style={{ width: 150 }}
-            onChange={(value) => onMatteParamChange(item.id, 'spillColorMode', value)}
-            options={[
-              { value: 'key', label: spillOptionLabel(rgbToHex(item.matte.keyColor), '跟随当前取色') },
-              { value: 'green', label: spillOptionLabel('#00ff00', '绿色 #00ff00') },
-              { value: 'blue', label: spillOptionLabel('#0000ff', '蓝色 #0000ff') },
-              { value: 'magenta', label: spillOptionLabel('#ff00ff', '品红 #ff00ff') },
-              { value: 'custom', label: '自定义十六进制' },
-            ]}
-          />
-          <ColorPicker
-            value={getSpillColorHex(item.matte.spillColorMode, item.matte.customSpillHex, item.matte.keyColor)}
-            onChange={(color, hex) => onCustomSpillPickerColor(item.id, color, hex)}
-          />
-          {item.matte.spillColorMode === 'custom' && (
-            <Input
-              value={item.matte.customSpillHex}
-              onChange={(event) => onCustomSpillColor(item.id, event.target.value)}
-              placeholder="#00ff00"
-              style={{ width: 110 }}
-            />
-          )}
-        </Space>
+        {matteMode === 'chroma' ? (
+          <>
+            {MATTE_SLIDERS.map(([label, key]) => (
+              <div key={key} style={{ display: 'grid', gridTemplateColumns: '64px 1fr 36px', alignItems: 'center', gap: 8 }}>
+                <Text>{label}</Text>
+                <Slider
+                  min={0}
+                  max={MATTE_PARAM_MAX[key]}
+                  value={item.matte[key]}
+                  onChange={(value) => onMatteParamChange(item.id, key, value)}
+                />
+                <Text type="secondary">{item.matte[key]}</Text>
+              </div>
+            ))}
+            <Space align="center" wrap>
+              <Text>抑制颜色</Text>
+              <Select<SpillColorMode>
+                value={item.matte.spillColorMode}
+                style={{ width: 150 }}
+                onChange={(value) => onMatteParamChange(item.id, 'spillColorMode', value)}
+                options={[
+                  { value: 'key', label: spillOptionLabel(rgbToHex(item.matte.keyColor), '跟随当前取色') },
+                  { value: 'green', label: spillOptionLabel('#00ff00', '绿色 #00ff00') },
+                  { value: 'blue', label: spillOptionLabel('#0000ff', '蓝色 #0000ff') },
+                  { value: 'magenta', label: spillOptionLabel('#ff00ff', '品红 #ff00ff') },
+                  { value: 'custom', label: '自定义十六进制' },
+                ]}
+              />
+              <ColorPicker
+                value={getSpillColorHex(item.matte.spillColorMode, item.matte.customSpillHex, item.matte.keyColor)}
+                onChange={(color, hex) => onCustomSpillPickerColor(item.id, color, hex)}
+              />
+              {item.matte.spillColorMode === 'custom' && (
+                <Input
+                  value={item.matte.customSpillHex}
+                  onChange={(event) => onCustomSpillColor(item.id, event.target.value)}
+                  placeholder="#00ff00"
+                  style={{ width: 110 }}
+                />
+              )}
+            </Space>
+          </>
+        ) : null}
       </Space>
     </Card>
   )

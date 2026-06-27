@@ -239,6 +239,46 @@ test('local sqlite repository persists document graph rows and deletes collectio
   }
 })
 
+test('local sqlite repository imports project rows with document graph metadata objects', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
+  try {
+    const databasePath = path.join(tempDir, 'projects.sqlite')
+    const repository = createLocalProjectRepository(databasePath)
+    const rows = migratePersonalSpaceStateToProjectRows(defaultPersonalSpaceState, {
+      projectId: 'project-docs',
+      projectName: '山海再就业',
+      now: '2026-06-27T00:00:00.000Z',
+      localObjectRoot: 'D:\\GameAssets',
+    })
+    const graph = documentGraphInput(rows.project.id)
+    ;(graph.collection as Record<string, unknown>).metadata_json = { source: 'document-workspace' }
+    ;(graph.importRun as Record<string, unknown>).report_json = { imported: true, warnings: [] }
+    graph.nodes[0]!.metadata_json = { roles: ['term'], nested: { source: 'shj' } } as unknown as string
+    graph.edges[0]!.metadata_json = { record_ids: ['830'] } as unknown as string
+
+    await repository.importProjectRows({
+      ...rows,
+      documentCollections: [graph.collection],
+      documentSources: graph.sources,
+      documentSourceContents: graph.sourceContents,
+      documentRecords: graph.records,
+      documentNodes: graph.nodes,
+      documentEdges: graph.edges,
+      documentNodeRecordLinks: graph.nodeRecordLinks,
+      documentEdgeRecordLinks: graph.edgeRecordLinks,
+      documentImportRuns: [graph.importRun],
+    })
+
+    const reopened = createLocalProjectRepository(databasePath)
+    const nodeSearch = await reopened.searchDocumentNodes({ projectId: rows.project.id, query: '傲徕' })
+    assert.equal(nodeSearch.total, 1)
+    const projected = await reopened.getDocumentCollectionGraph(rows.project.id, graph.collection.id)
+    assert.equal((projected.nodes[graph.nodes[0]!.id]?.data.record as { title?: string }).title, '傲徕')
+  } finally {
+    await rm(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('local sqlite repository keeps updated device profile ids out of shared settings', async () => {
   const tempDir = await mkdtemp(path.join(tmpdir(), 'gdt-project-sqlite-'))
   try {

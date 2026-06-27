@@ -12,6 +12,7 @@ import {
   applyFrameVisibilityStride,
   selectFramesByVisibilityStride,
   batchHideSelectedFrames,
+  buildMatteProcessingProgress,
   buildPlaybackFrameIds,
   buildSpriteSheetGridCells,
   buildVideoFrameTimestamps,
@@ -64,6 +65,7 @@ import {
 } from './model'
 import { computeFrameSamplePoint } from './matteColorSampler'
 import { computeVideoPreviewCropState } from './videoFramePipeline'
+import { checkBirefnetConnection, removeImageBackground } from './aiMattingService'
 
 test('auto columns make compact sprite sheets', () => {
   const assertCompactColumns = (frameCount: number) => {
@@ -322,6 +324,260 @@ test('matte pipeline hook owns matte and compose side effects', () => {
   assert.match(hook, /composeFrame/)
   assert.match(hook, /applyComposedFrameUrl/)
   assert.match(hook, /applyMatteParamsToFollowingFrames/)
+})
+
+test('sprite matte workspace exposes chroma key and AI matting modes', () => {
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+  const card = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteFrameCard.tsx', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const service = readFileSync('src/components/MultiFrameSpriteWorkspace/aiMattingService.ts', 'utf8')
+
+  assert.match(panel, /modeOptions/)
+  assert.match(panel, /色键抠图/)
+  assert.match(panel, /AI抠图/)
+  assert.match(panel, /Progress/)
+  assert.match(panel, /aiMattingProgress/)
+  assert.match(panel, /AI抠图进度/)
+  assert.match(panel, /onAiDetectEnvironment/)
+  assert.match(panel, /onAiInstallDependencies/)
+  assert.match(panel, /onAiStartService/)
+  assert.match(panel, /onAiStopService/)
+  assert.match(card, /matteMode === 'ai'/)
+  assert.match(hook, /matteMode/)
+  assert.match(hook, /aiMattingProgress/)
+  assert.match(hook, /removeImageBackground/)
+  assert.match(service, /removeImageBackground/)
+})
+
+test('AI matte progress separates completed active and waiting frames', () => {
+  const progress = buildMatteProcessingProgress(
+    [
+      { id: 'done', matteUrl: 'blob:done', processing: false },
+      { id: 'active', matteUrl: 'blob:stale', processing: true },
+      { id: 'queued', matteUrl: null, processing: false },
+      { id: 'outside', matteUrl: 'blob:outside', processing: false },
+    ],
+    {
+      targetIds: ['done', 'active', 'queued'],
+      activeIds: ['active'],
+      queuedIds: ['queued'],
+      delayedIds: [],
+    }
+  )
+
+  assert.deepEqual(progress, {
+    total: 3,
+    completed: 1,
+    active: 1,
+    waiting: 1,
+    percent: 33,
+    label: '已完成 1 / 3 帧，处理中 1 帧，等待 1 帧',
+  })
+})
+
+test('AI matte processing requires a connected BiRefNet service before invoking inference', () => {
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.match(hook, /matteMode === 'ai' && !aiMatting\.connected/)
+  assert.match(hook, /AI 抠图服务未连接/)
+  assert.match(hook, /aiMatting\.runCheck/)
+  assert.match(panel, /matteMode === 'ai' && !aiMatting\.connected/)
+  assert.match(panel, /请先启动 BiRefNet 服务/)
+})
+
+test('desktop bridge exposes BiRefNet setup, service control, and image matting APIs', () => {
+  const desktopApi = readFileSync('src/desktopApi.ts', 'utf8')
+  const preload = readFileSync('electron/preload.cjs', 'utf8')
+  const main = readFileSync('electron/main.cjs', 'utf8')
+  const viteConfig = readFileSync('vite.config.ts', 'utf8')
+  const scriptPath = 'scripts/deploy-birefnet.ps1'
+
+  assert.ok(existsSync(scriptPath), 'expected BiRefNet deployment script to exist')
+  assert.match(desktopApi, /runBirefnetSetup/)
+  assert.match(desktopApi, /queryBirefnetSetupStatus/)
+  assert.match(desktopApi, /controlBirefnetService/)
+  assert.match(desktopApi, /checkBirefnetService/)
+  assert.match(desktopApi, /removeImageBackground/)
+  assert.match(preload, /birefnet:run-setup/)
+  assert.match(preload, /birefnet:setup-status/)
+  assert.match(preload, /birefnet:service/)
+  assert.match(preload, /birefnet:health/)
+  assert.match(preload, /birefnet:remove-background/)
+  assert.match(main, /deploy-birefnet\.ps1/)
+  assert.match(main, /birefnet:health/)
+  assert.match(main, /getJson\(servicePort,\s*'\/ready'/)
+  assert.match(main, /birefnet:remove-background/)
+  assert.match(main, /birefnet-service\.ps1/)
+  assert.match(main, /import torch; import torchvision; import cv2/)
+  assert.match(viteConfig, /deploy-birefnet\.ps1/)
+})
+
+test('desktop bridge exposes BiRefNet device preference controls', () => {
+  const desktopApi = readFileSync('src/desktopApi.ts', 'utf8')
+  const preload = readFileSync('electron/preload.cjs', 'utf8')
+  const main = readFileSync('electron/main.cjs', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useAiMattingSetup.ts', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.match(desktopApi, /export type DesktopBirefnetDevicePreference = 'auto' \| 'cuda' \| 'cpu'/)
+  assert.match(desktopApi, /setBirefnetDevicePreference\(device: DesktopBirefnetDevicePreference\)/)
+  assert.match(preload, /setBirefnetDevicePreference: \(device\) => invoke\('birefnet:set-device', device\)/)
+  assert.match(main, /ipcMain\.handle\('birefnet:set-device'/)
+  assert.match(main, /Device: nextDevice/)
+  assert.match(hook, /devicePreference/)
+  assert.match(hook, /setDevicePreference/)
+  assert.match(hook, /controlBirefnetService\('restart'\)/)
+  assert.match(panel, /设备/)
+  assert.match(panel, /GPU/)
+  assert.match(panel, /CPU/)
+})
+
+test('BiRefNet service detection waits for model readiness instead of process health', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(script, /def model_status\(\):[\s\S]*"ready": model is not None/)
+  assert.match(script, /@app\.get\("\/health"\)[\s\S]*status\["ok"\] = True/)
+  assert.match(script, /@app\.get\("\/ready"\)[\s\S]*start_model_load\(\)[\s\S]*return model_status\(\)/)
+})
+
+test('BiRefNet ready checks trigger model loading without blocking service startup polling', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+  const main = readFileSync('electron/main.cjs', 'utf8')
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useAiMattingSetup.ts', 'utf8')
+  const panel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.match(script, /from threading import Condition, Lock, Thread/)
+  assert.match(script, /def start_model_load\(\):[\s\S]*Thread\(/)
+  assert.match(script, /@app\.get\("\/ready"\)[\s\S]*start_model_load\(\)/)
+  assert.match(script, /"loading": model_loading/)
+  assert.match(main, /getJson\(servicePort,\s*'\/ready',\s*15000\)/)
+  assert.match(hook, /正在通过 \/ready 加载并检测 BiRefNet 模型/)
+  assert.match(hook, /BiRefNet 模型已就绪，AI 抠图服务可用/)
+  assert.match(panel, /模型加载中/)
+})
+
+test('BiRefNet sidecar aligns inference input dtype with loaded model weights', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(script, /if DEVICE == "cpu":\s*[\r\n]+\s*loaded\.float\(\)/)
+  assert.match(script, /def get_model_dtype\(loaded_model\):[\s\S]*next\(loaded_model\.parameters\(\)\)\.dtype/)
+  assert.match(script, /active_model = get_model\(\)/)
+  assert.match(script, /input_tensor = input_tensor\.to\(device=DEVICE,\s*dtype=get_model_dtype\(active_model\)\)/)
+  assert.match(script, /pred = active_model\(input_tensor\)\[-1\]\.sigmoid\(\)/)
+  assert.doesNotMatch(script, /torch\.amp\.autocast/)
+})
+
+test('BiRefNet sidecar defaults to automatic CUDA selection and exposes requested device status', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(script, /\[ValidateSet\("auto", "cuda", "cpu"\)\]\s*\[string\]\$Device = "auto"/)
+  assert.match(script, /REQUESTED_DEVICE = "__DEVICE__"/)
+  assert.match(script, /def resolve_device\(requested_device\):[\s\S]*if normalized == "cpu":[\s\S]*return "cpu"/)
+  assert.match(script, /def resolve_device\(requested_device\):[\s\S]*if torch\.cuda\.is_available\(\):[\s\S]*return "cuda"/)
+  assert.match(script, /DEVICE = resolve_device\(REQUESTED_DEVICE\)/)
+  assert.match(script, /"requested_device": REQUESTED_DEVICE/)
+  assert.match(script, /"device": DEVICE/)
+  assert.match(script, /parser\.add_argument\("--device", choices=\["auto", "cuda", "cpu"\], default=REQUESTED_DEVICE\)/)
+  assert.match(script, /Device = \$Device/)
+  assert.match(script, /"--device", \[string\]\$config\.Device/)
+})
+
+test('BiRefNet installer prefers CUDA PyTorch wheels when NVIDIA is detected', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(script, /function Test-NvidiaAvailable/)
+  assert.match(script, /\$nvidiaAvailable = Test-NvidiaAvailable/)
+  assert.match(script, /if \(\$nvidiaAvailable\) {[\s\S]*https:\/\/download\.pytorch\.org\/whl\/cu128/)
+  assert.match(script, /--force-reinstall/)
+  assert.match(script, /torchvision/)
+  assert.match(script, /else {[\s\S]*torch>=2\.5\.0[\s\S]*torchvision/)
+})
+
+test('BiRefNet sidecar enables CORS for Electron renderer health checks', () => {
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(script, /CORSMiddleware/)
+  assert.match(script, /allow_origins=\["\*"\]/)
+  assert.match(script, /allow_methods=\["\*"\]/)
+  assert.match(script, /allow_headers=\["\*"\]/)
+})
+
+test('BiRefNet health checks use the desktop bridge before renderer fetch', async () => {
+  const previousWindow = globalThis.window
+  const previousFetch = globalThis.fetch
+  let checkedPort = 0
+
+  globalThis.window = {
+    gameDesignToolsDesktop: {
+      checkBirefnetService: async (port: number) => {
+        checkedPort = port
+        return { ok: true, output: 'BiRefNet 服务可用' }
+      },
+    },
+  } as typeof globalThis.window
+  globalThis.fetch = async () => {
+    throw new Error('renderer fetch should not be used when desktop bridge is available')
+  }
+
+  try {
+    assert.equal(await checkBirefnetConnection(17860), true)
+    assert.equal(checkedPort, 17860)
+  } finally {
+    globalThis.window = previousWindow
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('BiRefNet renderer fallback checks model readiness endpoint', () => {
+  const service = readFileSync('src/components/MultiFrameSpriteWorkspace/aiMattingService.ts', 'utf8')
+
+  assert.match(service, /buildBirefnetServiceUrl\(port\)}\/ready/)
+  assert.doesNotMatch(service, /buildBirefnetServiceUrl\(port\)}\/health/)
+})
+
+test('BiRefNet remove background reports disconnected service without leaking IPC connection errors', async () => {
+  const previousWindow = globalThis.window
+  const previousFetch = globalThis.fetch
+
+  globalThis.window = {
+    gameDesignToolsDesktop: {
+      removeImageBackground: async () => {
+        throw new Error("Error invoking remote method 'birefnet:remove-background': Error: connect ECONNREFUSED 127.0.0.1:17860")
+      },
+    },
+  } as unknown as typeof globalThis.window
+  globalThis.fetch = async () => ({
+    ok: true,
+    arrayBuffer: async () => new ArrayBuffer(0),
+  } as Response)
+
+  try {
+    await assert.rejects(
+      () => removeImageBackground('blob:source'),
+      /BiRefNet 服务未连接，请先启动服务。/
+    )
+  } finally {
+    globalThis.window = previousWindow
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('AI matting serializes CPU BiRefNet inference while allowing GPU parallel requests', () => {
+  const hook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const main = readFileSync('electron/main.cjs', 'utf8')
+  const script = readFileSync('scripts/deploy-birefnet.ps1', 'utf8')
+
+  assert.match(hook, /const CPU_AI_MATTING_CONCURRENCY = 1/)
+  assert.match(hook, /const matteConcurrency = matteMode === 'ai' && aiMatting\.activeDevice === 'cpu'\s*\?\s*CPU_AI_MATTING_CONCURRENCY\s*:\s*PIPELINE_CONCURRENCY/)
+  assert.match(hook, /matteActiveRef\.current\.size < matteConcurrency/)
+  assert.match(main, /const BIREFNET_MATTE_TIMEOUT_MS = 600000/)
+  assert.match(main, /postJson\(port, '\/matte', \{[\s\S]*\}, BIREFNET_MATTE_TIMEOUT_MS\)/)
+  assert.match(script, /from threading import Condition, Lock, Thread/)
+  assert.match(script, /inference_lock = Lock\(\)/)
+  assert.match(script, /def inference_context\(\):[\s\S]*if DEVICE == "cpu":[\s\S]*return inference_lock/)
+  assert.match(script, /return nullcontext\(\)/)
+  assert.match(script, /with inference_context\(\):[\s\S]*active_model = get_model\(\)/)
 })
 
 test('layout workspace hook owns layout and guide side effects', () => {

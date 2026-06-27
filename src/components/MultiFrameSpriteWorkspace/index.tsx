@@ -35,6 +35,17 @@ export default function MultiFrameSpriteWorkspace() {
         onImportMatteGroupToPersonalSpace={(groupId) => void workspace.matte.importMatteGroupToPersonalSpace(groupId)}
         personalSpaceCollectEnabled={workspace.personalSpaceCollectEnabled}
         personalSpaceCollectDisabledReason={workspace.personalSpaceCollectDisabledReason}
+        matteMode={workspace.matte.matteMode}
+        aiMatting={workspace.matte.aiMatting}
+        aiMattingProgress={workspace.matte.aiMattingProgress}
+        onMatteModeChange={workspace.matte.setMatteMode}
+        onAiDetectEnvironment={() => void workspace.matte.aiMatting.detectEnvironment()}
+        onAiInstallDependencies={() => void workspace.matte.aiMatting.installDependencies()}
+        onAiQueryDependencyStatus={() => void workspace.matte.aiMatting.queryDependencyStatus()}
+        onAiStartService={() => void workspace.matte.aiMatting.startService()}
+        onAiStopService={() => void workspace.matte.aiMatting.controlService('stop')}
+        onAiCheckService={() => void workspace.matte.aiMatting.runCheck()}
+        onAiDevicePreferenceChange={(device) => void workspace.matte.aiMatting.setDevicePreference(device)}
         onActivate={workspace.frame.setActiveId}
         onRemoveGroup={workspace.frame.removeFrameGroup}
         onSampleColor={(frame, event) => void workspace.matte.sampleColor(frame, event)}

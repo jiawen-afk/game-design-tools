@@ -387,6 +387,10 @@ test('remote project repository replaces document graph rows with parameterized 
     }),
   })
   const graph = documentGraphInput('p1')
+  ;(graph.collection as Record<string, unknown>).metadata_json = { source: 'document-workspace' }
+  ;(graph.importRun as Record<string, unknown>).report_json = { imported: true, warnings: [] }
+  graph.nodes[0]!.metadata_json = { roles: ['term'], nested: { source: 'shj' } } as unknown as string
+  graph.edges[0]!.metadata_json = { record_ids: ['830'] } as unknown as string
 
   const result = await repository.replaceDocumentGraph({
     projectId: 'p1',
@@ -419,6 +423,14 @@ test('remote project repository replaces document graph rows with parameterized 
   assert.match(sql, /INSERT INTO document_edge_record_links/i)
   assert.match(sql, /INSERT INTO document_import_runs/i)
   assert.ok(queries.every((query) => Array.isArray(query.params)))
+  const writeParams = queries.flatMap((query) => query.params)
+  assert.ok(writeParams.includes(JSON.stringify({ source: 'document-workspace' })))
+  assert.ok(writeParams.includes(JSON.stringify({ roles: ['term'], nested: { source: 'shj' } })))
+  assert.equal(writeParams.some((param) => (
+    param !== null
+    && typeof param === 'object'
+    && Object.prototype.toString.call(param) === '[object Object]'
+  )), false)
 })
 
 test('remote project repository initializes schema and retries when document collection table is missing', async () => {

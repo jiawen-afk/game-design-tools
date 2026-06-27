@@ -423,11 +423,20 @@ function buildSqliteUpsertSql(tableName, definition) {
   ].join(' ')
 }
 
+function isJsonBindableValue(value) {
+  if (value === null || typeof value !== 'object') return false
+  return Array.isArray(value) || Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function normalizeSqliteValue(value) {
+  if (value === undefined) return null
+  if (typeof value === 'boolean') return value ? 1 : 0
+  if (isJsonBindableValue(value)) return JSON.stringify(value)
+  return value
+}
+
 function rowValues(definition, row) {
-  return definition.columns.map((column) => {
-    const value = row[column] ?? null
-    return typeof value === 'boolean' ? (value ? 1 : 0) : value
-  })
+  return definition.columns.map((column) => normalizeSqliteValue(row[column]))
 }
 
 function upsertRow(database, tableName, row) {

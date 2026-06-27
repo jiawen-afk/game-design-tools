@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type * as React from 'react'
 import { message } from 'antd'
 
 import { chromaKey, composeFrame } from './imagePipeline'
+import { defaultBirefnetPort, removeImageBackground, type MatteMode } from './aiMattingService'
 import { sampleFrameKeyColor } from './matteColorSampler'
 import {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
+  buildMatteFrameGroups,
+  buildMatteProcessingProgress,
   dequeueNextInactiveFrameId,
   normalizeHexColor,
   normalizePickerColor,
@@ -16,11 +19,13 @@ import {
 import { createMatteGroupActions } from './matteGroupActions'
 import { applyComposedFrameUrl } from './model'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
+import { useAiMattingSetup } from './useAiMattingSetup'
 import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
 )
+const CPU_AI_MATTING_CONCURRENCY = 1
 const BULK_MATTE_MESSAGE_KEY = 'bulk-matte-processing'
 
 export interface UseMattePipelineParams {
@@ -47,6 +52,8 @@ export function useMattePipeline({
   composingPaused,
 }: UseMattePipelineParams) {
   const matteDefaultsWorkspace = useMatteDefaultsWorkspace()
+  const aiMatting = useAiMattingSetup()
+  const [matteMode, setMatteModeState] = useState<MatteMode>('chroma')
   const [bulkMatteGroupId, setBulkMatteGroupId] = useState<string | null>(null)
   const timersRef = useRef(new Map<string, number>())
   const matteRunRef = useRef(new Map<string, number>())
@@ -143,7 +150,21 @@ export function useMattePipeline({
 
   const runMatteQueue = useCallback(
     () => {
-      while (matteActiveRef.current.size < PIPELINE_CONCURRENCY) {
+      if (matteMode === 'ai' && !aiMatting.connected) {
+        timersRef.current.forEach((timer) => window.clearTimeout(timer))
+        timersRef.current.clear()
+        matteQueueRef.current = []
+        matteActiveRef.current.clear()
+        setBulkMatteGroupId(null)
+        setFrames((prev) => prev.map((item) => (item.processing ? { ...item, processing: false } : item)))
+        void aiMatting.runCheck()
+        message.warning('AI 抠图服务未连接，请先启动 BiRefNet 服务。')
+        return
+      }
+      const matteConcurrency = matteMode === 'ai' && aiMatting.activeDevice === 'cpu'
+        ? CPU_AI_MATTING_CONCURRENCY
+        : PIPELINE_CONCURRENCY
+      while (matteActiveRef.current.size < matteConcurrency) {
         const next = dequeueNextInactiveFrameId(matteQueueRef.current, matteActiveRef.current)
         matteQueueRef.current = next.queue
         if (!next.id) return
@@ -154,7 +175,10 @@ export function useMattePipeline({
         if (runId === undefined) continue
         matteActiveRef.current.add(id)
         updateFrame(id, (cur) => (cur.processing ? cur : { ...cur, processing: true }))
-        void chromaKey(item.sourceUrl, item.matte)
+        const matteJob = matteMode === 'ai'
+          ? removeImageBackground(item.sourceUrl, { inputName: item.sourceName, port: defaultBirefnetPort })
+          : chromaKey(item.sourceUrl, item.matte)
+        void matteJob
           .then((result) => {
             if (matteRunRef.current.get(id) !== runId) {
               URL.revokeObjectURL(result.url)
@@ -177,6 +201,7 @@ export function useMattePipeline({
           })
           .catch((e) => {
             if (matteRunRef.current.get(id) !== runId) return
+            if (matteMode === 'ai') void aiMatting.runCheck()
             updateFrame(id, (cur) => ({ ...cur, processing: false }))
             message.error(`抠图失败：${String(e)}`)
           })
@@ -186,7 +211,7 @@ export function useMattePipeline({
           })
       }
     },
-    [framesRef, setFrames, updateFrame]
+    [aiMatting.activeDevice, aiMatting.connected, aiMatting.runCheck, framesRef, matteMode, setFrames, updateFrame]
   )
 
   useEffect(() => {
@@ -208,6 +233,17 @@ export function useMattePipeline({
     },
     []
   )
+
+  const setMatteMode = useCallback((nextMode: MatteMode) => {
+    setMatteModeState(nextMode)
+    if (nextMode === 'ai' && !aiMatting.connected) {
+      void aiMatting.runCheck()
+      message.warning('AI 抠图服务未连接，请先启动 BiRefNet 服务。')
+      return
+    }
+    const initialIds = buildMatteFrameGroups(framesRef.current).map((group) => group.firstFrame.id)
+    initialIds.forEach((frameId) => scheduleMatte(frameId))
+  }, [aiMatting.connected, aiMatting.runCheck, framesRef, scheduleMatte])
 
   useEffect(() => {
     if (composingPaused) return
@@ -242,6 +278,28 @@ export function useMattePipeline({
       duration: 2,
     })
   }, [bulkMatteGroupId, frames, framesRef])
+
+  const aiMattingProgress = useMemo(() => {
+    if (matteMode !== 'ai') return null
+    const delayedIds = [...timersRef.current.keys()]
+    const queuedIds = [...matteQueueRef.current]
+    const activeIds = [...matteActiveRef.current]
+    const busyIds = new Set([...delayedIds, ...queuedIds, ...activeIds])
+    const targetIds = bulkMatteGroupId
+      ? frames
+        .filter((item) => item.matteGroupId === bulkMatteGroupId)
+        .map((item) => item.id)
+      : frames
+        .filter((item) => busyIds.has(item.id) || item.processing)
+        .map((item) => item.id)
+
+    return buildMatteProcessingProgress(frames, {
+      targetIds,
+      activeIds,
+      queuedIds,
+      delayedIds,
+    })
+  }, [bulkMatteGroupId, frames, matteMode])
 
   const setMatteParam = <K extends keyof MatteParams>(id: string, key: K, value: MatteParams[K]) => {
     updateFrame(id, (item) => ({ ...item, matte: { ...item.matte, [key]: value } }))
@@ -284,6 +342,11 @@ export function useMattePipeline({
   }
 
   const applyMatteGroupToFrames = (sourceId: string) => {
+    if (matteMode === 'ai' && !aiMatting.connected) {
+      void aiMatting.runCheck()
+      message.warning('AI 抠图服务未连接，请先启动 BiRefNet 服务。')
+      return
+    }
     const source = framesRef.current.find((item) => item.id === sourceId)
     if (!source) {
       message.info('请先添加帧')
@@ -324,6 +387,10 @@ export function useMattePipeline({
 
   return {
     ...matteDefaultsWorkspace,
+    matteMode,
+    setMatteMode,
+    aiMatting,
+    aiMattingProgress,
     bulkMatteProcessing: Boolean(bulkMatteGroupId),
     bulkMatteGroupId,
     scheduleMatte,

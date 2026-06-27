@@ -9,7 +9,7 @@ function copyDeploymentScripts() {
     closeBundle() {
       const outputDir = join(process.cwd(), 'dist/scripts')
       mkdirSync(outputDir, { recursive: true })
-      for (const fileName of ['deploy-voxcpm.ps1']) {
+      for (const fileName of ['deploy-voxcpm.ps1', 'deploy-birefnet.ps1']) {
         copyFileSync(join(process.cwd(), 'scripts', fileName), join(outputDir, fileName))
       }
     },

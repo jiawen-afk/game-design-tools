@@ -4,11 +4,14 @@ const { spawn } = require('node:child_process')
 const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const https = require('node:https')
+const http = require('node:http')
 const os = require('node:os')
 const path = require('node:path')
 const {
   registerProjectStorageIpcHandlers,
 } = require('./projectStorageIpcHandlers.cjs')
+
+const BIREFNET_MATTE_TIMEOUT_MS = 600000
 
 const allowedPersonalSpaceRoots = new Set()
 
@@ -87,6 +90,22 @@ function resolveVoxcpmInstallPaths() {
     configPath: path.join(stateDir, 'voxcpm-config.json'),
     servicePath: path.join(cmdDir, 'voxcpm-service.ps1'),
   }
+}
+
+function resolveBirefnetInstallPaths() {
+  const localAppData = process.env.LOCALAPPDATA || ''
+  const stateDir = path.join(localAppData, 'GameDesignTools', 'BiRefNet')
+  const cmdDir = path.join(localAppData, 'GameDesignTools', 'bin')
+  return {
+    cmdDir,
+    stateDir,
+    configPath: path.join(stateDir, 'birefnet-config.json'),
+    servicePath: path.join(cmdDir, 'birefnet-service.ps1'),
+  }
+}
+
+function normalizeBirefnetDevicePreference(value) {
+  return value === 'cuda' || value === 'cpu' ? value : 'auto'
 }
 
 const upscaylModels = [
@@ -258,6 +277,78 @@ function runCommandOutput(command, args, options = {}) {
     child.stderr?.on('data', (chunk) => { output += chunk.toString('utf8') })
     child.on('error', (error) => resolve({ ok: false, output: error.message }))
     child.on('close', (code) => resolve({ ok: code === 0, output: output.trim() }))
+  })
+}
+
+function getJson(port, route, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: route,
+      method: 'GET',
+      timeout: timeoutMs,
+    }, (response) => {
+      let text = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => { text += chunk })
+      response.on('end', () => {
+        let parsed = null
+        try {
+          parsed = text ? parseJsonText(text) : null
+        } catch (error) {
+          reject(new Error(`BiRefNet 服务返回无效 JSON：${error.message}`))
+          return
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(parsed?.detail || parsed?.error || text || `BiRefNet 服务请求失败：${response.statusCode}`))
+          return
+        }
+        resolve(parsed)
+      })
+    })
+    request.on('error', reject)
+    request.on('timeout', () => request.destroy(new Error('BiRefNet 服务连接超时。')))
+    request.end()
+  })
+}
+
+function postJson(port, route, payload, timeoutMs = 120000) {
+  const body = Buffer.from(JSON.stringify(payload), 'utf8')
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: route,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': body.length,
+      },
+      timeout: timeoutMs,
+    }, (response) => {
+      let text = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk) => { text += chunk })
+      response.on('end', () => {
+        let parsed = null
+        try {
+          parsed = text ? parseJsonText(text) : null
+        } catch (error) {
+          reject(new Error(`BiRefNet 服务返回无效 JSON：${error.message}`))
+          return
+        }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error(parsed?.detail || parsed?.error || text || `BiRefNet 服务请求失败：${response.statusCode}`))
+          return
+        }
+        resolve(parsed)
+      })
+    })
+    request.on('error', reject)
+    request.on('timeout', () => request.destroy(new Error('BiRefNet 服务处理超时。')))
+    request.write(body)
+    request.end()
   })
 }
 
@@ -694,4 +785,175 @@ ipcMain.handle('voxcpm:service', async (_event, action = 'status') => {
     child.on('error', (error) => resolve({ ok: false, output: error.message }))
     child.on('close', (code) => resolve({ ok: code === 0, output: output.trim() }))
   })
+})
+
+ipcMain.handle('birefnet:run-setup', async (_event, options = {}) => {
+  const scriptPath = resolveDeploymentScript('deploy-birefnet.ps1')
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`BiRefNet 安装脚本不存在：${scriptPath}`)
+  }
+
+  const model = String(options.model || 'ZhengPeng7/BiRefNet_HR-matting')
+  const port = Number(options.port || 17860)
+  const device = normalizeBirefnetDevicePreference(options.device)
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('cmd.exe', [
+      '/c',
+      'start',
+      'BiRefNet 安装依赖',
+      'powershell.exe',
+      '-NoExit',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      scriptPath,
+      model,
+      String(port),
+      device,
+    ], {
+      detached: true,
+      windowsHide: false,
+      stdio: 'ignore',
+    })
+    let settled = false
+    const settle = (handler) => {
+      if (settled) return
+      settled = true
+      handler()
+    }
+    child.unref()
+    child.on('error', (error) => settle(() => reject(new Error(`PowerShell 安装终端启动失败：${error.message}`))))
+    child.on('close', (code) => {
+      if (code === 0) settle(() => resolve({ started: true, scriptPath }))
+      else settle(() => reject(new Error(`PowerShell 安装终端启动失败，退出码：${code}`)))
+    })
+  })
+})
+
+ipcMain.handle('birefnet:setup-status', async () => {
+  const { configPath, servicePath } = resolveBirefnetInstallPaths()
+  const missing = []
+  const details = []
+  let config = null
+
+  if (fs.existsSync(servicePath)) details.push(`服务管理脚本：${servicePath}`)
+  else missing.push(`缺少服务管理脚本：${servicePath}`)
+
+  if (fs.existsSync(configPath)) {
+    try {
+      config = parseJsonText(await fsp.readFile(configPath, 'utf8'))
+      details.push(`安装配置：${configPath}`)
+    } catch (error) {
+      missing.push(`安装配置无法读取：${error.message}`)
+    }
+  } else {
+    missing.push(`缺少安装配置：${configPath}`)
+  }
+
+  const pythonCommand = config?.PythonCommand ? String(config.PythonCommand) : ''
+  const serviceDir = config?.ServiceDir ? String(config.ServiceDir) : ''
+  const device = normalizeBirefnetDevicePreference(config?.Device)
+  details.push(`设备偏好：${device}`)
+  if (pythonCommand) {
+    if (fs.existsSync(pythonCommand)) details.push(`Python：${pythonCommand}`)
+    else missing.push(`Python 解释器不存在：${pythonCommand}`)
+  }
+  if (serviceDir) {
+    if (fs.existsSync(serviceDir)) details.push(`BiRefNet 服务目录：${serviceDir}`)
+    else missing.push(`BiRefNet 服务目录不存在：${serviceDir}`)
+  }
+  if (pythonCommand && fs.existsSync(pythonCommand)) {
+    const pythonArgs = config && Array.isArray(config.PythonArgs)
+      ? config.PythonArgs.map((item) => String(item)).filter(Boolean)
+      : []
+    const probe = await runCommandOutput(
+      pythonCommand,
+      [
+        ...pythonArgs,
+        '-c',
+        'import torch; import torchvision; import cv2; import fastapi; import transformers; print("birefnet dependencies ok")',
+      ],
+      serviceDir && fs.existsSync(serviceDir) ? { cwd: serviceDir } : {},
+    )
+    if (probe.ok) details.push(`Python 依赖：${probe.output || 'birefnet dependencies ok'}`)
+    else missing.push(`Python 依赖不可用：${probe.output || 'import torch / torchvision / cv2 / fastapi / transformers 失败'}`)
+  }
+
+  if (missing.length === 0) {
+    return { ok: true, output: ['BiRefNet 依赖已安装。', ...details].join('\n') }
+  }
+  return { ok: false, output: ['尚未完成 BiRefNet 依赖安装。', ...missing, ...details].join('\n') }
+})
+
+ipcMain.handle('birefnet:set-device', async (_event, device = 'auto') => {
+  const nextDevice = normalizeBirefnetDevicePreference(device)
+  const { configPath } = resolveBirefnetInstallPaths()
+  if (!fs.existsSync(configPath)) {
+    return { ok: false, output: '尚未安装 BiRefNet，请先安装依赖。' }
+  }
+
+  let config = {}
+  try {
+    config = parseJsonText(await fsp.readFile(configPath, 'utf8'))
+  } catch (error) {
+    return { ok: false, output: `BiRefNet 安装配置无法读取：${error.message}` }
+  }
+
+  await fsp.writeFile(configPath, JSON.stringify({ ...config, Device: nextDevice }, null, 2), 'utf8')
+  return { ok: true, output: `BiRefNet 设备偏好已切换为 ${nextDevice}。` }
+})
+
+ipcMain.handle('birefnet:service', async (_event, action = 'status') => {
+  const allowedActions = new Set(['start', 'stop', 'restart', 'status'])
+  const nextAction = allowedActions.has(action) ? action : 'status'
+  const { servicePath } = resolveBirefnetInstallPaths()
+  if (!fs.existsSync(servicePath)) {
+    return { ok: false, output: '尚未安装 BiRefNet 服务管理命令，请先安装依赖。' }
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', servicePath, nextAction], {
+      windowsHide: true,
+    })
+    let output = ''
+    child.stdout.on('data', (chunk) => { output += chunk.toString('utf8') })
+    child.stderr.on('data', (chunk) => { output += chunk.toString('utf8') })
+    child.on('error', (error) => resolve({ ok: false, output: error.message }))
+    child.on('close', (code) => resolve({ ok: code === 0, output: output.trim() }))
+  })
+})
+
+ipcMain.handle('birefnet:health', async (_event, port = 17860) => {
+  const servicePort = Number(port || 17860)
+  try {
+    const result = await getJson(servicePort, '/ready', 15000)
+    return {
+      ok: Boolean(result?.ok && result?.ready),
+      output: result ? JSON.stringify(result) : 'BiRefNet 模型已就绪。',
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      output: error?.message || 'BiRefNet 模型未就绪。',
+    }
+  }
+})
+
+ipcMain.handle('birefnet:remove-background', async (_event, options = {}) => {
+  const port = Number(options.port || 17860)
+  const inputName = path.basename(String(options.inputName || 'image.png'))
+  const inputBuffer = Buffer.from(options.data)
+  const result = await postJson(port, '/matte', {
+    name: inputName,
+    image_base64: inputBuffer.toString('base64'),
+  }, BIREFNET_MATTE_TIMEOUT_MS)
+  if (!result?.image_base64) throw new Error('BiRefNet 服务未返回图片数据。')
+  return {
+    name: `${path.basename(inputName, path.extname(inputName))}-birefnet.png`,
+    data: Buffer.from(String(result.image_base64), 'base64'),
+    width: Number(result.width || 0),
+    height: Number(result.height || 0),
+  }
 })
