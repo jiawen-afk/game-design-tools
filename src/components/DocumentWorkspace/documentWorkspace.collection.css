@@ -1,0 +1,91 @@
+.document-collection-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.document-collection-summary-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.95fr) minmax(220px, 1.15fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 0 16px;
+}
+
+.document-current-collection {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.document-collection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.document-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.document-summary-row div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 58%, white);
+}
+
+.document-summary-row span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.document-summary-row strong {
+  color: var(--color-ink);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.document-import-progress {
+  display: grid;
+  gap: 8px;
+  margin-inline: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 58%, white);
+}
+
+.document-import-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.document-import-progress strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-import-progress span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}

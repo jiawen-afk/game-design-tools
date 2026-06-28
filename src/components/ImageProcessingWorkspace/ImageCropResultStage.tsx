@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { Empty, Slider, Space, Switch, Typography } from 'antd'
 import { EyeOutlined, SelectOutlined } from '@ant-design/icons'
 
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
-import { getPreviewAnchorFromStagePoint, MIN_PREVIEW_ZOOM } from './imageProcessingModel'
+import { MIN_PREVIEW_ZOOM } from './imageProcessingModel'
 import { ImageCropSelectionLayer } from './ImageCropSelectionLayer'
+import { useImagePreviewStageInteractions } from './useImagePreviewStageInteractions'
 
 const { Text } = Typography
 
@@ -15,50 +16,25 @@ export interface ImageCropResultStageProps {
 type CropHandle = NonNullable<ImageProcessingWorkspaceViewModel['cropDrag']>['handle']
 
 export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
-  const boxRef = useRef<HTMLDivElement | null>(null)
-  const layerRef = useRef<HTMLDivElement | null>(null)
   const [comparePosition, setComparePosition] = useState(50)
-  const [dragDepth, setDragDepth] = useState(0)
+  const { uploadImage } = workspace
   const {
-    draft,
-    handleWheelZoom,
-    setCropPreviewContainerSize,
-  } = workspace
-
-  useEffect(() => {
-    const element = boxRef.current
-    if (!element) return
-    const updateSize = () => {
-      const rect = element.getBoundingClientRect()
-      setCropPreviewContainerSize({ width: rect.width, height: rect.height })
-    }
-    updateSize()
-    const observer = new ResizeObserver(updateSize)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [setCropPreviewContainerSize])
-
-  useEffect(() => {
-    const element = boxRef.current
-    if (!element) return
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      if (!draft) return
-      const stageRect = element.getBoundingClientRect()
-      const imageRect = workspace.previewImageRect
-      if (!imageRect) {
-        handleWheelZoom(event.deltaY)
-        return
-      }
-      handleWheelZoom(event.deltaY, getPreviewAnchorFromStagePoint(
-        { x: event.clientX - stageRect.left, y: event.clientY - stageRect.top },
-        imageRect
-      ))
-    }
-    element.addEventListener('wheel', onWheel, { passive: false })
-    return () => element.removeEventListener('wheel', onWheel)
-  }, [draft, handleWheelZoom, workspace.previewImageRect])
+    boxRef,
+    layerRef,
+    dragDepth,
+    mapClientToLocal,
+    onDragEnter,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+  } = useImagePreviewStageInteractions({
+    draft: workspace.draft,
+    previewImageRect: workspace.previewImageRect,
+    previewZoom: workspace.previewZoom,
+    setCropPreviewContainerSize: workspace.setCropPreviewContainerSize,
+    handleWheelZoom: workspace.handleWheelZoom,
+    uploadImage,
+  })
 
   const imageRect = workspace.previewImageRect
   const currentCropRect = workspace.activePreviewCropRect
@@ -80,40 +56,6 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
       startPointer: { x: event.clientX, y: event.clientY },
       startPreviewRect: currentCropRect,
     })
-  }
-
-  const mapClientToLocal = (clientX: number, clientY: number) => {
-    const layer = layerRef.current
-    if (!layer || !imageRect) return null
-    const rect = layer.getBoundingClientRect()
-    return {
-      x: (clientX - rect.left) / workspace.previewZoom,
-      y: (clientY - rect.top) / workspace.previewZoom,
-    }
-  }
-
-  const hasDraggedFiles = (event: DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer.types).includes('Files')
-  const onDragEnter = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return
-    event.preventDefault()
-    setDragDepth((current) => current + 1)
-  }
-  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-  }
-  const onDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return
-    event.preventDefault()
-    setDragDepth((current) => Math.max(0, current - 1))
-  }
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return
-    event.preventDefault()
-    setDragDepth(0)
-    const [file] = Array.from(event.dataTransfer.files)
-    if (file) void workspace.uploadImage(file)
   }
 
   return (

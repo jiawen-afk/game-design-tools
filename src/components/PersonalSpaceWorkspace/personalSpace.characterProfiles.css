@@ -1,0 +1,72 @@
+.character-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.character-link-actions .ant-upload {
+  display: inline-flex;
+}
+
+.character-record-header {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.character-record-tools {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 260px;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.character-asset-counts {
+  min-width: 0;
+  flex: 0 1 auto;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-record-actions {
+  flex: 0 0 auto;
+}
+
+.record-name-view {
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.record-name-view .field-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.record-name-view strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-name-view {
+  width: clamp(180px, 26vw, 300px);
+  flex: 0 1 clamp(180px, 26vw, 300px);
+}
+
+.storyboard-name-view {
+  min-width: 0;
+}
+

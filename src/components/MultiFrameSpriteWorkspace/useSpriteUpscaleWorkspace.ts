@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { message } from 'antd'
 
-import { getDesktopApi, type DesktopUpscaleInstallProgress, type DesktopUpscaleRuntimeStatus } from '../../desktopApi'
+import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import { revokeImageObjectUrl } from '../ImageProcessingWorkspace/imageProcessingPipeline'
+import { useUpscaleRuntime } from '../ImageProcessingWorkspace/useUpscaleRuntime'
 import { composeFrame } from './imagePipeline'
 import {
   defaultUpscaleOptions,
@@ -11,7 +12,6 @@ import {
   type UpscaleOptions,
 } from '../ImageProcessingWorkspace/imageUpscaleModel'
 import {
-  collectStaleSpriteUpscaleResultUrls,
   getCurrentSpriteUpscalePreview,
   getResultUpscaleFrameSize,
   getSpriteUpscaleModeLabel,
@@ -20,9 +20,9 @@ import {
   type ActiveSpriteUpscaleMode,
   type SpriteUpscaleMode,
   type SpriteUpscaleResult,
-  type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
 import type { ComposeStyle, FrameItem } from './types'
+import { useSpriteUpscaleResults } from './useSpriteUpscaleResults'
 
 interface SpriteUpscaleBatchProgress {
   total: number
@@ -49,59 +49,28 @@ export function useSpriteUpscaleWorkspace({
 }: UseSpriteUpscaleWorkspaceParams) {
   const [upscaleMode, setUpscaleMode] = useState<SpriteUpscaleMode>('off')
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
-  const [upscaleRuntimeStatus, setUpscaleRuntimeStatus] = useState<DesktopUpscaleRuntimeStatus | null>(null)
-  const [upscaleInstallProgress, setUpscaleInstallProgress] = useState<DesktopUpscaleInstallProgress | null>(null)
-  const [upscaleInstalling, setUpscaleInstalling] = useState(false)
   const [upscaleProcessing, setUpscaleProcessing] = useState(false)
   const [batchProgress, setBatchProgress] = useState<SpriteUpscaleBatchProgress>({ total: 0, completed: 0, activeName: '' })
-  const [resultByFrameId, setResultByFrameId] = useState<SpriteUpscaleResultMap>({})
-  const resultByFrameIdRef = useRef(resultByFrameId)
   const upscaleEnabled = upscaleMode !== 'off'
-
-  const revokeUpscaleResult = useCallback((result: SpriteUpscaleResult) => {
-    revokeImageObjectUrl(result.url)
-    if (result.upscaledSourceUrl) revokeImageObjectUrl(result.upscaledSourceUrl)
-  }, [])
-
-  useEffect(() => {
-    resultByFrameIdRef.current = resultByFrameId
-  }, [resultByFrameId])
-
-  useEffect(() => {
-    const api = getDesktopApi()
-    if (!api) return
-    void api.queryUpscaleStatus()
-      .then(setUpscaleRuntimeStatus)
-      .catch((error) => {
-        setUpscaleRuntimeStatus({ installed: false, path: '', models: [], message: String(error) })
-      })
-    return api.onUpscaleInstallProgress((progress) => setUpscaleInstallProgress(progress))
-  }, [])
+  const {
+    installUpscaleRuntime,
+    queryUpscaleStatus,
+    upscaleInstallProgress,
+    upscaleInstalling,
+    upscaleRuntimeStatus,
+  } = useUpscaleRuntime({
+    unavailableMessage: '当前不是桌面运行环境，无法执行高清化。',
+  })
+  const {
+    clearUpscaleResults: clearStoredUpscaleResults,
+    resultByFrameId,
+    storeUpscaleResult,
+  } = useSpriteUpscaleResults({ frames })
 
   const clearUpscaleResults = useCallback(() => {
-    setResultByFrameId((previous) => {
-      Object.values(previous).forEach(revokeUpscaleResult)
-      return {}
-    })
+    clearStoredUpscaleResults()
     setBatchProgress({ total: 0, completed: 0, activeName: '' })
-  }, [revokeUpscaleResult])
-
-  useEffect(() => {
-    return () => {
-      Object.values(resultByFrameIdRef.current).forEach(revokeUpscaleResult)
-    }
-  }, [revokeUpscaleResult])
-
-  useEffect(() => {
-    setResultByFrameId((previous) => {
-      const staleUrls = new Set(collectStaleSpriteUpscaleResultUrls(frames, previous))
-      if (staleUrls.size === 0) return previous
-      staleUrls.forEach(revokeImageObjectUrl)
-      return Object.fromEntries(
-        Object.entries(previous).filter(([, result]) => !staleUrls.has(result.url))
-      )
-    })
-  }, [frames])
+  }, [clearStoredUpscaleResults])
 
   const targetFrames = useMemo(() => getSpriteUpscaleTargetFrames(frames), [frames])
   const resultUpscaleFrameSize = useMemo(
@@ -135,37 +104,6 @@ export function useSpriteUpscaleWorkspace({
   const getBatchMode = useCallback((): ActiveSpriteUpscaleMode => {
     return upscaleMode === 'off' ? 'input' : upscaleMode
   }, [upscaleMode])
-
-  const queryUpscaleStatus = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      const status = { installed: false, path: '', models: [], message: '当前不是桌面运行环境，无法执行高清化。' }
-      setUpscaleRuntimeStatus(status)
-      return status
-    }
-    const status = await api.queryUpscaleStatus()
-    setUpscaleRuntimeStatus(status)
-    return status
-  }, [])
-
-  const installUpscaleRuntime = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      message.warning('当前不是桌面运行环境，无法安装 Upscayl 运行包。')
-      return
-    }
-    setUpscaleInstalling(true)
-    try {
-      const status = await api.installUpscaleRuntime()
-      setUpscaleRuntimeStatus(status)
-      if (status.installed) message.success('高清化运行包已安装')
-      else message.error(status.message ?? '运行包安装未完成')
-    } catch (error) {
-      message.error(`高清化运行包安装失败：${String(error)}`)
-    } finally {
-      setUpscaleInstalling(false)
-    }
-  }, [])
 
   const updateUpscaleOptions = useCallback((patch: Partial<UpscaleOptions>) => {
     setUpscaleOptions((current) => normalizeUpscaleOptions({ ...current, ...patch }))
@@ -236,11 +174,7 @@ export function useSpriteUpscaleWorkspace({
           width: batchMode === 'output' ? resultFrameSize.width : Math.max(1, Math.round(canvasWidth)),
           height: batchMode === 'output' ? resultFrameSize.height : Math.max(1, Math.round(canvasHeight)),
         }
-        setResultByFrameId((previous) => {
-          const oldResult = previous[frame.id]
-          if (oldResult) revokeUpscaleResult(oldResult)
-          return { ...previous, [frame.id]: upscaledResult }
-        })
+        storeUpscaleResult(upscaledResult)
         setBatchProgress({ total: targets.length, completed: index + 1, activeName: '' })
       }
       message.success(`已生成 ${targets.length} 帧${batchModeLabel}预览`)
@@ -249,7 +183,7 @@ export function useSpriteUpscaleWorkspace({
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [canvasHeight, canvasWidth, composeStyle, frames, getBatchMode, revokeUpscaleResult, upscaleOptions, upscaleRuntimeStatus])
+  }, [canvasHeight, canvasWidth, composeStyle, frames, getBatchMode, storeUpscaleResult, upscaleOptions, upscaleRuntimeStatus])
 
   return {
     upscaleMode,

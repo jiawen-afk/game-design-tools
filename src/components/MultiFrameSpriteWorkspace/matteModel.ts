@@ -1,346 +1,50 @@
-import { clampInt } from './numberUtils'
+export {
+  MATTE_PARAM_MAX,
+  coerceMatteDefaults,
+  computeChromaKeyAlpha,
+  getSpillColorHex,
+  normalizeHexColor,
+  normalizePickerColor,
+  resolveSpillColor,
+} from './matteColorModel'
+export type {
+  MatteDefaults,
+  SpillColorMode,
+} from './matteColorModel'
 
-export type SpillColorMode = 'key' | 'green' | 'blue' | 'magenta' | 'custom'
+export {
+  buildMatteFrameGroups,
+  getInitialMatteFrameIds,
+  getNextMatteGroupName,
+  removeMatteFrameGroup,
+} from './matteGroupModel'
+export type {
+  InitialMatteFrameInput,
+  MatteFrameGroup,
+  MatteGroupFrameState,
+  MatteImportGroupKind,
+} from './matteGroupModel'
 
-export interface MatteDefaults {
-  tolerance: number
-  smoothness: number
-  spill: number
-  erosion: number
-  spillColorMode: SpillColorMode
-  customSpillHex: string
-}
+export {
+  applyMatteParamsToAllFrames,
+  applyMatteParamsToFollowingFrames,
+  applyMatteParamsToFrameGroup,
+} from './matteParamModel'
+export type {
+  ApplyMatteParamsToFollowingFramesResult,
+  MatteFrameState,
+  MatteGroupApplyFrameState,
+  MatteParamsState,
+} from './matteParamModel'
 
-export interface MatteParamsState extends MatteDefaults {
-  keyColor: [number, number, number]
-}
-
-export const MATTE_PARAM_MAX = {
-  tolerance: 100,
-  smoothness: 50,
-  spill: 100,
-  erosion: 100,
-} as const
-
-export interface MatteFrameState {
-  id: string
-  matte: MatteParamsState
-}
-
-export type MatteImportGroupKind = 'video' | 'spriteSheet' | 'imageBatch'
-
-export interface MatteGroupFrameState {
-  id: string
-  matteGroupId: string
-  matteGroupName: string
-}
-
-export interface MatteGroupApplyFrameState extends MatteFrameState {
-  matteGroupId: string
-}
-
-export interface ApplyMatteParamsToFollowingFramesResult<T> {
-  frames: T[]
-  recomputeIds: string[]
-}
-
-export interface MatteFrameGroup<T extends MatteGroupFrameState> {
-  id: string
-  name: string
-  firstFrame: T
-  frameCount: number
-  frames: T[]
-}
-
-export interface MatteProcessingFrameState {
-  id: string
-  matteUrl?: string | null
-  processing?: boolean
-}
-
-export interface BuildMatteProcessingProgressOptions {
-  targetIds: Iterable<string>
-  activeIds: Iterable<string>
-  queuedIds: Iterable<string>
-  delayedIds: Iterable<string>
-}
-
-export interface MatteProcessingProgress {
-  total: number
-  completed: number
-  active: number
-  waiting: number
-  percent: number
-  label: string
-}
-
-export function buildMatteProcessingProgress<T extends MatteProcessingFrameState>(
-  frames: T[],
-  options: BuildMatteProcessingProgressOptions
-): MatteProcessingProgress | null {
-  const targetIds = new Set(options.targetIds)
-  if (targetIds.size === 0) return null
-
-  const activeIds = new Set(options.activeIds)
-  const queuedIds = new Set(options.queuedIds)
-  const delayedIds = new Set(options.delayedIds)
-  const targetFrames = frames.filter((frame) => targetIds.has(frame.id))
-  const total = targetFrames.length
-  if (total === 0) return null
-
-  const active = targetFrames.filter((frame) => activeIds.has(frame.id) || Boolean(frame.processing)).length
-  const completed = targetFrames.filter((frame) => (
-    Boolean(frame.matteUrl) &&
-    !frame.processing &&
-    !activeIds.has(frame.id) &&
-    !queuedIds.has(frame.id) &&
-    !delayedIds.has(frame.id)
-  )).length
-  const waiting = Math.max(0, total - completed - active)
-  const percent = Math.min(100, Math.max(0, Math.round((completed / total) * 100)))
-  const parts = [`已完成 ${completed} / ${total} 帧`]
-  if (active > 0) parts.push(`处理中 ${active} 帧`)
-  if (waiting > 0) parts.push(`等待 ${waiting} 帧`)
-
-  return {
-    total,
-    completed,
-    active,
-    waiting,
-    percent,
-    label: parts.join('，'),
-  }
-}
-
-export function queueUniqueFrameId(queue: string[], id: string): string[] {
-  return [...queue.filter((queuedId) => queuedId !== id), id]
-}
-
-export function dequeueNextInactiveFrameId(
-  queue: string[],
-  activeIds: ReadonlySet<string>
-): { id: string | null; queue: string[] } {
-  const queueIndex = queue.findIndex((queuedId) => !activeIds.has(queuedId))
-  if (queueIndex < 0) return { id: null, queue }
-  const nextQueue = [...queue]
-  const [id] = nextQueue.splice(queueIndex, 1)
-  return { id: id ?? null, queue: nextQueue }
-}
-
-export function resolvePipelineConcurrency(availableThreads: number | undefined, fallback = 4): number {
-  if (!Number.isFinite(availableThreads) || !availableThreads || availableThreads <= 0) return fallback
-  return clampInt(Math.floor(availableThreads / 2), 2, 6)
-}
-
-export interface InitialMatteFrameInput {
-  existingFrameCount: number
-  createdIds: string[]
-}
-
-export function getInitialMatteFrameIds({ existingFrameCount, createdIds }: InitialMatteFrameInput): string[] {
-  void existingFrameCount
-  return createdIds[0] ? [createdIds[0]] : []
-}
-
-const MATTE_GROUP_KIND_LABELS: Record<MatteImportGroupKind, string> = {
-  video: '视频处理',
-  spriteSheet: '精灵图处理',
-  imageBatch: '批量图片',
-}
-
-export function getNextMatteGroupName(
-  frames: Array<Pick<MatteGroupFrameState, 'matteGroupId' | 'matteGroupName'>>,
-  kind: MatteImportGroupKind
-): string {
-  const groupIds = new Set(frames.map((frame) => frame.matteGroupId).filter(Boolean))
-  const groupIndexById = new Map<string, number>()
-  frames.forEach((frame) => {
-    if (!frame.matteGroupId || groupIndexById.has(frame.matteGroupId)) return
-    const match = /^(\d+)-/.exec(frame.matteGroupName)
-    groupIndexById.set(frame.matteGroupId, match ? Number(match[1]) : groupIndexById.size + 1)
-  })
-  const maxIndex = Math.max(groupIds.size, 0, ...groupIndexById.values())
-  return `${maxIndex + 1}-${MATTE_GROUP_KIND_LABELS[kind]}`
-}
-
-export function buildMatteFrameGroups<T extends MatteGroupFrameState>(frames: T[]): MatteFrameGroup<T>[] {
-  const groups: MatteFrameGroup<T>[] = []
-  const groupById = new Map<string, MatteFrameGroup<T>>()
-  frames.forEach((frame) => {
-    let group = groupById.get(frame.matteGroupId)
-    if (!group) {
-      group = {
-        id: frame.matteGroupId,
-        name: frame.matteGroupName,
-        firstFrame: frame,
-        frameCount: 0,
-        frames: [],
-      }
-      groupById.set(frame.matteGroupId, group)
-      groups.push(group)
-    }
-    group.frames.push(frame)
-    group.frameCount = group.frames.length
-  })
-  return groups
-}
-
-export function removeMatteFrameGroup<T extends MatteGroupFrameState>(frames: T[], groupId: string): T[] {
-  const next = frames.filter((frame) => frame.matteGroupId !== groupId)
-  return next.length === frames.length ? frames : next
-}
-
-function cloneMatteParams(matte: MatteParamsState): MatteParamsState {
-  return {
-    ...matte,
-    keyColor: [...matte.keyColor] as [number, number, number],
-  }
-}
-
-export function applyMatteParamsToFollowingFrames<T extends MatteFrameState>(
-  frames: T[],
-  targetId: string
-): ApplyMatteParamsToFollowingFramesResult<T> {
-  const targetIndex = frames.findIndex((frame) => frame.id === targetId)
-  if (targetIndex < 0 || targetIndex >= frames.length - 1) {
-    return { frames, recomputeIds: [] }
-  }
-
-  const source = frames[targetIndex]
-  const recomputeIds: string[] = []
-  const next = frames.map((frame, index) => {
-    if (index <= targetIndex) return frame
-    recomputeIds.push(frame.id)
-    return {
-      ...frame,
-      matte: cloneMatteParams(source.matte),
-    }
-  })
-
-  return { frames: next, recomputeIds }
-}
-
-export function applyMatteParamsToAllFrames<T extends MatteFrameState>(
-  frames: T[],
-  sourceId: string
-): ApplyMatteParamsToFollowingFramesResult<T> {
-  const source = frames.find((frame) => frame.id === sourceId)
-  if (!source) return { frames, recomputeIds: [] }
-
-  const recomputeIds: string[] = []
-  const next = frames.map((frame) => {
-    recomputeIds.push(frame.id)
-    if (frame.id === sourceId) return frame
-    return {
-      ...frame,
-      matte: cloneMatteParams(source.matte),
-    }
-  })
-
-  return { frames: next, recomputeIds }
-}
-
-export function applyMatteParamsToFrameGroup<T extends MatteGroupApplyFrameState>(
-  frames: T[],
-  sourceId: string
-): ApplyMatteParamsToFollowingFramesResult<T> {
-  const source = frames.find((frame) => frame.id === sourceId)
-  if (!source) return { frames, recomputeIds: [] }
-
-  const recomputeIds: string[] = []
-  const next = frames.map((frame) => {
-    if (frame.matteGroupId !== source.matteGroupId) return frame
-    recomputeIds.push(frame.id)
-    if (frame.id === sourceId) return frame
-    return {
-      ...frame,
-      matte: cloneMatteParams(source.matte),
-    }
-  })
-
-  return { frames: next, recomputeIds }
-}
-
-function parseHexColor(hex: string | undefined): [number, number, number] | null {
-  const clean = normalizeHexColor(hex, '').replace(/^#/, '')
-  if (!/^[0-9a-f]{6}$/i.test(clean)) return null
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ]
-}
-
-export function normalizeHexColor(value: string | undefined, fallback = '#00ff00'): string {
-  const raw = (value ?? '').trim()
-  const rgbMatch = raw.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*[\d.]+)?\s*\)$/i)
-  if (rgbMatch) {
-    const channels = rgbMatch.slice(1, 4).map((channel) => clampInt(Number(channel), 0, 255))
-    return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
-  }
-  const clean = raw.replace(/^#/, '')
-  if (/^[0-9a-f]{6}$/i.test(clean)) return `#${clean.toLowerCase()}`
-  if (/^[0-9a-f]{8}$/i.test(clean)) return `#${clean.slice(0, 6).toLowerCase()}`
-  return fallback
-}
-
-export function normalizePickerColor(color: unknown, hex: string | undefined, fallback = '#00ff00'): string {
-  if (color && typeof color === 'object') {
-    const maybeColor = color as { toHexString?: () => string; toRgbString?: () => string }
-    if (typeof maybeColor.toHexString === 'function') {
-      const normalized = normalizeHexColor(maybeColor.toHexString(), '')
-      if (normalized) return normalized
-    }
-    if (typeof maybeColor.toRgbString === 'function') {
-      const normalized = normalizeHexColor(maybeColor.toRgbString(), '')
-      if (normalized) return normalized
-    }
-  }
-  return normalizeHexColor(hex, fallback)
-}
-
-export function resolveSpillColor(
-  mode: SpillColorMode,
-  customHex?: string,
-  keyColor: [number, number, number] = [0, 255, 0]
-): [number, number, number] {
-  if (mode === 'key') return keyColor
-  if (mode === 'blue') return [0, 0, 255]
-  if (mode === 'magenta') return [255, 0, 255]
-  if (mode === 'custom') return parseHexColor(customHex) ?? [0, 255, 0]
-  return [0, 255, 0]
-}
-
-export function computeChromaKeyAlpha(distance: number, tolerance: number, smoothness: number): number {
-  const threshold = Math.max(0, tolerance)
-  const feather = Math.max(0, smoothness)
-  if (distance <= threshold) return 0
-  if (feather > 0 && distance < threshold + feather) {
-    return Math.min(1, (distance - threshold) / feather)
-  }
-  return 1
-}
-
-export function getSpillColorHex(
-  mode: SpillColorMode,
-  customHex?: string,
-  keyColor: [number, number, number] = [0, 255, 0]
-): string {
-  const [r, g, b] = resolveSpillColor(mode, customHex, keyColor)
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-}
-
-function isSpillColorMode(value: unknown): value is SpillColorMode {
-  return value === 'key' || value === 'green' || value === 'blue' || value === 'magenta' || value === 'custom'
-}
-
-export function coerceMatteDefaults(input: Partial<MatteDefaults>): MatteDefaults {
-  return {
-    tolerance: clampInt(input.tolerance ?? 5, 0, MATTE_PARAM_MAX.tolerance),
-    smoothness: clampInt(input.smoothness ?? 5, 0, MATTE_PARAM_MAX.smoothness),
-    spill: clampInt(input.spill ?? 0, 0, MATTE_PARAM_MAX.spill),
-    erosion: clampInt(input.erosion ?? 5, 0, MATTE_PARAM_MAX.erosion),
-    spillColorMode: isSpillColorMode(input.spillColorMode) ? input.spillColorMode : 'key',
-    customSpillHex: normalizeHexColor(input.customSpillHex, '#00ff00'),
-  }
-}
+export {
+  buildMatteProcessingProgress,
+  dequeueNextInactiveFrameId,
+  queueUniqueFrameId,
+  resolvePipelineConcurrency,
+} from './mattePipelineModel'
+export type {
+  BuildMatteProcessingProgressOptions,
+  MatteProcessingFrameState,
+  MatteProcessingProgress,
+} from './mattePipelineModel'

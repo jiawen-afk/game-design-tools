@@ -1,6 +1,5 @@
 import type { UploadProps } from 'antd'
-import { useState } from 'react'
-import { Empty, Input, Tag } from 'antd'
+import { Empty, Tag } from 'antd'
 
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 import type { AssetGroupKind, PersonalResourceSectionConfig, PersonalSpaceAsset } from './personalSpaceModel'
@@ -8,7 +7,7 @@ import { PersonalResourceAssetRecord } from './PersonalResourceAssetRecord'
 import { PersonalResourceGroupBlock } from './PersonalResourceGroupBlock'
 import { PersonalAssetGroupControls } from './PersonalAssetGroupControls'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
-import { useRecentStarredFilter } from './useRecentStarredFilter'
+import { usePersonalResourceGroups } from './usePersonalResourceGroups'
 import { useRenameDrafts } from './useRenameDrafts'
 
 interface PersonalResourceSectionProps {
@@ -70,70 +69,24 @@ export function PersonalResourceSection({
   projectId,
   projectMode,
 }: PersonalResourceSectionProps) {
-  const [selectedAssetIdsByGroup, setSelectedAssetIdsByGroup] = useState<Record<string, string[]>>({})
   const groupRename = useRenameDrafts<{ id: string; name: string }>((fromName, toName) => {
     onRenameGroup(section.kind, fromName, toName)
   })
-  const isVoiceSection = section.kind === 'voice'
-  const isGroupedResourceSection = section.kind === 'image' || section.kind === 'sprite' || isVoiceSection
-  const defaultGroupFilter = '全部分组'
-  const resourceGroups = section.groupNames.map((groupName) => ({
-    id: groupName,
-    name: groupName,
-    groupName,
-    assets: section.assets.filter((item) => item.groupName === groupName),
-    starred: section.starredGroupNames.includes(groupName),
-  }))
-  const {
-    selectedFilter: selectedGroup,
-    setSelectedFilter: setSelectedGroup,
-    onlyStarred: onlyStarredResourceGroups,
-    setOnlyStarred: setOnlyStarredResourceGroups,
-    filterOptions: resourceGroupOptions,
-    visibleItems: visibleResourceGroups,
-  } = useRecentStarredFilter({
-    items: resourceGroups,
-    defaultValue: defaultGroupFilter,
-    defaultLabel: '最近创建的20个分组',
-    getId: (group) => group.id,
-    getName: (group) => group.name,
-    getStarred: (group) => group.starred,
-  })
-  const groupAssets = section.assets.filter((item) => item.groupName === selectedGroup)
-  const canDeleteGroup = section.groupNames.length > 1
-
-  const groupSelectionKey = (groupName: string) => `${section.kind}:${groupName}`
-  const selectedAssetIdsForGroup = (groupName: string) => selectedAssetIdsByGroup[groupSelectionKey(groupName)] ?? []
-  const updateSelectedAssetIdsForGroup = (groupName: string, assetIds: string[]) => {
-    const key = groupSelectionKey(groupName)
-    setSelectedAssetIdsByGroup((current) => ({ ...current, [key]: assetIds }))
-  }
-  const toggleAssetSelected = (item: PersonalSpaceAsset, checked: boolean) => {
-    const selectedAssetIds = selectedAssetIdsForGroup(item.groupName)
-    updateSelectedAssetIdsForGroup(item.groupName, checked
-      ? Array.from(new Set(selectedAssetIds.concat(item.id)))
-      : selectedAssetIds.filter((assetId) => assetId !== item.id))
-  }
-  const toggleGroupSelected = (groupName: string, assets: PersonalSpaceAsset[]) => {
-    const selectedAssetIds = selectedAssetIdsForGroup(groupName)
-    const assetIds = assets.map((asset) => asset.id)
-    const allSelected = assetIds.length > 0 && assetIds.every((assetId) => selectedAssetIds.includes(assetId))
-    updateSelectedAssetIdsForGroup(groupName, allSelected ? [] : assetIds)
-  }
+  const resourceGroups = usePersonalResourceGroups(section)
 
   const renderAssetRecord = (item: PersonalSpaceAsset) => (
     <PersonalResourceAssetRecord
       key={item.id}
       sectionTitle={section.title}
       item={item}
-      checked={selectedAssetIdsForGroup(item.groupName).includes(item.id)}
+      checked={resourceGroups.selectedAssetIdsForGroup(item.groupName).includes(item.id)}
       voiceAssets={voiceAssets}
       characterOptions={characterOptions}
       storyboardOptions={storyboardOptions}
       getAssetOptions={getAssetOptions}
       getAssetKindLabel={getAssetKindLabel}
       getStoryboardVoiceRefs={getStoryboardVoiceRefs}
-      onSelectedChange={(checked) => toggleAssetSelected(item, checked)}
+      onSelectedChange={(checked) => resourceGroups.toggleAssetSelected(item, checked)}
       onRenameAsset={onRenameAsset}
       onChangeDialogueText={onChangeDialogueText}
       onChangeEffectVoiceLinks={onChangeEffectVoiceLinks}
@@ -148,8 +101,8 @@ export function PersonalResourceSection({
   )
 
   return (
-    <section className={`space-panel${isGroupedResourceSection ? ' voice-resource-panel' : ''}`}>
-      <section className={`resource-section${isGroupedResourceSection ? ' resource-section--voice' : ''}`} aria-label={section.title}>
+    <section className={`space-panel${resourceGroups.isGroupedResourceSection ? ' voice-resource-panel' : ''}`}>
+      <section className={`resource-section${resourceGroups.isGroupedResourceSection ? ' resource-section--voice' : ''}`} aria-label={section.title}>
         <div className="resource-section-head">
           <div>
             <p className="panel-copy">{section.description}</p>
@@ -158,16 +111,16 @@ export function PersonalResourceSection({
             <Tag>{section.assets.length} 个</Tag>
           </div>
         </div>
-        {isGroupedResourceSection ? (
+        {resourceGroups.isGroupedResourceSection ? (
           <div className="voice-group-toolbar">
             <PersonalSpaceFilterControl
               className="voice-group-filter"
-              value={selectedGroup}
-              defaultValue={defaultGroupFilter}
-              options={resourceGroupOptions}
-              onlyStarred={onlyStarredResourceGroups}
-              onChange={setSelectedGroup}
-              onOnlyStarredChange={setOnlyStarredResourceGroups}
+              value={resourceGroups.selectedGroup}
+              defaultValue={resourceGroups.defaultGroupFilter}
+              options={resourceGroups.resourceGroupOptions}
+              onlyStarred={resourceGroups.onlyStarredResourceGroups}
+              onChange={resourceGroups.setSelectedGroup}
+              onOnlyStarredChange={resourceGroups.setOnlyStarredResourceGroups}
               onRefresh={onRefreshProjectData}
             />
             <PersonalAssetGroupControls
@@ -182,13 +135,13 @@ export function PersonalResourceSection({
           />
         )}
 
-        {isGroupedResourceSection ? (
+        {resourceGroups.isGroupedResourceSection ? (
           <div className="voice-resource-list voice-group-list">
-            {visibleResourceGroups.map(({ groupName, assets }) => {
+            {resourceGroups.visibleResourceGroups.map(({ groupName, assets }) => {
               const groupRenameItem = { id: groupName, name: groupName }
               const renameTo = groupRename.draftFor(groupRenameItem)
-              const selectedAssetIds = selectedAssetIdsForGroup(groupName).filter((assetId) => assets.some((asset) => asset.id === assetId))
-              const allGroupAssetsSelected = assets.length > 0 && assets.every((asset) => selectedAssetIds.includes(asset.id))
+              const selectedAssetIds = resourceGroups.selectedAssetIdsForAssets(groupName, assets)
+              const allGroupAssetsSelected = resourceGroups.allAssetsSelectedForGroup(groupName, assets)
               return (
                 <PersonalResourceGroupBlock
                   key={groupName}
@@ -197,7 +150,7 @@ export function PersonalResourceSection({
                   assets={assets}
                   selectedAssetIds={selectedAssetIds}
                   allGroupAssetsSelected={allGroupAssetsSelected}
-                  canDeleteGroup={canDeleteGroup}
+                  canDeleteGroup={resourceGroups.canDeleteGroup}
                   renameTo={renameTo}
                   isRenamingGroup={groupRename.isRenaming(groupName)}
                   commonResourceUploadProps={commonResourceUploadProps}
@@ -207,25 +160,25 @@ export function PersonalResourceSection({
                   onToggleGroupStar={onToggleGroupStar}
                   onDeleteGroup={onDeleteGroup}
                   onDeleteAsset={onDeleteAsset}
-                  onToggleGroupSelected={toggleGroupSelected}
+                  onToggleGroupSelected={resourceGroups.toggleGroupSelected}
                   onRenameOpenChange={(open) => groupRename.openRename(groupRenameItem, open)}
                   onRenameDraftChange={(value) => groupRename.changeDraft(groupName, value)}
                   onConfirmRename={() => groupRename.confirmRename(groupRenameItem)}
                   onCancelRename={() => groupRename.cancelRename(groupName)}
-                  onClearSelectedAssetIds={(draftGroupName) => updateSelectedAssetIdsForGroup(draftGroupName, [])}
+                  onClearSelectedAssetIds={resourceGroups.clearSelectedAssetIdsForGroup}
                 />
               )
             })}
           </div>
         ) : (
-          <div className={`resource-list${isVoiceSection ? ' voice-resource-list' : ''}`}>
-            <section className="asset-group-block" key={selectedGroup} aria-label={`${section.title}-${selectedGroup}`}>
+          <div className={`resource-list${resourceGroups.isVoiceSection ? ' voice-resource-list' : ''}`}>
+            <section className="asset-group-block" key={resourceGroups.selectedGroup} aria-label={`${section.title}-${resourceGroups.selectedGroup}`}>
               <div className="asset-group-title">
-                <strong>{selectedGroup}</strong>
-                <Tag>{groupAssets.length} 个</Tag>
+                <strong>{resourceGroups.selectedGroup}</strong>
+                <Tag>{resourceGroups.groupAssets.length} 个</Tag>
               </div>
               <div className="asset-group-records resource-asset-grid">
-                {groupAssets.map(renderAssetRecord)}
+                {resourceGroups.groupAssets.map(renderAssetRecord)}
               </div>
             </section>
           </div>

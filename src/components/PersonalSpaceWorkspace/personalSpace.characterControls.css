@@ -1,0 +1,111 @@
+.character-panel-toolbar {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.character-toolbar-left,
+.storyboard-toolbar-left {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 360px;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.character-filter-control,
+.storyboard-filter-control {
+  min-width: min(100%, 220px);
+  max-width: 360px;
+  display: flex;
+  flex: 1 1 260px;
+  gap: 8px;
+  align-items: center;
+}
+
+.storyboard-global-actions {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.storyboard-command-row {
+  grid-template-columns: minmax(180px, 340px) minmax(0, 1fr);
+}
+
+.storyboard-voice-picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.voice-picker-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  box-shadow: 0 12px 28px rgb(20 24 36 / 12%);
+}
+
+.voice-picker-option {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.voice-picker-option:hover {
+  border-color: color-mix(in oklch, var(--color-brand) 42%, var(--color-line));
+  background: color-mix(in oklch, var(--color-brand) 8%, var(--color-panel));
+}
+
+.voice-picker-option.is-selected {
+  border-color: color-mix(in oklch, var(--color-brand) 62%, var(--color-line));
+  background: color-mix(in oklch, var(--color-brand) 12%, var(--color-panel));
+}
+
+.voice-picker-option strong,
+.voice-picker-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-picker-option span {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.storyboard-voice-picker-modal {
+  display: grid;
+  gap: 8px;
+}
+
+.storyboard-voice-picker-modal .voice-picker-popover {
+  position: static;
+  max-height: min(46vh, 360px);
+  box-shadow: none;
+}
+

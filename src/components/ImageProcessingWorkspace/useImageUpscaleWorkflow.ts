@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react'
 import { message } from 'antd'
 
-import { getDesktopApi, type DesktopUpscaleInstallProgress, type DesktopUpscaleRuntimeStatus } from '../../desktopApi'
+import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   getExportSizeAfterScaleChange,
@@ -21,6 +21,7 @@ import {
   normalizeUpscaleOptions,
   type UpscaleOptions,
 } from './imageUpscaleModel'
+import { useUpscaleRuntime } from './useUpscaleRuntime'
 
 export interface ImageUpscalePreview {
   originalUrl: string
@@ -51,9 +52,6 @@ export function useImageUpscaleWorkflow({
 }: UseImageUpscaleWorkflowOptions) {
   const [upscaleEnabled, setUpscaleEnabled] = useState(false)
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
-  const [upscaleRuntimeStatus, setUpscaleRuntimeStatus] = useState<DesktopUpscaleRuntimeStatus | null>(null)
-  const [upscaleInstallProgress, setUpscaleInstallProgress] = useState<DesktopUpscaleInstallProgress | null>(null)
-  const [upscaleInstalling, setUpscaleInstalling] = useState(false)
   const [upscaleProcessing, setUpscaleProcessing] = useState(false)
   const [upscalePreview, setUpscalePreview] = useState<ImageUpscalePreview | null>(null)
   const exportScaleSnapshotRef = useRef<number | null>(null)
@@ -63,6 +61,15 @@ export function useImageUpscaleWorkflow({
     processedUrl: string | null
     upscaleOptions: UpscaleOptions
   } | null>(null)
+  const {
+    installUpscaleRuntime,
+    queryUpscaleStatus,
+    upscaleInstallProgress,
+    upscaleInstalling,
+    upscaleRuntimeStatus,
+  } = useUpscaleRuntime({
+    unavailableMessage: '当前不是桌面运行环境，普通导出仍可使用。',
+  })
   const exportBaseSize = useMemo(
     () => resolveExportBaseSize(crop, upscaleEnabled, upscalePreview ? { width: upscalePreview.width, height: upscalePreview.height } : null),
     [crop, upscaleEnabled, upscalePreview]
@@ -89,17 +96,6 @@ export function useImageUpscaleWorkflow({
   }, [upscalePreview])
 
   useEffect(() => {
-    const api = getDesktopApi()
-    if (!api) return
-    void api.queryUpscaleStatus()
-      .then(setUpscaleRuntimeStatus)
-      .catch((error) => {
-        setUpscaleRuntimeStatus({ installed: false, path: '', models: [], message: String(error) })
-      })
-    return api.onUpscaleInstallProgress((progress) => setUpscaleInstallProgress(progress))
-  }, [])
-
-  useEffect(() => {
     if (!upscalePreview) return
     const previewInputs = upscalePreviewInputsRef.current
     const currentInputs = {
@@ -116,37 +112,6 @@ export function useImageUpscaleWorkflow({
     setUpscaleEnabled(enabled)
     clearUpscalePreview()
   }, [clearUpscalePreview])
-
-  const queryUpscaleStatus = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      const status = { installed: false, path: '', models: [], message: '当前不是桌面运行环境，普通导出仍可使用。' }
-      setUpscaleRuntimeStatus(status)
-      return status
-    }
-    const status = await api.queryUpscaleStatus()
-    setUpscaleRuntimeStatus(status)
-    return status
-  }, [])
-
-  const installUpscaleRuntime = useCallback(async () => {
-    const api = getDesktopApi()
-    if (!api) {
-      message.warning('当前不是桌面运行环境，无法安装 Upscayl 运行包。')
-      return
-    }
-    setUpscaleInstalling(true)
-    try {
-      const status = await api.installUpscaleRuntime()
-      setUpscaleRuntimeStatus(status)
-      if (status.installed) message.success('高清化运行包已安装')
-      else message.error(status.message ?? '运行包安装未完成')
-    } catch (error) {
-      message.error(`高清化运行包安装失败：${String(error)}`)
-    } finally {
-      setUpscaleInstalling(false)
-    }
-  }, [])
 
   const updateUpscaleOptions = useCallback((patch: Partial<UpscaleOptions>) => {
     setUpscaleOptions((current) => normalizeUpscaleOptions({ ...current, ...patch }))

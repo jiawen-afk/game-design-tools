@@ -15,6 +15,10 @@ import {
 } from './voiceDeploymentModel'
 import { checkConnection } from './voiceDeploymentService'
 import { getDesktopApi, isDesktopRuntime, type DesktopCommandResult, type DesktopVoxcpmSetupResult } from '../../desktopApi'
+import {
+  runDesktopServiceStartup,
+  waitForDesktopServiceConnection,
+} from '../DesktopServiceRuntime/desktopServiceWorkflow'
 
 export function useVoiceDeploymentSetup() {
   const [port, setPort] = useState(defaultPort)
@@ -49,20 +53,13 @@ export function useVoiceDeploymentSetup() {
     setConnectionStatus(ok ? 'connected' : 'disconnected')
   }, [])
 
-  const waitForDesktopServiceConnection = useCallback(async (targetPort: number) => {
+  const waitForDesktopConnection = useCallback(async (targetPort: number) => {
     const id = ++checkRef.current
-    setConnectionStatus('checking')
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      const ok = await checkConnection(targetPort)
-      if (checkRef.current !== id) return false
-      if (ok) {
-        setConnectionStatus('connected')
-        return true
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 2000))
-    }
-    if (checkRef.current === id) setConnectionStatus('disconnected')
-    return false
+    return waitForDesktopServiceConnection({
+      checkConnection: () => checkConnection(targetPort),
+      isCurrent: () => checkRef.current === id,
+      onStatus: setConnectionStatus,
+    })
   }, [])
 
   useEffect(() => { runCheck(defaultPort) }, [runCheck])
@@ -140,33 +137,20 @@ export function useVoiceDeploymentSetup() {
     setDesktopServiceBusy(true)
     setDesktopDependencyStatusBusy(true)
     try {
-      const dependencyStatus = await api.queryVoxcpmSetupStatus()
-      setDesktopDependencyStatusResult(dependencyStatus)
-      setDesktopDependencyStatusBusy(false)
-      if (!dependencyStatus.ok) {
-        setDesktopServiceResult({
-          ok: false,
-          output: `依赖安装未完成，启动服务已取消。\n${dependencyStatus.output}`,
-        })
-        return
-      }
-
-      const serviceResult = await api.controlVoxcpmService('start')
-      setDesktopServiceResult(serviceResult)
-      if (!serviceResult.ok) return
-
-      const connectedAfterStart = await waitForDesktopServiceConnection(port)
-      if (!connectedAfterStart) {
-        setDesktopServiceResult({
-          ok: false,
-          output: `${serviceResult.output || '服务启动命令已执行。'}\n等待连接超时，请查看 VoxCPM 服务日志。`,
-        })
-      }
+      await runDesktopServiceStartup({
+        queryDependencyStatus: () => api.queryVoxcpmSetupStatus(),
+        startService: () => api.controlVoxcpmService('start'),
+        waitForConnection: () => waitForDesktopConnection(port),
+        onDependencyStatus: setDesktopDependencyStatusResult,
+        onDependencyStatusSettled: () => setDesktopDependencyStatusBusy(false),
+        onServiceResult: setDesktopServiceResult,
+        timeoutMessage: (output) => `${output || '服务启动命令已执行。'}\n等待连接超时，请查看 VoxCPM 服务日志。`,
+      })
     } finally {
       setDesktopDependencyStatusBusy(false)
       setDesktopServiceBusy(false)
     }
-  }, [port, waitForDesktopServiceConnection])
+  }, [port, waitForDesktopConnection])
 
   return {
     port,

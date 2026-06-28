@@ -1,9 +1,6 @@
 import { useState } from 'react'
 import { message } from 'antd'
 
-import { canvasToBlob, loadImage } from './imagePipeline'
-import { buildMultiFrameSpriteIndex } from './model'
-import { clampInt } from './numberUtils'
 import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
 import {
@@ -13,22 +10,8 @@ import {
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
 import type { UpscaleOptions } from '../ImageProcessingWorkspace/imageUpscaleModel'
-import {
-  assignAssetToCharacterColumn,
-  collectPersonalSpaceAsset,
-  createSpriteAssetFromExport,
-  hashText,
-} from '../PersonalSpaceWorkspace/personalSpaceModel'
-import {
-  readCurrentProjectSpaceState,
-} from '../PersonalSpaceWorkspace/projectSpaceState'
-import { persistCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/currentProjectSpacePersistence'
-import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/projectSpacePersistenceMessages'
-import {
-  getPersonalSpaceDirectoryHandle,
-} from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
-import { writeAssetResourcesWithGeneratedCoverToDirectory } from '../PersonalSpaceWorkspace/personalSpaceResourceActions'
-import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
+import { buildSpriteExportPackage } from './spriteExportPackage'
+import { useSpriteCollectWorkflow } from './useSpriteCollectWorkflow'
 import { getDesktopApi } from '../../desktopApi'
 
 export interface UseSpriteExportParams {
@@ -45,42 +28,6 @@ export interface UseSpriteExportParams {
 }
 
 export type SpriteExportViewModel = ReturnType<typeof useSpriteExport>
-
-type SpriteExportFrameSource = Pick<FrameItem, 'id' | 'sourceName'> & { composedUrl: string }
-
-async function buildSpriteExportPackage(input: {
-  columns: number
-  visibleFrames: SpriteExportFrameSource[]
-  canvasWidth: number
-  canvasHeight: number
-  fps: number
-  playbackMode: PlaybackMode
-}) {
-  const cols = clampInt(input.columns, 1, Math.max(1, input.visibleFrames.length))
-  const index = buildMultiFrameSpriteIndex({
-    canvasWidth: input.canvasWidth,
-    canvasHeight: input.canvasHeight,
-    columns: cols,
-    fps: input.fps,
-    playbackMode: input.playbackMode,
-    frames: input.visibleFrames.map((item) => ({ id: item.id, sourceName: item.sourceName })),
-  })
-  const sheet = document.createElement('canvas')
-  sheet.width = index.sheet_size.w
-  sheet.height = index.sheet_size.h
-  const ctx = sheet.getContext('2d')
-  if (!ctx) throw new Error('无法创建导出画布')
-  ctx.clearRect(0, 0, sheet.width, sheet.height)
-  for (let i = 0; i < input.visibleFrames.length; i += 1) {
-    const item = input.visibleFrames[i]!
-    const img = await loadImage(item.composedUrl!)
-    const meta = index.frames[i]!
-    ctx.drawImage(img, meta.x, meta.y, meta.w, meta.h)
-  }
-  const spriteBlob = await canvasToBlob(sheet)
-  const indexJson = JSON.stringify(index, null, 2)
-  return { spriteBlob, indexJson }
-}
 
 async function saveExportFile(fileName: string, blob: Blob) {
   const api = getDesktopApi()
@@ -104,9 +51,6 @@ export function useSpriteExport({
 }: UseSpriteExportParams) {
   const [columns, setColumns] = useState(4)
   const [exporting, setExporting] = useState(false)
-  const [collectCharacterDialogOpen, setCollectCharacterDialogOpen] = useState(false)
-  const [collectCharacterId, setCollectCharacterId] = useState<string | null>(null)
-  const [collectCharacterOptions, setCollectCharacterOptions] = useState<Array<{ label: string; value: string }>>([])
 
   const buildExportPlan = (): SpriteUpscaleExportPlan<FrameItem> => buildSpriteUpscaleExportPlan(
     visibleFrames,
@@ -167,119 +111,22 @@ export function useSpriteExport({
     }
   }
 
-  const spriteExportSourceKey = (exportPlan: SpriteUpscaleExportPlan<FrameItem>) => `sprite-export:${hashText(JSON.stringify({
-    canvasWidth: exportPlan.canvasWidth,
-    canvasHeight: exportPlan.canvasHeight,
-    columns: clampInt(columns, 1, Math.max(1, visibleFrames.length)),
+  const collectWorkflow = useSpriteCollectWorkflow({
     fps,
+    columns,
     playbackMode,
-    upscale: exportPlan.usingUpscale ? {
-      mode: exportPlan.upscaleMode,
-      options: upscaleOptions ?? null,
-      frames: visibleFrames.map((item) => {
-        const result = upscaleResultsByFrameId[item.id]
-        return {
-          id: item.id,
-          mode: result?.mode,
-          scale: result?.scale,
-          sourceMatteUrl: result?.sourceMatteUrl,
-          matteRevision: result?.matteRevision,
-          sourceComposedUrl: result?.sourceComposedUrl,
-          composedRevision: result?.composedRevision,
-          width: result?.width,
-          height: result?.height,
-        }
-      }),
-    } : false,
-    frames: visibleFrames.map((item) => ({
-      id: item.id,
-      sourceName: item.sourceName,
-      width: item.sourceWidth,
-      height: item.sourceHeight,
-    })),
-  }))}`
-
-  const collectToPersonalSpace = async (characterId?: string) => {
-    const exportPlan = validateExportableFrames()
-    if (!exportPlan) return
-    const directoryHandle = getPersonalSpaceDirectoryHandle()
-    if (!directoryHandle) {
-      message.warning(personalSpaceDirectoryRequiredMessage)
-      return
-    }
-    setExporting(true)
-    try {
-      const { spriteBlob, indexJson } = await buildSpriteExportPackage({
-        columns,
-        visibleFrames: exportPlan.visibleFrames,
-        canvasWidth: exportPlan.canvasWidth,
-        canvasHeight: exportPlan.canvasHeight,
-        fps,
-        playbackMode,
-      })
-      const spritePath = URL.createObjectURL(spriteBlob)
-      const indexBlob = new Blob([indexJson], { type: 'application/json' })
-      const indexPath = URL.createObjectURL(indexBlob)
-      const space = readCurrentProjectSpaceState()
-      const baseAsset = createSpriteAssetFromExport({
-        name: 'sprite.png',
-        spritePath,
-        indexPath,
-        sourceKey: spriteExportSourceKey(exportPlan),
-      })
-      const spriteFile = new File([spriteBlob], 'sprite.png', { type: spriteBlob.type || 'image/png' })
-      const asset = await writeAssetResourcesWithGeneratedCoverToDirectory(space, directoryHandle, baseAsset, spriteFile, [
-        { name: 'sprite.png', data: spriteFile },
-        { name: 'index.json', data: indexBlob },
-      ])
-      let nextSpace = collectPersonalSpaceAsset(space, asset)
-      if (characterId) {
-        nextSpace = assignAssetToCharacterColumn(nextSpace, characterId, asset.id, 'sprite')
-      }
-      const persistence = await persistCurrentProjectSpaceState(nextSpace, {
-        getDirectoryHandle: () => directoryHandle,
-      })
-      if (persistence.syncError) {
-        showCurrentProjectSpaceSyncWarning(message, persistence.syncError)
-      }
-      message.success(characterId ? '已收藏到 项目空间-素材-精灵图，并关联角色' : '已收藏到 项目空间-素材-精灵图')
-    } catch (e) {
-      message.error(`收藏到项目空间失败：${String(e)}`)
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  const openCollectCharacterDialog = () => {
-    const space = readCurrentProjectSpaceState()
-    const options = space.characters.map((character) => ({ label: character.name, value: character.id }))
-    setCollectCharacterOptions(options)
-    setCollectCharacterId(options[0]?.value ?? null)
-    setCollectCharacterDialogOpen(true)
-  }
-
-  const closeCollectCharacterDialog = () => {
-    setCollectCharacterDialogOpen(false)
-  }
-
-  const collectToPersonalSpaceWithCharacter = async () => {
-    if (!collectCharacterId) return
-    setCollectCharacterDialogOpen(false)
-    await collectToPersonalSpace(collectCharacterId)
-  }
+    upscaleOptions,
+    upscaleResultsByFrameId,
+    validateExportableFrames,
+    visibleFrames,
+    setExporting,
+  })
 
   return {
     columns,
     setColumns,
     exporting,
     exportAll,
-    collectToPersonalSpace,
-    collectToPersonalSpaceWithCharacter,
-    openCollectCharacterDialog,
-    closeCollectCharacterDialog,
-    collectCharacterDialogOpen,
-    collectCharacterId,
-    setCollectCharacterId,
-    collectCharacterOptions,
+    ...collectWorkflow,
   }
 }

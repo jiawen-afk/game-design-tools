@@ -1,0 +1,80 @@
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 18px 0 28px;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
+
+.app-shell > .site-footer {
+  width: min(1440px, calc(100% - 28px));
+  margin: 0 auto;
+}
+
+.site-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-link,
+.beian-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer-link:hover,
+.beian-link:hover {
+  color: var(--color-brand-dark);
+  text-decoration: underline;
+}
+
+.footer-about-button {
+  height: auto;
+  padding: 0;
+  color: inherit;
+}
+
+.footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-update {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-update-button {
+  height: auto;
+  padding: 0;
+}
+
+.open-source-list {
+  display: grid;
+  gap: 10px;
+}
+
+.open-source-list a {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.open-source-list a:hover {
+  border-color: var(--color-brand);
+}
+
+.open-source-list span {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}

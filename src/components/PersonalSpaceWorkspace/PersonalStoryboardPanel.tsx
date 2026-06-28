@@ -1,5 +1,4 @@
 import type { UploadProps } from 'antd'
-import { useMemo } from 'react'
 import { Button, Empty } from 'antd'
 import { ExportOutlined } from '@ant-design/icons'
 
@@ -7,12 +6,7 @@ import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from './pe
 import { StoryboardGroupCard } from './StoryboardGroupCard'
 import { CreateNamePopoverButton } from './CreateNamePopoverButton'
 import { PersonalSpaceFilterControl } from './PersonalSpaceFilterControl'
-import { useCreateNamePopover } from './useCreateNamePopover'
-import { useRecentStarredFilter } from './useRecentStarredFilter'
-import { storyboardVoiceEntriesForPreview, type StoryboardVoiceDropPlacement } from './storyboardVoiceDrag'
-import { useStoryboardVoiceDragDrop } from './useStoryboardVoiceDragDrop'
-import { useStoryboardVoicePlayback } from './useStoryboardVoicePlayback'
-import { useRenameDrafts } from './useRenameDrafts'
+import { usePersonalStoryboardPanelWorkspace, type StoryboardVoiceDropPlacement } from './usePersonalStoryboardPanelWorkspace'
 import type { ProjectAssetManager, ProjectMode, ProjectObjectStorage } from '../ProjectStorage'
 
 interface PersonalStoryboardPanelProps {
@@ -74,59 +68,48 @@ export function PersonalStoryboardPanel({
   projectId,
   projectMode,
 }: PersonalStoryboardPanelProps) {
-  const characterById = useMemo(() => new Map(characters.map((character) => [character.id, character])), [characters])
-  const voiceById = useMemo(() => new Map(voiceAssets.map((asset) => [asset.id, asset])), [voiceAssets])
-  const characterOptions = characters.map((character) => ({ label: character.name, value: character.id }))
   const {
+    characterById,
+    voiceById,
+    characterOptions,
     currentPlayback,
     playStoryboardFrom,
     stopStoryboardPlayback,
-  } = useStoryboardVoicePlayback({
-    storyboardGroups,
-    voiceAssets,
-    projectObjectStorage,
-    projectAssetManager,
-    projectId,
-    projectMode,
-  })
-  const {
     draggedStoryboardVoice,
     dropTargetStoryboardVoice,
-    previewStoryboardVoiceOrders,
     startStoryboardVoiceDrag,
     endStoryboardVoiceDrag,
     previewStoryboardVoiceListDrop,
     cancelStoryboardVoiceListDrop,
     dropStoryboardVoiceOnList,
-  } = useStoryboardVoiceDragDrop({
+    createStoryboard,
+    storyboardRename,
+    isExportingStoryboard,
+    selectedStoryboardFilter,
+    setSelectedStoryboardFilter,
+    onlyStarredStoryboards,
+    setOnlyStarredStoryboards,
+    storyboardFilterOptions,
+    visibleStoryboardGroups,
+    visibleVoiceEntriesFor,
+  } = usePersonalStoryboardPanelWorkspace({
     storyboardGroups,
+    newStoryboardName,
+    characters,
+    voiceAssets,
+    onNewStoryboardNameChange,
+    onCreateStoryboard,
+    onRenameStoryboard,
     onMoveStoryboardVoice,
-  })
-  const createStoryboard = useCreateNamePopover({
-    value: newStoryboardName,
-    onValueChange: onNewStoryboardNameChange,
-    onConfirm: onCreateStoryboard,
-  })
-  const storyboardRename = useRenameDrafts(onRenameStoryboard)
-  const isExportingStoryboard = Boolean(storyboardExportingKey)
-  const {
-    selectedFilter: selectedStoryboardFilter,
-    setSelectedFilter: setSelectedStoryboardFilter,
-    onlyStarred: onlyStarredStoryboards,
-    setOnlyStarred: setOnlyStarredStoryboards,
-    filterOptions: storyboardFilterOptions,
-    visibleItems: visibleStoryboardGroups,
-  } = useRecentStarredFilter({
-    items: storyboardGroups,
-    defaultValue: '全部剧情组',
-    defaultLabel: '最近创建的20个剧情组',
-    getId: (group) => group.id,
-    getName: (group) => group.name,
-    getStarred: (group) => group.starred,
+    storyboardExportingKey,
+    projectObjectStorage,
+    projectAssetManager,
+    projectId,
+    projectMode,
   })
 
   return (
-      <section className="space-panel">
+    <section className="space-panel">
       <div className="storyboard-panel-toolbar">
         <div className="storyboard-toolbar-left">
           <CreateNamePopoverButton
@@ -176,7 +159,7 @@ export function PersonalStoryboardPanel({
       ) : (
         <div className="form-stack">
           {visibleStoryboardGroups.map((item) => {
-            const visibleVoiceEntries = storyboardVoiceEntriesForPreview(item, previewStoryboardVoiceOrders[item.id])
+            const visibleVoiceEntries = visibleVoiceEntriesFor(item)
             return (
               <StoryboardGroupCard
                 key={item.id}

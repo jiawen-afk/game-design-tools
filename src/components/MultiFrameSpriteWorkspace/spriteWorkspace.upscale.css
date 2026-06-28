@@ -1,0 +1,43 @@
+.sprite-upscale-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.sprite-upscale-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sprite-upscale-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.sprite-upscale-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.sprite-upscale-field > span {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.sprite-upscale-scale .ant-slider {
+  margin: 3px 6px 6px;
+}
+
+.sprite-upscale-progress {
+  display: grid;
+  gap: 4px;
+}

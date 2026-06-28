@@ -1,10 +1,12 @@
 import { hashText, importDatePart, type PersonalSpaceAsset, storageCategoryForAsset } from './personalSpaceModel'
+import { createNativePersonalSpaceDirectoryHandle } from './personalSpaceNativeFileStorage'
 import {
-  createNativePersonalSpaceDirectoryHandle,
-  isStoredNativeDirectoryHandle,
-  nativeDirectoryKind,
-  restoreNativePersonalSpaceDirectoryHandle,
-} from './personalSpaceNativeFileStorage'
+  ensureDirectory,
+  relativePartsForRoot,
+  sanitizePathPart,
+  writeFile,
+} from './personalSpaceDirectoryFileOps'
+import { createMemoryDirectoryHandle } from './personalSpaceMemoryFileStorage'
 
 export interface PersonalSpaceResourceFile {
   name: string
@@ -37,70 +39,14 @@ export interface StoredResourceDeletionResult {
   pendingPaths: string[]
 }
 
-export interface PersonalSpaceDirectoryHandleStore {
-  get(key: string): Promise<unknown>
-  set(key: string, value: unknown): Promise<void>
-}
-
-let currentPersonalSpaceDirectoryHandle: PersonalSpaceDirectoryHandle | null = null
-const directoryHandleKey = 'personal-space-directory'
-
-export function setPersonalSpaceDirectoryHandle(handle: PersonalSpaceDirectoryHandle | null) {
-  currentPersonalSpaceDirectoryHandle = handle
-}
-
-export function getPersonalSpaceDirectoryHandle() {
-  return currentPersonalSpaceDirectoryHandle
-}
-
-export function createLocalDirectoryPathStore(): PersonalSpaceDirectoryHandleStore | null {
-  if (typeof localStorage === 'undefined') return null
-  return {
-    async get(key) {
-      const value = localStorage.getItem(key)
-      return value ? JSON.parse(value) : null
-    },
-    async set(key, value) {
-      localStorage.setItem(key, JSON.stringify(value))
-    },
-  }
-}
-
-export async function persistPersonalSpaceDirectoryHandle(
-  handle: PersonalSpaceDirectoryHandle,
-  store: PersonalSpaceDirectoryHandleStore | null = createLocalDirectoryPathStore(),
-) {
-  const storedHandle = handle.kind === nativeDirectoryKind && handle.path
-    ? { kind: nativeDirectoryKind, name: handle.name, path: handle.path }
-    : handle
-  await store?.set(directoryHandleKey, storedHandle)
-}
-
-export async function loadPersistedPersonalSpaceDirectoryHandle(
-  store: PersonalSpaceDirectoryHandleStore | null = createLocalDirectoryPathStore(),
-) {
-  const handle = await store?.get(directoryHandleKey)
-  if (!handle) return null
-  if (isStoredNativeDirectoryHandle(handle)) {
-    return restoreNativePersonalSpaceDirectoryHandle(handle)
-  }
-  const directoryHandle = handle as PersonalSpaceDirectoryHandle
-  if (directoryHandle.queryPermission) {
-    const current = await directoryHandle.queryPermission({ mode: 'readwrite' })
-    if (current === 'granted') return directoryHandle
-  } else {
-    return directoryHandle
-  }
-  if (directoryHandle.requestPermission) {
-    const next = await directoryHandle.requestPermission({ mode: 'readwrite' })
-    if (next === 'granted') return directoryHandle
-  }
-  return null
-}
-
-function sanitizePathPart(value: string): string {
-  return (value.trim() || '未命名资源').replace(/[<>:"/\\|?*]+/g, '_')
-}
+export {
+  createLocalDirectoryPathStore,
+  getPersonalSpaceDirectoryHandle,
+  loadPersistedPersonalSpaceDirectoryHandle,
+  persistPersonalSpaceDirectoryHandle,
+  setPersonalSpaceDirectoryHandle,
+  type PersonalSpaceDirectoryHandleStore,
+} from './personalSpaceDirectoryHandleStore'
 
 function extensionForResource(asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index: number) {
   const clean = resource.name.trim()
@@ -123,30 +69,6 @@ async function hashResource(resource: PersonalSpaceResourceFile) {
 async function storedResourceFileName(asset: PersonalSpaceAsset, resource: PersonalSpaceResourceFile, index: number) {
   const ext = extensionForResource(asset, resource, index)
   return `${await hashResource(resource)}${ext}`
-}
-
-function splitStoredPath(path: string) {
-  return path.split(/[\\/]+/).filter(Boolean)
-}
-
-function relativePartsForRoot(rootName: string, storedPath: string) {
-  const parts = splitStoredPath(storedPath)
-  return parts[0] === rootName ? parts.slice(1) : parts
-}
-
-async function ensureDirectory(root: PersonalSpaceDirectoryHandle, parts: string[]) {
-  let current = root
-  for (const part of parts) {
-    current = await current.getDirectoryHandle(sanitizePathPart(part), { create: true })
-  }
-  return current
-}
-
-async function writeFile(directory: PersonalSpaceDirectoryHandle, name: string, data: Blob) {
-  const file = await directory.getFileHandle(sanitizePathPart(name), { create: true })
-  const writable = await file.createWritable()
-  await writable.write(data)
-  await writable.close()
 }
 
 export async function readStoredResourceBlob(root: PersonalSpaceDirectoryHandle, storedPath: string) {
@@ -262,85 +184,7 @@ export async function deleteStoredResourceFiles(
   return { deletedPaths, pendingPaths }
 }
 
-class MemoryWritableFileStream implements PersonalSpaceWritableFileStream {
-  constructor(private readonly commit: (data: Blob) => void) {}
-
-  private data = new Blob()
-
-  async write(data: Blob) {
-    this.data = data
-  }
-
-  async close() {
-    this.commit(this.data)
-  }
+export {
+  createMemoryDirectoryHandle,
+  createNativePersonalSpaceDirectoryHandle,
 }
-
-class MemoryFileHandle implements PersonalSpaceFileHandle {
-  constructor(
-    private readonly read: () => Blob,
-    private readonly commit: (data: Blob) => void,
-  ) {}
-
-  async getFile() {
-    return this.read()
-  }
-
-  async createWritable() {
-    return new MemoryWritableFileStream(this.commit)
-  }
-}
-
-export class MemoryDirectoryHandle implements PersonalSpaceDirectoryHandle {
-  private readonly directories = new Map<string, MemoryDirectoryHandle>()
-  private readonly files = new Map<string, Blob>()
-
-  constructor(public readonly name: string) {}
-
-  async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions) {
-    const clean = sanitizePathPart(name)
-    const existing = this.directories.get(clean)
-    if (existing) return existing
-    if (!options?.create) throw new Error(`目录不存在：${clean}`)
-    const directory = new MemoryDirectoryHandle(clean)
-    this.directories.set(clean, directory)
-    return directory
-  }
-
-  async getFileHandle(name: string, options?: FileSystemGetFileOptions) {
-    const clean = sanitizePathPart(name)
-    if (!options?.create && !this.files.has(clean)) throw new Error(`文件不存在：${clean}`)
-    return new MemoryFileHandle(
-      () => this.files.get(clean) ?? (() => { throw new Error(`文件不存在：${clean}`) })(),
-      (data) => this.files.set(clean, data),
-    )
-  }
-
-  async removeEntry(name: string) {
-    const clean = sanitizePathPart(name)
-    if (!this.files.delete(clean) && !this.directories.delete(clean)) throw new Error(`资源不存在：${clean}`)
-  }
-
-  async writeText(path: string, value: string) {
-    const parts = splitStoredPath(path)
-    const directory = await ensureDirectory(this, parts.slice(0, -1))
-    await writeFile(directory, parts.at(-1) ?? 'resource.txt', new Blob([value]))
-  }
-
-  async readText(path: string) {
-    const parts = splitStoredPath(path)
-    let directory: MemoryDirectoryHandle = this
-    for (const part of parts.slice(0, -1)) {
-      directory = directory.directories.get(part) ?? (() => { throw new Error(`目录不存在：${part}`) })()
-    }
-    const file = directory.files.get(parts.at(-1) ?? '')
-    if (!file) throw new Error(`文件不存在：${path}`)
-    return file.text()
-  }
-}
-
-export function createMemoryDirectoryHandle(name: string) {
-  return new MemoryDirectoryHandle(name)
-}
-
-export { createNativePersonalSpaceDirectoryHandle }

@@ -1,0 +1,142 @@
+.space-record {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.space-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.space-column {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 38%, white);
+}
+
+.space-column strong {
+  font-size: 0.94rem;
+}
+
+.resource-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 78%, white);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.resource-section--voice {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.resource-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.resource-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.resource-list {
+  display: grid;
+  gap: 10px;
+}
+
+.asset-group-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.asset-group-controls > .ant-select {
+  min-width: 140px;
+}
+
+.asset-group-controls .ant-space-compact {
+  min-width: min(100%, 260px);
+}
+
+.asset-group-block {
+  display: grid;
+  gap: 8px;
+}
+
+.asset-group-records {
+  display: grid;
+  gap: 8px;
+}
+
+.asset-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-ink);
+}
+
+.asset-record-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.asset-record-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.asset-record-heading {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.asset-record-heading .ant-input {
+  min-width: min(100%, 240px);
+  flex: 1 1 240px;
+}
+
+.linked-asset-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.asset-record-heading strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-record-fields {
+  padding-left: 68px;
+}
+

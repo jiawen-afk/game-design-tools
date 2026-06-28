@@ -7,6 +7,11 @@ import {
   documentGraphEntityRoleLabel,
   documentGraphNodeTypeLabel,
 } from './documentGraphViewModel'
+import {
+  categoryPathsForDocumentGraphNode,
+  recordForDocumentGraphNode,
+  stringArray,
+} from './documentGraphCoreModel'
 import type { DocumentCollectionGraph, DocumentGraphNode } from '../ProjectStorage'
 
 interface DocumentGraphDetailsPanelProps {
@@ -15,24 +20,11 @@ interface DocumentGraphDetailsPanelProps {
   onFocusNode: (nodeId: string) => void
 }
 
-function stringArray(value: unknown) {
-  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : []
-}
-
-function recordForNode(node: DocumentGraphNode) {
-  const record = node.data.record
-  return record && typeof record === 'object' && !Array.isArray(record) ? record as Record<string, unknown> : {}
-}
-
-function categoryPath(node: DocumentGraphNode, record: Record<string, unknown>) {
-  const groups = Array.isArray(node.data.categoryPathGroups)
-    ? node.data.categoryPathGroups
-      .filter(Array.isArray)
-      .map((path) => path.map((item) => String(item)).filter(Boolean).join(' / '))
-      .filter(Boolean)
-    : []
-  if (groups.length > 0) return groups.join('；')
-  return [record.category_1, record.category_2, record.category_3].filter(Boolean).join(' / ')
+function categoryPath(node: DocumentGraphNode) {
+  return categoryPathsForDocumentGraphNode(node)
+    .map((path) => path.filter(Boolean).join(' / '))
+    .filter(Boolean)
+    .join('；')
 }
 
 function textValue(value: unknown) {
@@ -49,7 +41,7 @@ export function DocumentGraphDetailsPanel({ graph, node, onFocusNode }: Document
   }
 
   const details = describeDocumentGraphNode(graph, node)
-  const record = recordForNode(node)
+  const record = recordForDocumentGraphNode(node) ?? {}
   const roles = stringArray(node.data.roles)
   const sourceUrl = String(record.source_url ?? '').trim()
 
@@ -67,7 +59,7 @@ export function DocumentGraphDetailsPanel({ graph, node, onFocusNode }: Document
 
       <Descriptions size="small" column={1} bordered>
         <Descriptions.Item label="描述">{textValue(record.description ?? node.data.description)}</Descriptions.Item>
-        <Descriptions.Item label="类目路径">{categoryPath(node, record) || '无'}</Descriptions.Item>
+        <Descriptions.Item label="类目路径">{categoryPath(node) || '无'}</Descriptions.Item>
         <Descriptions.Item label="一级类目">{textValue(record.category_1 ?? node.data.category_1)}</Descriptions.Item>
         <Descriptions.Item label="二级类目">{textValue(record.category_2 ?? node.data.category_2)}</Descriptions.Item>
         <Descriptions.Item label="三级类目">{textValue(record.category_3 ?? node.data.category_3)}</Descriptions.Item>

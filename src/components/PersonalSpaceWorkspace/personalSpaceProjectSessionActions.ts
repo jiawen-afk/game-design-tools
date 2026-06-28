@@ -1,21 +1,17 @@
 import {
-  clearActiveProjectId,
   readActiveProjectId,
   resolveEnabledProjectId,
   type Project,
   type ProjectRepository,
   type ProjectSettings,
-  writeActiveProjectId,
 } from '../ProjectStorage'
 import { readPersonalSpaceState, type PersonalSpaceState } from './personalSpaceModel'
 import {
-  createEmptyProjectSpaceState,
-  hasProjectSpaceState,
-  readProjectSpaceState,
-  writeProjectSpaceState,
-} from './projectSpaceState'
+  createPersonalSpaceProjectActivationActions,
+  type ProjectSessionStateRefs,
+  type StateSetter,
+} from './personalSpaceProjectActivationActions'
 import { formatRemoteProjectListError } from './remoteProjectMessages'
-import { loadProjectSpaceStateFromStorage } from './currentProjectSpacePersistence'
 import { listProjectCatalogWithRemoteFallback } from './projectWorkspaceStartup'
 
 export type PersonalSpaceActiveModule = 'characters' | 'storyboards' | 'materials' | 'settings'
@@ -36,13 +32,6 @@ interface PersonalSpaceSessionSettingsWorkspace {
 interface ProjectWorkspaceBootstrapper {
   listProjects: (storageDirectory: string) => Promise<Project[]>
 }
-
-interface ProjectSessionStateRefs {
-  spaceRef: { current: PersonalSpaceState }
-  activeProjectIdRef: { current: string }
-}
-
-type StateSetter<T> = (next: T | ((current: T) => T)) => void
 
 interface ProjectSessionStateSetters {
   setProjects: StateSetter<Project[]>
@@ -72,34 +61,27 @@ export interface PersonalSpaceProjectSessionActionsOptions {
   stateSetters: ProjectSessionStateSetters
 }
 
-function getActiveProjectState(stateRefs: ProjectSessionStateRefs) {
-  return stateRefs.spaceRef.current
-}
-
 function getCurrentProjectList(options: PersonalSpaceProjectSessionActionsOptions) {
   return options.getProjects()
 }
 
 export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceProjectSessionActionsOptions) {
-  const loadProjectSpaceState = async (
-    projectId: string,
-    fallbackState?: PersonalSpaceState,
-    projectList = getCurrentProjectList(options),
-  ): Promise<PersonalSpaceState | null> => {
-    const project = options.findProject(projectId, projectList)
-    return loadProjectSpaceStateFromStorage({
-      projectId,
-      project,
-      fallbackState,
-      localRepository: options.localRepository,
-      remoteRepository: options.remoteRepository,
-      ensureRemoteSettings: options.ensureRemoteProjectSettings,
-      onRemoteProjectLoaded: options.rememberRemoteProjectSettings,
-      onWarning: (content) => {
-        void options.messageApi.warning(content)
-      },
-    })
-  }
+  const {
+    activateProjectState,
+    activateProjectStateFromStorage,
+    loadProjectSpaceState,
+    refreshActiveProjectState,
+  } = createPersonalSpaceProjectActivationActions({
+    localRepository: options.localRepository,
+    remoteRepository: options.remoteRepository,
+    messageApi: options.messageApi,
+    getProjects: options.getProjects,
+    findProject: options.findProject,
+    ensureRemoteProjectSettings: options.ensureRemoteProjectSettings,
+    rememberRemoteProjectSettings: options.rememberRemoteProjectSettings,
+    stateRefs: options.stateRefs,
+    stateSetters: options.stateSetters,
+  })
 
   const refreshProjectList = async (preferredProjectId = '') => {
     const { projects, remoteError } = await listProjectCatalogWithRemoteFallback(
@@ -171,7 +153,6 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
 
   const disableActiveProject = () => {
     if (!options.stateRefs.activeProjectIdRef.current) return
-    writeProjectSpaceState(options.stateRefs.activeProjectIdRef.current, getActiveProjectState(options.stateRefs))
     activateProjectState('')
     void options.messageApi.warning('已取消启用项目')
   }
@@ -183,60 +164,6 @@ export function createPersonalSpaceProjectSessionActions(options: PersonalSpaceP
 
   const closeProjectManagement = () => {
     options.stateSetters.setWorkspacePage('workbench')
-  }
-
-  const activateProjectState = (projectId: string, fallbackState?: PersonalSpaceState) => {
-    if (options.stateRefs.activeProjectIdRef.current && options.stateRefs.activeProjectIdRef.current !== projectId) {
-      writeProjectSpaceState(options.stateRefs.activeProjectIdRef.current, getActiveProjectState(options.stateRefs))
-    }
-
-    if (!projectId) {
-      options.stateRefs.activeProjectIdRef.current = ''
-      options.stateSetters.setActiveProjectId('')
-      clearActiveProjectId()
-      const emptySpace = createEmptyProjectSpaceState()
-      options.stateRefs.spaceRef.current = emptySpace
-      options.stateSetters.setSpace(() => emptySpace)
-      return
-    }
-
-    if (!hasProjectSpaceState(projectId)) {
-      writeProjectSpaceState(projectId, fallbackState ?? createEmptyProjectSpaceState())
-    }
-
-    const nextSpace = readProjectSpaceState(projectId)
-    options.stateRefs.activeProjectIdRef.current = projectId
-    options.stateRefs.spaceRef.current = nextSpace
-    options.stateSetters.setActiveProjectId(projectId)
-    options.stateSetters.setSpace(() => nextSpace)
-    writeActiveProjectId(projectId)
-  }
-
-  const activateProjectStateFromStorage = async (
-    projectId: string,
-    fallbackState?: PersonalSpaceState,
-    projectList = getCurrentProjectList(options),
-  ) => {
-    if (!projectId) {
-      activateProjectState('')
-      return false
-    }
-    const nextSpace = await loadProjectSpaceState(projectId, fallbackState, projectList)
-    if (!nextSpace) {
-      activateProjectState('')
-      return false
-    }
-    activateProjectState(projectId, nextSpace)
-    return true
-  }
-
-  const refreshActiveProjectState = async () => {
-    const activeProjectId = options.stateRefs.activeProjectIdRef.current
-    if (!activeProjectId) return false
-    return activateProjectStateFromStorage(
-      activeProjectId,
-      getActiveProjectState(options.stateRefs),
-    )
   }
 
   return {

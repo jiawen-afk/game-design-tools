@@ -1,6 +1,5 @@
 import {
   hardDeleteProjectWithObjects,
-  migrateLocalProjectToRemote,
   readActiveProjectId,
   resolveEnabledProjectId,
   type Project,
@@ -11,13 +10,11 @@ import {
   type ProjectSettings,
 } from '../ProjectStorage'
 import type { PersonalSpaceState } from './personalSpaceModel'
-import {
-  createEmptyProjectSpaceState,
-  deleteProjectSpaceState,
-  writeProjectSpaceState,
-} from './projectSpaceState'
+import { deleteProjectSpaceState } from './projectSpaceState'
 import { isRemoteProjectConfigurationReady } from './projectManagementModel'
 import { projectAssetObjectKeys } from './currentProjectSpacePersistence'
+import { createProjectManagementMigrationAction } from './projectManagementMigrationAction'
+import { createProjectManagementCreateActions } from './projectManagementCreateActions'
 
 interface ProjectManagementMessageApi {
   success: (content: string) => void
@@ -81,69 +78,8 @@ export interface ProjectManagementActionsOptions {
   findProject: (projectId: string, projectList?: Project[]) => Project | undefined
 }
 
-function getCurrentLocalObjectRoot(options: ProjectManagementActionsOptions) {
-  const settingsWorkspace = options.getSettingsWorkspace()
-  const space = options.getSpace()
-  return settingsWorkspace.draftStorageDirectory || space.settings.storageDirectory || ''
-}
-
 export function createProjectManagementActions(options: ProjectManagementActionsOptions) {
-  const createLocalProject = async (name: string, description: string) => {
-    const localObjectRoot = getCurrentLocalObjectRoot(options)
-    const created = await options.localRepository.createProject({
-      name,
-      description,
-      localObjectRoot,
-      now: new Date().toISOString(),
-    })
-    writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(localObjectRoot))
-    const nextProjects = await options.refreshProjectList(created.project.id)
-    if (nextProjects.length === 1) options.activateProjectState(created.project.id)
-    void options.messageApi.success('已创建本地项目')
-  }
-
-  const createRemoteProject = async (projectId: string, name: string, description: string) => {
-    const settingsWorkspace = options.getSettingsWorkspace()
-    if (!isRemoteProjectConfigurationReady(settingsWorkspace, projectId)) {
-      void options.messageApi.warning('请先完成远程数据库验证、表结构初始化和七牛 Kodo 验证')
-      return
-    }
-
-    const created = await options.remoteRepository.createRemoteProject({
-      id: projectId,
-      name,
-      description,
-      databaseProvider: settingsWorkspace.databaseProfileDraft.provider,
-      databaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
-      storageProfileId: settingsWorkspace.selectedKodoProfileId,
-      now: new Date().toISOString(),
-    })
-    if (
-      created.settings.database_provider !== 'postgresql' &&
-      created.settings.database_provider !== 'mysql'
-    ) {
-      throw new Error('远程项目数据库类型无效。')
-    }
-    await options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
-      created.project.id,
-      settingsWorkspace.selectedDatabaseProfileId,
-      settingsWorkspace.selectedKodoProfileId,
-    )
-    await options.localRepository.createRemoteProject({
-      id: created.project.id,
-      name: created.project.name,
-      description: created.project.description,
-      databaseProvider: created.settings.database_provider,
-      databaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
-      storageProfileId: settingsWorkspace.selectedKodoProfileId,
-      now: created.project.created_at,
-    })
-    options.rememberRemoteProjectSettings(created.project, created.settings)
-    writeProjectSpaceState(created.project.id, createEmptyProjectSpaceState(getCurrentLocalObjectRoot(options)))
-    const nextProjects = await options.refreshProjectList(created.project.id)
-    if (nextProjects.length === 1) options.activateProjectState(created.project.id)
-    void options.messageApi.success('已创建远程项目')
-  }
+  const { createLocalProject, createRemoteProject } = createProjectManagementCreateActions(options)
 
   const renameProject = async (projectId: string, name: string, description: string) => {
     await options.ensureRemoteProjectSettings(projectId)
@@ -238,81 +174,7 @@ export function createProjectManagementActions(options: ProjectManagementActions
     }
   }
 
-  const migrateActiveProjectToRemote = async () => {
-    const activeProjectId = options.getActiveProjectId()
-    const settingsWorkspace = options.getSettingsWorkspace()
-    if (options.migrationInFlightProjectIdRef.current) {
-      void options.messageApi.warning('项目正在迁移，请稍候')
-      return
-    }
-    if (!isRemoteProjectConfigurationReady(settingsWorkspace, activeProjectId)) {
-      void options.messageApi.warning('请先验证远程数据库和七牛 Kodo 配置')
-      return
-    }
-
-    const migrationProjectId = activeProjectId
-    options.migrationInFlightProjectIdRef.current = migrationProjectId
-    options.setMigratingProjectId(migrationProjectId)
-    try {
-      const currentSpace = options.getSpace()
-      writeProjectSpaceState(migrationProjectId, currentSpace)
-      const project = options.getProjects().find((item) => item.id === migrationProjectId)
-      if (!project) {
-        void options.messageApi.warning('当前项目不存在，无法迁移')
-        return
-      }
-      const now = new Date().toISOString()
-      options.rememberRemoteProjectSettings(project, {
-        project_id: migrationProjectId,
-        storage_provider: 'qiniu_kodo',
-        database_provider: settingsWorkspace.databaseProfileDraft.provider,
-        local_object_root: null,
-        remote_database_profile_id: null,
-        remote_storage_profile_id: null,
-        last_verified_at: now,
-        updated_at: now,
-      })
-      try {
-        await options.storageWorkflow.syncProjectStateToStorage(project, currentSpace)
-      } catch (error) {
-        void options.messageApi.warning(`同步本地项目存储失败：${error instanceof Error ? error.message : String(error)}`)
-        return
-      }
-
-      await options.remoteDeviceBindingResolver.bindProjectToCurrentDevice(
-        migrationProjectId,
-        settingsWorkspace.selectedDatabaseProfileId,
-        settingsWorkspace.selectedKodoProfileId,
-      )
-
-      const result = await migrateLocalProjectToRemote({
-        projectId: migrationProjectId,
-        localRepository: options.localRepository,
-        remoteRepository: options.remoteRepository,
-        remoteDatabaseProvider: settingsWorkspace.databaseProfileDraft.provider,
-        remoteDatabaseProfileId: settingsWorkspace.selectedDatabaseProfileId,
-        remoteStorageProfileId: settingsWorkspace.selectedKodoProfileId,
-        sourceObjectStorage: options.localObjectStorage,
-        remoteObjectStorage: options.remoteObjectStorage,
-        assetManager: options.assetManager,
-        now: new Date().toISOString(),
-      })
-
-      if (result.status === 'failed') {
-        void options.messageApi.warning(`迁移到远程失败：${result.errorMessage}`)
-        return
-      }
-
-      const nextProjects = await options.refreshProjectList(migrationProjectId)
-      await options.activateProjectStateFromStorage(migrationProjectId, undefined, nextProjects)
-      void options.messageApi.success('已迁移到远程项目存储')
-    } finally {
-      if (options.migrationInFlightProjectIdRef.current === migrationProjectId) {
-        options.migrationInFlightProjectIdRef.current = ''
-        options.setMigratingProjectId('')
-      }
-    }
-  }
+  const migrateActiveProjectToRemote = createProjectManagementMigrationAction(options)
 
   return {
     createLocalProject,

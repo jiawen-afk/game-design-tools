@@ -1,0 +1,131 @@
+@media (max-width: 980px) {
+  .personal-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .remote-settings-grid,
+  .remote-form-grid,
+  .remote-database-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-stat {
+    border-top: 1px solid var(--color-line);
+  }
+
+  .personal-stat:nth-child(-n + 2) {
+    border-top: 0;
+  }
+
+  .personal-stat:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .space-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .storyboard-arranger,
+  .storyboard-voice-tools,
+  .storyboard-header-actions,
+  .storyboard-voice-row {
+    grid-template-columns: 1fr;
+  }
+
+  .storyboard-voice-row .ant-space-compact {
+    justify-self: start;
+  }
+
+  .storyboard-timeline {
+    min-height: auto;
+    padding-left: 16px;
+  }
+
+  .storyboard-timeline-line {
+    left: 5px;
+  }
+
+  .asset-record-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .asset-record-row > .ant-btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .asset-record-fields {
+    padding-left: 0;
+  }
+
+  .resource-space-record .asset-record-row,
+  .voice-space-record .asset-record-row {
+    grid-template-columns: 24px 40px minmax(0, 1fr);
+  }
+
+  .voice-record-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .personal-hero {
+    display: grid;
+  }
+
+  .storage-status {
+    min-width: 0;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .project-current-control {
+    min-width: 0;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .project-current-tags {
+    justify-content: flex-start;
+  }
+
+  .project-management-head,
+  .project-card-head {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .remote-migration-row {
+    justify-content: flex-start;
+  }
+
+  .personal-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-stat {
+    border-left: 0;
+  }
+
+  .personal-stat:nth-child(2) {
+    border-top: 1px solid var(--color-line);
+  }
+
+  .resource-section-head {
+    display: grid;
+  }
+
+  .resource-section-actions {
+    justify-content: flex-start;
+  }
+
+  .character-record-tools {
+    justify-content: flex-start;
+  }
+
+  .project-sync-status {
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+}

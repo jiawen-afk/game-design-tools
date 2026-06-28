@@ -31,13 +31,6 @@ export interface PresetFrameLayoutState {
   composedRevision?: number
 }
 
-export interface ComposedProgressFrameState {
-  id: string
-  matteUrl: string | null
-  matteRevision: number
-  composedRevision?: number
-}
-
 export type LayoutPresetMode = 'center' | 'active' | 'maxBoth' | 'maxWidth' | 'maxHeight'
 
 export interface ApplyCanvasRatioOptions {
@@ -184,21 +177,6 @@ export function applyLayoutPresetToFrames<T extends PresetFrameLayoutState>(
     const ratio = frame.matteWidth / Math.max(1, frame.matteHeight)
     return updatePresetFrameLayout(frame, { width: Math.max(1, Math.round(height * ratio)), height })
   })
-}
-
-export function getPendingComposedFrameIds<T extends ComposedProgressFrameState>(
-  frames: T[],
-  targetIds: string[]
-): string[] {
-  if (targetIds.length === 0) return []
-  const targets = new Set(targetIds)
-  return frames
-    .filter((frame) => (
-      targets.has(frame.id) &&
-      Boolean(frame.matteUrl) &&
-      frame.composedRevision !== frame.matteRevision
-    ))
-    .map((frame) => frame.id)
 }
 
 function axisDelta(handle: ResizeHandle, deltaX: number, deltaY: number): { w: number; h: number } {

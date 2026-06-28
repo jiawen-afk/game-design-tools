@@ -1,0 +1,49 @@
+.document-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(520px, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.document-graph-workspace {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.document-graph-controls,
+.document-graph-details {
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+  background: var(--color-panel-strong);
+}
+
+.document-graph-controls {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  border-right: 1px solid var(--color-line);
+}
+
+.document-graph-details {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border-left: 1px solid var(--color-line);
+}
+
+.document-graph-canvas {
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-panel);
+}
+
+.document-panel-heading-compact {
+  margin: -16px -16px 0;
+  padding: 14px 16px;
+}

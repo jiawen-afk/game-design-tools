@@ -1,0 +1,95 @@
+.personal-space {
+  display: grid;
+  gap: 16px;
+}
+
+.personal-hero,
+.personal-overview,
+.space-panel {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.personal-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+}
+
+.personal-hero h2 {
+  margin: 0 0 8px;
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+
+.personal-hero p {
+  max-width: 78ch;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.65;
+}
+
+.storage-status {
+  min-width: 220px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.personal-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  overflow: hidden;
+}
+
+.resource-module {
+  display: grid;
+  gap: 14px;
+}
+
+.personal-stat {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-left: 1px solid var(--color-line);
+}
+
+.personal-stat:first-child {
+  border-left: 0;
+}
+
+.personal-stat span {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.personal-stat strong {
+  color: var(--color-ink);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.personal-tabs {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  overflow: hidden;
+}
+
+.personal-tabs > .ant-tabs-nav {
+  margin: 0;
+  padding: 0 16px;
+  background: var(--color-panel-strong);
+}
+
+.personal-tabs > .ant-tabs-content-holder {
+  padding: 16px;
+}
+

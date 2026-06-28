@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import {
   type Project,
@@ -6,8 +6,6 @@ import {
 import {
   assetOptions,
   assetKindLabel,
-  createPersonalSpaceDerivedState,
-  createStoryboardVoiceRefs,
   readPersonalSpaceState,
 } from './personalSpaceModel'
 import { writeProjectSpaceState } from './projectSpaceState'
@@ -15,15 +13,14 @@ import { usePersonalSpaceSettingsWorkspace } from './usePersonalSpaceSettingsWor
 import { useProjectStorageInfrastructure } from './useProjectStorageInfrastructure'
 import { useProjectRemoteSync } from './useProjectRemoteSync'
 import { useSelectedProjectRemoteProfileBinding } from './useSelectedProjectRemoteProfileBinding'
-import { createProjectManagementActions } from './projectManagementActions'
-import { createPersonalSpaceAssetActions } from './personalSpaceAssetActions'
-import { createPersonalSpaceEditActions } from './personalSpaceEditActions'
 import {
   createPersonalSpaceProjectSessionActions,
   type PersonalSpaceActiveModule,
   type ProjectSpacePage,
 } from './personalSpaceProjectSessionActions'
-import { usePersonalSpaceCreationDrafts } from './usePersonalSpaceCreationDrafts'
+import { usePersonalSpaceProjectResources } from './usePersonalSpaceProjectResources'
+import { usePersonalSpaceWorkspaceActions } from './usePersonalSpaceWorkspaceActions'
+import { usePersonalSpaceWorkspaceLifecycle } from './usePersonalSpaceWorkspaceLifecycle'
 
 interface PersonalSpaceMessageApi {
   success: (content: string) => void
@@ -50,6 +47,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     setSpace,
     messageApi,
   })
+  const projectStorage = useProjectStorageInfrastructure(settingsWorkspace)
   const {
     ensureRemoteProjectSettings,
     projectAssetManager,
@@ -61,7 +59,7 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     remoteDeviceBindingResolver,
     remoteProjectObjectStorage,
     remoteProjectRepository,
-  } = useProjectStorageInfrastructure(settingsWorkspace)
+  } = projectStorage
 
   const findProject = (projectId: string, projectList = projects) => (
     projectList.find((item) => item.id === projectId)
@@ -117,29 +115,15 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     messageApi,
   })
 
-  useEffect(() => {
-    let cancelled = false
-
-    void initializeProjects(() => cancelled)
-
-    return () => {
-      cancelled = true
-    }
-  }, [settingsWorkspace.connectionProfilesLoaded])
-
-  useEffect(() => {
-    spaceRef.current = space
-    if (activeProjectIdRef.current) {
-      writeProjectSpaceState(activeProjectIdRef.current, space)
-      scheduleRemoteProjectSync(space)
-    }
-  }, [space])
-
-  useEffect(() => {
-    if (settingsWorkspace.directoryHandleChecked && !settingsWorkspace.directoryHandle) {
-      setActiveModule('settings')
-    }
-  }, [settingsWorkspace.directoryHandleChecked, settingsWorkspace.directoryHandle])
+  usePersonalSpaceWorkspaceLifecycle({
+    activeProjectIdRef,
+    initializeProjects,
+    scheduleRemoteProjectSync,
+    setActiveModule,
+    settingsWorkspace,
+    space,
+    spaceRef,
+  })
 
   useSelectedProjectRemoteProfileBinding({
     selectedManagementProjectId,
@@ -151,133 +135,50 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
   })
 
   const {
-    createLocalProject,
-    createRemoteProject,
-    renameProject,
-    updateRemoteProjectLinks,
-    deleteProject,
-    migrateActiveProjectToRemote,
-  } = createProjectManagementActions({
-    localRepository: projectRepository,
-    remoteRepository: remoteProjectRepository,
-    localObjectStorage: projectObjectStorage,
-    remoteObjectStorage: remoteProjectObjectStorage,
-    assetManager: projectAssetManager,
-    storageWorkflow: projectStorageWorkflow,
-    remoteDeviceBindingResolver,
-    messageApi,
-    getSettingsWorkspace: () => settingsWorkspace,
-    getProjects: () => projects,
+    activeProject,
+    activeProjectStorage,
+    changeActiveModuleAndRefresh,
+    getProjectResourceReadOptions,
+    projectResourceReadOptions,
+    refreshActiveProjectData,
+  } = usePersonalSpaceProjectResources({
+    projects,
+    activeProjectId,
     getActiveProjectId: () => activeProjectIdRef.current,
-    getSpace: () => spaceRef.current,
-    migrationInFlightProjectIdRef,
-    setMigratingProjectId,
-    refreshProjectList,
+    projectStorageWorkflow,
+    refreshActiveProjectState,
+    changeActiveModule,
+  })
+
+  const {
+    assetActions,
+    creationDrafts,
+    derivedState,
+    editActions,
+    projectManagementActions,
+    storyboardVoiceRefs,
+  } = usePersonalSpaceWorkspaceActions({
+    activeProjectIdRef,
     activateProjectState,
     activateProjectStateFromStorage,
-    ensureRemoteProjectSettings,
-    rememberRemoteProjectSettings,
     findProject,
-  })
-
-  const {
-    createCharacter: createCharacterInSpace,
-    createStoryboard: createStoryboardInSpace,
-    renameCharacter,
-    toggleCharacterStar,
-    reorderCharacter,
-    deleteCharacter,
-    assignAsset,
-    unassignAsset,
-    reorderCharacterVoice,
-    moveCharacterVoice,
-    renameStoryboard,
-    toggleStoryboardStar,
-    deleteStoryboard,
-    getStoryboardLinkedCharacterIds,
-    assignVoiceToStoryboard,
-    unassignStoryboardVoice,
-    assignStoryboardVoiceCharacter,
-    updateStoryboardVoice,
-    reorderStoryboardVoice,
-    moveStoryboardVoice,
-    renameAsset,
-    changeAssetGroupName,
-    changeVoiceDialogueText,
-    changeEffectVoiceLinks,
-    changeVoiceCharacterLinks,
-    changeVoiceStoryboardLinks,
-    addAssetGroup,
-    renameAssetGroup,
-    toggleAssetGroupStar,
-    transferAssetGroup,
-    deleteAssetGroup,
-    setDeleteResourcesWithContent,
-  } = createPersonalSpaceEditActions({
+    getProjectResourceReadOptions,
     messageApi,
-    getSpace: () => spaceRef.current,
+    migrationInFlightProjectIdRef,
+    projects,
+    projectStorage,
+    refreshProjectList,
+    rememberRemoteProjectSettings,
+    ensureRemoteProjectSettings,
+    settingsWorkspace,
+    setMigratingProjectId,
     setSpace,
-  })
-
-  const {
-    newCharacterName,
-    newStoryboardName,
-    setNewCharacterName,
-    setNewStoryboardName,
-    createCharacter,
-    createStoryboard,
-  } = usePersonalSpaceCreationDrafts({
-    createCharacterInSpace,
-    createStoryboardInSpace,
-  })
-
-  const {
-    deleteAsset,
-    exportStoryboardAsset,
-    exportStoryboardVoiceAssets,
-    exportStoryboardCharacterAssets,
-    exportAllStoryboardVoiceAssets,
-    exportAllStoryboardCharacterAssets,
-    portraitUploadProps,
-    spriteUploadProps,
-    voiceUploadProps,
-    storyboardVoiceUploadProps,
-    commonResourceUploadProps,
-    imageSpriteUploadProps,
-  } = createPersonalSpaceAssetActions({
-    messageApi,
-    getSpace: () => spaceRef.current,
-    setSpace,
-    getDirectoryHandle: () => settingsWorkspace.directoryHandle,
-    getProjectResourceReadOptions: () => (
-      projectStorageWorkflow.projectReadOptionsForProject(findProject(activeProjectIdRef.current))
-    ),
     setStoryboardExportingKey,
+    space,
+    spaceRef,
     spriteUploadBatchKeyByCharacter,
     imageSpriteUploadBatchKey,
   })
-
-  const {
-    portraitAssets,
-    spriteAssets,
-    voiceAssets,
-    characterOptions,
-    resourceSections,
-    assetCounts,
-  } = createPersonalSpaceDerivedState(space)
-  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null
-  const activeProjectStorage = projectStorageWorkflow.objectStorageForProject(activeProject)
-  const projectResourceReadOptions = projectStorageWorkflow.projectReadOptionsForProject(activeProject)
-  const storyboardVoiceRefs = (assetId: string) => createStoryboardVoiceRefs(space, assetId)
-  const refreshActiveProjectData = async () => {
-    await refreshActiveProjectState()
-  }
-  const changeActiveModuleAndRefresh = (key: string) => {
-    const changed = changeActiveModule(key)
-    if (changed && key !== 'settings') {
-      void refreshActiveProjectState()
-    }
-  }
 
   return {
     space,
@@ -296,76 +197,21 @@ export function usePersonalSpaceWorkspace(messageApi: PersonalSpaceMessageApi) {
     enableProject,
     disableActiveProject,
     activeModule,
-    newCharacterName,
-    newStoryboardName,
     storyboardExportingKey,
     migratingProjectId,
     syncStatus,
     syncingProjectId,
-    portraitAssets,
-    spriteAssets,
-    voiceAssets,
-    characterOptions,
-    resourceSections,
-    assetCounts,
-    setNewCharacterName,
-    setNewStoryboardName,
     changeActiveModule,
     changeActiveModuleAndRefresh,
     refreshActiveProjectData,
-    createLocalProject,
-    createRemoteProject,
-    renameProject,
-    updateRemoteProjectLinks,
-    deleteProject,
-    migrateActiveProjectToRemote,
+    ...derivedState,
+    ...projectManagementActions,
     syncActiveProjectNow,
-    createCharacter,
-    createStoryboard,
-    exportStoryboardAsset,
-    exportStoryboardVoiceAssets,
-    exportStoryboardCharacterAssets,
-    exportAllStoryboardVoiceAssets,
-    exportAllStoryboardCharacterAssets,
-    portraitUploadProps,
-    spriteUploadProps,
-    voiceUploadProps,
-    storyboardVoiceUploadProps,
-    commonResourceUploadProps,
-    imageSpriteUploadProps,
+    ...editActions,
+    ...creationDrafts,
+    ...assetActions,
     assetOptions,
     assetKindLabel,
     storyboardVoiceRefs,
-    renameCharacter,
-    toggleCharacterStar,
-    reorderCharacter,
-    deleteCharacter,
-    assignAsset,
-    unassignAsset,
-    reorderCharacterVoice,
-    moveCharacterVoice,
-    renameStoryboard,
-    toggleStoryboardStar,
-    deleteStoryboard,
-    getStoryboardLinkedCharacterIds,
-    assignVoiceToStoryboard,
-    unassignStoryboardVoice,
-    assignStoryboardVoiceCharacter,
-    updateStoryboardVoice,
-    reorderStoryboardVoice,
-    moveStoryboardVoice,
-    renameAsset,
-    changeAssetGroupName,
-    changeVoiceDialogueText,
-    changeEffectVoiceLinks,
-    changeVoiceCharacterLinks,
-    changeVoiceStoryboardLinks,
-    addAssetGroup,
-    renameAssetGroup,
-    toggleAssetGroupStar,
-    transferAssetGroup,
-    deleteAssetGroup,
-    deleteAsset,
-    setDeleteResourcesWithContent,
   }
 }

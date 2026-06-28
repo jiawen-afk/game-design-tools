@@ -1,0 +1,118 @@
+.home-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.home-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 42px 0 4px;
+}
+
+.home-lede {
+  max-width: 58ch;
+  color: var(--color-muted);
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.home-shortcuts {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.home-grid-single {
+  grid-template-columns: 1fr;
+}
+
+.knowledge-home-section {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+  overflow: hidden;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-panel-strong);
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.section-heading p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.knowledge-home-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.knowledge-home-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.knowledge-home-main h3 {
+  margin: 0 0 4px;
+  font-size: 1.08rem;
+}
+
+.knowledge-home-main p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.knowledge-home-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in oklch, var(--color-brand) 30%, var(--color-line));
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-brand) 8%, var(--color-panel));
+  color: var(--color-brand-dark);
+}

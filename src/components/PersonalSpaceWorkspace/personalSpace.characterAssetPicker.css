@@ -1,0 +1,107 @@
+.character-asset-picker {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.character-portrait-picker-panel {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-line) 76%, white);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel) 82%, var(--color-panel-strong));
+}
+
+.character-asset-picker-modal-body {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.character-asset-picker-modal-body .portrait-picker-popover {
+  max-height: min(46vh, 360px);
+}
+
+.portrait-picker-input-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.portrait-picker-popover {
+  max-height: 220px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.portrait-picker-option {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portrait-picker-option:hover,
+.portrait-picker-option.is-selected {
+  border-color: color-mix(in oklch, var(--color-brand) 42%, var(--color-line));
+  background: color-mix(in oklch, var(--color-brand) 8%, var(--color-panel));
+}
+
+.portrait-picker-thumb {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 46%, white);
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.portrait-picker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portrait-picker-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.portrait-picker-main strong,
+.portrait-picker-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portrait-picker-main span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.portrait-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+

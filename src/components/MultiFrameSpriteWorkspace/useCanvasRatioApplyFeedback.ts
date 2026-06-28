@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { message } from 'antd'
 
-import { getPendingComposedFrameIds, type ComposedProgressFrameState } from './layoutModel'
+import { getPendingComposedFrameIds, type ComposedProgressFrameState } from './frameCompositionModel'
 
 const CANVAS_RATIO_MESSAGE_KEY = 'canvas-ratio-apply'
 

@@ -1,0 +1,134 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import { packageJsonSource } from '../../appStructureTestHelpers.test'
+
+test('image processing upscale is an optional export enhancement and keeps normal export available', () => {
+  const exportSource = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const exportWorkflowSource = readFileSync('src/components/ImageProcessingWorkspace/useImageExportWorkflow.ts', 'utf8')
+  const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
+  const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
+  const desktopUpscaleApiSource = readFileSync('src/desktopUpscaleApi.ts', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const upscaylIpcPath = 'electron/upscaylIpcHandlers.cjs'
+  const upscaylIpcSource = existsSync(upscaylIpcPath) ? readFileSync(upscaylIpcPath, 'utf8') : ''
+  const packageSource = packageJsonSource()
+
+  assert.match(exportSource, /高清化/)
+  assert.match(exportSource, /workspace\.upscaleEnabled/)
+  assert.match(exportSource, /workspace\.upscaleRuntimeStatus/)
+  assert.match(exportSource, /workspace\.installUpscaleRuntime/)
+  assert.match(exportSource, /workspace\.runUpscalePreview/)
+  assert.match(exportSource, /disabled=\{!workspace\.canExport\}/)
+  assert.doesNotMatch(exportSource, /disabled=\{!workspace\.canExport \|\| workspace\.upscaleEnabled/)
+  assert.match(hookSource, /useImageUpscaleWorkflow\(/)
+  assert.match(hookSource, /useImageExportWorkflow\(/)
+  assert.match(exportWorkflowSource, /resolveImageExportTarget/)
+  assert.match(exportWorkflowSource, /resolveImageExportTarget\(activeImageSource, crop, upscaleEnabled, upscalePreview\)/)
+  assert.match(exportWorkflowSource, /exportProcessedImage\(exportTarget\.sourceUrl, exportTarget\.crop, exportFormat, exportSize\)/)
+  assert.match(upscaleHookSource, /queryUpscaleStatus/)
+  assert.match(upscaleHookSource, /upscaleImage/)
+  assert.match(upscaleHookSource, /resolveExportBaseSize/)
+  assert.match(upscaleHookSource, /exportBaseSize/)
+  assert.match(upscaleHookSource, /exportSize/)
+  assert.match(upscaleHookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
+  assert.match(stageSource, /image-upscale-compare/)
+  assert.match(stageSource, /image-upscale-compare-after/)
+  assert.match(stageSource, /inset\(0 0 0 \$\{comparePosition\}%\)/)
+  assert.match(stageSource, /image-upscale-compare-label/)
+  assert.match(stageSource, /处理前/)
+  assert.match(stageSource, /处理后/)
+  assert.match(stageSource, /workspace\.upscalePreview/)
+  assert.match(desktopUpscaleApiSource, /queryUpscaleStatus/)
+  assert.match(desktopUpscaleApiSource, /installUpscaleRuntime/)
+  assert.match(desktopUpscaleApiSource, /upscaleImage/)
+  assert.match(preloadSource, /upscayl:status/)
+  assert.match(preloadSource, /upscayl:install/)
+  assert.match(preloadSource, /upscayl:upscale/)
+  assert.ok(existsSync(upscaylIpcPath), `${upscaylIpcPath} should exist`)
+  assert.match(mainSource, /registerUpscaylIpcHandlers/)
+  assert.doesNotMatch(mainSource, /upscayl:status/)
+  assert.doesNotMatch(mainSource, /upscayl:install/)
+  assert.doesNotMatch(mainSource, /upscayl:upscale/)
+  assert.match(upscaylIpcSource, /upscayl:status/)
+  assert.match(upscaylIpcSource, /upscayl:install/)
+  assert.match(upscaylIpcSource, /upscayl:upscale/)
+  assert.match(upscaylIpcSource, /UpscaylRuntime/)
+  assert.match(upscaylIpcSource, /downloadFileWithRetry/)
+  assert.match(upscaylIpcSource, /attempt < maxAttempts/)
+  assert.match(packageSource, /imageUpscaleModel\.test\.ts/)
+})
+
+test('image processing resets stale upscale enhancement when replacing the image', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const sourceHookPath = 'src/components/ImageProcessingWorkspace/useImageSourceWorkspace.ts'
+  const sourceHookSource = existsSync(sourceHookPath) ? readFileSync(sourceHookPath, 'utf8') : hookSource
+  const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
+  const uploadStart = sourceHookSource.indexOf('const uploadImage = async')
+  const resetStart = sourceHookSource.indexOf('const resetWorkspace = useCallback')
+  const uploadSource = sourceHookSource.slice(uploadStart, resetStart)
+  const resetSource = sourceHookSource.slice(resetStart)
+
+  assert.notEqual(uploadStart, -1)
+  assert.notEqual(resetStart, -1)
+  assert.match(uploadSource, /resetUpscale\(false\)/)
+  assert.match(resetSource, /resetUpscale\(false\)/)
+  assert.ok(
+    uploadSource.indexOf('resetUpscale(false)') < uploadSource.indexOf('setExportScale(1)'),
+    'uploading a new image should clear the old upscale scale snapshot before forcing export scale back to 1',
+  )
+  assert.match(upscaleHookSource, /const clearUpscalePreview = useCallback/)
+  assert.match(upscaleHookSource, /const resetUpscale = useCallback/)
+  assert.match(upscaleHookSource, /setUpscaleEnabled\(enabled\)/)
+  assert.match(upscaleHookSource, /setExportScale\(exportScaleSnapshotRef\.current \?\? 1\)/)
+  assert.match(upscaleHookSource, /shouldInvalidateUpscalePreview/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
+})
+
+test('image processing upscale workflow is delegated to a focused hook', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const upscaleHookPath = 'src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts'
+  const upscaleHookSource = existsSync(upscaleHookPath) ? readFileSync(upscaleHookPath, 'utf8') : ''
+
+  assert.ok(existsSync(upscaleHookPath), 'upscale workflow hook should exist')
+  assert.match(hookSource, /from '\.\/useImageUpscaleWorkflow'/)
+  assert.match(hookSource, /useImageUpscaleWorkflow\(/)
+  assert.doesNotMatch(hookSource, /const queryUpscaleStatus = useCallback/)
+  assert.doesNotMatch(hookSource, /const installUpscaleRuntime = useCallback/)
+  assert.doesNotMatch(hookSource, /const runUpscalePreview = useCallback/)
+  assert.doesNotMatch(hookSource, /upscalePreviewInputsRef/)
+  assert.doesNotMatch(hookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /export function useImageUpscaleWorkflow/)
+  assert.match(upscaleHookSource, /queryUpscaleStatus/)
+  assert.match(upscaleHookSource, /installUpscaleRuntime/)
+  assert.match(upscaleHookSource, /runUpscalePreview/)
+  assert.match(upscaleHookSource, /exportScaleSnapshotRef/)
+  assert.match(upscaleHookSource, /upscalePreviewInputsRef/)
+})
+
+test('upscale runtime controls are shared by image and sprite workspaces', () => {
+  const runtimeHookPath = 'src/components/ImageProcessingWorkspace/useUpscaleRuntime.ts'
+  const runtimeHookSource = existsSync(runtimeHookPath) ? readFileSync(runtimeHookPath, 'utf8') : ''
+  const imageUpscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
+  const spriteUpscaleHookSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteUpscaleWorkspace.ts', 'utf8')
+
+  assert.ok(existsSync(runtimeHookPath), 'shared upscale runtime hook should exist')
+  assert.match(imageUpscaleHookSource, /useUpscaleRuntime\(/)
+  assert.match(spriteUpscaleHookSource, /useUpscaleRuntime\(/)
+  for (const source of [imageUpscaleHookSource, spriteUpscaleHookSource]) {
+    assert.doesNotMatch(source, /api\.queryUpscaleStatus\(\)/)
+    assert.doesNotMatch(source, /api\.installUpscaleRuntime\(\)/)
+    assert.doesNotMatch(source, /onUpscaleInstallProgress/)
+    assert.doesNotMatch(source, /const \[upscaleRuntimeStatus, setUpscaleRuntimeStatus\]/)
+    assert.doesNotMatch(source, /const \[upscaleInstallProgress, setUpscaleInstallProgress\]/)
+    assert.doesNotMatch(source, /const \[upscaleInstalling, setUpscaleInstalling\]/)
+  }
+  assert.match(runtimeHookSource, /export function useUpscaleRuntime/)
+  assert.match(runtimeHookSource, /getDesktopApi/)
+  assert.match(runtimeHookSource, /api\.queryUpscaleStatus\(\)/)
+  assert.match(runtimeHookSource, /api\.installUpscaleRuntime\(\)/)
+  assert.match(runtimeHookSource, /onUpscaleInstallProgress/)
+})

@@ -1,0 +1,16 @@
+.ai-matting-setup {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8cabc;
+  border-radius: var(--radius-control);
+  background: #fbfaf7;
+}
+
+.ai-matting-progress {
+  width: min(100%, 560px);
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}

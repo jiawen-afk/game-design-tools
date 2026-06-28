@@ -1,0 +1,122 @@
+.voice-library {
+  min-width: 0;
+}
+
+.voice-library-sticky {
+  position: sticky;
+  top: 78px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+}
+
+.voice-library-embedded {
+  align-self: start;
+  max-height: none;
+  overflow: visible;
+}
+
+.voice-library .ant-tabs {
+  min-height: 0;
+}
+
+.voice-record-list {
+  max-height: calc(100vh - 190px);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.voice-library-embedded .voice-record-list {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.voice-record-tab {
+  display: grid;
+  gap: 10px;
+}
+
+.voice-record-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.voice-record {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.voice-record.is-new {
+  border-color: color-mix(in oklch, var(--color-accent) 62%, var(--color-line));
+  background: color-mix(in oklch, var(--color-accent) 8%, var(--color-panel));
+}
+
+.record-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.record-heading .ant-input {
+  font-weight: 700;
+}
+
+.record-asset-title {
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.record-link-names {
+  align-items: flex-start;
+}
+
+.record-link-names span {
+  overflow-wrap: anywhere;
+}
+
+.voice-record audio {
+  width: 100%;
+  height: 34px;
+}
+
+.record-text {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.record-collect-action {
+  max-width: 100%;
+}
+
+.record-collect-action .ant-btn:first-child {
+  min-width: 0;
+}

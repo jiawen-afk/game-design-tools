@@ -1,24 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 
 import {
-  getDesktopApi,
-  type ProjectConnectionProfileSummary,
   type ProjectConnectionVerificationResult,
 } from '../../desktopApi'
-import {
-  createEditableDatabaseProfileDraft,
-  createEditableKodoProfileDraft,
-} from '../ProjectStorage'
 import { createProjectRemoteProfileActions } from './projectRemoteProfileActions'
 import {
   createInitialDatabaseProfileDraft,
   createInitialKodoProfileDraft,
-  getRemoteProfileDraftStatus,
   type DatabaseProfileDraft,
   type DraftTestState,
   type KodoProfileDraft,
   type ProfileEditMode,
 } from './projectRemoteProfileDraftModel'
+import { getRemoteConnectionProfileWorkspaceStatus } from './projectRemoteProfileWorkspaceModel'
+import { useRemoteConnectionProfileDetails } from './useRemoteConnectionProfileDetails'
+import { useRemoteConnectionProfileLists } from './useRemoteConnectionProfileLists'
 
 interface RemoteConnectionProfilesMessageApi {
   success: (content: string) => void
@@ -26,11 +22,6 @@ interface RemoteConnectionProfilesMessageApi {
 }
 
 export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectionProfilesMessageApi) {
-  const [connectionProfilesLoaded, setConnectionProfilesLoaded] = useState(false)
-  const [databaseProfiles, setDatabaseProfiles] = useState<ProjectConnectionProfileSummary[]>([])
-  const [kodoProfiles, setKodoProfiles] = useState<ProjectConnectionProfileSummary[]>([])
-  const [selectedDatabaseProfileId, setSelectedDatabaseProfileId] = useState('')
-  const [selectedKodoProfileId, setSelectedKodoProfileId] = useState('')
   const [databaseProfileMode, setDatabaseProfileMode] = useState<ProfileEditMode>('create')
   const [kodoProfileMode, setKodoProfileMode] = useState<ProfileEditMode>('create')
   const [databaseDraftTestState, setDatabaseDraftTestState] = useState<DraftTestState>('untested')
@@ -44,6 +35,17 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
   const previousDatabaseProfileDraftRef = useRef<DatabaseProfileDraft | null>(null)
   const skipNextDatabaseProfileLoadRef = useRef(false)
   const skipNextKodoProfileLoadRef = useRef(false)
+  const {
+    connectionProfilesLoaded,
+    databaseProfiles,
+    kodoProfiles,
+    selectedDatabaseProfileId,
+    selectedKodoProfileId,
+    setDatabaseProfiles,
+    setKodoProfiles,
+    setSelectedDatabaseProfileId,
+    setSelectedKodoProfileId,
+  } = useRemoteConnectionProfileLists(messageApi)
 
   const resetDatabaseProfileEditingState = () => {
     setDatabaseVerification(null)
@@ -57,81 +59,24 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
     setKodoDraftTestState('untested')
   }
 
-  useEffect(() => {
-    let mounted = true
-    const desktopApi = getDesktopApi()
-    if (!desktopApi) {
-      setConnectionProfilesLoaded(true)
-      return () => { mounted = false }
-    }
-
-    setConnectionProfilesLoaded(false)
-    void (async () => {
-      const [nextDatabaseProfiles, nextKodoProfiles] = await Promise.all([
-        desktopApi.listProjectConnectionProfiles('database'),
-        desktopApi.listProjectConnectionProfiles('qiniu_kodo'),
-      ])
-      if (!mounted) return
-      setDatabaseProfiles(nextDatabaseProfiles)
-      setKodoProfiles(nextKodoProfiles)
-      setSelectedDatabaseProfileId((current) => current || nextDatabaseProfiles[0]?.id || '')
-      setSelectedKodoProfileId((current) => current || nextKodoProfiles[0]?.id || '')
-    })().catch(() => {
-      if (mounted) void messageApi.warning('无法读取远程项目连接配置')
-    }).finally(() => {
-      if (mounted) setConnectionProfilesLoaded(true)
-    })
-
-    return () => { mounted = false }
-  }, [messageApi])
-
-  useEffect(() => {
-    let mounted = true
-    const desktopApi = getDesktopApi()
-    if (!desktopApi || !selectedDatabaseProfileId) return () => { mounted = false }
-    if (skipNextDatabaseProfileLoadRef.current) {
-      skipNextDatabaseProfileLoadRef.current = false
-      return () => { mounted = false }
-    }
-    void desktopApi.getProjectConnectionProfile(selectedDatabaseProfileId)
-      .then((profile) => {
-        if (!mounted || profile?.type !== 'database') return
-        const editableDraft = createEditableDatabaseProfileDraft(profile.payload as DatabaseProfileDraft)
-        previousDatabaseProfileDraftRef.current = editableDraft
-        setDatabaseProfileDraftState(editableDraft)
-        setDatabaseProfileMode('edit')
-        setDatabaseVerification(null)
-        setDatabaseSchemaReady(Boolean(profile.schemaInitializedAt))
-        setDatabaseDraftTestState('untested')
-      })
-      .catch(() => {
-        if (mounted) void messageApi.warning('无法读取远程数据库配置详情')
-      })
-    return () => { mounted = false }
-  }, [messageApi, selectedDatabaseProfileId])
-
-  useEffect(() => {
-    let mounted = true
-    const desktopApi = getDesktopApi()
-    if (!desktopApi || !selectedKodoProfileId) return () => { mounted = false }
-    if (skipNextKodoProfileLoadRef.current) {
-      skipNextKodoProfileLoadRef.current = false
-      return () => { mounted = false }
-    }
-    void desktopApi.getProjectConnectionProfile(selectedKodoProfileId)
-      .then((profile) => {
-        if (!mounted || profile?.type !== 'qiniu_kodo') return
-        setKodoProfileDraftState(createEditableKodoProfileDraft(profile.payload as KodoProfileDraft))
-        setKodoProfileMode('edit')
-        setKodoVerification(null)
-        setKodoVerificationProjectId('')
-        setKodoDraftTestState('untested')
-      })
-      .catch(() => {
-        if (mounted) void messageApi.warning('无法读取七牛 Kodo 配置详情')
-      })
-    return () => { mounted = false }
-  }, [messageApi, selectedKodoProfileId])
+  useRemoteConnectionProfileDetails({
+    messageApi,
+    selectedDatabaseProfileId,
+    selectedKodoProfileId,
+    previousDatabaseProfileDraftRef,
+    skipNextDatabaseProfileLoadRef,
+    skipNextKodoProfileLoadRef,
+    setDatabaseProfileDraft: setDatabaseProfileDraftState,
+    setKodoProfileDraft: setKodoProfileDraftState,
+    setDatabaseProfileMode,
+    setKodoProfileMode,
+    setDatabaseVerification,
+    setKodoVerification,
+    setKodoVerificationProjectId,
+    setDatabaseSchemaReady,
+    setDatabaseDraftTestState,
+    setKodoDraftTestState,
+  })
 
   const setDatabaseProfileDraft = (draft: DatabaseProfileDraft) => {
     setDatabaseProfileDraftState(draft)
@@ -170,22 +115,26 @@ export function useRemoteConnectionProfilesWorkspace(messageApi: RemoteConnectio
     resetKodoProfileEditingState()
   }
 
-  const selectedDatabaseProfile = databaseProfiles.find((profile) => profile.id === selectedDatabaseProfileId)
-  const databaseReady = Boolean(selectedDatabaseProfileId && (databaseVerification?.ok || selectedDatabaseProfile?.lastVerifiedAt))
-  const kodoReady = Boolean(selectedKodoProfileId && kodoVerification?.ok && kodoVerificationProjectId)
-  const remoteReady = databaseReady && databaseSchemaReady && kodoReady
-  const databaseDraftStatus = getRemoteProfileDraftStatus({
-    mode: databaseProfileMode,
-    selectedProfileId: selectedDatabaseProfileId,
-    draftTestState: databaseDraftTestState,
+  const {
+    selectedDatabaseProfile,
+    remoteReady,
+    databaseDraftStatus,
+    kodoDraftStatus,
+    databaseDraftTested,
+    kodoDraftTested,
+  } = getRemoteConnectionProfileWorkspaceStatus({
+    databaseProfiles,
+    selectedDatabaseProfileId,
+    selectedKodoProfileId,
+    databaseProfileMode,
+    kodoProfileMode,
+    databaseDraftTestState,
+    kodoDraftTestState,
+    databaseVerification,
+    kodoVerification,
+    kodoVerificationProjectId,
+    databaseSchemaReady,
   })
-  const kodoDraftStatus = getRemoteProfileDraftStatus({
-    mode: kodoProfileMode,
-    selectedProfileId: selectedKodoProfileId,
-    draftTestState: kodoDraftTestState,
-  })
-  const databaseDraftTested = databaseDraftStatus.draftTested
-  const kodoDraftTested = kodoDraftStatus.draftTested
   const {
     deleteDatabaseProfile,
     deleteKodoProfile,

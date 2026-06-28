@@ -1,19 +1,9 @@
-import type { UploadProps } from 'antd'
-
 import {
-  assetKindLabel,
-  assignAssetToCharacterColumn,
-  assignVoiceToStoryboardGroup,
-  type CommonAssetKind,
   type PersonalSpaceState,
 } from './personalSpaceModel'
 import type { PersonalSpaceDirectoryHandle } from './personalSpaceFileStorage'
 import {
   applyAssetDeleteResult,
-  createCommonResourceAssetForUpload,
-  createPortraitAssetForUpload,
-  createSpriteAssetForUpload,
-  createVoiceAssetForUpload,
   deleteAssetWithOptionalResources,
   exportAllStoryboardCharacterAssetsToTarget,
   exportAllStoryboardVoiceAssetsToTarget,
@@ -24,20 +14,10 @@ import {
   type StoryboardExportResult,
 } from './personalSpaceResourceActions'
 import {
-  consumeSpriteUploadBatch,
-  createNullableSpriteUploadBatchTracker,
-  createRecordSpriteUploadBatchTracker,
-  createSpriteUploadBatch,
-  type SpriteUploadBatchTracker,
-} from './personalSpaceUploadModel'
-
-interface PersonalSpaceAssetMessageApi {
-  success: (content: string) => void
-  warning: (content: string) => void
-  error: (content: string) => void
-}
-
-type UploadChangeFileList = Parameters<NonNullable<UploadProps['onChange']>>[0]['fileList']
+  createPersonalSpaceAssetUploadActions,
+  type PersonalSpaceAssetMessageApi,
+} from './personalSpaceAssetUploadActions'
+import { createPersonalSpaceUploadProps } from './personalSpaceUploadProps'
 
 export interface PersonalSpaceAssetActionsOptions {
   messageApi: PersonalSpaceAssetMessageApi
@@ -48,10 +28,6 @@ export interface PersonalSpaceAssetActionsOptions {
   setStoryboardExportingKey: (key: string) => void
   spriteUploadBatchKeyByCharacter: { current: Record<string, string> }
   imageSpriteUploadBatchKey: { current: string | null }
-}
-
-function prependAsset(state: PersonalSpaceState, asset: PersonalSpaceState['assets'][number]) {
-  return { ...state, assets: [asset, ...state.assets] }
 }
 
 export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActionsOptions) {
@@ -148,90 +124,19 @@ export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActio
     )
   }
 
-  const uploadCharacterPortrait = async (characterId: string, file: File) => {
-    try {
-      const storedAsset = await createPortraitAssetForUpload(options.getSpace(), file, options.getDirectoryHandle())
-      options.setSpace((current) => assignAssetToCharacterColumn(
-        prependAsset(current, storedAsset),
-        characterId,
-        storedAsset.id,
-        'portrait',
-      ))
-      void options.messageApi.success('已上传角色肖像')
-    } catch (error) {
-      void options.messageApi.error(`上传肖像失败：${String(error)}`)
-    }
-  }
-
-  const uploadCharacterSprite = async (characterId: string, files: File[]) => {
-    try {
-      const storedAsset = await createSpriteAssetForUpload(options.getSpace(), files, options.getDirectoryHandle())
-      options.setSpace((current) => assignAssetToCharacterColumn(
-        prependAsset(current, storedAsset),
-        characterId,
-        storedAsset.id,
-        'sprite',
-      ))
-      void options.messageApi.success('已上传角色精灵图')
-    } catch (error) {
-      void options.messageApi.error(`上传精灵图失败：${String(error)}`)
-    }
-  }
-
-  const uploadCharacterVoice = async (characterId: string, file: File) => {
-    try {
-      const storedAsset = await createVoiceAssetForUpload(options.getSpace(), file, options.getDirectoryHandle())
-      options.setSpace((current) => assignAssetToCharacterColumn(
-        prependAsset(current, storedAsset),
-        characterId,
-        storedAsset.id,
-        'voice',
-      ))
-      void options.messageApi.success('已上传角色配音')
-    } catch (error) {
-      void options.messageApi.error(`上传配音失败：${String(error)}`)
-    }
-  }
-
-  const uploadStoryboardVoice = async (groupId: string, file: File) => {
-    try {
-      const storedAsset = await createVoiceAssetForUpload(options.getSpace(), file, options.getDirectoryHandle())
-      options.setSpace((current) => assignVoiceToStoryboardGroup(
-        prependAsset(current, storedAsset),
-        groupId,
-        storedAsset.id,
-      ))
-      void options.messageApi.success('已导入并关联配音')
-    } catch (error) {
-      void options.messageApi.error(`导入配音失败：${String(error)}`)
-    }
-  }
-
-  const uploadCommonResource = async (kind: CommonAssetKind, file: File, groupName?: string) => {
-    try {
-      const storedAsset = await createCommonResourceAssetForUpload(
-        options.getSpace(),
-        kind,
-        file,
-        options.getDirectoryHandle(),
-        groupName,
-      )
-      options.setSpace((current) => prependAsset(current, storedAsset))
-      void options.messageApi.success(`已导入${assetKindLabel(kind)}素材`)
-    } catch (error) {
-      void options.messageApi.error(`导入${assetKindLabel(kind)}素材失败：${String(error)}`)
-    }
-  }
-
-  const uploadImageSprite = async (files: File[], groupName?: string) => {
-    try {
-      const storedAsset = await createSpriteAssetForUpload(options.getSpace(), files, options.getDirectoryHandle(), groupName)
-      options.setSpace((current) => prependAsset(current, storedAsset))
-      void options.messageApi.success('已导入精灵图')
-    } catch (error) {
-      void options.messageApi.error(`导入精灵图失败：${String(error)}`)
-    }
-  }
+  const {
+    uploadCharacterPortrait,
+    uploadCharacterSprite,
+    uploadCharacterVoice,
+    uploadStoryboardVoice,
+    uploadCommonResource,
+    uploadImageSprite,
+  } = createPersonalSpaceAssetUploadActions({
+    messageApi: options.messageApi,
+    getSpace: options.getSpace,
+    setSpace: options.setSpace,
+    getDirectoryHandle: options.getDirectoryHandle,
+  })
 
   const deleteAsset = async (assetId: string) => {
     const result = await deleteAssetWithOptionalResources(options.getSpace(), assetId, options.getDirectoryHandle())
@@ -245,81 +150,22 @@ export function createPersonalSpaceAssetActions(options: PersonalSpaceAssetActio
     }
   }
 
-  const handleSpriteUploadChange = (
-    fileList: UploadChangeFileList,
-    tracker: SpriteUploadBatchTracker,
-    upload: (files: File[]) => Promise<void>,
-  ) => {
-    const batch = consumeSpriteUploadBatch(createSpriteUploadBatch(fileList), tracker)
-    if (!batch) return
-    window.setTimeout(() => {
-      if (tracker.current === batch.batchKey) tracker.current = ''
-    }, 1000)
-    void upload(batch.files)
-  }
-
-  const portraitUploadProps = (characterId: string): UploadProps => ({
-    accept: 'image/*',
-    maxCount: 1,
-    showUploadList: false,
-    beforeUpload: (file) => {
-      void uploadCharacterPortrait(characterId, file as File)
-      return false
-    },
-  })
-
-  const spriteUploadProps = (characterId: string): UploadProps => ({
-    accept: '.png,.json',
-    multiple: true,
-    maxCount: 2,
-    showUploadList: false,
-    beforeUpload: () => false,
-    onChange: ({ fileList }) => {
-      const tracker = createRecordSpriteUploadBatchTracker(options.spriteUploadBatchKeyByCharacter, characterId)
-      handleSpriteUploadChange(fileList, tracker, (files) => uploadCharacterSprite(characterId, files))
-    },
-  })
-
-  const voiceUploadProps = (characterId: string): UploadProps => ({
-    accept: 'audio/*',
-    maxCount: 1,
-    showUploadList: false,
-    beforeUpload: (file) => {
-      void uploadCharacterVoice(characterId, file as File)
-      return false
-    },
-  })
-
-  const storyboardVoiceUploadProps = (groupId: string): UploadProps => ({
-    accept: 'audio/*',
-    maxCount: 1,
-    showUploadList: false,
-    beforeUpload: (file) => {
-      void uploadStoryboardVoice(groupId, file as File)
-      return false
-    },
-  })
-
-  const commonResourceUploadProps = (kind: CommonAssetKind, groupName?: string): UploadProps => ({
-    accept: kind === 'map' || kind === 'image' ? 'image/*' : kind === 'voice' ? 'audio/*' : '*',
-    maxCount: 1,
-    showUploadList: false,
-    beforeUpload: (file) => {
-      void uploadCommonResource(kind, file as File, groupName)
-      return false
-    },
-  })
-
-  const imageSpriteUploadProps = (groupName?: string): UploadProps => ({
-    accept: '.png,.json',
-    multiple: true,
-    maxCount: 2,
-    showUploadList: false,
-    beforeUpload: () => false,
-    onChange: ({ fileList }) => {
-      const tracker = createNullableSpriteUploadBatchTracker(options.imageSpriteUploadBatchKey)
-      handleSpriteUploadChange(fileList, tracker, (files) => uploadImageSprite(files, groupName))
-    },
+  const {
+    commonResourceUploadProps,
+    imageSpriteUploadProps,
+    portraitUploadProps,
+    spriteUploadProps,
+    storyboardVoiceUploadProps,
+    voiceUploadProps,
+  } = createPersonalSpaceUploadProps({
+    spriteUploadBatchKeyByCharacter: options.spriteUploadBatchKeyByCharacter,
+    imageSpriteUploadBatchKey: options.imageSpriteUploadBatchKey,
+    uploadCharacterPortrait,
+    uploadCharacterSprite,
+    uploadCharacterVoice,
+    uploadStoryboardVoice,
+    uploadCommonResource,
+    uploadImageSprite,
   })
 
   return {

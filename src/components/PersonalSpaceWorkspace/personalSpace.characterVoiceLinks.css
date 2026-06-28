@@ -1,0 +1,72 @@
+.linked-asset-main strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linked-asset-name-block {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.character-linked-asset-rename-popover {
+  min-width: 220px;
+}
+
+.character-voice-main .character-linked-asset-rename-popover {
+  justify-self: start;
+}
+
+.linked-asset-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.character-voice-link {
+  padding: 8px;
+  border: 1px dashed color-mix(in oklch, var(--color-line) 84%, white);
+  border-radius: var(--radius-control);
+  cursor: grab;
+}
+
+.character-voice-link:active {
+  cursor: grabbing;
+}
+
+.character-voice-row {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.character-voice-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.character-voice-main strong,
+.character-voice-dialogue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-voice-main strong {
+  white-space: nowrap;
+}
+
+.character-voice-dialogue {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+

@@ -1,0 +1,50 @@
+@media (max-width: 900px) {
+  .voice-grid,
+  .voice-studio,
+  .voice-generator-layout,
+  .advanced-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-hero,
+  .command-row {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-list div {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-hero {
+    display: grid;
+  }
+
+  .voice-library {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .voice-character-selector {
+    position: static;
+  }
+
+  .voice-record-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .slider-row {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-generator .ant-segmented-item-label {
+    padding-inline: 6px;
+    font-size: 0.82rem;
+  }
+
+  .voice-character-create {
+    grid-template-columns: 1fr;
+  }
+}

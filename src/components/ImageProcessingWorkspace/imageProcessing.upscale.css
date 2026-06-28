@@ -1,0 +1,80 @@
+.image-upscale-compare {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  overflow: hidden;
+  background: var(--color-panel);
+}
+
+.image-upscale-compare img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.image-upscale-compare-after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.image-upscale-compare-before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  border-right: 1px solid white;
+}
+
+.image-upscale-compare-before img {
+  width: 100%;
+}
+
+.image-upscale-compare-label {
+  position: absolute;
+  top: 12px;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in oklch, white 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--color-ink) 76%, transparent);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.image-upscale-compare-label-before {
+  z-index: 5;
+  left: 12px;
+}
+
+.image-upscale-compare-label-after {
+  z-index: 5;
+  right: 12px;
+}
+
+.image-upscale-compare-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 2px;
+  transform: translateX(-1px);
+  background: white;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--color-ink) 35%, transparent);
+  pointer-events: none;
+}
+
+.image-upscale-compare input {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: ew-resize;
+}

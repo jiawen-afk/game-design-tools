@@ -1,26 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type * as React from 'react'
 import { message } from 'antd'
 
-import { chromaKey, composeFrame } from './imagePipeline'
-import { defaultBirefnetPort, removeImageBackground, type MatteMode } from './aiMattingService'
-import { sampleFrameKeyColor } from './matteColorSampler'
+import type { MatteMode } from './aiMattingService'
 import {
   applyMatteParamsToFrameGroup,
   applyMatteParamsToFollowingFrames,
   buildMatteFrameGroups,
   buildMatteProcessingProgress,
-  dequeueNextInactiveFrameId,
   normalizeHexColor,
   normalizePickerColor,
-  queueUniqueFrameId,
   resolvePipelineConcurrency,
 } from './matteModel'
 import { createMatteGroupActions } from './matteGroupActions'
-import { applyComposedFrameUrl } from './model'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
 import { useAiMattingSetup } from './useAiMattingSetup'
+import { useMatteComposeQueue } from './useMatteComposeQueue'
+import { useMatteColorPicker } from './useMatteColorPicker'
 import { useMatteDefaultsWorkspace } from './useMatteDefaultsWorkspace'
+import { useMatteProcessingQueue } from './useMatteProcessingQueue'
 
 const PIPELINE_CONCURRENCY = resolvePipelineConcurrency(
   typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency
@@ -55,184 +53,41 @@ export function useMattePipeline({
   const aiMatting = useAiMattingSetup()
   const [matteMode, setMatteModeState] = useState<MatteMode>('chroma')
   const [bulkMatteGroupId, setBulkMatteGroupId] = useState<string | null>(null)
-  const timersRef = useRef(new Map<string, number>())
-  const matteRunRef = useRef(new Map<string, number>())
-  const matteQueueRef = useRef<string[]>([])
-  const matteActiveRef = useRef(new Set<string>())
-  const composeTimersRef = useRef(new Map<string, number>())
-  const composeRunRef = useRef(new Map<string, number>())
-  const composeQueueRef = useRef<string[]>([])
-  const composeActiveRef = useRef(new Set<string>())
-  const runMatteQueueRef = useRef<() => void>(() => undefined)
-  const runComposeQueueRef = useRef<() => void>(() => undefined)
+  const { clearComposeQueue } = useMatteComposeQueue({
+    frames,
+    framesRef,
+    setFrames,
+    canvasWidth,
+    canvasHeight,
+    composeStyle,
+    composingPaused,
+    pipelineConcurrency: PIPELINE_CONCURRENCY,
+  })
+  const handleAiMattingUnavailable = useCallback(() => {
+    setBulkMatteGroupId(null)
+  }, [])
+  const {
+    scheduleMatte,
+    clearMatteQueue,
+    getQueueSnapshot,
+    hasPendingQueuedIds,
+  } = useMatteProcessingQueue({
+    framesRef,
+    setFrames,
+    updateFrame,
+    matteMode,
+    aiMatting,
+    pipelineConcurrency: PIPELINE_CONCURRENCY,
+    cpuAiMattingConcurrency: CPU_AI_MATTING_CONCURRENCY,
+    onAiMattingUnavailable: handleAiMattingUnavailable,
+  })
 
   const clearMattePipeline = useCallback(() => {
-    timersRef.current.forEach((timer) => window.clearTimeout(timer))
-    composeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
-    timersRef.current.clear()
-    matteRunRef.current.clear()
-    matteQueueRef.current = []
-    matteActiveRef.current.clear()
-    composeTimersRef.current.clear()
-    composeRunRef.current.clear()
-    composeQueueRef.current = []
-    composeActiveRef.current.clear()
-  }, [])
+    clearMatteQueue()
+    clearComposeQueue()
+  }, [clearComposeQueue, clearMatteQueue])
 
   useEffect(() => clearMattePipeline, [clearMattePipeline])
-
-  const runComposeQueue = useCallback(
-    () => {
-      while (composeActiveRef.current.size < PIPELINE_CONCURRENCY) {
-        const next = dequeueNextInactiveFrameId(composeQueueRef.current, composeActiveRef.current)
-        composeQueueRef.current = next.queue
-        if (!next.id) return
-        const id = next.id
-        const item = framesRef.current.find((x) => x.id === id)
-        if (!item?.matteUrl) continue
-        const revision = item.matteRevision
-        const runId = (composeRunRef.current.get(id) ?? 0) + 1
-        composeRunRef.current.set(id, runId)
-        const layout = item.layout
-        composeActiveRef.current.add(id)
-        void composeFrame(item.matteUrl, canvasWidth, canvasHeight, layout, composeStyle)
-          .then((url) => {
-            const current = framesRef.current.find((x) => x.id === id)
-            if (
-              composeRunRef.current.get(id) !== runId ||
-              !current ||
-              current.matteRevision !== revision ||
-              current.layout !== layout
-            ) {
-              URL.revokeObjectURL(url)
-              if (current?.matteUrl) scheduleCompose(id, 80)
-              return
-            }
-            setFrames((prev) =>
-              applyComposedFrameUrl(prev, {
-                id,
-                matteRevision: revision,
-                url,
-                revoke: (u) => URL.revokeObjectURL(u),
-              })
-            )
-          })
-          .catch((e) => {
-            message.error(`合成失败：${String(e)}`)
-          })
-          .finally(() => {
-            composeActiveRef.current.delete(id)
-            runComposeQueueRef.current()
-          })
-      }
-    },
-    [canvasHeight, canvasWidth, composeStyle, framesRef, setFrames]
-  )
-
-  useEffect(() => {
-    runComposeQueueRef.current = runComposeQueue
-  }, [runComposeQueue])
-
-  const scheduleCompose = useCallback(
-    (id: string, delay = 120) => {
-      if (composeActiveRef.current.has(id) || composeQueueRef.current.includes(id)) return
-      const old = composeTimersRef.current.get(id)
-      if (old) window.clearTimeout(old)
-      const timer = window.setTimeout(() => {
-        composeTimersRef.current.delete(id)
-        composeQueueRef.current = queueUniqueFrameId(composeQueueRef.current, id)
-        runComposeQueueRef.current()
-      }, delay)
-      composeTimersRef.current.set(id, timer)
-    },
-    []
-  )
-
-  const runMatteQueue = useCallback(
-    () => {
-      if (matteMode === 'ai' && !aiMatting.connected) {
-        timersRef.current.forEach((timer) => window.clearTimeout(timer))
-        timersRef.current.clear()
-        matteQueueRef.current = []
-        matteActiveRef.current.clear()
-        setBulkMatteGroupId(null)
-        setFrames((prev) => prev.map((item) => (item.processing ? { ...item, processing: false } : item)))
-        void aiMatting.runCheck()
-        message.warning('AI 抠图服务未连接，请先启动 BiRefNet 服务。')
-        return
-      }
-      const matteConcurrency = matteMode === 'ai' && aiMatting.activeDevice === 'cpu'
-        ? CPU_AI_MATTING_CONCURRENCY
-        : PIPELINE_CONCURRENCY
-      while (matteActiveRef.current.size < matteConcurrency) {
-        const next = dequeueNextInactiveFrameId(matteQueueRef.current, matteActiveRef.current)
-        matteQueueRef.current = next.queue
-        if (!next.id) return
-        const id = next.id
-        const item = framesRef.current.find((x) => x.id === id)
-        if (!item) continue
-        const runId = matteRunRef.current.get(id)
-        if (runId === undefined) continue
-        matteActiveRef.current.add(id)
-        updateFrame(id, (cur) => (cur.processing ? cur : { ...cur, processing: true }))
-        const matteJob = matteMode === 'ai'
-          ? removeImageBackground(item.sourceUrl, { inputName: item.sourceName, port: defaultBirefnetPort })
-          : chromaKey(item.sourceUrl, item.matte)
-        void matteJob
-          .then((result) => {
-            if (matteRunRef.current.get(id) !== runId) {
-              URL.revokeObjectURL(result.url)
-              return
-            }
-            setFrames((prev) =>
-              prev.map((cur) => {
-                if (cur.id !== id) return cur
-                if (cur.matteUrl) URL.revokeObjectURL(cur.matteUrl)
-                return {
-                  ...cur,
-                  matteUrl: result.url,
-                  matteWidth: result.width,
-                  matteHeight: result.height,
-                  matteRevision: cur.matteRevision + 1,
-                  processing: false,
-                }
-              })
-            )
-          })
-          .catch((e) => {
-            if (matteRunRef.current.get(id) !== runId) return
-            if (matteMode === 'ai') void aiMatting.runCheck()
-            updateFrame(id, (cur) => ({ ...cur, processing: false }))
-            message.error(`抠图失败：${String(e)}`)
-          })
-          .finally(() => {
-            matteActiveRef.current.delete(id)
-            runMatteQueueRef.current()
-          })
-      }
-    },
-    [aiMatting.activeDevice, aiMatting.connected, aiMatting.runCheck, framesRef, matteMode, setFrames, updateFrame]
-  )
-
-  useEffect(() => {
-    runMatteQueueRef.current = runMatteQueue
-  }, [runMatteQueue])
-
-  const scheduleMatte = useCallback(
-    (id: string) => {
-      const old = timersRef.current.get(id)
-      if (old) window.clearTimeout(old)
-      const timer = window.setTimeout(() => {
-        timersRef.current.delete(id)
-        const runId = (matteRunRef.current.get(id) ?? 0) + 1
-        matteRunRef.current.set(id, runId)
-        matteQueueRef.current = queueUniqueFrameId(matteQueueRef.current, id)
-        runMatteQueueRef.current()
-      }, 120)
-      timersRef.current.set(id, timer)
-    },
-    []
-  )
 
   const setMatteMode = useCallback((nextMode: MatteMode) => {
     setMatteModeState(nextMode)
@@ -246,28 +101,11 @@ export function useMattePipeline({
   }, [aiMatting.connected, aiMatting.runCheck, framesRef, scheduleMatte])
 
   useEffect(() => {
-    if (composingPaused) return
-    frames.forEach((item) => {
-      if (item.matteUrl && item.composedRevision !== item.matteRevision) {
-        scheduleCompose(item.id)
-      }
-    })
-  }, [composingPaused, frames, scheduleCompose])
-
-  useEffect(() => {
-    framesRef.current.forEach((item) => {
-      if (item.matteUrl) scheduleCompose(item.id, 80)
-    })
-  }, [canvasHeight, canvasWidth, composeStyle, framesRef, scheduleCompose])
-
-  useEffect(() => {
     if (!bulkMatteGroupId) return
     const items = framesRef.current.filter((item) => item.matteGroupId === bulkMatteGroupId)
     const groupIds = new Set(items.map((item) => item.id))
     const pendingWork =
-      [...timersRef.current.keys()].some((id) => groupIds.has(id)) ||
-      matteQueueRef.current.some((id) => groupIds.has(id)) ||
-      [...matteActiveRef.current].some((id) => groupIds.has(id)) ||
+      hasPendingQueuedIds(groupIds) ||
       items.some((item) => item.processing || !item.matteUrl)
     if (pendingWork) return
     setBulkMatteGroupId(null)
@@ -277,13 +115,11 @@ export function useMattePipeline({
       content: `抠图处理完成，共 ${items.length} 帧`,
       duration: 2,
     })
-  }, [bulkMatteGroupId, frames, framesRef])
+  }, [bulkMatteGroupId, frames, framesRef, hasPendingQueuedIds])
 
   const aiMattingProgress = useMemo(() => {
     if (matteMode !== 'ai') return null
-    const delayedIds = [...timersRef.current.keys()]
-    const queuedIds = [...matteQueueRef.current]
-    const activeIds = [...matteActiveRef.current]
+    const { delayedIds, queuedIds, activeIds } = getQueueSnapshot()
     const busyIds = new Set([...delayedIds, ...queuedIds, ...activeIds])
     const targetIds = bulkMatteGroupId
       ? frames
@@ -299,12 +135,13 @@ export function useMattePipeline({
       queuedIds,
       delayedIds,
     })
-  }, [bulkMatteGroupId, frames, matteMode])
+  }, [bulkMatteGroupId, frames, getQueueSnapshot, matteMode])
 
   const setMatteParam = <K extends keyof MatteParams>(id: string, key: K, value: MatteParams[K]) => {
     updateFrame(id, (item) => ({ ...item, matte: { ...item.matte, [key]: value } }))
     scheduleMatte(id)
   }
+  const { sampleColor } = useMatteColorPicker({ setMatteParam })
 
   const setCustomSpillColor = (id: string, hex: string) => {
     updateFrame(id, (item) => ({
@@ -365,21 +202,6 @@ export function useMattePipeline({
     recomputeIds.forEach((frameId) => scheduleMatte(frameId))
   }
 
-  const sampleColor = async (item: FrameItem, e: React.MouseEvent<HTMLImageElement>) => {
-    try {
-      const keyColor = await sampleFrameKeyColor({
-        sourceUrl: item.sourceUrl,
-        sourceWidth: item.sourceWidth,
-        sourceHeight: item.sourceHeight,
-        clientX: e.clientX,
-        clientY: e.clientY,
-        previewRect: e.currentTarget.getBoundingClientRect(),
-      })
-      setMatteParam(item.id, 'keyColor', keyColor)
-    } catch (error) {
-      message.error(`取色失败：${String(error)}`)
-    }
-  }
   const {
     exportMatteGroup,
     importMatteGroupToPersonalSpace,

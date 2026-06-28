@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Button } from 'antd'
 import {
   AppstoreOutlined,
@@ -10,160 +10,21 @@ import {
 
 import { SiteFooter } from './components/SiteFooter'
 import { DocumentHomeKnowledgeSection } from './components/DocumentWorkspace/DocumentHomeKnowledgeSection'
+import { AppWorkspaceErrorBoundary, WorkspaceLoadingFallback } from './AppWorkspaceBoundary'
 import {
-  createDesktopLocalProjectRepository,
-  createProjectWorkspaceBootstrapper,
-  readActiveProjectId,
-  resolveEnabledProjectId,
-} from './components/ProjectStorage'
+  getToolCategoryLabel,
+  isEditableShortcutTarget,
+  personalSpaceShortcut,
+  tools,
+  type ActiveSurface,
+} from './appNavigation'
+import { useCurrentProjectSpaceLabel } from './useCurrentProjectSpaceLabel'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
 const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWorkspace'))
 const DocumentWorkspace = lazy(() => import('./components/DocumentWorkspace'))
-
-type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment'
-type ActiveSurface = ToolId | 'personal-space' | 'document-knowledge'
-
-const personalSpaceShortcut = '4'
-const appProjectRepository = createDesktopLocalProjectRepository()
-const appProjectBootstrapper = createProjectWorkspaceBootstrapper(appProjectRepository)
-
-interface AppWorkspaceErrorBoundaryProps {
-  children: ReactNode
-  onBack: () => void
-  onRetry: () => void
-}
-
-interface AppWorkspaceErrorBoundaryState {
-  error: Error | null
-}
-
-class AppWorkspaceErrorBoundary extends Component<AppWorkspaceErrorBoundaryProps, AppWorkspaceErrorBoundaryState> {
-  state: AppWorkspaceErrorBoundaryState = { error: null }
-
-  static getDerivedStateFromError(error: Error): AppWorkspaceErrorBoundaryState {
-    return { error }
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Workspace render failed', error, errorInfo)
-  }
-
-  render() {
-    if (!this.state.error) return this.props.children
-
-    return (
-      <section className="workspace-error" role="alert" aria-labelledby="workspace-error-title">
-        <div>
-          <p className="kicker">工作台异常</p>
-          <h2 id="workspace-error-title">工作台加载失败</h2>
-          <p>当前工作区渲染时发生错误，界面已保留在可恢复状态。</p>
-        </div>
-        <div className="workspace-error-actions">
-          <Button type="primary" onClick={this.props.onRetry}>
-            重新加载工作台
-          </Button>
-          <Button onClick={this.props.onBack}>
-            返回工具列表
-          </Button>
-        </div>
-      </section>
-    )
-  }
-}
-
-function WorkspaceLoadingFallback() {
-  return (
-    <section className="workspace-loading" role="status" aria-live="polite">
-      <div>
-        <strong>正在加载工作台</strong>
-        <span>准备界面和本地资源。</span>
-      </div>
-    </section>
-  )
-}
-
-const tools: Array<{
-  id: ToolId
-  name: string
-  summary: string
-  details: string
-  input: string
-  output: string
-  shortcut: string
-}> = [
-  {
-    id: 'multi-frame-sprite',
-    name: '精灵图工作台',
-    summary: '多图去背、统一画布、逐帧对齐、预览排序并导出精灵图。',
-    details: '适合处理怪物动作、角色帧图和从整张精灵图切分出的连续帧。',
-    input: '多张图片、整张精灵图或视频片段',
-    output: 'Sprite Sheet ZIP、帧索引和预览排序',
-    shortcut: '1',
-  },
-  {
-    id: 'image-processing',
-    name: '图片处理工作台',
-    summary: '单张图片上传、色键抠图、裁剪预览并导出常用图片格式。',
-    details: '适合先处理角色肖像、道具图和需要透明底的静态图片，再进入后续素材流程。',
-    input: 'WebP、JPG、JPEG、PNG 单张图片',
-    output: 'PNG、WebP、JPG、JPEG 图片',
-    shortcut: '2',
-  },
-  {
-    id: 'voice-deployment',
-    name: '配音工作台',
-    summary: '检测本地 VoxCPM Gradio 服务连接状态，准备部署环境并调用本地语音生成接口。',
-    details: '自动检测本机是否已运行 VoxCPM；未部署时提供一键准备脚本，完成后可用 gradio_client 调用本地 Gradio 服务生成语音。',
-    input: '目标文本、控制描述、参考音频',
-    output: 'WAV 音频（Gradio generate 接口）',
-    shortcut: '3',
-  },
-]
-
-function isEditableShortcutTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
-}
-
-function useCurrentProjectSpaceLabel(activeSurface: ActiveSurface | null) {
-  const [currentProjectSpaceLabel, setCurrentProjectSpaceLabel] = useState('未启用项目空间')
-
-  useEffect(() => {
-    if (activeSurface === null) return undefined
-    let alive = true
-
-    const refreshCurrentProject = async () => {
-      const activeProjectId = readActiveProjectId()
-
-      try {
-        const projects = await appProjectBootstrapper.listProjects('')
-        const currentProjectId = resolveEnabledProjectId(projects, activeProjectId)
-        const currentProject = projects.find((project) => project.id === currentProjectId)
-        if (alive) setCurrentProjectSpaceLabel(currentProject?.name ?? '已选择项目空间')
-      } catch {
-        if (alive) setCurrentProjectSpaceLabel('无法读取项目空间')
-      }
-    }
-    const handleFocus = () => {
-      void refreshCurrentProject()
-    }
-
-    void refreshCurrentProject()
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('storage', handleFocus)
-    return () => {
-      alive = false
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('storage', handleFocus)
-    }
-  }, [activeSurface])
-
-  return currentProjectSpaceLabel
-}
 
 export default function App() {
   const [activeSurface, setActiveSurface] = useState<ActiveSurface | null>(null)
@@ -294,7 +155,7 @@ export default function App() {
                 <div>
                   <div className="tool-row-title">
                     <h3>{tool.name}</h3>
-                    <span>{tool.id === 'multi-frame-sprite' ? '素材整理' : tool.id === 'image-processing' ? '图片编辑' : '本地部署'}</span>
+                    <span>{getToolCategoryLabel(tool.id)}</span>
                   </div>
                   <p>{tool.summary}</p>
                   <p className="tool-details">{tool.details}</p>

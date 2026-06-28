@@ -1,0 +1,75 @@
+.image-processing-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: calc(100vh - 156px);
+}
+
+.image-processing-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.image-processing-heading {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.image-processing-heading .ant-typography {
+  margin: 0;
+}
+
+.image-processing-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.image-processing-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.image-processing-main,
+.image-processing-side {
+  min-width: 0;
+  min-height: 0;
+}
+
+.image-processing-side {
+  display: block;
+}
+
+.image-processing-tabs {
+  height: 100%;
+}
+
+.image-processing-tabs .ant-tabs-content-holder,
+.image-processing-tabs .ant-tabs-content,
+.image-processing-tabs .ant-tabs-tabpane {
+  min-height: 0;
+}
+
+.image-processing-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}

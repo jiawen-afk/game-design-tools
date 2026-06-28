@@ -3,13 +3,30 @@ import react from '@vitejs/plugin-react'
 import { copyFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+const deploymentScriptFiles = [
+  'deploy-voxcpm.ps1',
+  'deploy-birefnet.ps1',
+  'birefnet-deploy-common.ps1',
+  'birefnet-python-runtime.ps1',
+  'birefnet-service-install.ps1',
+  'birefnet-server.template.py',
+  'birefnet-service.template.ps1',
+  'voxcpm-deploy-common.ps1',
+  'voxcpm-python-runtime.ps1',
+  'voxcpm-prerequisites.ps1',
+  'voxcpm-service-install.ps1',
+  'voxcpm-sitecustomize.py',
+  'voxcpm-run.template.ps1',
+  'voxcpm-service.template.ps1',
+]
+
 function copyDeploymentScripts() {
   return {
     name: 'copy-deployment-scripts',
     closeBundle() {
       const outputDir = join(process.cwd(), 'dist/scripts')
       mkdirSync(outputDir, { recursive: true })
-      for (const fileName of ['deploy-voxcpm.ps1', 'deploy-birefnet.ps1']) {
+      for (const fileName of deploymentScriptFiles) {
         copyFileSync(join(process.cwd(), 'scripts', fileName), join(outputDir, fileName))
       }
     },

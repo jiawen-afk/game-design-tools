@@ -1,0 +1,34 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+test('sprite export can be collected into project space with sprite and index resources', () => {
+  const exportPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/ExportPanel.tsx', 'utf8')
+  const collectHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteCollectWorkflow.ts', 'utf8')
+  const outputPanel = readFileSync('src/components/MultiFrameSpriteWorkspace/OutputWorkspacePanel.tsx', 'utf8')
+
+  assert.match(exportPanel, /收藏到项目空间/)
+  assert.match(exportPanel, /收藏并关联角色/)
+  assert.match(exportPanel, /Dropdown/)
+  assert.match(exportPanel, /onCollectToPersonalSpace/)
+  assert.match(exportPanel, /onCollectToPersonalSpaceWithCharacter/)
+  assert.match(exportPanel, /personalSpaceCollectEnabled/)
+  assert.match(exportPanel, /personalSpaceCollectDisabledReason/)
+  assert.match(exportPanel, /disabled=\{!personalSpaceCollectEnabled\}/)
+  assert.match(outputPanel, /collectToPersonalSpace/)
+  assert.match(outputPanel, /collectToPersonalSpaceWithCharacter/)
+  assert.match(outputPanel, /personalSpaceCollectEnabled/)
+  assert.match(collectHook, /createSpriteAssetFromExport/)
+  assert.match(collectHook, /collectPersonalSpaceAsset/)
+  assert.match(collectHook, /assignAssetToCharacterColumn/)
+  assert.match(collectHook, /writeAssetResourcesWithGeneratedCoverToDirectory/)
+  assert.doesNotMatch(collectHook, /writeAssetResourcesToDirectory/)
+  assert.match(collectHook, /readCurrentProjectSpaceState/)
+  assert.match(collectHook, /persistCurrentProjectSpaceState/)
+  assert.doesNotMatch(collectHook, /writeCurrentProjectSpaceState/)
+  assert.match(collectHook, /personalSpaceDirectoryRequiredMessage/)
+  assert.doesNotMatch(collectHook, /collectToPersonalSpace[\s\S]*archiveAssetForStorageDirectory/)
+  assert.match(collectHook, /项目空间-素材-精灵图/)
+  assert.match(collectHook, /sprite\.png/)
+  assert.match(collectHook, /index\.json/)
+})

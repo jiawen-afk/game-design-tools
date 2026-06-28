@@ -1,0 +1,82 @@
+.resource-asset-grid,
+.voice-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 8px;
+}
+
+.resource-space-record,
+.voice-space-record {
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.resource-space-record .asset-record-row,
+.voice-space-record .asset-record-row {
+  grid-template-columns: 24px 40px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.asset-selection-checkbox {
+  justify-self: center;
+  margin-top: 6px;
+}
+
+.resource-space-record .asset-preview,
+.voice-space-record .asset-preview {
+  width: 40px;
+  height: 40px;
+}
+
+.resource-space-record .asset-preview-audio .ant-btn,
+.voice-space-record .asset-preview-audio .ant-btn {
+  font-size: 1.05rem;
+}
+
+.resource-space-record .asset-record-heading,
+.voice-space-record .asset-record-heading {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.resource-space-record .asset-record-heading .ant-input,
+.voice-space-record .asset-record-heading .ant-input {
+  min-width: 0;
+  flex: 1 1 150px;
+}
+
+.resource-space-record .field-note,
+.voice-space-record .field-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.resource-space-record .asset-record-fields,
+.voice-record-fields {
+  grid-template-columns: minmax(112px, 0.72fr) minmax(140px, 1fr);
+  gap: 6px;
+  padding-left: 0;
+}
+
+.resource-space-record .field-label,
+.voice-record-fields .field-label {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.resource-space-record .form-field,
+.voice-record-fields .form-field {
+  gap: 4px;
+}
+
+.resource-space-record .form-field,
+.resource-space-record .field-note,
+.voice-record-fields .field-note,
+.voice-dialogue-input {
+  grid-column: 1 / -1;
+}
+

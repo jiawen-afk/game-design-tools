@@ -1,0 +1,19 @@
+@media (max-width: 860px) {
+  .video-confirm-action {
+    grid-template-columns: 1fr;
+  }
+
+  .playback-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sprite-upscale-controls,
+  .playback-preview-pair,
+  .playback-preview-pair[data-upscale-enabled="false"] {
+    grid-template-columns: 1fr;
+  }
+
+  .playback-frame-list {
+    max-height: 500px;
+  }
+}

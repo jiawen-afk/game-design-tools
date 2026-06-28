@@ -1,0 +1,81 @@
+.image-control-card .ant-card-head {
+  min-height: 42px;
+}
+
+.image-control-card .ant-card-body {
+  padding: 14px;
+}
+
+.image-field {
+  display: grid;
+  gap: 6px;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.image-field .ant-input-number,
+.image-field .ant-select {
+  width: 100%;
+}
+
+.image-export-scale-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.image-export-scale-row .ant-slider {
+  margin: 0;
+}
+
+.image-export-scale-row .ant-input-number {
+  width: 100%;
+}
+
+.image-export-scale-unit {
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.image-crop-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.image-crop-ratio-field {
+  grid-column: span 2;
+}
+
+.image-export-size-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.image-export-size-preview .image-field {
+  gap: 4px;
+}
+
+.image-export-size-preview .ant-input-number {
+  background: var(--color-panel-strong);
+}
+
+.image-upscale-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel-strong);
+}
+
+.image-upscale-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}

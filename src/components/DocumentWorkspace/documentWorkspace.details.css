@@ -1,0 +1,117 @@
+.document-details-title,
+.document-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-details-title h2,
+.document-section-title h3 {
+  margin: 0;
+  color: var(--color-ink);
+}
+
+.document-details-title h2 {
+  margin-bottom: 8px;
+  font-size: 1.16rem;
+}
+
+.document-neighbor-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.document-neighbor-section {
+  display: grid;
+  gap: 10px;
+}
+
+.document-section-title h3 {
+  font-size: 1rem;
+}
+
+.document-section-title span {
+  color: var(--color-muted);
+}
+
+.document-neighbor-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.document-neighbor-item strong,
+.document-neighbor-item span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-neighbor-item span {
+  color: var(--color-muted);
+  font-size: 0.84rem;
+}
+
+.document-neighbor-children {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.document-neighbor-children button {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel-strong);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.document-detail-panel {
+  display: grid;
+  gap: 10px;
+  min-height: 150px;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 54%, white);
+}
+
+.document-detail-panel p {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.document-detail-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-detail-title h3 {
+  margin: 0 0 6px;
+  font-size: 1.08rem;
+}
+
+.document-detail-title span {
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.document-record-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
