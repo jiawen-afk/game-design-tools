@@ -33,10 +33,14 @@ export function getContainedImageRect(
   imageWidth: number,
   imageHeight: number
 ): ContainedImageRect | null {
+  if (!Number.isFinite(containerWidth) || !Number.isFinite(containerHeight)) return null
+  if (!Number.isFinite(imageWidth) || !Number.isFinite(imageHeight)) return null
   if (containerWidth <= 0 || containerHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) return null
   const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight)
+  if (!Number.isFinite(scale) || scale <= 0) return null
   const width = imageWidth * scale
   const height = imageHeight * scale
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null
   return {
     left: (containerWidth - width) / 2,
     top: (containerHeight - height) / 2,

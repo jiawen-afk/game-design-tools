@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   clampPreviewZoom,
+  coerceFrameLayoutPatch,
   computeHandleResize,
   computeKeyboardOffset,
   computeWheelFrameResize,
@@ -68,4 +69,21 @@ test('preview zoom is clamped to a useful detail range', () => {
   assert.equal(clampPreviewZoom(0.1), 0.25)
   assert.equal(clampPreviewZoom(2.345), 2.35)
   assert.equal(clampPreviewZoom(9), 8)
+})
+
+test('frame layout patches drop non-finite drag geometry before render state updates', () => {
+  assert.deepEqual(
+    coerceFrameLayoutPatch({
+      width: Number.NaN,
+      height: Number.POSITIVE_INFINITY,
+      offsetX: Number.NEGATIVE_INFINITY,
+      offsetY: 12.6,
+    }),
+    { offsetY: 13 }
+  )
+  assert.deepEqual(coerceFrameLayoutPatch({ width: 0.2, height: 6.4, offsetX: -3.2 }), {
+    width: 1,
+    height: 6,
+    offsetX: -3,
+  })
 })

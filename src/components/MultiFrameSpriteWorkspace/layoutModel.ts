@@ -15,6 +15,13 @@ export interface FrameOffset {
   offsetY: number
 }
 
+export interface FrameLayoutPatch {
+  width?: number
+  height?: number
+  offsetX?: number
+  offsetY?: number
+}
+
 export interface RatioFrameLayoutState {
   id: string
   matteWidth: number
@@ -49,6 +56,23 @@ export interface ApplyLayoutPresetOptions {
 export function clampPreviewZoom(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.max(0.25, Math.min(8, Math.round(value * 100) / 100))
+}
+
+export function coerceFrameLayoutPatch(patch: FrameLayoutPatch): FrameLayoutPatch {
+  const next: FrameLayoutPatch = {}
+  if (patch.width !== undefined && Number.isFinite(patch.width)) {
+    next.width = Math.max(1, Math.round(patch.width))
+  }
+  if (patch.height !== undefined && Number.isFinite(patch.height)) {
+    next.height = Math.max(1, Math.round(patch.height))
+  }
+  if (patch.offsetX !== undefined && Number.isFinite(patch.offsetX)) {
+    next.offsetX = Math.round(patch.offsetX)
+  }
+  if (patch.offsetY !== undefined && Number.isFinite(patch.offsetY)) {
+    next.offsetY = Math.round(patch.offsetY)
+  }
+  return next
 }
 
 export function computeKeyboardOffset(current: FrameOffset, key: string, fast: boolean): FrameOffset {

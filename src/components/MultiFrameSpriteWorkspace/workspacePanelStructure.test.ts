@@ -31,6 +31,7 @@ test('layout workspace panel delegates canvas editing view details', () => {
   assert.doesNotMatch(canvasStage, /getGuideRulerLabel/)
   assert.doesNotMatch(canvasStage, /data-guide-line-overlay/)
   assert.match(activeFrameLayer, /HANDLE_CURSORS/)
+  assert.match(activeFrameLayer, /objectFit:\s*'contain'/)
   assert.match(guideRulers, /getGuideRulerLabel/)
   assert.match(guideOverlays, /data-guide-line-overlay/)
 })

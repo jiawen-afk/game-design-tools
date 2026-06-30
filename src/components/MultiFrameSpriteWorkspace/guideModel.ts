@@ -1,5 +1,6 @@
 export function normalizeGuideLinePosition(position: number, max: number): number | null {
   if (!Number.isFinite(position)) return null
+  if (!Number.isFinite(max)) return null
   const rounded = Math.round(position)
   if (rounded <= 0) return null
   return Math.min(Math.max(1, rounded), Math.max(1, Math.round(max)))

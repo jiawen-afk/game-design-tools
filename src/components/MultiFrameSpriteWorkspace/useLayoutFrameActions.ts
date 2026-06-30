@@ -4,6 +4,7 @@ import type * as React from 'react'
 import {
   applyCanvasRatioToFrameLayouts,
   applyLayoutPresetToFrames,
+  coerceFrameLayoutPatch,
   computeWheelFrameResize,
 } from './layoutModel'
 import type { FrameItem, FrameLayout } from './types'
@@ -46,7 +47,9 @@ export function useLayoutFrameActions({
   }, [])
 
   const setLayout = useCallback((id: string, patch: Partial<FrameLayout>) => {
-    updateFrame(id, (item) => ({ ...item, layout: { ...item.layout, ...patch }, composedRevision: -1 }))
+    const safePatch = coerceFrameLayoutPatch(patch)
+    if (Object.keys(safePatch).length === 0) return
+    updateFrame(id, (item) => ({ ...item, layout: { ...item.layout, ...safePatch }, composedRevision: -1 }))
   }, [updateFrame])
 
   const scheduleLayout = useCallback(

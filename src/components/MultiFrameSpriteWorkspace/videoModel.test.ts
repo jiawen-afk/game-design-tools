@@ -127,6 +127,23 @@ test('video preview crop state projects frame crop into preview coordinates', ()
   assert.equal(computeVideoPreviewCropState(undefined, { width: 200, height: 200 }, { top: 0, bottom: 0, left: 0, right: 0 }, 4), null)
 })
 
+test('video preview crop state ignores non-finite geometry during rapid seek and resize', () => {
+  const emptyCrop = { top: 0, bottom: 0, left: 0, right: 0 }
+
+  assert.equal(computeVideoPreviewCropState(
+    { width: Number.NaN, height: 50 },
+    { width: 200, height: 200 },
+    emptyCrop,
+    4
+  ), null)
+  assert.equal(computeVideoPreviewCropState(
+    { width: 100, height: 50 },
+    { width: Number.POSITIVE_INFINITY, height: 200 },
+    emptyCrop,
+    4
+  ), null)
+})
+
 test('video extracted frame preview layout keeps preview flexible and frame list scrollable', () => {
   const css = spriteWorkspaceCssSource()
 

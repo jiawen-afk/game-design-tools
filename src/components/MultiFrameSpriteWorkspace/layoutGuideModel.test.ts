@@ -17,6 +17,7 @@ test('guide line positions clamp to canvas and delete at the origin', () => {
   assert.equal(normalizeGuideLinePosition(0, 256), null)
   assert.equal(normalizeGuideLinePosition(120.6, 256), 121)
   assert.equal(normalizeGuideLinePosition(999, 256), 256)
+  assert.equal(normalizeGuideLinePosition(120, Number.NaN), null)
 })
 
 test('ruler drag guide lines start from the canvas edge', () => {
