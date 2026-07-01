@@ -135,8 +135,14 @@ export function getDraggedPreviewRect(
   handle: ImageCropHandle,
   dx: number,
   dy: number,
-  minSize = MIN_IMAGE_CROP_SIZE
+  minSize = MIN_IMAGE_CROP_SIZE,
+  keepAspectRatio = false,
+  bounds?: RectSize
 ): PreviewRect {
+  if (keepAspectRatio && handle !== 'move') {
+    return getAspectLockedDraggedPreviewRect(startRect, handle, dx, dy, minSize, bounds)
+  }
+
   let { x, y, width, height } = startRect
   const minWidth = Math.max(1, minSize)
   const minHeight = Math.max(1, minSize)
@@ -192,4 +198,117 @@ export function getDraggedPreviewRect(
   }
 
   return { x, y, width, height }
+}
+
+function getAspectLockedDraggedPreviewRect(
+  startRect: PreviewRect,
+  handle: Exclude<ImageCropHandle, 'move'>,
+  dx: number,
+  dy: number,
+  minSize: number,
+  bounds?: RectSize
+): PreviewRect {
+  const minWidth = Math.max(1, minSize)
+  const minHeight = Math.max(1, minSize)
+  const aspectRatio = Math.max(0.0001, startRect.width / Math.max(1, startRect.height))
+  const right = startRect.x + startRect.width
+  const bottom = startRect.y + startRect.height
+  const centerX = startRect.x + startRect.width / 2
+  const centerY = startRect.y + startRect.height / 2
+
+  const sizeFromWidth = (targetWidth: number) => {
+    let width = Math.max(minWidth, targetWidth)
+    let height = width / aspectRatio
+    if (height < minHeight) {
+      height = minHeight
+      width = height * aspectRatio
+    }
+    return { width, height }
+  }
+  const sizeFromHeight = (targetHeight: number) => {
+    let height = Math.max(minHeight, targetHeight)
+    let width = height * aspectRatio
+    if (width < minWidth) {
+      width = minWidth
+      height = width / aspectRatio
+    }
+    return { width, height }
+  }
+
+  const fitBounds = (size: RectSize) => fitAspectLockedSizeToBounds(size, startRect, handle, aspectRatio, bounds)
+
+  if (handle === 'left') {
+    const { width, height } = fitBounds(sizeFromWidth(startRect.width - dx))
+    return { x: right - width, y: centerY - height / 2, width, height }
+  }
+  if (handle === 'right') {
+    const { width, height } = fitBounds(sizeFromWidth(startRect.width + dx))
+    return { x: startRect.x, y: centerY - height / 2, width, height }
+  }
+  if (handle === 'top') {
+    const { width, height } = fitBounds(sizeFromHeight(startRect.height - dy))
+    return { x: centerX - width / 2, y: bottom - height, width, height }
+  }
+  if (handle === 'bottom') {
+    const { width, height } = fitBounds(sizeFromHeight(startRect.height + dy))
+    return { x: centerX - width / 2, y: startRect.y, width, height }
+  }
+
+  const targetWidth = handle.includes('l') ? startRect.width - dx : startRect.width + dx
+  const targetHeight = handle.includes('t') ? startRect.height - dy : startRect.height + dy
+  const widthChange = Math.abs(targetWidth - startRect.width) / Math.max(1, startRect.width)
+  const heightChange = Math.abs(targetHeight - startRect.height) / Math.max(1, startRect.height)
+  const { width, height } = fitBounds(heightChange > widthChange
+    ? sizeFromHeight(targetHeight)
+    : sizeFromWidth(targetWidth))
+
+  if (handle === 'tl') return { x: right - width, y: bottom - height, width, height }
+  if (handle === 'tr') return { x: startRect.x, y: bottom - height, width, height }
+  if (handle === 'bl') return { x: right - width, y: startRect.y, width, height }
+  return { x: startRect.x, y: startRect.y, width, height }
+}
+
+function fitAspectLockedSizeToBounds(
+  size: RectSize,
+  startRect: PreviewRect,
+  handle: Exclude<ImageCropHandle, 'move'>,
+  aspectRatio: number,
+  bounds?: RectSize
+): RectSize {
+  if (!bounds) return size
+
+  const boundsWidth = Math.max(1, bounds.width)
+  const boundsHeight = Math.max(1, bounds.height)
+  const right = startRect.x + startRect.width
+  const bottom = startRect.y + startRect.height
+  const centerX = startRect.x + startRect.width / 2
+  const centerY = startRect.y + startRect.height / 2
+  let maxWidth = boundsWidth
+  let maxHeight = boundsHeight
+
+  if (handle === 'left') {
+    maxWidth = right
+    maxHeight = Math.min(centerY, boundsHeight - centerY) * 2
+  } else if (handle === 'right') {
+    maxWidth = boundsWidth - startRect.x
+    maxHeight = Math.min(centerY, boundsHeight - centerY) * 2
+  } else if (handle === 'top') {
+    maxWidth = Math.min(centerX, boundsWidth - centerX) * 2
+    maxHeight = bottom
+  } else if (handle === 'bottom') {
+    maxWidth = Math.min(centerX, boundsWidth - centerX) * 2
+    maxHeight = boundsHeight - startRect.y
+  } else {
+    maxWidth = handle.includes('l') ? right : boundsWidth - startRect.x
+    maxHeight = handle.includes('t') ? bottom : boundsHeight - startRect.y
+  }
+
+  const widthLimit = Math.max(1, maxWidth)
+  const heightLimit = Math.max(1, maxHeight)
+  const boundedWidth = Math.min(size.width, widthLimit, heightLimit * aspectRatio)
+  const boundedHeight = boundedWidth / aspectRatio
+  if (boundedHeight <= heightLimit) return { width: boundedWidth, height: boundedHeight }
+
+  const height = Math.min(size.height, heightLimit, widthLimit / aspectRatio)
+  return { width: height * aspectRatio, height }
 }

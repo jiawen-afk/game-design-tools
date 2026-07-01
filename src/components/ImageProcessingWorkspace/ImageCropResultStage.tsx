@@ -68,7 +68,6 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
             unCheckedChildren={<EyeOutlined />}
             onChange={workspace.setCropMode}
           />
-          <Text strong>裁剪与结果</Text>
           <Text type="secondary">{workspace.cropMode ? '裁剪模式' : workspace.matteEnabled ? '取色模式' : '原图预览'}</Text>
         </Space>
         <Space size={10} className="image-preview-zoom">

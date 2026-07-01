@@ -68,3 +68,21 @@ test('image processing workspace drags preview crop boxes by handle', () => {
     { x: 40, y: 30, width: 16, height: 80 }
   )
 })
+
+test('image processing workspace keeps preview crop aspect ratio while shift-resizing', () => {
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'br', 60, 80, 16, true),
+    { x: 40, y: 30, width: 240, height: 160 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'left', -60, 0, 16, true),
+    { x: -20, y: 10, width: 180, height: 120 }
+  )
+})
+
+test('image processing workspace keeps shift-resized preview crops proportional inside bounds', () => {
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'br', 200, 200, 16, true, { width: 200, height: 160 }),
+    { x: 40, y: 30, width: 160, height: 106.66666666666667 }
+  )
+})

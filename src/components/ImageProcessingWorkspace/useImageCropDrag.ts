@@ -59,7 +59,9 @@ export function useImageCropDrag({
           cropDrag.handle,
           (event.clientX - cropDrag.startPointer.x) / previewZoom,
           (event.clientY - cropDrag.startPointer.y) / previewZoom,
-          minPreviewCropSize
+          minPreviewCropSize,
+          event.shiftKey,
+          { width: previewImageRect.width, height: previewImageRect.height }
         ),
         { width: previewImageRect.width, height: previewImageRect.height },
         minPreviewCropSize
