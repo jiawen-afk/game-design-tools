@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  centerCropBox,
   clampCropBox,
   getAspectRatioValue,
   getCropBoxAfterAspectRatioChange,
@@ -27,6 +28,17 @@ test('image processing workspace normalizes crop boxes from drag coordinates', (
   assert.deepEqual(
     normalizeCropBox({ x: 120, y: 90, width: -80, height: -50 }, 200, 120, 16),
     { x: 40, y: 40, width: 80, height: 50 }
+  )
+})
+
+test('image processing workspace centers crop boxes without changing crop size', () => {
+  assert.deepEqual(
+    centerCropBox({ x: 0, y: 0, width: 80, height: 40 }, 200, 120, 16),
+    { x: 60, y: 40, width: 80, height: 40 }
+  )
+  assert.deepEqual(
+    centerCropBox({ x: 12, y: 24, width: 260, height: 90 }, 200, 120, 16),
+    { x: 0, y: 15, width: 200, height: 90 }
   )
 })
 

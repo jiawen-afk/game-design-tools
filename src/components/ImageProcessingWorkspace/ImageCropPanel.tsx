@@ -1,7 +1,8 @@
-import { Card, Empty, Slider, Space, Typography } from 'antd'
+import { Button, Card, Empty, Slider, Space, Typography } from 'antd'
 
 import { CommittedNumberInput } from './CommittedNumberInput'
 import {
+  centerCropBox,
   MAX_IMAGE_EXPORT_SIZE,
   MIN_PREVIEW_ZOOM,
   normalizeCropBox,
@@ -24,9 +25,23 @@ function updateCrop(workspace: ImageProcessingWorkspaceViewModel, patch: Partial
 export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
   const activeImageSource = workspace.activeImageSource
   const crop = workspace.crop
+  const centerCrop = () => {
+    if (!activeImageSource || !crop) return
+    workspace.setCrop(centerCropBox(crop, activeImageSource.width, activeImageSource.height, workspace.minCropSize))
+  }
+  const cropPanelTitle = (
+    <Space size={8} wrap>
+      <span>裁剪调整</span>
+      {activeImageSource && crop ? (
+        <Button size="small" onClick={centerCrop}>
+          裁剪框居中
+        </Button>
+      ) : null}
+    </Space>
+  )
 
   return (
-    <Card title="裁剪调整" className="image-control-card">
+    <Card title={cropPanelTitle} className="image-control-card">
       {activeImageSource && crop ? (
         <Space orientation="vertical" size={12} style={{ width: '100%' }}>
           <label className="image-field">

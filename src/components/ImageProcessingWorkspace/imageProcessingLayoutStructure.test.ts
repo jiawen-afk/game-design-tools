@@ -50,6 +50,9 @@ test('image crop panel owns crop aspect ratio while export panel scales locked o
   const cropSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropPanel.tsx', 'utf8')
   const exportSource = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
 
+  assert.match(cropSource, /title=\{cropPanelTitle\}/)
+  assert.match(cropSource, /裁剪框居中/)
+  assert.match(cropSource, /centerCropBox/)
   assert.match(cropSource, /value=\{workspace\.cropAspectRatio\}/)
   assert.match(cropSource, /onCommit=\{workspace\.updateCropAspectRatio\}/)
   assert.match(exportSource, /value=\{workspace\.exportScale\}/)

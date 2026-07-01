@@ -20,6 +20,25 @@ export function normalizeCropBox(crop: CropBox, imageWidth: number, imageHeight:
   return clampCropBox({ x, y, width: Math.abs(crop.width), height: Math.abs(crop.height) }, imageWidth, imageHeight, minSize)
 }
 
+export function centerCropBox(crop: CropBox, imageWidth: number, imageHeight: number, minSize = MIN_IMAGE_CROP_SIZE): CropBox {
+  const widthLimit = Math.max(1, Math.round(imageWidth))
+  const heightLimit = Math.max(1, Math.round(imageHeight))
+  const minimum = Math.max(1, Math.min(minSize, widthLimit, heightLimit))
+  const width = Math.max(minimum, Math.min(widthLimit, Math.round(finiteOr(Math.abs(crop.width), widthLimit))))
+  const height = Math.max(minimum, Math.min(heightLimit, Math.round(finiteOr(Math.abs(crop.height), heightLimit))))
+  return clampCropBox(
+    {
+      x: Math.round((widthLimit - width) / 2),
+      y: Math.round((heightLimit - height) / 2),
+      width,
+      height,
+    },
+    imageWidth,
+    imageHeight,
+    minSize
+  )
+}
+
 export function createFullImageCrop(width: number, height: number): CropBox {
   return clampCropBox({ x: 0, y: 0, width, height }, width, height)
 }
