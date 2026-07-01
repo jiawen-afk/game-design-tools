@@ -52,6 +52,29 @@ test('matte sample point maps preview clicks into source image bounds', () => {
   )
 })
 
+test('matte sample point ignores object-fit contain letterboxing', () => {
+  assert.deepEqual(
+    computeFrameSamplePoint({
+      clientX: 110,
+      clientY: 70,
+      previewRect: { left: 10, top: 20, width: 200, height: 200 },
+      sourceWidth: 400,
+      sourceHeight: 200,
+    }),
+    { x: 200, y: 0 }
+  )
+  assert.deepEqual(
+    computeFrameSamplePoint({
+      clientX: 60,
+      clientY: 120,
+      previewRect: { left: 10, top: 20, width: 200, height: 200 },
+      sourceWidth: 100,
+      sourceHeight: 200,
+    }),
+    { x: 0, y: 100 }
+  )
+})
+
 test('chroma key alpha matches FrameRonin tolerance and feather semantics', () => {
   assert.equal(computeChromaKeyAlpha(79, 80, 5), 0)
   assert.equal(computeChromaKeyAlpha(82.5, 80, 5), 0.5)

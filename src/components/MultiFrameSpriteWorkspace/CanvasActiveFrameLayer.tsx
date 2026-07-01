@@ -1,9 +1,11 @@
+import type * as React from 'react'
 import type { CSSProperties } from 'react'
 
 import {
   HANDLE_CURSORS,
   HANDLE_SIZE,
 } from './constants'
+import { getLayoutFramePreviewUrl } from './layoutModel'
 import type { ResizeHandle } from './layoutModel'
 import type { FrameItem } from './types'
 import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
@@ -23,9 +25,30 @@ export function CanvasActiveFrameLayer({
   canvasHeight,
   setDragState,
 }: CanvasActiveFrameLayerProps) {
+  const stopNativeDrag: React.DragEventHandler<HTMLElement> = (e) => {
+    e.preventDefault()
+  }
+  const frameStyle: React.CSSProperties & { WebkitUserDrag: 'none' } = {
+    position: 'absolute',
+    left: canvasWidth / 2 - activeFrame.layout.width / 2 + activeFrame.layout.offsetX,
+    top: canvasHeight / 2 - activeFrame.layout.height / 2 + activeFrame.layout.offsetY,
+    width: activeFrame.layout.width,
+    height: activeFrame.layout.height,
+    cursor: 'move',
+    outline: '1px solid #b55233',
+    zIndex: 2,
+    touchAction: 'none',
+    userSelect: 'none',
+    WebkitUserDrag: 'none',
+  }
+
   return (
     <div
+      draggable={false}
+      onDragStart={stopNativeDrag}
       onPointerDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         e.currentTarget.setPointerCapture(e.pointerId)
         setDragState({
           kind: 'move',
@@ -36,21 +59,13 @@ export function CanvasActiveFrameLayer({
           startOffsetY: activeFrame.layout.offsetY,
         })
       }}
-      style={{
-        position: 'absolute',
-        left: canvasWidth / 2 - activeFrame.layout.width / 2 + activeFrame.layout.offsetX,
-        top: canvasHeight / 2 - activeFrame.layout.height / 2 + activeFrame.layout.offsetY,
-        width: activeFrame.layout.width,
-        height: activeFrame.layout.height,
-        cursor: 'move',
-        outline: '1px solid #b55233',
-        zIndex: 2,
-      }}
+      style={frameStyle}
     >
       <img
-        src={activeFrame.composedUrl ?? activeFrame.matteUrl ?? undefined}
+        src={getLayoutFramePreviewUrl(activeFrame)}
         alt="active composed"
         draggable={false}
+        onDragStart={stopNativeDrag}
         style={{
           width: '100%',
           height: '100%',
@@ -81,7 +96,8 @@ export function CanvasActiveFrameLayer({
           <span
             key={handle}
             style={pos}
-            onPointerDown={(e) => {
+          onPointerDown={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               setDragState({
                 kind: 'resize',
@@ -93,6 +109,7 @@ export function CanvasActiveFrameLayer({
                 startHeight: activeFrame.layout.height,
               })
             }}
+            onDragStart={stopNativeDrag}
           />
         )
       })}

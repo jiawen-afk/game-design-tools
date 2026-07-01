@@ -156,6 +156,17 @@ test('video upload panel delegates source preview and extraction controls to a f
   assert.match(controlsSource, /formatVideoTime/)
 })
 
+test('video source range slider avoids tooltip portal update loops', () => {
+  const controlsSource = readFileSync('src/components/MultiFrameSpriteWorkspace/VideoSourceControlsPanel.tsx', 'utf8')
+  const rangeSliderStart = controlsSource.indexOf('<Slider')
+  const rangeSliderEnd = controlsSource.indexOf('/>', rangeSliderStart)
+  const rangeSliderSource = controlsSource.slice(rangeSliderStart, rangeSliderEnd)
+
+  assert.notEqual(rangeSliderStart, -1)
+  assert.match(rangeSliderSource, /tooltip=\{\{[^}]*open:\s*false/s)
+  assert.doesNotMatch(rangeSliderSource, /formatter:\s*\(value\)\s*=>\s*formatVideoTime/)
+})
+
 test('video processing owns one-in-n frame stride before adding frames to matte flow', () => {
   const model = readFileSync('src/components/MultiFrameSpriteWorkspace/playbackModel.ts', 'utf8')
   const videoHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useVideoWorkspace.ts', 'utf8')

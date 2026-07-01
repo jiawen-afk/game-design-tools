@@ -168,6 +168,7 @@ test('app shell exposes generic knowledge base UI without shj-specific fields', 
 test('app shell keeps workspace loading visible and recovers from workspace render errors', () => {
   const source = appSource()
   const boundaryPath = 'src/AppWorkspaceBoundary.tsx'
+  const shellStyleSource = readFileSync('src/styles/app.shell.css', 'utf8')
 
   assert.ok(existsSync(boundaryPath), 'app workspace boundary should exist')
   const boundarySource = readFileSync(boundaryPath, 'utf8')
@@ -178,6 +179,13 @@ test('app shell keeps workspace loading visible and recovers from workspace rend
   assert.match(boundarySource, /class AppWorkspaceErrorBoundary extends Component/)
   assert.match(boundarySource, /getDerivedStateFromError/)
   assert.match(boundarySource, /componentDidCatch/)
+  assert.match(boundarySource, /errorInfo/)
+  assert.match(boundarySource, /错误类型/)
+  assert.match(boundarySource, /错误消息/)
+  assert.match(boundarySource, /JavaScript Stack/)
+  assert.match(boundarySource, /React Component Stack/)
+  assert.match(shellStyleSource, /workspace-error-details/)
+  assert.match(shellStyleSource, /white-space:\s*pre-wrap/)
   assert.match(boundarySource, /工作台加载失败/)
   assert.match(boundarySource, /重新加载工作台/)
   assert.match(boundarySource, /返回工具列表/)

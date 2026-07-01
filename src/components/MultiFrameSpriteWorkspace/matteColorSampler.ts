@@ -17,8 +17,42 @@ export interface SampleFrameKeyColorInput {
   previewRect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
 }
 
+interface ImageContentRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
 function clampSampleCoordinate(value: number, maxExclusive: number) {
   return Math.max(0, Math.min(Math.max(0, maxExclusive - 1), value))
+}
+
+function computeContainedImageRect(
+  previewRect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  sourceWidth: number,
+  sourceHeight: number
+): ImageContentRect {
+  const safePreviewWidth = Math.max(1, previewRect.width)
+  const safePreviewHeight = Math.max(1, previewRect.height)
+  const sourceAspect = Math.max(1, sourceWidth) / Math.max(1, sourceHeight)
+  const previewAspect = safePreviewWidth / safePreviewHeight
+  if (previewAspect > sourceAspect) {
+    const width = safePreviewHeight * sourceAspect
+    return {
+      left: previewRect.left + (safePreviewWidth - width) / 2,
+      top: previewRect.top,
+      width,
+      height: safePreviewHeight,
+    }
+  }
+  const height = safePreviewWidth / sourceAspect
+  return {
+    left: previewRect.left,
+    top: previewRect.top + (safePreviewHeight - height) / 2,
+    width: safePreviewWidth,
+    height,
+  }
 }
 
 export function computeFrameSamplePoint({
@@ -28,10 +62,9 @@ export function computeFrameSamplePoint({
   sourceWidth,
   sourceHeight,
 }: FrameSamplePointInput) {
-  const safePreviewWidth = Math.max(1, previewRect.width)
-  const safePreviewHeight = Math.max(1, previewRect.height)
-  const x = Math.floor(((clientX - previewRect.left) / safePreviewWidth) * sourceWidth)
-  const y = Math.floor(((clientY - previewRect.top) / safePreviewHeight) * sourceHeight)
+  const contentRect = computeContainedImageRect(previewRect, sourceWidth, sourceHeight)
+  const x = Math.floor(((clientX - contentRect.left) / Math.max(1, contentRect.width)) * sourceWidth)
+  const y = Math.floor(((clientY - contentRect.top) / Math.max(1, contentRect.height)) * sourceHeight)
 
   return {
     x: clampSampleCoordinate(x, sourceWidth),

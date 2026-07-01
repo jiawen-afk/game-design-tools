@@ -7,8 +7,10 @@ import {
   shouldIgnoreInitialGuideDrag,
 } from './guideModel'
 import {
+  computePointerCanvasDelta,
   computeHandleResize,
   computeKeyboardOffset,
+  shouldStopLayoutDragFromPointer,
 } from './layoutModel'
 import { createWorkspaceId } from './imagePipeline'
 import type { DragState, FrameItem, FrameLayout, GuideAxis, GuideDragState, GuideLine } from './types'
@@ -135,19 +137,34 @@ export function useLayoutPointerInteractions({
   const onPointerMove = useCallback(
     (e: PointerEvent) => {
       if (!dragState) return
+      if (shouldStopLayoutDragFromPointer(e)) {
+        setDragState(null)
+        return
+      }
       const item = frames.find((x) => x.id === dragState.id)
       if (!item) return
+      const canvasRect = canvasStageRef.current?.getBoundingClientRect()
+      if (!canvasRect) return
+      const delta = computePointerCanvasDelta({
+        startClientX: dragState.startX,
+        startClientY: dragState.startY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        canvasRect,
+        canvasWidth,
+        canvasHeight,
+      })
       if (dragState.kind === 'move') {
         scheduleLayout(dragState.id, {
-          offsetX: Math.round(dragState.startOffsetX + e.clientX - dragState.startX),
-          offsetY: Math.round(dragState.startOffsetY + e.clientY - dragState.startY),
+          offsetX: dragState.startOffsetX + delta.x,
+          offsetY: dragState.startOffsetY + delta.y,
         })
       } else {
         const next = computeHandleResize({
           startWidth: dragState.startWidth,
           startHeight: dragState.startHeight,
-          deltaX: e.clientX - dragState.startX,
-          deltaY: e.clientY - dragState.startY,
+          deltaX: delta.x,
+          deltaY: delta.y,
           handle: dragState.handle,
           keepAspect: item.layout.keepAspect && ['nw', 'ne', 'se', 'sw'].includes(dragState.handle),
           minSize: 1,
@@ -155,16 +172,19 @@ export function useLayoutPointerInteractions({
         scheduleLayout(dragState.id, next)
       }
     },
-    [dragState, frames, scheduleLayout]
+    [canvasHeight, canvasStageRef, canvasWidth, dragState, frames, scheduleLayout]
   )
 
   useEffect(() => {
     const up = () => setDragState(null)
+    const cancel = () => setDragState(null)
     window.addEventListener('pointermove', onPointerMove)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
     return () => {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
     }
   }, [onPointerMove])
 

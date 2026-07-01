@@ -22,6 +22,26 @@ export interface FrameLayoutPatch {
   offsetY?: number
 }
 
+export interface PointerCanvasDeltaInput {
+  startClientX: number
+  startClientY: number
+  clientX: number
+  clientY: number
+  canvasRect: Pick<DOMRect, 'width' | 'height'>
+  canvasWidth: number
+  canvasHeight: number
+}
+
+export interface LayoutDragPointerState {
+  pointerType: string
+  buttons: number
+}
+
+export interface LayoutFramePreviewState {
+  matteUrl: string | null
+  composedUrl: string | null
+}
+
 export interface RatioFrameLayoutState {
   id: string
   matteWidth: number
@@ -82,6 +102,39 @@ export function computeKeyboardOffset(current: FrameOffset, key: string, fast: b
   if (key === 'ArrowUp') return { ...current, offsetY: current.offsetY - step }
   if (key === 'ArrowDown') return { ...current, offsetY: current.offsetY + step }
   return current
+}
+
+function finiteOrFallback(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback
+}
+
+export function computePointerCanvasDelta({
+  startClientX,
+  startClientY,
+  clientX,
+  clientY,
+  canvasRect,
+  canvasWidth,
+  canvasHeight,
+}: PointerCanvasDeltaInput): { x: number; y: number } {
+  const renderedWidth = Math.max(1, finiteOrFallback(canvasRect.width, canvasWidth))
+  const renderedHeight = Math.max(1, finiteOrFallback(canvasRect.height, canvasHeight))
+  const logicalWidth = Math.max(1, finiteOrFallback(canvasWidth, 1))
+  const logicalHeight = Math.max(1, finiteOrFallback(canvasHeight, 1))
+  const x = (finiteOrFallback(clientX, startClientX) - finiteOrFallback(startClientX, clientX)) * (logicalWidth / renderedWidth)
+  const y = (finiteOrFallback(clientY, startClientY) - finiteOrFallback(startClientY, clientY)) * (logicalHeight / renderedHeight)
+  return {
+    x: Number.isFinite(x) ? Math.round(x) : 0,
+    y: Number.isFinite(y) ? Math.round(y) : 0,
+  }
+}
+
+export function shouldStopLayoutDragFromPointer({ pointerType, buttons }: LayoutDragPointerState): boolean {
+  return pointerType !== 'touch' && buttons === 0
+}
+
+export function getLayoutFramePreviewUrl(frame: LayoutFramePreviewState): string | undefined {
+  return frame.matteUrl ?? undefined
 }
 
 export function computeWheelResize(

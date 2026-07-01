@@ -6,9 +6,12 @@ import {
   coerceFrameLayoutPatch,
   computeHandleResize,
   computeKeyboardOffset,
+  computePointerCanvasDelta,
   computeWheelFrameResize,
   computeWheelResize,
+  getLayoutFramePreviewUrl,
   getWheelScalingButtonLabel,
+  shouldStopLayoutDragFromPointer,
 } from './model'
 
 test('corner handle resize preserves aspect ratio when locked', () => {
@@ -86,4 +89,36 @@ test('frame layout patches drop non-finite drag geometry before render state upd
     height: 6,
     offsetX: -3,
   })
+})
+
+test('pointer drag deltas are converted from rendered canvas pixels to logical canvas pixels', () => {
+  assert.deepEqual(
+    computePointerCanvasDelta({
+      startClientX: 50,
+      startClientY: 80,
+      clientX: 75,
+      clientY: 110,
+      canvasRect: { width: 500, height: 300 },
+      canvasWidth: 1000,
+      canvasHeight: 600,
+    }),
+    { x: 50, y: 60 }
+  )
+})
+
+test('layout drag stops when a mouse pointer no longer has a pressed button', () => {
+  assert.equal(shouldStopLayoutDragFromPointer({ pointerType: 'mouse', buttons: 0 }), true)
+  assert.equal(shouldStopLayoutDragFromPointer({ pointerType: 'mouse', buttons: 1 }), false)
+  assert.equal(shouldStopLayoutDragFromPointer({ pointerType: 'touch', buttons: 0 }), false)
+})
+
+test('layout frame adjustment previews the matte frame instead of stale composed canvas output', () => {
+  assert.equal(
+    getLayoutFramePreviewUrl({ matteUrl: 'blob:matte', composedUrl: 'blob:composed' }),
+    'blob:matte'
+  )
+  assert.equal(
+    getLayoutFramePreviewUrl({ matteUrl: null, composedUrl: 'blob:composed' }),
+    undefined
+  )
 })

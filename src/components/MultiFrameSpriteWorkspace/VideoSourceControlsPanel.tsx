@@ -102,7 +102,7 @@ export function VideoSourceControlsPanel({
               step={0.01}
               value={[clipStart, clipEnd]}
               disabled={draft.duration <= 0}
-              tooltip={{ formatter: (value) => formatVideoTime(value ?? 0) }}
+              tooltip={{ open: false }}
               onChange={(value) => {
                 if (Array.isArray(value)) onClipRangeChange(value[0] ?? 0, value[1] ?? 0)
               }}

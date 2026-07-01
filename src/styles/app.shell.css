@@ -94,6 +94,60 @@
   font-size: 1.35rem;
 }
 
+.workspace-error-details {
+  width: min(960px, 100%);
+  margin-top: 18px;
+  text-align: left;
+}
+
+.workspace-error-details dl {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.workspace-error-details dl > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.workspace-error-details dt {
+  color: var(--color-muted);
+  font-weight: 650;
+}
+
+.workspace-error-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace-error-details details {
+  margin-top: 10px;
+}
+
+.workspace-error-details summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.workspace-error-details pre {
+  max-height: 260px;
+  margin: 8px 0 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--color-bg) 92%, black);
+  color: var(--color-ink);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
 .workspace-error-actions {
   display: flex;
   flex-wrap: wrap;
