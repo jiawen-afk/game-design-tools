@@ -211,10 +211,13 @@ function getAspectLockedDraggedPreviewRect(
   const minWidth = Math.max(1, minSize)
   const minHeight = Math.max(1, minSize)
   const aspectRatio = Math.max(0.0001, startRect.width / Math.max(1, startRect.height))
+  const aspectHandle = handle === 'left' || handle === 'top'
+    ? 'tl'
+    : handle === 'right' || handle === 'bottom'
+      ? 'br'
+      : handle
   const right = startRect.x + startRect.width
   const bottom = startRect.y + startRect.height
-  const centerX = startRect.x + startRect.width / 2
-  const centerY = startRect.y + startRect.height / 2
 
   const sizeFromWidth = (targetWidth: number) => {
     let width = Math.max(minWidth, targetWidth)
@@ -235,36 +238,19 @@ function getAspectLockedDraggedPreviewRect(
     return { width, height }
   }
 
-  const fitBounds = (size: RectSize) => fitAspectLockedSizeToBounds(size, startRect, handle, aspectRatio, bounds)
+  const fitBounds = (size: RectSize) => fitAspectLockedSizeToBounds(size, startRect, aspectHandle, aspectRatio, bounds)
 
-  if (handle === 'left') {
-    const { width, height } = fitBounds(sizeFromWidth(startRect.width - dx))
-    return { x: right - width, y: centerY - height / 2, width, height }
-  }
-  if (handle === 'right') {
-    const { width, height } = fitBounds(sizeFromWidth(startRect.width + dx))
-    return { x: startRect.x, y: centerY - height / 2, width, height }
-  }
-  if (handle === 'top') {
-    const { width, height } = fitBounds(sizeFromHeight(startRect.height - dy))
-    return { x: centerX - width / 2, y: bottom - height, width, height }
-  }
-  if (handle === 'bottom') {
-    const { width, height } = fitBounds(sizeFromHeight(startRect.height + dy))
-    return { x: centerX - width / 2, y: startRect.y, width, height }
-  }
-
-  const targetWidth = handle.includes('l') ? startRect.width - dx : startRect.width + dx
-  const targetHeight = handle.includes('t') ? startRect.height - dy : startRect.height + dy
+  const targetWidth = aspectHandle.includes('l') ? startRect.width - dx : startRect.width + dx
+  const targetHeight = aspectHandle.includes('t') ? startRect.height - dy : startRect.height + dy
   const widthChange = Math.abs(targetWidth - startRect.width) / Math.max(1, startRect.width)
   const heightChange = Math.abs(targetHeight - startRect.height) / Math.max(1, startRect.height)
   const { width, height } = fitBounds(heightChange > widthChange
     ? sizeFromHeight(targetHeight)
     : sizeFromWidth(targetWidth))
 
-  if (handle === 'tl') return { x: right - width, y: bottom - height, width, height }
-  if (handle === 'tr') return { x: startRect.x, y: bottom - height, width, height }
-  if (handle === 'bl') return { x: right - width, y: startRect.y, width, height }
+  if (aspectHandle === 'tl') return { x: right - width, y: bottom - height, width, height }
+  if (aspectHandle === 'tr') return { x: startRect.x, y: bottom - height, width, height }
+  if (aspectHandle === 'bl') return { x: right - width, y: startRect.y, width, height }
   return { x: startRect.x, y: startRect.y, width, height }
 }
 

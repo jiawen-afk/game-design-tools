@@ -71,12 +71,36 @@ test('image processing workspace drags preview crop boxes by handle', () => {
 
 test('image processing workspace keeps preview crop aspect ratio while shift-resizing', () => {
   assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'tl', 20, 0, 16, true),
+    { x: 60, y: 43.33333333333333, width: 100, height: 66.66666666666667 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'tr', 20, -40, 16, true),
+    { x: 40, y: -10, width: 180, height: 120 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'bl', -60, 40, 16, true),
+    { x: -20, y: 30, width: 180, height: 120 }
+  )
+  assert.deepEqual(
     getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'br', 60, 80, 16, true),
     { x: 40, y: 30, width: 240, height: 160 }
   )
   assert.deepEqual(
     getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'left', -60, 0, 16, true),
-    { x: -20, y: 10, width: 180, height: 120 }
+    { x: -20, y: -10, width: 180, height: 120 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'top', 0, -40, 16, true),
+    { x: -20, y: -10, width: 180, height: 120 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'right', 60, 0, 16, true),
+    { x: 40, y: 30, width: 180, height: 120 }
+  )
+  assert.deepEqual(
+    getDraggedPreviewRect({ x: 40, y: 30, width: 120, height: 80 }, 'bottom', 0, 40, 16, true),
+    { x: 40, y: 30, width: 180, height: 120 }
   )
 })
 
