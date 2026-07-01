@@ -35,6 +35,7 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   installUpscaleRuntime: (options) => invoke('upscayl:install', options),
   upscaleImage: (options) => invoke('upscayl:upscale', options),
   onUpscaleInstallProgress: (listener) => on('upscayl:install-progress', listener),
+  encodeImage: (options) => invoke('image-encoding:encode', options),
   listProjectConnectionProfiles: (type) => invoke('project-profile:list', type),
   getProjectConnectionProfile: (profileId) => invoke('project-profile:get', profileId),
   saveProjectConnectionProfile: (input) => invoke('project-profile:save', input),

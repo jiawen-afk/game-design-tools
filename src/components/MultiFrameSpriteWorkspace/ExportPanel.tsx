@@ -1,17 +1,24 @@
-import { Button, Card, Dropdown, InputNumber, Radio, Space, Typography } from 'antd'
+import { Button, Card, Dropdown, InputNumber, Radio, Segmented, Space, Switch, Typography } from 'antd'
 import { DownOutlined, DownloadOutlined, StarOutlined } from '@ant-design/icons'
 
 import { computeAutoSpriteColumns } from './model'
+import type {
+  ImageExportEncodingFormat,
+  ImageExportEncodingSettings,
+} from '../ImageProcessingWorkspace/imageProcessingModel'
 
 const { Text } = Typography
 
 export interface ExportPanelProps {
   columns: number
+  exportEncoding: ImageExportEncodingSettings
   visibleFrameCount: number
   exporting: boolean
   personalSpaceCollectEnabled: boolean
   personalSpaceCollectDisabledReason?: string
   onColumnsChange: (columns: number) => void
+  onExportFormatChange: (format: ImageExportEncodingFormat) => void
+  onOptimizePngChange: (optimizePng: boolean) => void
   onExport: () => void
   onCollectToPersonalSpace: () => void
   onCollectToPersonalSpaceWithCharacter: () => void
@@ -19,11 +26,14 @@ export interface ExportPanelProps {
 
 export function ExportPanel({
   columns,
+  exportEncoding,
   visibleFrameCount,
   exporting,
   personalSpaceCollectEnabled,
   personalSpaceCollectDisabledReason,
   onColumnsChange,
+  onExportFormatChange,
+  onOptimizePngChange,
   onExport,
   onCollectToPersonalSpace,
   onCollectToPersonalSpaceWithCharacter,
@@ -38,6 +48,20 @@ export function ExportPanel({
           />
           <InputNumber min={1} max={128} value={columns} onChange={(value) => onColumnsChange(value ?? 1)} />
           <Button onClick={() => onColumnsChange(computeAutoSpriteColumns(visibleFrameCount))}>自动接近正方形</Button>
+          <Segmented
+            value={exportEncoding.format}
+            options={[
+              { label: 'WebP 无损', value: 'webp-lossless' },
+              { label: 'PNG', value: 'png' },
+            ]}
+            onChange={(value) => onExportFormatChange(value as ImageExportEncodingFormat)}
+          />
+          {exportEncoding.format === 'png' ? (
+            <Space size={6}>
+              <Switch checked={exportEncoding.optimizePng} onChange={onOptimizePngChange} />
+              <Text>oxipng</Text>
+            </Space>
+          ) : null}
           <Button type="primary" icon={<DownloadOutlined />} loading={exporting} onClick={onExport}>
             导出 ZIP
           </Button>
@@ -71,7 +95,7 @@ export function ExportPanel({
           </Space.Compact>
         </Space>
         <Text type="secondary">
-          ZIP 包含 sprite.png 和 index.json。导出与预览均使用平滑绘制。
+          ZIP 包含 sprite.webp 或 sprite.png，以及 index.json。导出与预览均使用平滑绘制。
         </Text>
       </Space>
     </Card>

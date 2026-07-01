@@ -42,6 +42,8 @@ test('sprite index records frame cells and playback metadata', () => {
     columns: 2,
     fps: 12,
     playbackMode: 'pingpong',
+    image: 'sprite.webp',
+    format: 'webp',
     frames: [
       { id: 'a', sourceName: 'idle.png' },
       { id: 'b', sourceName: 'step.png' },
@@ -51,6 +53,8 @@ test('sprite index records frame cells and playback metadata', () => {
 
   assert.deepEqual(index, {
     version: '1.0',
+    image: 'sprite.webp',
+    format: 'webp',
     frame_size: { w: 64, h: 48 },
     sheet_size: { w: 128, h: 96 },
     fps: 12,

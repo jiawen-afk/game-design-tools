@@ -116,3 +116,29 @@ test('electron main delegates app update IPC handlers to a focused module', () =
   assert.match(appUpdateIpcSource, /getAppReleaseTag/)
   assert.match(appUpdateIpcSource, /windows-x64-latest/)
 })
+
+test('electron main delegates image encoding IPC handlers to a focused module', () => {
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+  const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const imageEncodingIpcPath = 'electron/imageEncodingIpcHandlers.cjs'
+  const packageSource = readFileSync('package.json', 'utf8')
+
+  assert.ok(existsSync(imageEncodingIpcPath), `${imageEncodingIpcPath} should exist`)
+  const imageEncodingIpcSource = readFileSync(imageEncodingIpcPath, 'utf8')
+
+  assert.match(mainSource, /registerImageEncodingIpcHandlers/)
+  assert.doesNotMatch(mainSource, /image-encoding:encode/)
+  assert.match(imageEncodingIpcSource, /image-encoding:encode/)
+  assert.match(imageEncodingIpcSource, /scripts/)
+  assert.match(imageEncodingIpcSource, /image-encoders/)
+  assert.match(imageEncodingIpcSource, /cwebp/)
+  assert.match(imageEncodingIpcSource, /oxipng/)
+  assert.match(imageEncodingIpcSource, /-lossless/)
+  assert.match(imageEncodingIpcSource, /-exact/)
+  assert.match(imageEncodingIpcSource, /-alpha_q/)
+  assert.match(preloadSource, /encodeImage: \(options\) => invoke\('image-encoding:encode', options\)/)
+  assert.match(desktopApiSource, /DesktopImageEncodingApi/)
+  assert.match(packageSource, /setup:image-encoders/)
+  assert.match(packageSource, /scripts\/image-encoders\/\*\*/)
+})

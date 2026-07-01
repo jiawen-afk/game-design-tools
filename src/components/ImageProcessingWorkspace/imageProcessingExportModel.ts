@@ -1,4 +1,5 @@
 import { getExportFormatInfo } from './imageProcessingFileModel'
+import { getImageExportEncodingInfo, type ImageExportEncodingSettings } from './imageExportEncodingModel'
 import { finiteOr } from './imageProcessingMath'
 import type { CropBox, ExportDimension, ImageExportFormat, ImageSourceLike, RectSize } from './imageProcessingTypes'
 import {
@@ -15,6 +16,10 @@ export function sanitizeExportBaseName(name: string): string {
 
 export function deriveExportFileName(sourceName: string, format: ImageExportFormat): string {
   return `${sanitizeExportBaseName(sourceName)}-processed.${getExportFormatInfo(format).extension}`
+}
+
+export function deriveEncodedExportFileName(sourceName: string, settings: ImageExportEncodingSettings): string {
+  return `${sanitizeExportBaseName(sourceName)}-processed.${getImageExportEncodingInfo(settings).extension}`
 }
 
 export function normalizeExportSize(size: RectSize, fallback: RectSize = { width: 1, height: 1 }): RectSize {

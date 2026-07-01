@@ -3,12 +3,12 @@ import { DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { CommittedNumberInput } from './CommittedNumberInput'
 import {
-  getExportFormatInfo,
+  getImageExportEncodingInfo,
   MAX_IMAGE_EXPORT_SIZE,
   MAX_IMAGE_EXPORT_SCALE,
   MIN_IMAGE_EXPORT_SIZE,
   MIN_IMAGE_EXPORT_SCALE,
-  type ImageExportFormat,
+  type ImageExportEncodingFormat,
 } from './imageProcessingModel'
 import { upscaylModels, type UpscaleModel } from './imageUpscaleModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
@@ -19,14 +19,14 @@ export interface ImageExportPanelProps {
   workspace: ImageProcessingWorkspaceViewModel
 }
 
-const exportFormats = ['png', 'webp', 'jpg', 'jpeg'] as const
+const exportFormats = ['webp-lossless', 'png', 'jpg', 'jpeg'] as const
 
 export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
-  const exportOptions: Array<{ value: ImageExportFormat; label: string }> = exportFormats.map((format) => {
-    const info = getExportFormatInfo(format)
+  const exportOptions: Array<{ value: ImageExportEncodingFormat; label: string }> = exportFormats.map((format) => {
+    const info = getImageExportEncodingInfo({ format, optimizePng: workspace.exportEncoding.optimizePng })
     return {
       value: format,
-      label: `${info.extension.toUpperCase()} · ${info.mimeType}`,
+      label: format === 'webp-lossless' ? 'WebP 无损 · 保留透明' : `${info.extension.toUpperCase()} · ${info.mimeType}`,
     }
   })
   const upscaleInstalled = workspace.upscaleRuntimeStatus?.installed === true
@@ -38,11 +38,20 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
         <label className="image-field">
           <span>导出格式</span>
           <Select
-            value={workspace.exportFormat}
+            value={workspace.exportEncoding.format}
             options={exportOptions}
             onChange={workspace.setExportFormat}
           />
         </label>
+        {workspace.exportEncoding.format === 'png' ? (
+          <label className="image-field image-field-inline">
+            <span>PNG 优化</span>
+            <Switch
+              checked={workspace.exportEncoding.optimizePng}
+              onChange={workspace.setOptimizePng}
+            />
+          </label>
+        ) : null}
         <label className="image-field">
           <span>等比缩放</span>
           <div className="image-export-scale-row">

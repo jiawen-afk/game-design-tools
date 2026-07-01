@@ -13,7 +13,7 @@ import {
   defaultPersonalSpaceState,
 } from './personalSpaceModel'
 
-test('uploaded character sprite resources require png and index json, keep original asset name, and use hashed storage names', async () => {
+test('uploaded character sprite resources require png or webp and index json, keep original asset name, and use hashed storage names', async () => {
   const root = createMemoryDirectoryHandle('PersonalSpace')
   const state = {
     ...defaultPersonalSpaceState,
@@ -21,23 +21,23 @@ test('uploaded character sprite resources require png and index json, keep origi
   }
 
   const files = [
-    new File(['png'], 'hero.png', { type: 'image/png' }),
+    new File(['webp'], 'hero.webp', { type: 'image/webp' }),
     new File(['{}'], 'index.json', { type: 'application/json' }),
   ]
   const stored = await createSpriteAssetForUpload(state, files, root)
 
   assert.equal(stored.kind, 'sprite')
-  assert.equal(stored.name, 'hero.png')
+  assert.equal(stored.name, 'hero.webp')
   assert.equal(stored.groupName, '默认分组')
   assert.equal(stored.storageResourcePaths.length, files.length)
-  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.png$/)
+  assert.match(stored.storageResourcePaths[0]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.webp$/)
   assert.match(stored.storageResourcePaths[1]!, /^PersonalSpace\/精灵图\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.json$/)
-  assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /hero\.png|index\.json/)
+  assert.doesNotMatch(stored.storageResourcePaths.join('\n'), /hero\.webp|index\.json/)
   assert.equal(await root.readText(stored.storageResourcePaths[0]!.replace(/^PersonalSpace\//, '')), await files[0]!.text())
   assert.equal(await root.readText(stored.storageResourcePaths[1]!.replace(/^PersonalSpace\//, '')), await files[1]!.text())
   await assert.rejects(
     () => createSpriteAssetForUpload(state, [new File(['{}'], 'index.json')], null),
-    /请选择一个 PNG 精灵图和一个 index\.json/,
+    /请选择一个 PNG 或 WebP 精灵图和一个 index\.json/,
   )
 })
 

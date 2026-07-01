@@ -57,11 +57,14 @@ export function OutputWorkspacePanel({
 
       <ExportPanel
         columns={spriteExport.columns}
+        exportEncoding={spriteExport.exportEncoding}
         visibleFrameCount={playback.visibleFrames.length}
         exporting={spriteExport.exporting}
         personalSpaceCollectEnabled={personalSpaceCollectEnabled}
         personalSpaceCollectDisabledReason={personalSpaceCollectDisabledReason}
         onColumnsChange={spriteExport.setColumns}
+        onExportFormatChange={spriteExport.setExportFormat}
+        onOptimizePngChange={spriteExport.setOptimizePng}
         onExport={() => void spriteExport.exportAll()}
         onCollectToPersonalSpace={() => void spriteExport.collectToPersonalSpace()}
         onCollectToPersonalSpaceWithCharacter={spriteExport.openCollectCharacterDialog}

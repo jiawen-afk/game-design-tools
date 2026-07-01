@@ -35,9 +35,12 @@ export function createSpriteUploadBatch(fileEntries: Array<UploadFileEntry | Fil
     if (isFileLike(item)) return [item]
     return []
   })
-  const hasPng = files.some((file) => file.name.toLowerCase().endsWith('.png'))
+  const hasSpriteImage = files.some((file) => {
+    const name = file.name.toLowerCase()
+    return name.endsWith('.png') || name.endsWith('.webp')
+  })
   const hasIndexJson = files.some((file) => file.name.toLowerCase() === 'index.json')
-  if (!hasPng || !hasIndexJson) return null
+  if (!hasSpriteImage || !hasIndexJson) return null
   return {
     files,
     batchKey: files.map((file) => `${file.name}:${file.size}`).sort().join('|'),

@@ -12,6 +12,8 @@ export interface MultiFrameSpriteIndexInput {
   columns: number
   fps: number
   playbackMode: PlaybackMode
+  image?: string
+  format?: 'png' | 'webp'
   frames: SpriteIndexFrameInput[]
 }
 
@@ -28,6 +30,8 @@ export interface MultiFrameSpriteIndexFrame {
 
 export interface MultiFrameSpriteIndex {
   version: '1.0'
+  image: string
+  format: 'png' | 'webp'
   frame_size: { w: number; h: number }
   sheet_size: { w: number; h: number }
   fps: number
@@ -85,6 +89,8 @@ export function buildMultiFrameSpriteIndex(input: MultiFrameSpriteIndexInput): M
 
   return {
     version: '1.0',
+    image: input.image ?? 'sprite.png',
+    format: input.format ?? 'png',
     frame_size: { w: frameW, h: frameH },
     sheet_size: { w: cols * frameW, h: rows * frameH },
     fps,

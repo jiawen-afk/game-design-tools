@@ -7,6 +7,7 @@ import type { PlaybackMode } from './playbackModel'
 import type { FrameItem } from './types'
 import type { SpriteUpscaleExportPlan, SpriteUpscaleResultMap } from './spriteUpscaleModel'
 import type { UpscaleOptions } from '../ImageProcessingWorkspace/imageUpscaleModel'
+import type { ImageExportEncodingSettings } from '../ImageProcessingWorkspace/imageProcessingModel'
 import {
   assignAssetToCharacterColumn,
   collectPersonalSpaceAsset,
@@ -19,9 +20,11 @@ import { showCurrentProjectSpaceSyncWarning } from '../PersonalSpaceWorkspace/pr
 import { getPersonalSpaceDirectoryHandle } from '../PersonalSpaceWorkspace/personalSpaceFileStorage'
 import { writeAssetResourcesWithGeneratedCoverToDirectory } from '../PersonalSpaceWorkspace/personalSpaceResourceActions'
 import { personalSpaceDirectoryRequiredMessage } from '../PersonalSpaceWorkspace/usePersonalSpaceDirectoryAuthorization'
+import { getDesktopApi } from '../../desktopApi'
 
 interface UseSpriteCollectWorkflowParams {
   columns: number
+  exportEncoding: ImageExportEncodingSettings
   fps: number
   playbackMode: PlaybackMode
   upscaleOptions?: UpscaleOptions
@@ -33,6 +36,7 @@ interface UseSpriteCollectWorkflowParams {
 
 export function useSpriteCollectWorkflow({
   columns,
+  exportEncoding,
   fps,
   playbackMode,
   upscaleOptions,
@@ -47,9 +51,10 @@ export function useSpriteCollectWorkflow({
 
   const spriteExportSourceKey = (exportPlan: SpriteUpscaleExportPlan<FrameItem>) => `sprite-export:${hashText(JSON.stringify({
     canvasWidth: exportPlan.canvasWidth,
-    canvasHeight: exportPlan.canvasHeight,
-    columns: clampInt(columns, 1, Math.max(1, visibleFrames.length)),
-    fps,
+      canvasHeight: exportPlan.canvasHeight,
+      columns: clampInt(columns, 1, Math.max(1, visibleFrames.length)),
+      exportEncoding,
+      fps,
     playbackMode,
     upscale: exportPlan.usingUpscale ? {
       mode: exportPlan.upscaleMode,
@@ -87,27 +92,29 @@ export function useSpriteCollectWorkflow({
     }
     setExporting(true)
     try {
-      const { spriteBlob, indexJson } = await buildSpriteExportPackage({
+      const { spriteBlob, indexJson, spriteFileName, spriteMimeType } = await buildSpriteExportPackage({
         columns,
         visibleFrames: exportPlan.visibleFrames,
         canvasWidth: exportPlan.canvasWidth,
         canvasHeight: exportPlan.canvasHeight,
         fps,
         playbackMode,
+        exportEncoding,
+        encoderApi: getDesktopApi(),
       })
       const spritePath = URL.createObjectURL(spriteBlob)
       const indexBlob = new Blob([indexJson], { type: 'application/json' })
       const indexPath = URL.createObjectURL(indexBlob)
       const space = readCurrentProjectSpaceState()
       const baseAsset = createSpriteAssetFromExport({
-        name: 'sprite.png',
+        name: spriteFileName,
         spritePath,
         indexPath,
         sourceKey: spriteExportSourceKey(exportPlan),
       })
-      const spriteFile = new File([spriteBlob], 'sprite.png', { type: spriteBlob.type || 'image/png' })
+      const spriteFile = new File([spriteBlob], spriteFileName, { type: spriteBlob.type || spriteMimeType })
       const asset = await writeAssetResourcesWithGeneratedCoverToDirectory(space, directoryHandle, baseAsset, spriteFile, [
-        { name: 'sprite.png', data: spriteFile },
+        { name: spriteFileName, data: spriteFile },
         { name: 'index.json', data: indexBlob },
       ])
       let nextSpace = collectPersonalSpaceAsset(space, asset)

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import type { ImageExportSaveApi, LoadedImageDraft, ProcessedImageDraft } from './imageProcessingPipeline'
 import {
+  encodeImageExportBlob,
   revokeImageObjectUrl,
   revokeLoadedImageDraftUrl,
   revokeProcessedImageDraftUrl,
@@ -103,4 +104,38 @@ test('image processing pipeline falls back to browser download and revokes the e
 
   assert.deepEqual(clickedDownloads, ['hero.webp:blob://export'])
   assert.deepEqual(revokedUrls, ['blob://export'])
+})
+
+test('image processing pipeline uses desktop encoder for lossless WebP output', async () => {
+  const sourceBlob = new Blob(['png-data'], { type: 'image/png' })
+  const encoded = await encodeImageExportBlob('hero-processed.webp', sourceBlob, {
+    format: 'webp-lossless',
+    optimizePng: false,
+  }, {
+    saveFile: async () => null,
+    encodeImage: async (options) => {
+      assert.equal(options.inputName, 'hero-processed.webp')
+      assert.equal(options.encoder, 'cwebp-lossless')
+      assert.equal(new TextDecoder().decode(options.data), 'png-data')
+      return {
+        name: 'hero-processed.webp',
+        mimeType: 'image/webp',
+        data: new TextEncoder().encode('webp-data'),
+      }
+    },
+  })
+
+  assert.equal(encoded.fileName, 'hero-processed.webp')
+  assert.equal(encoded.blob.type, 'image/webp')
+  assert.equal(await encoded.blob.text(), 'webp-data')
+})
+
+test('image processing pipeline requires desktop encoder for lossless WebP output', async () => {
+  await assert.rejects(
+    encodeImageExportBlob('hero-processed.webp', new Blob(['png-data']), {
+      format: 'webp-lossless',
+      optimizePng: false,
+    }, null),
+    /当前桌面版本缺少内置图片编码能力/
+  )
 })

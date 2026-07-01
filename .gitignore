@@ -7,3 +7,4 @@ dist
 *.tsbuildinfo
 .codegraph
 *.log
+scripts/image-encoders/

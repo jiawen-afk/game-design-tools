@@ -1,6 +1,7 @@
 import type { DesktopAppUpdateApi } from './desktopAppUpdateApi'
 import type { DesktopBirefnetApi } from './desktopBirefnetApi'
 import type { DesktopFileSystemApi } from './desktopFileSystemApi'
+import type { DesktopImageEncodingApi } from './desktopImageEncodingApi'
 import type { DesktopProjectObjectApi } from './desktopProjectObjectApi'
 import type { DesktopProjectProfileApi } from './desktopProjectProfileApi'
 import type { DesktopProjectRepositoryApi } from './desktopProjectRepositoryApi'
@@ -21,6 +22,11 @@ export type {
   DesktopBirefnetSetupOptions,
   DesktopBirefnetSetupResult,
 } from './desktopBirefnetApi'
+export type {
+  DesktopImageEncodingApi,
+  DesktopImageEncodingOptions,
+  DesktopImageEncodingResult,
+} from './desktopImageEncodingApi'
 export type {
   DesktopDirectoryInfo,
   DesktopFileInfo,
@@ -64,6 +70,7 @@ export interface GameDesignToolsDesktopApi extends
   DesktopSystemApi,
   DesktopVoiceRuntimeApi,
   DesktopBirefnetApi,
+  DesktopImageEncodingApi,
   DesktopUpscaleApi,
   DesktopProjectProfileApi,
   DesktopProjectRepositoryApi,

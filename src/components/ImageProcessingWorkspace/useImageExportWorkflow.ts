@@ -3,13 +3,16 @@ import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
+  getImageExportEncodingInfo,
   resolveImageExportTarget,
   type CropBox,
+  type ImageExportEncodingSettings,
   type ImageExportFormat,
   type ImageSourceLike,
   type RectSize,
 } from './imageProcessingModel'
 import {
+  encodeImageExportBlob,
   exportProcessedImage,
   saveImageExportBlob,
 } from './imageProcessingPipeline'
@@ -18,6 +21,7 @@ interface UseImageExportWorkflowOptions {
   activeImageSource: ImageSourceLike | null
   crop: CropBox | null
   exportFormat: ImageExportFormat
+  exportEncoding: ImageExportEncodingSettings
   exportName: string
   exportSize: RectSize
   upscaleEnabled: boolean
@@ -28,6 +32,7 @@ export function useImageExportWorkflow({
   activeImageSource,
   crop,
   exportFormat,
+  exportEncoding,
   exportName,
   exportSize,
   upscaleEnabled,
@@ -40,15 +45,19 @@ export function useImageExportWorkflow({
     if (!exportTarget) return
     setExporting(true)
     try {
-      const exportBlob = await exportProcessedImage(exportTarget.sourceUrl, exportTarget.crop, exportFormat, exportSize)
-      await saveImageExportBlob(exportName, exportBlob, getDesktopApi())
+      const encodingInfo = getImageExportEncodingInfo(exportEncoding)
+      const renderFormat = encodingInfo.requiresDesktopEncoding ? 'png' : exportFormat
+      const exportBlob = await exportProcessedImage(exportTarget.sourceUrl, exportTarget.crop, renderFormat, exportSize)
+      const desktopApi = getDesktopApi()
+      const encoded = await encodeImageExportBlob(exportName, exportBlob, exportEncoding, desktopApi)
+      await saveImageExportBlob(encoded.fileName, encoded.blob, desktopApi)
       message.success('图片已导出')
     } catch (error) {
       message.error(`导出失败：${String(error)}`)
     } finally {
       setExporting(false)
     }
-  }, [activeImageSource, crop, exportFormat, exportName, exportSize, upscaleEnabled, upscalePreview])
+  }, [activeImageSource, crop, exportEncoding, exportFormat, exportName, exportSize, upscaleEnabled, upscalePreview])
 
   return {
     exporting,

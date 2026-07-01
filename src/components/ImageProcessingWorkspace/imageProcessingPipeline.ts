@@ -3,12 +3,16 @@ import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 import {
   clampCropBox,
   getExportFormatInfo,
+  getImageExportEncodingInfo,
   sampleImagePixel,
   type CropBox,
+  type ImageExportEncodingSettings,
   type ImageExportFormat,
   type Point,
   type RectSize,
 } from './imageProcessingModel'
+import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
+import type { GameDesignToolsDesktopApi } from '../../desktopApi'
 
 export interface LoadedImageDraft {
   file: File
@@ -31,6 +35,11 @@ export interface ImageExportSavedFile {
 
 export interface ImageExportSaveApi {
   saveFile: (fileName: string, data: ArrayBuffer) => Promise<ImageExportSavedFile | null>
+}
+
+export interface EncodedImageExport {
+  fileName: string
+  blob: Blob
 }
 
 export function revokeImageObjectUrl(url: string | null | undefined) {
@@ -129,6 +138,30 @@ export async function saveImageExportBlob(fileName: string, blob: Blob, api?: Im
     anchor.click()
   } finally {
     revokeImageObjectUrl(url)
+  }
+}
+
+export async function encodeImageExportBlob(
+  fileName: string,
+  pngBlob: Blob,
+  settings: ImageExportEncodingSettings,
+  api?: Partial<GameDesignToolsDesktopApi> | null,
+): Promise<EncodedImageExport> {
+  const encodingInfo = getImageExportEncodingInfo(settings)
+  if (!encodingInfo.requiresDesktopEncoding || !encodingInfo.desktopEncoder) {
+    return { fileName, blob: pngBlob.type === encodingInfo.mimeType ? pngBlob : new Blob([await pngBlob.arrayBuffer()], { type: encodingInfo.mimeType }) }
+  }
+  if (!api?.encodeImage) {
+    throw new Error('当前桌面版本缺少内置图片编码能力，无法导出该格式。')
+  }
+  const result = await api.encodeImage({
+    inputName: fileName,
+    encoder: encodingInfo.desktopEncoder,
+    data: await pngBlob.arrayBuffer(),
+  })
+  return {
+    fileName: result.name || fileName,
+    blob: blobFromDesktopBinaryData(result.data, result.mimeType),
   }
 }
 

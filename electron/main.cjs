@@ -13,6 +13,9 @@ const {
   registerPersonalSpaceIpcHandlers,
 } = require('./personalSpaceIpcHandlers.cjs')
 const {
+  registerImageEncodingIpcHandlers,
+} = require('./imageEncodingIpcHandlers.cjs')
+const {
   registerProjectStorageIpcHandlers,
 } = require('./projectStorageIpcHandlers.cjs')
 const {
@@ -112,6 +115,7 @@ ipcMain.handle('file:save', async (_event, fileName, data) => {
 })
 
 registerPersonalSpaceIpcHandlers({ dialog, ipcMain })
+registerImageEncodingIpcHandlers({ app, ipcMain, resolveUnpackedPath, runCommandOutput })
 registerProjectStorageIpcHandlers({ app, ipcMain })
 registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput })
 registerBirefnetIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })

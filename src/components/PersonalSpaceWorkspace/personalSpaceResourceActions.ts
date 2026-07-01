@@ -137,25 +137,28 @@ export async function createSpriteAssetForUpload(
   groupName?: string,
   options: PersonalSpaceAssetCoverOptions = {},
 ): Promise<PersonalSpaceAsset> {
-  const pngFile = files.find((file) => file.name.toLowerCase().endsWith('.png'))
+  const spriteFile = files.find((file) => {
+    const name = file.name.toLowerCase()
+    return name.endsWith('.png') || name.endsWith('.webp')
+  })
   const indexFile = files.find((file) => file.name.toLowerCase() === 'index.json')
-  if (!pngFile || !indexFile) throw new Error('请选择一个 PNG 精灵图和一个 index.json')
+  if (!spriteFile || !indexFile) throw new Error('请选择一个 PNG 或 WebP 精灵图和一个 index.json')
 
-  const spriteUrl = URL.createObjectURL(pngFile)
+  const spriteUrl = URL.createObjectURL(spriteFile)
   const indexUrl = URL.createObjectURL(indexFile)
   const baseAsset = createSpriteAssetFromExport({
-    name: pngFile.name,
+    name: spriteFile.name,
     spritePath: spriteUrl,
     indexPath: indexUrl,
     groupName,
   })
   const storedAsset = directoryHandle
     ? await writeAssetResourcesToDirectory(directoryHandle, baseAsset, [
-      { name: pngFile.name || 'sprite.png', data: pngFile },
+      { name: spriteFile.name || 'sprite.png', data: spriteFile },
       { name: 'index.json', data: indexFile },
     ])
     : archiveAssetForStorageDirectory(state, baseAsset)
-  return attachUploadCover(state, storedAsset, pngFile, directoryHandle, options)
+  return attachUploadCover(state, storedAsset, spriteFile, directoryHandle, options)
 }
 
 export async function deleteAssetWithOptionalResources(

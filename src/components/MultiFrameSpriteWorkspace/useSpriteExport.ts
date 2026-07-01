@@ -10,6 +10,10 @@ import {
   type SpriteUpscaleResultMap,
 } from './spriteUpscaleModel'
 import type { UpscaleOptions } from '../ImageProcessingWorkspace/imageUpscaleModel'
+import {
+  defaultImageExportEncoding,
+  type ImageExportEncodingFormat,
+} from '../ImageProcessingWorkspace/imageProcessingModel'
 import { buildSpriteExportPackage } from './spriteExportPackage'
 import { useSpriteCollectWorkflow } from './useSpriteCollectWorkflow'
 import { getDesktopApi } from '../../desktopApi'
@@ -50,7 +54,19 @@ export function useSpriteExport({
   upscaleOptions,
 }: UseSpriteExportParams) {
   const [columns, setColumns] = useState(4)
+  const [exportEncoding, setExportEncoding] = useState(defaultImageExportEncoding)
   const [exporting, setExporting] = useState(false)
+
+  const setExportFormat = (format: ImageExportEncodingFormat) => {
+    setExportEncoding((current) => ({
+      format,
+      optimizePng: format === 'png' ? current.optimizePng : false,
+    }))
+  }
+
+  const setOptimizePng = (optimizePng: boolean) => {
+    setExportEncoding((current) => ({ ...current, optimizePng }))
+  }
 
   const buildExportPlan = (): SpriteUpscaleExportPlan<FrameItem> => buildSpriteUpscaleExportPlan(
     visibleFrames,
@@ -90,16 +106,19 @@ export function useSpriteExport({
     setExporting(true)
     try {
       const { default: JSZip } = await import('jszip')
-      const { spriteBlob, indexJson } = await buildSpriteExportPackage({
+      const desktopApi = getDesktopApi()
+      const { spriteBlob, indexJson, spriteFileName } = await buildSpriteExportPackage({
         columns,
         visibleFrames: exportPlan.visibleFrames,
         canvasWidth: exportPlan.canvasWidth,
         canvasHeight: exportPlan.canvasHeight,
         fps,
         playbackMode,
+        exportEncoding,
+        encoderApi: desktopApi,
       })
       const zip = new JSZip()
-      zip.file('sprite.png', spriteBlob)
+      zip.file(spriteFileName, spriteBlob)
       zip.file('index.json', indexJson)
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       await saveExportFile('sprite_export.zip', zipBlob)
@@ -114,6 +133,7 @@ export function useSpriteExport({
   const collectWorkflow = useSpriteCollectWorkflow({
     fps,
     columns,
+    exportEncoding,
     playbackMode,
     upscaleOptions,
     upscaleResultsByFrameId,
@@ -125,6 +145,9 @@ export function useSpriteExport({
   return {
     columns,
     setColumns,
+    exportEncoding,
+    setExportFormat,
+    setOptimizePng,
     exporting,
     exportAll,
     ...collectWorkflow,

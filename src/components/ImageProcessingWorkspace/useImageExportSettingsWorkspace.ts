@@ -1,13 +1,17 @@
 import { useCallback, useMemo, useState, type SetStateAction } from 'react'
 
 import {
-  deriveExportFileName,
+  deriveEncodedExportFileName,
+  defaultImageExportEncoding,
   getAspectRatioValue,
   getExportScaleAfterDimensionChange,
+  getImageExportEncodingInfo,
+  normalizeImageExportEncoding,
   normalizeExportScale,
   type CropBox,
   type ExportDimension,
-  type ImageExportFormat,
+  type ImageExportEncodingSettings,
+  type ImageExportEncodingFormat,
   type RectSize,
 } from './imageProcessingModel'
 
@@ -20,13 +24,22 @@ export function useImageExportSettingsWorkspace({
   crop,
   sourceName,
 }: UseImageExportSettingsWorkspaceOptions) {
-  const [exportFormat, setExportFormat] = useState<ImageExportFormat>('png')
+  const [exportEncoding, setExportEncodingState] = useState<ImageExportEncodingSettings>(defaultImageExportEncoding)
   const [exportScale, setExportScaleState] = useState(1)
+  const exportFormat = getImageExportEncodingInfo(exportEncoding).extension
   const exportName = useMemo(
-    () => deriveExportFileName(sourceName, exportFormat),
-    [sourceName, exportFormat]
+    () => deriveEncodedExportFileName(sourceName, exportEncoding),
+    [sourceName, exportEncoding]
   )
   const cropAspectRatio = useMemo(() => crop ? getAspectRatioValue(crop) : 1, [crop])
+
+  const setExportFormat = useCallback((format: ImageExportEncodingFormat) => {
+    setExportEncodingState((current) => normalizeImageExportEncoding({ ...current, format }))
+  }, [])
+
+  const setOptimizePng = useCallback((optimizePng: boolean) => {
+    setExportEncodingState((current) => normalizeImageExportEncoding({ ...current, optimizePng }))
+  }, [])
 
   const setExportScale = useCallback((value: SetStateAction<number>) => {
     setExportScaleState((current) => normalizeExportScale(
@@ -45,8 +58,10 @@ export function useImageExportSettingsWorkspace({
 
   return {
     cropAspectRatio,
+    exportEncoding,
     exportFormat,
     setExportFormat,
+    setOptimizePng,
     exportName,
     exportScale,
     setExportScale,

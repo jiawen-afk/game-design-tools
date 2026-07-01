@@ -13,28 +13,29 @@ function uploadFile(name: string, size: number) {
   return { name, size } as File
 }
 
-test('sprite upload batch requires one png and index json', () => {
+test('sprite upload batch requires one png or webp and index json', () => {
   assert.equal(createSpriteUploadBatch([uploadFile('sprite.png', 12)]), null)
+  assert.equal(createSpriteUploadBatch([uploadFile('sprite.webp', 12)]), null)
   assert.equal(createSpriteUploadBatch([uploadFile('index.json', 8)]), null)
 
   const batch = createSpriteUploadBatch([
-    uploadFile('sprite.png', 12),
+    uploadFile('sprite.webp', 12),
     uploadFile('index.json', 8),
   ])
 
-  assert.deepEqual(batch?.files.map((file) => file.name), ['sprite.png', 'index.json'])
-  assert.equal(batch?.batchKey, 'index.json:8|sprite.png:12')
+  assert.deepEqual(batch?.files.map((file) => file.name), ['sprite.webp', 'index.json'])
+  assert.equal(batch?.batchKey, 'index.json:8|sprite.webp:12')
 })
 
-test('sprite upload batch accepts uppercase png and ignores entries without files', () => {
+test('sprite upload batch accepts uppercase sprite image extensions and ignores entries without files', () => {
   const batch = createSpriteUploadBatch([
     null,
-    uploadFile('HERO.PNG', 20),
+    uploadFile('HERO.WEBP', 20),
     uploadFile('index.json', 5),
   ])
 
-  assert.deepEqual(batch?.files.map((file) => file.name), ['HERO.PNG', 'index.json'])
-  assert.equal(batch?.batchKey, 'HERO.PNG:20|index.json:5')
+  assert.deepEqual(batch?.files.map((file) => file.name), ['HERO.WEBP', 'index.json'])
+  assert.equal(batch?.batchKey, 'HERO.WEBP:20|index.json:5')
 })
 
 test('sprite upload batch unwraps upload file entries before reading object URLs', () => {
