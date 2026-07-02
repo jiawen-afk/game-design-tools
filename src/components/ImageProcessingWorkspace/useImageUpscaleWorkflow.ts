@@ -39,6 +39,7 @@ interface UseImageUpscaleWorkflowOptions {
   exportName: string
   exportScale: number
   setExportScale: (value: SetStateAction<number>) => void
+  onPreviewGenerated?: () => void
 }
 
 export function useImageUpscaleWorkflow({
@@ -49,6 +50,7 @@ export function useImageUpscaleWorkflow({
   exportName,
   exportScale,
   setExportScale,
+  onPreviewGenerated,
 }: UseImageUpscaleWorkflowOptions) {
   const [upscaleEnabled, setUpscaleEnabled] = useState(false)
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
@@ -164,13 +166,14 @@ export function useImageUpscaleWorkflow({
         upscaleOptions,
       }
       setExportScale(1)
+      onPreviewGenerated?.()
       message.success('高清化预览已生成')
     } catch (error) {
       message.error(`高清化失败：${String(error)}`)
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [activeImageSource, crop, cropPreview, exportFormat, exportName, exportScale, exportSize, setExportScale, upscaleOptions, upscaleRuntimeStatus])
+  }, [activeImageSource, crop, cropPreview, exportFormat, exportName, exportScale, exportSize, onPreviewGenerated, setExportScale, upscaleOptions, upscaleRuntimeStatus])
 
   return {
     upscaleEnabled,
@@ -187,6 +190,7 @@ export function useImageUpscaleWorkflow({
     queryUpscaleStatus,
     installUpscaleRuntime,
     runUpscalePreview,
+    clearUpscalePreview,
     resetUpscale,
   }
 }

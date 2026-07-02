@@ -43,7 +43,7 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(stageSource, /image-upscale-compare-label/)
   assert.match(stageSource, /处理前/)
   assert.match(stageSource, /处理后/)
-  assert.match(stageSource, /workspace\.upscalePreview/)
+  assert.match(stageSource, /workspace\.activeUpscalePreview/)
   assert.match(desktopUpscaleApiSource, /queryUpscaleStatus/)
   assert.match(desktopUpscaleApiSource, /installUpscaleRuntime/)
   assert.match(desktopUpscaleApiSource, /upscaleImage/)
@@ -64,24 +64,28 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(packageSource, /imageUpscaleModel\.test\.ts/)
 })
 
-test('image processing resets stale upscale enhancement when replacing the image', () => {
+test('image processing resets stale upscale enhancement when adding or switching images', () => {
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
   const sourceHookPath = 'src/components/ImageProcessingWorkspace/useImageSourceWorkspace.ts'
   const sourceHookSource = existsSync(sourceHookPath) ? readFileSync(sourceHookPath, 'utf8') : hookSource
   const upscaleHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageUpscaleWorkflow.ts', 'utf8')
-  const uploadStart = sourceHookSource.indexOf('const uploadImage = async')
+  const uploadStart = sourceHookSource.indexOf('const uploadImages = async')
+  const selectStart = sourceHookSource.indexOf('const selectBatchImage = useCallback')
   const resetStart = sourceHookSource.indexOf('const resetWorkspace = useCallback')
-  const uploadSource = sourceHookSource.slice(uploadStart, resetStart)
+  const uploadSource = sourceHookSource.slice(uploadStart, selectStart)
+  const selectSource = sourceHookSource.slice(selectStart, resetStart)
   const resetSource = sourceHookSource.slice(resetStart)
 
   assert.notEqual(uploadStart, -1)
+  assert.notEqual(selectStart, -1)
   assert.notEqual(resetStart, -1)
-  assert.match(uploadSource, /resetUpscale\(false\)/)
+  assert.match(sourceHookSource, /const clearActiveProcessingState = useCallback/)
+  assert.match(sourceHookSource, /resetUpscale\(false\)/)
+  assert.match(sourceHookSource, /clearUpscalePreview\(\)/)
+  assert.match(uploadSource, /clearActiveProcessingState\(true\)/)
+  assert.match(selectSource, /clearActiveProcessingState\(false\)/)
   assert.match(resetSource, /resetUpscale\(false\)/)
-  assert.ok(
-    uploadSource.indexOf('resetUpscale(false)') < uploadSource.indexOf('setExportScale(1)'),
-    'uploading a new image should clear the old upscale scale snapshot before forcing export scale back to 1',
-  )
+  assert.match(uploadSource, /setExportScale\(1\)/)
   assert.match(upscaleHookSource, /const clearUpscalePreview = useCallback/)
   assert.match(upscaleHookSource, /const resetUpscale = useCallback/)
   assert.match(upscaleHookSource, /setUpscaleEnabled\(enabled\)/)

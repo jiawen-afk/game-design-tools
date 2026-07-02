@@ -162,13 +162,21 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
           ) : null}
         </div>
         <Button
+          icon={<ThunderboltOutlined />}
+          loading={workspace.batchApplying}
+          disabled={!workspace.canExport || workspace.batchImages.length === 0}
+          onClick={() => void workspace.applyAllPreviews()}
+        >
+          全部应用预览
+        </Button>
+        <Button
           type="primary"
           icon={<DownloadOutlined />}
           loading={workspace.exporting}
           disabled={!workspace.canExport}
-          onClick={() => void workspace.exportImage()}
+          onClick={() => void workspace.exportAllImages()}
         >
-          导出当前图片
+          导出所有图片
         </Button>
       </Space>
     </Card>

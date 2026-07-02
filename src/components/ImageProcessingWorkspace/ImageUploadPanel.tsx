@@ -15,10 +15,13 @@ export interface ImageUploadPanelProps {
 export function ImageUploadPanel({ workspace, variant = 'card' }: ImageUploadPanelProps) {
   const uploadProps = {
     accept: IMAGE_PROCESSING_ACCEPT.join(','),
-    multiple: false,
+    multiple: true,
     showUploadList: false,
-    beforeUpload: (file: File) => {
-      void workspace.uploadImage(file)
+    beforeUpload: (file: File, fileList: File[]) => {
+      const firstFile = fileList[0]
+      if (firstFile && file.name === firstFile.name && file.size === firstFile.size && file.lastModified === firstFile.lastModified) {
+        void workspace.uploadImages(fileList)
+      }
       return false
     },
   }
@@ -27,11 +30,11 @@ export function ImageUploadPanel({ workspace, variant = 'card' }: ImageUploadPan
     return (
       <div className="image-upload-compact">
         <Upload {...uploadProps}>
-          <Button icon={<UploadOutlined />}>{workspace.draft ? '替换图片' : '上传图片'}</Button>
+          <Button icon={<UploadOutlined />}>{workspace.draft ? '添加图片' : '上传图片'}</Button>
         </Upload>
         {workspace.draft ? (
           <Text type="secondary" className="image-upload-compact-name">
-            {workspace.draft.sourceName}
+            {workspace.batchImages.length > 1 ? `共 ${workspace.batchImages.length} 张` : workspace.draft.sourceName}
           </Text>
         ) : null}
       </div>
@@ -46,14 +49,14 @@ export function ImageUploadPanel({ workspace, variant = 'card' }: ImageUploadPan
           {...uploadProps}
         >
           <p className="ant-upload-drag-icon"><UploadOutlined /></p>
-          <p className="ant-upload-text">选择或拖入图片</p>
-          <p className="ant-upload-hint">WebP、JPG、JPEG、PNG</p>
+          <p className="ant-upload-text">选择或拖入一组图片</p>
+          <p className="ant-upload-hint">WebP、JPG、JPEG、PNG，可一次添加多张</p>
         </Dragger>
 
         {workspace.draft ? (
           <div className="image-file-summary">
             <Text strong>{workspace.draft.sourceName}</Text>
-            <Text type="secondary">{workspace.draft.width} × {workspace.draft.height} · {workspace.processing ? '抠图处理中' : '已载入'}</Text>
+            <Text type="secondary">{workspace.draft.width} × {workspace.draft.height} · 共 {workspace.batchImages.length} 张 · {workspace.processing ? '抠图处理中' : '已载入'}</Text>
           </div>
         ) : (
           <Text type="secondary">上传后可在右侧预览中取色、缩放和裁剪。</Text>

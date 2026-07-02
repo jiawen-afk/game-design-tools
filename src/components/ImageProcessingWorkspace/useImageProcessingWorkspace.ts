@@ -33,10 +33,13 @@ export type ImageProcessingWorkspaceViewModel = ReturnType<typeof useImageProces
 
 export function useImageProcessingWorkspace() {
   const [draft, setDraft] = useState<LoadedImageDraft | null>(null)
+  const [batchImages, setBatchImages] = useState<ReturnType<typeof useImageSourceWorkspace>['batchImages']>([])
+  const [activeBatchImageId, setActiveBatchImageId] = useState<string | null>(null)
   const [matte, setMatte] = useState<MatteParams>(DEFAULT_MATTE)
   const [matteEnabled, setMatteEnabled] = useState(true)
   const [crop, setCrop] = useState<CropBox | null>(null)
   const [cropMode, setCropMode] = useState(false)
+  const [upscaleCompareEnabled, setUpscaleCompareEnabled] = useState(false)
   const {
     previewZoom,
     previewPan,
@@ -110,6 +113,7 @@ export function useImageProcessingWorkspace() {
     queryUpscaleStatus,
     installUpscaleRuntime,
     runUpscalePreview,
+    clearUpscalePreview,
     resetUpscale,
     exportBaseSize,
     exportSize,
@@ -121,27 +125,56 @@ export function useImageProcessingWorkspace() {
     exportName,
     exportScale,
     setExportScale,
+    onPreviewGenerated: () => setUpscaleCompareEnabled(true),
   })
   const {
     exporting,
-    exportImage,
+    batchApplying,
+    batchUpscalePreview,
+    applyAllPreviews,
+    exportAllImages,
   } = useImageExportWorkflow({
     activeImageSource,
+    activeBatchImageId,
+    batchImages,
     crop,
     exportFormat,
     exportEncoding,
     exportName,
     exportSize,
+    exportScale,
+    matte,
+    matteEnabled,
     upscaleEnabled,
+    upscaleOptions,
+    upscaleRuntimeStatus,
     upscalePreview,
+    setUpscaleCompareEnabled,
   })
-  const { resetWorkspace, uploadImage } = useImageSourceWorkspace({
+  const setUpscaleEnabled = (enabled: boolean) => {
+    updateUpscaleEnabled(enabled)
+    if (!enabled) setUpscaleCompareEnabled(false)
+  }
+  const displayedUpscalePreview = upscaleEnabled ? upscalePreview ?? batchUpscalePreview : null
+  const {
+    resetWorkspace,
+    selectBatchImage,
+    uploadImage,
+    uploadImages,
+  } = useImageSourceWorkspace({
     draft,
     setDraft,
+    batchImages,
+    setBatchImages,
+    activeBatchImageId,
+    setActiveBatchImageId,
     clearCropPreview,
     clearProcessed,
     resetPreviewTransform,
     resetUpscale,
+    clearUpscalePreview,
+    setUpscaleCompareEnabled,
+    crop,
     setCrop,
     setCropDraftRect,
     setCropDrag,
@@ -161,6 +194,9 @@ export function useImageProcessingWorkspace() {
 
   return {
     draft,
+    batchImages,
+    activeBatchImageId,
+    selectBatchImage,
     matte,
     matteEnabled,
     setMatteEnabled,
@@ -191,14 +227,17 @@ export function useImageProcessingWorkspace() {
     exportScale,
     setExportScale,
     upscaleEnabled,
-    setUpscaleEnabled: updateUpscaleEnabled,
+    setUpscaleEnabled,
     upscaleOptions,
     updateUpscaleOptions,
     upscaleRuntimeStatus,
     upscaleInstallProgress,
     upscaleInstalling,
     upscaleProcessing,
-    upscalePreview,
+    activeUpscalePreview: displayedUpscalePreview,
+    upscalePreview: displayedUpscalePreview,
+    upscaleCompareEnabled,
+    setUpscaleCompareEnabled,
     queryUpscaleStatus,
     installUpscaleRuntime,
     runUpscalePreview,
@@ -206,16 +245,20 @@ export function useImageProcessingWorkspace() {
     cropAspectRatio,
     exportName,
     processing,
+    batchApplying,
     exporting,
     canExport,
     minCropSize: MIN_IMAGE_CROP_SIZE,
     uploadImage,
+    uploadImages,
     updateMatte,
     handleWheelZoom,
     resetPreviewTransform,
     resetWorkspace,
     updateCropAspectRatio,
     pickKeyColorFromSource,
-    exportImage,
+    applyAllPreviews,
+    exportImage: exportAllImages,
+    exportAllImages,
   }
 }

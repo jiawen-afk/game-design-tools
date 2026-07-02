@@ -17,7 +17,7 @@ type CropHandle = NonNullable<ImageProcessingWorkspaceViewModel['cropDrag']>['ha
 
 export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
   const [comparePosition, setComparePosition] = useState(50)
-  const { uploadImage } = workspace
+  const { uploadImages } = workspace
   const {
     boxRef,
     layerRef,
@@ -33,7 +33,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
     previewZoom: workspace.previewZoom,
     setCropPreviewContainerSize: workspace.setCropPreviewContainerSize,
     handleWheelZoom: workspace.handleWheelZoom,
-    uploadImage,
+    uploadImages,
   })
 
   const imageRect = workspace.previewImageRect
@@ -69,6 +69,16 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
             onChange={workspace.setCropMode}
           />
           <Text type="secondary">{workspace.cropMode ? '裁剪模式' : workspace.matteEnabled ? '取色模式' : '原图预览'}</Text>
+          {workspace.activeUpscalePreview ? (
+            <Space size={6}>
+              <Text type="secondary">高清化对比</Text>
+              <Switch
+                size="small"
+                checked={workspace.upscaleCompareEnabled}
+                onChange={workspace.setUpscaleCompareEnabled}
+              />
+            </Space>
+          ) : null}
         </Space>
         <Space size={10} className="image-preview-zoom">
           <Text>缩放 {workspace.previewZoom.toFixed(2)}x</Text>
@@ -91,24 +101,24 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
       >
         {dragDepth > 0 ? (
           <div className="image-preview-drop-overlay">
-            <Text strong>拖入图片替换</Text>
-            <Text type="secondary">松开后载入 WebP、JPG、JPEG 或 PNG</Text>
+            <Text strong>拖入图片添加到待处理列表</Text>
+            <Text type="secondary">松开后载入 WebP、JPG、JPEG 或 PNG，可一次添加多张</Text>
           </div>
         ) : null}
-        {workspace.upscalePreview ? (
+        {workspace.upscaleCompareEnabled && workspace.activeUpscalePreview ? (
           <div className="image-upscale-compare">
             <div
               className="image-upscale-compare-after"
               style={{ clipPath: `inset(0 0 0 ${comparePosition}%)` }}
             >
-              <img src={workspace.upscalePreview.url} alt="高清化结果" />
+              <img src={workspace.activeUpscalePreview.url} alt="高清化结果" />
               <span className="image-upscale-compare-label image-upscale-compare-label-after">处理后</span>
             </div>
             <div
               className="image-upscale-compare-before"
               style={{ clipPath: `inset(0 ${100 - comparePosition}% 0 0)` }}
             >
-              <img src={workspace.upscalePreview.originalUrl} alt="普通导出预览" />
+              <img src={workspace.activeUpscalePreview.originalUrl} alt="普通导出预览" />
               <span className="image-upscale-compare-label image-upscale-compare-label-before">处理前</span>
             </div>
             <div className="image-upscale-compare-line" style={{ left: `${comparePosition}%` }} />
@@ -122,7 +132,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
             />
           </div>
         ) : null}
-        {!workspace.upscalePreview && workspace.draft && imageRect ? (
+        {(!workspace.upscaleCompareEnabled || !workspace.activeUpscalePreview) && workspace.draft && imageRect ? (
           <div
             className="image-preview-stage-layer"
             ref={layerRef}

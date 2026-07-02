@@ -9,7 +9,7 @@ interface UseImagePreviewStageInteractionsOptions {
   previewZoom: number
   setCropPreviewContainerSize: (size: RectSize) => void
   handleWheelZoom: (deltaY: number, anchor?: Point) => void
-  uploadImage: (file: File) => void | Promise<void>
+  uploadImages: (files: File[]) => void | Promise<void>
 }
 
 export function useImagePreviewStageInteractions({
@@ -18,7 +18,7 @@ export function useImagePreviewStageInteractions({
   previewZoom,
   setCropPreviewContainerSize,
   handleWheelZoom,
-  uploadImage,
+  uploadImages,
 }: UseImagePreviewStageInteractionsOptions) {
   const boxRef = useRef<HTMLDivElement | null>(null)
   const layerRef = useRef<HTMLDivElement | null>(null)
@@ -88,8 +88,8 @@ export function useImagePreviewStageInteractions({
     if (!hasDraggedFiles(event)) return
     event.preventDefault()
     setDragDepth(0)
-    const [file] = Array.from(event.dataTransfer.files)
-    if (file) void uploadImage(file)
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length > 0) void uploadImages(files)
   }
 
   return {

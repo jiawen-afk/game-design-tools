@@ -46,3 +46,74 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.image-batch-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.image-batch-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.image-batch-items {
+  display: grid;
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.image-batch-item.ant-btn {
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  justify-content: start;
+  padding: 6px;
+  text-align: left;
+}
+
+.image-batch-item img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  background:
+    linear-gradient(45deg, color-mix(in oklch, var(--color-line) 45%, white) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in oklch, var(--color-line) 45%, white) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in oklch, var(--color-line) 45%, white) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in oklch, var(--color-line) 45%, white) 75%);
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  background-size: 12px 12px;
+}
+
+.image-batch-item span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.image-batch-item .ant-typography {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.image-batch-empty {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel-strong);
+}

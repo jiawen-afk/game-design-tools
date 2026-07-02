@@ -2,6 +2,7 @@ import { Card, ColorPicker, Slider, Space, Switch, Typography } from 'antd'
 
 import { hexToRgb, rgbToHex } from '../MultiFrameSpriteWorkspace/imagePipeline'
 import { normalizePickerColor } from '../MultiFrameSpriteWorkspace/matteModel'
+import { ImageBatchListPanel } from './ImageBatchListPanel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -78,6 +79,7 @@ export function ImageMattePanel({ workspace }: ImageMattePanelProps) {
           />
         </label>
         <Text type="secondary">参数调整会自动刷新处理结果。JPEG 导出会自动铺白底。</Text>
+        <ImageBatchListPanel workspace={workspace} />
       </Space>
     </Card>
   )
