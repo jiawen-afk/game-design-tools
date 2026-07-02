@@ -49,15 +49,7 @@
 
 .image-batch-list {
   display: grid;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.image-batch-list-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .image-batch-items {

@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 
 test('image processing workspace exposes batch upload and pending image list controls', () => {
   const mattePanelSource = readFileSync('src/components/ImageProcessingWorkspace/ImageMattePanel.tsx', 'utf8')
+  const workspaceSource = readFileSync('src/components/ImageProcessingWorkspace/index.tsx', 'utf8')
   const uploadPanelSource = readFileSync('src/components/ImageProcessingWorkspace/ImageUploadPanel.tsx', 'utf8')
   const batchListPath = 'src/components/ImageProcessingWorkspace/ImageBatchListPanel.tsx'
 
@@ -12,8 +13,10 @@ test('image processing workspace exposes batch upload and pending image list con
 
   assert.match(uploadPanelSource, /multiple:\s*true/)
   assert.match(uploadPanelSource, /uploadImages/)
-  assert.match(mattePanelSource, /from '\.\/ImageBatchListPanel'/)
-  assert.match(mattePanelSource, /<ImageBatchListPanel/)
+  assert.match(workspaceSource, /from '\.\/ImageBatchListPanel'/)
+  assert.match(workspaceSource, /<ImageBatchListPanel workspace=\{workspace\} \/>/)
+  assert.doesNotMatch(mattePanelSource, /from '\.\/ImageBatchListPanel'/)
+  assert.doesNotMatch(mattePanelSource, /<ImageBatchListPanel/)
   assert.match(batchListSource, /待处理图片/)
   assert.match(batchListSource, /batchImages\.map/)
   assert.match(batchListSource, /selectBatchImage/)

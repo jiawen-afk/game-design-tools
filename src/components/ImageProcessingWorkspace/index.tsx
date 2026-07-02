@@ -1,5 +1,6 @@
 import { Tabs } from 'antd'
 
+import { ImageBatchListPanel } from './ImageBatchListPanel'
 import { ImageCropPanel } from './ImageCropPanel'
 import { ImageCropResultStage } from './ImageCropResultStage'
 import { ImageExportPanel } from './ImageExportPanel'
@@ -22,6 +23,7 @@ export default function ImageProcessingWorkspace() {
       <ImageProcessingToolbar workspace={workspace} />
       <div className="image-processing-grid">
         <div className="image-processing-side">
+          <ImageBatchListPanel workspace={workspace} />
           <Tabs className="image-processing-tabs" defaultActiveKey="matte" items={controlTabs} />
         </div>
         <div className="image-processing-main">

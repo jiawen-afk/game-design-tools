@@ -49,11 +49,14 @@
 }
 
 .image-processing-side {
-  display: block;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
 }
 
 .image-processing-tabs {
   height: 100%;
+  min-height: 0;
 }
 
 .image-processing-tabs .ant-tabs-content-holder,
