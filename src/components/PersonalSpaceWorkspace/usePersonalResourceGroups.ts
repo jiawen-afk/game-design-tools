@@ -14,7 +14,7 @@ interface PersonalResourceGroupView {
 export function usePersonalResourceGroups(section: PersonalResourceSectionConfig) {
   const [selectedAssetIdsByGroup, setSelectedAssetIdsByGroup] = useState<Record<string, string[]>>({})
   const isVoiceSection = section.kind === 'voice'
-  const isGroupedResourceSection = section.kind === 'image' || section.kind === 'sprite' || isVoiceSection
+  const isGroupedResourceSection = section.kind === 'image' || section.kind === 'sprite' || section.kind === 'sound' || isVoiceSection
   const defaultGroupFilter = '全部分组'
   const resourceGroups: PersonalResourceGroupView[] = section.groupNames.map((groupName) => ({
     id: groupName,

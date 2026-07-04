@@ -6,17 +6,20 @@ export const defaultAssetGroups: Record<AssetGroupKind, string[]> = {
   image: ['默认分组'],
   sprite: ['默认分组'],
   voice: ['默认分组'],
+  sound: ['默认分组'],
 }
 
 export function assetGroupKindForAsset(asset: Pick<PersonalSpaceAsset, 'kind'>): AssetGroupKind {
   if (asset.kind === 'voice') return 'voice'
   if (asset.kind === 'sprite') return 'sprite'
+  if (asset.kind === 'sound') return 'sound'
   return 'image'
 }
 
 export function assetGroupKindForCommonKind(kind: CommonAssetKind): AssetGroupKind {
   if (kind === 'voice') return 'voice'
   if (kind === 'sprite') return 'sprite'
+  if (kind === 'sound') return 'sound'
   return 'image'
 }
 
@@ -51,6 +54,7 @@ function withGroupList(state: PersonalSpaceState, kind: AssetGroupKind, groups: 
       image: [...(state.starredAssetGroups?.image ?? [])],
       sprite: [...(state.starredAssetGroups?.sprite ?? [])],
       voice: [...(state.starredAssetGroups?.voice ?? [])],
+      sound: [...(state.starredAssetGroups?.sound ?? [])],
       [kind]: (state.starredAssetGroups?.[kind] ?? []).filter((groupName) => nextGroups.includes(groupName)),
     },
   }

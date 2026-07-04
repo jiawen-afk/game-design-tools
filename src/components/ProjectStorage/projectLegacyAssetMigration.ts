@@ -19,7 +19,7 @@ export interface LegacyAssetMigrationInput {
 }
 
 function mimeTypeForAsset(asset: PersonalSpaceAsset, index: number) {
-  if (asset.kind === 'voice') return 'audio/wav'
+  if (asset.kind === 'voice' || asset.kind === 'sound') return 'audio/wav'
   if (asset.kind === 'sprite' && index === 1) return 'application/json'
   return 'image/png'
 }

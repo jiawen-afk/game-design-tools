@@ -19,7 +19,7 @@ export function collectPersonalSpaceAsset(state: PersonalSpaceState, asset: Pers
   })
 }
 
-export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'assetSubtype' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds'>>): PersonalSpaceState {
+export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, patch: Partial<Pick<PersonalSpaceAsset, 'name' | 'groupName' | 'assetSubtype' | 'dialogueText' | 'linkedCharacterIds' | 'linkedStoryboardIds' | 'linkedVoiceAssetIds' | 'linkedSpriteAssetIds'>>): PersonalSpaceState {
   const next = clonePersonalSpaceState(state)
   next.assets = next.assets.map((asset) => {
     if (asset.id !== id) return asset
@@ -32,6 +32,19 @@ export function updatePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
       linkedCharacterIds: patch.linkedCharacterIds ? [...patch.linkedCharacterIds] : asset.linkedCharacterIds,
       linkedStoryboardIds: patch.linkedStoryboardIds ? [...patch.linkedStoryboardIds] : asset.linkedStoryboardIds,
       linkedVoiceAssetIds: patch.linkedVoiceAssetIds ? [...patch.linkedVoiceAssetIds] : asset.linkedVoiceAssetIds,
+      linkedSpriteAssetIds: patch.linkedSpriteAssetIds ? [...patch.linkedSpriteAssetIds] : asset.linkedSpriteAssetIds,
+    }
+  })
+  return next
+}
+
+export function linkSoundAssetToSprite(state: PersonalSpaceState, soundAssetId: string, spriteAssetId: string): PersonalSpaceState {
+  const next = clonePersonalSpaceState(state)
+  next.assets = next.assets.map((asset) => {
+    if (asset.id !== soundAssetId || asset.kind !== 'sound') return asset
+    return {
+      ...asset,
+      linkedSpriteAssetIds: Array.from(new Set([...asset.linkedSpriteAssetIds, spriteAssetId])),
     }
   })
   return next
@@ -44,6 +57,7 @@ export function deletePersonalSpaceAsset(state: PersonalSpaceState, id: string, 
   next.assets = next.assets.map((asset) => ({
     ...asset,
     linkedVoiceAssetIds: asset.linkedVoiceAssetIds.filter((assetId) => assetId !== id),
+    linkedSpriteAssetIds: asset.linkedSpriteAssetIds.filter((assetId) => assetId !== id),
     linkedCharacterIds: asset.linkedCharacterIds.filter((assetId) => assetId !== id),
     linkedStoryboardIds: asset.linkedStoryboardIds.filter((assetId) => assetId !== id),
   }))

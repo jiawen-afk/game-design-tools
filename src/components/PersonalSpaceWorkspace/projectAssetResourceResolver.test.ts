@@ -85,6 +85,7 @@ test('project asset resources can be read through the asset manager', async () =
       linkedCharacterIds: [],
       linkedStoryboardIds: [],
       linkedVoiceAssetIds: [],
+      linkedSpriteAssetIds: [],
       storageResourcePaths: ['objects/远程项目/audio_wav/r1.wav'],
       projectResourceIds: ['r1'],
       projectResourceSizes: [5],
@@ -126,6 +127,7 @@ test('project asset cover resources build cover refs for cached previews', async
       linkedCharacterIds: [],
       linkedStoryboardIds: [],
       linkedVoiceAssetIds: [],
+      linkedSpriteAssetIds: [],
       storageResourcePaths: ['objects/远程项目/image_png/r1.png'],
       coverStorageResourcePath: 'objects/远程项目/image_png/c1.png',
       coverProjectResourceId: 'c1',
@@ -168,6 +170,7 @@ test('project list previews prefer cover resources and never fall back to primar
     linkedCharacterIds: [],
     linkedStoryboardIds: [],
     linkedVoiceAssetIds: [],
+    linkedSpriteAssetIds: [],
     storageResourcePaths: ['objects/远程项目/image_png/primary.png'],
   }
 

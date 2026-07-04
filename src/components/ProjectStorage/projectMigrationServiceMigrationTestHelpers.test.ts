@@ -75,7 +75,7 @@ export function createLinkedStoryboardMigrationRows() {
   const effect = createMigrationImageAsset()
   let state = {
     ...defaultPersonalSpaceState,
-    assetGroups: { image: ['默认分组', '特效'], sprite: ['默认分组'], voice: ['默认分组'] },
+    assetGroups: { image: ['默认分组', '特效'], sprite: ['默认分组'], voice: ['默认分组'], sound: ['默认分组'] },
     assets: [voice, effect],
   }
   state = addCharacterProfile(state, '商人')

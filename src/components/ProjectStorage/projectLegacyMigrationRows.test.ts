@@ -2,9 +2,17 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  legacyMigrationOptions,
   migrateLegacyFixture,
   semanticIdPrefixPattern,
 } from './projectLegacyMigrationTestHelpers.test'
+import {
+  clonePersonalSpaceState,
+  createPersonalSpaceAsset,
+  createSoundAssetFromRecord,
+  defaultPersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
 
 test('legacy migration converts assets, groups, character links, storyboard entries, and asset relations', () => {
   const {
@@ -22,6 +30,7 @@ test('legacy migration converts assets, groups, character links, storyboard entr
     ['image', '特效', true],
     ['sprite', '默认分组', false],
     ['voice', '默认分组', false],
+    ['sound', '默认分组', false],
   ])
 
   assert.notEqual(migratedVoice.id, voice.id)
@@ -62,4 +71,46 @@ test('legacy migration converts assets, groups, character links, storyboard entr
   assert.equal(rows.assetRelations[0]!.relation_type, 'effect_voice')
   assert.equal(rows.assetRelations[0]!.source_asset_id, migratedEffect.id)
   assert.equal(rows.assetRelations[0]!.target_asset_id, migratedVoice.id)
+})
+
+test('legacy migration exports sound assets and sound-sprite relations', () => {
+  const sprite = createPersonalSpaceAsset({
+    kind: 'sprite',
+    name: 'Hero',
+    resourcePaths: ['hero.png', 'hero.index.json'],
+  })
+  const sound = {
+    ...createSoundAssetFromRecord({
+      id: 'sound-record-1',
+      name: 'Slash',
+      audioUrl: '',
+      audioPath: 'slash.wav',
+      prompt: 'sharp slash',
+      durationSeconds: 2,
+      model: 'small-sfx',
+    }),
+    groupName: '打击音',
+    linkedSpriteAssetIds: [sprite.id],
+  }
+  const state = clonePersonalSpaceState({
+    ...defaultPersonalSpaceState,
+    assetGroups: {
+      ...defaultPersonalSpaceState.assetGroups,
+      sound: ['默认分组', '打击音'],
+    },
+    assets: [sprite, sound],
+  })
+
+  const rows = migratePersonalSpaceStateToProjectRows(state, {
+    ...legacyMigrationOptions,
+    preserveSourceIds: true,
+  })
+
+  assert.ok(rows.assetGroups.some((group) => group.kind === 'sound' && group.name === '打击音'))
+  assert.ok(rows.assets.some((asset) => asset.id === sound.id && asset.kind === 'sound' && asset.asset_subtype === 'sound_effect'))
+  assert.deepEqual(rows.assetRelations.map((relation) => ({
+    source: relation.source_asset_id,
+    target: relation.target_asset_id,
+    type: relation.relation_type,
+  })), [{ source: sound.id, target: sprite.id, type: 'sound_sprite' }])
 })

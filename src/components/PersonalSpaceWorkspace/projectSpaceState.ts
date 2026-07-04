@@ -42,11 +42,13 @@ export function createEmptyProjectSpaceState(storageDirectory = ''): PersonalSpa
       image: [...defaultPersonalSpaceState.assetGroups.image],
       sprite: [...defaultPersonalSpaceState.assetGroups.sprite],
       voice: [...defaultPersonalSpaceState.assetGroups.voice],
+      sound: [...defaultPersonalSpaceState.assetGroups.sound],
     },
     starredAssetGroups: {
       image: [],
       sprite: [],
       voice: [],
+      sound: [],
     },
     characters: [],
     assets: [],

@@ -18,6 +18,7 @@ function restoreAssetGroups(rows: LegacyProjectRows): PersonalSpaceState['assetG
     image: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'image')).map((group) => group.name),
     sprite: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sprite')).map((group) => group.name),
     voice: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'voice')).map((group) => group.name),
+    sound: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sound')).map((group) => group.name),
   }
 }
 
@@ -26,6 +27,7 @@ function restoreStarredAssetGroups(rows: LegacyProjectRows): PersonalSpaceState[
     image: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'image' && group.starred)).map((group) => group.name),
     sprite: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sprite' && group.starred)).map((group) => group.name),
     voice: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'voice' && group.starred)).map((group) => group.name),
+    sound: sortedByOrder(rows.assetGroups.filter((group) => group.kind === 'sound' && group.starred)).map((group) => group.name),
   }
 }
 
@@ -42,6 +44,9 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       .map((entry) => entry.storyboard_id)
     const linkedVoiceAssetIds = rows.assetRelations
       .filter((relation) => relation.source_asset_id === asset.id && relation.relation_type === 'effect_voice')
+      .map((relation) => relation.target_asset_id)
+    const linkedSpriteAssetIds = rows.assetRelations
+      .filter((relation) => relation.source_asset_id === asset.id && relation.relation_type === 'sound_sprite')
       .map((relation) => relation.target_asset_id)
     const resourcePaths = [
       asset.primary_object_key,
@@ -76,6 +81,7 @@ function restoreAssets(rows: LegacyProjectRows): PersonalSpaceAsset[] {
       linkedCharacterIds: idsUniqueInOrder(characterIds),
       linkedStoryboardIds: idsUniqueInOrder(storyboardIds),
       linkedVoiceAssetIds: idsUniqueInOrder(linkedVoiceAssetIds),
+      linkedSpriteAssetIds: idsUniqueInOrder(linkedSpriteAssetIds),
       storageResourcePaths: resourcePaths,
       projectResourceIds,
       projectResourceSizes,

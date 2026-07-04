@@ -42,8 +42,8 @@ export function createLegacyMigrationFixture(options: {
   }
   const state: PersonalSpaceState = {
     ...defaultPersonalSpaceState,
-    assetGroups: { image: ['默认分组', '特效'], sprite: ['默认分组'], voice: ['默认分组'] },
-    starredAssetGroups: { image: ['特效'], sprite: [], voice: [] },
+    assetGroups: { image: ['默认分组', '特效'], sprite: ['默认分组'], voice: ['默认分组'], sound: ['默认分组'] },
+    starredAssetGroups: { image: ['特效'], sprite: [], voice: [], sound: [] },
     assets: [voice, effect],
     characters: [{
       id: 'character-old-1',

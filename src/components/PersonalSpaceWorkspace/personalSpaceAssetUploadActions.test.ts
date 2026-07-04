@@ -16,6 +16,7 @@ function createAsset(id: string, kind: PersonalSpaceAsset['kind'], assetSubtype:
     linkedCharacterIds: [],
     linkedStoryboardIds: [],
     linkedVoiceAssetIds: [],
+    linkedSpriteAssetIds: [],
     storageResourcePaths: [],
   }
 }

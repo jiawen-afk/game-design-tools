@@ -5,6 +5,7 @@ const fallbackAssetGroups: Record<AssetGroupKind, string[]> = {
   image: ['默认分组'],
   sprite: ['默认分组'],
   voice: ['默认分组'],
+  sound: ['默认分组'],
 }
 
 export const defaultPersonalSpaceState: PersonalSpaceState = {
@@ -17,6 +18,7 @@ export const defaultPersonalSpaceState: PersonalSpaceState = {
     image: [],
     sprite: [],
     voice: [],
+    sound: [],
   },
   characters: [],
   assets: [],
@@ -27,6 +29,7 @@ export const defaultPersonalSpaceState: PersonalSpaceState = {
 function assetGroupKindForKind(kind: CommonAssetKind): AssetGroupKind {
   if (kind === 'voice') return 'voice'
   if (kind === 'sprite') return 'sprite'
+  if (kind === 'sound') return 'sound'
   return 'image'
 }
 
@@ -39,6 +42,7 @@ function legacySubtypeFromAsset(asset: PersonalSpaceAsset): PersonalAssetSubtype
   if (legacy.kind === 'sprite' && (tags.has('特效精灵图') || legacy.groupName?.includes('特效'))) return 'effect_sprite'
   if (legacy.kind === 'sprite') return 'character_sprite'
   if (legacy.kind === 'voice') return 'character_voice'
+  if (legacy.kind === 'sound') return 'sound_effect'
   return 'generic'
 }
 
@@ -74,11 +78,12 @@ function normalizeAssetGroups(state: PersonalSpaceState): Record<AssetGroupKind,
 }
 
 function normalizeStarredAssetGroups(state: PersonalSpaceState, groups: Record<AssetGroupKind, string[]>): Record<AssetGroupKind, string[]> {
-  const source = state.starredAssetGroups ?? { image: [], sprite: [], voice: [] }
+  const source = state.starredAssetGroups ?? { image: [], sprite: [], voice: [], sound: [] }
   return {
     image: (source.image ?? []).filter((groupName) => groups.image.includes(groupName)),
     sprite: (source.sprite ?? []).filter((groupName) => groups.sprite.includes(groupName)),
     voice: (source.voice ?? []).filter((groupName) => groups.voice.includes(groupName)),
+    sound: (source.sound ?? []).filter((groupName) => groups.sound.includes(groupName)),
   }
 }
 
@@ -120,6 +125,7 @@ export function clonePersonalSpaceState(state: PersonalSpaceState): PersonalSpac
         linkedCharacterIds: [...asset.linkedCharacterIds],
         linkedStoryboardIds: [...asset.linkedStoryboardIds],
         linkedVoiceAssetIds: [...asset.linkedVoiceAssetIds],
+        linkedSpriteAssetIds: [...(asset.linkedSpriteAssetIds ?? [])],
         storageResourcePaths: [...(asset.storageResourcePaths ?? [])],
         sourceKey: asset.sourceKey,
       }

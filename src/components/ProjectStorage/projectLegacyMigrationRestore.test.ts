@@ -2,7 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { restoreProjectRowsToPersonalSpaceState } from './projectLegacyMigration'
-import { migrateLegacyFixture } from './projectLegacyMigrationTestHelpers.test'
+import { legacyMigrationOptions, migrateLegacyFixture } from './projectLegacyMigrationTestHelpers.test'
+import {
+  clonePersonalSpaceState,
+  createPersonalSpaceAsset,
+  createSoundAssetFromRecord,
+  defaultPersonalSpaceState,
+} from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { migratePersonalSpaceStateToProjectRows } from './projectLegacyMigration'
 
 test('project rows restore project space state with groups, assets, links, storyboards, and relations', () => {
   const {
@@ -22,8 +29,9 @@ test('project rows restore project space state with groups, assets, links, story
     image: ['默认分组', '特效'],
     sprite: ['默认分组'],
     voice: ['默认分组'],
+    sound: ['默认分组'],
   })
-  assert.deepEqual(restored.starredAssetGroups, { image: ['特效'], sprite: [], voice: [] })
+  assert.deepEqual(restored.starredAssetGroups, { image: ['特效'], sprite: [], voice: [], sound: [] })
   assert.deepEqual(restored.assets.map((asset) => [
     asset.id,
     asset.name,
@@ -36,6 +44,7 @@ test('project rows restore project space state with groups, assets, links, story
     asset.linkedCharacterIds,
     asset.linkedStoryboardIds,
     asset.linkedVoiceAssetIds,
+    asset.linkedSpriteAssetIds,
     asset.coverResourcePath ?? '',
     asset.coverStorageResourcePath ?? '',
     asset.coverProjectResourceId ?? '',
@@ -54,6 +63,7 @@ test('project rows restore project space state with groups, assets, links, story
       [migratedVoice.primary_object_key],
       [migratedCharacter.id],
       [migratedStoryboard.id],
+      [],
       [],
       '',
       '',
@@ -74,6 +84,7 @@ test('project rows restore project space state with groups, assets, links, story
       [],
       [],
       [migratedVoice.id],
+      [],
       migratedEffect.cover_object_key,
       migratedEffect.cover_object_key,
       migratedEffect.cover_resource_id,
@@ -102,4 +113,41 @@ test('project rows restore project space state with groups, assets, links, story
     characterIds: [migratedCharacter.id],
     voiceAssetIds: [migratedVoice.id],
   }])
+})
+
+test('project rows restore sound groups and sound-sprite links', () => {
+  const sprite = createPersonalSpaceAsset({
+    kind: 'sprite',
+    name: 'Hero',
+    resourcePaths: ['hero.png', 'hero.index.json'],
+  })
+  const sound = {
+    ...createSoundAssetFromRecord({
+      id: 'sound-record-1',
+      name: 'Slash',
+      audioUrl: '',
+      audioPath: 'slash.wav',
+      prompt: 'sharp slash',
+      durationSeconds: 2,
+      model: 'small-sfx',
+    }),
+    groupName: '打击音',
+    linkedSpriteAssetIds: [sprite.id],
+  }
+  const rows = migratePersonalSpaceStateToProjectRows(clonePersonalSpaceState({
+    ...defaultPersonalSpaceState,
+    assetGroups: {
+      ...defaultPersonalSpaceState.assetGroups,
+      sound: ['默认分组', '打击音'],
+    },
+    assets: [sprite, sound],
+  }), {
+    ...legacyMigrationOptions,
+    preserveSourceIds: true,
+  })
+
+  const state = restoreProjectRowsToPersonalSpaceState(rows)
+
+  assert.deepEqual(state.assetGroups.sound, ['默认分组', '打击音'])
+  assert.deepEqual(state.assets.find((asset) => asset.id === sound.id)?.linkedSpriteAssetIds, [sprite.id])
 })

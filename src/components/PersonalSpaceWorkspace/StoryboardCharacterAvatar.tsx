@@ -25,6 +25,7 @@ const emptyPortraitAsset: PersonalSpaceAsset = {
   linkedCharacterIds: [],
   linkedStoryboardIds: [],
   linkedVoiceAssetIds: [],
+  linkedSpriteAssetIds: [],
   storageResourcePaths: [],
 }
 

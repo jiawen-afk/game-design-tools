@@ -25,6 +25,7 @@ export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
   const portraitAssets = space.assets.filter((asset) => asset.kind === 'image' && asset.assetSubtype === 'portrait')
   const spriteAssets = space.assets.filter((asset) => asset.kind === 'sprite')
   const voiceAssets = space.assets.filter((asset) => asset.kind === 'voice')
+  const soundAssets = space.assets.filter((asset) => asset.kind === 'sound')
   const characterOptions = space.characters.map((character) => ({ label: character.name, value: character.id }))
   const resourceSections: PersonalResourceSectionConfig[] = [
     {
@@ -57,11 +58,22 @@ export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
       starredGroupNames: space.starredAssetGroups.voice,
       assets: voiceAssets,
     },
+    {
+      kind: 'sound',
+      title: '音效素材',
+      description: '从音效工作台收藏或手动导入的独立音效，可关联精灵图。',
+      importLabel: '导入音效',
+      emptyDescription: '还没有音效素材。生成或导入音效后可关联精灵图。',
+      groupNames: uniqueGroupNames(space.assetGroups.sound, soundAssets),
+      starredGroupNames: space.starredAssetGroups.sound,
+      assets: soundAssets,
+    },
   ]
   const assetCounts = {
     image: imageAssets.length,
     sprite: spriteAssets.length,
     voice: voiceAssets.length,
+    sound: soundAssets.length,
   }
 
   return {
@@ -69,6 +81,7 @@ export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
     portraitAssets,
     spriteAssets,
     voiceAssets,
+    soundAssets,
     characterOptions,
     resourceSections,
     assetCounts,

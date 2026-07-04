@@ -1,6 +1,6 @@
 import type { ProjectMimeGroup } from './projectStorageCoreTypes'
 
-export type ProjectAssetKind = 'image' | 'sprite' | 'voice'
+export type ProjectAssetKind = 'image' | 'sprite' | 'voice' | 'sound'
 export type ProjectAssetSubtype =
   | 'generic'
   | 'portrait'
@@ -116,6 +116,6 @@ export interface AssetRelation {
   project_id: string
   source_asset_id: string
   target_asset_id: string
-  relation_type: 'effect_voice' | 'derived_from' | string
+  relation_type: 'effect_voice' | 'sound_sprite' | 'derived_from' | string
   created_at: string
 }

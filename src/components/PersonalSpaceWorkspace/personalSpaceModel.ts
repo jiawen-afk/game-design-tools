@@ -1,7 +1,7 @@
 export type PersonalSpaceModule = 'characters' | 'storyboards' | 'assets' | 'settings'
-export type CommonAssetKind = 'map' | 'image' | 'effect' | 'voice' | 'sprite'
-export type StoredAssetKind = 'image' | 'sprite' | 'voice'
-export type AssetGroupKind = 'image' | 'sprite' | 'voice'
+export type CommonAssetKind = 'map' | 'image' | 'effect' | 'voice' | 'sprite' | 'sound'
+export type StoredAssetKind = 'image' | 'sprite' | 'voice' | 'sound'
+export type AssetGroupKind = 'image' | 'sprite' | 'voice' | 'sound'
 export type PersonalAssetSubtype =
   | 'generic'
   | 'portrait'
@@ -30,6 +30,7 @@ export interface PersonalSpaceAsset {
   linkedCharacterIds: string[]
   linkedStoryboardIds: string[]
   linkedVoiceAssetIds: string[]
+  linkedSpriteAssetIds: string[]
   storageResourcePaths: string[]
   projectResourceIds?: string[]
   projectResourceSizes?: Array<number | null>
@@ -110,6 +111,17 @@ export interface VoiceRecordAssetInput {
   }
 }
 
+export interface SoundRecordAssetInput {
+  id: string
+  name: string
+  audioUrl?: string
+  audioPath: string | null
+  prompt: string
+  durationSeconds: number
+  model: string
+  sourceKey?: string
+}
+
 export interface SpriteExportAssetInput {
   name: string
   spritePath: string
@@ -152,6 +164,7 @@ export {
   importDatePart,
   createPortraitAssetFromUpload,
   createResourceAssetFromUpload,
+  createSoundAssetFromRecord,
   createSpriteAssetFromExport,
   createVoiceAssetFromRecord,
   storageCategoryForAsset,
@@ -212,5 +225,6 @@ export {
 export {
   collectPersonalSpaceAsset,
   deletePersonalSpaceAsset,
+  linkSoundAssetToSprite,
   updatePersonalSpaceAsset,
 } from './personalSpaceAssetOperations'

@@ -167,14 +167,24 @@ export function migratePersonalSpaceStateToProjectRows(
   ))
 
   const assetRelations = state.assets.flatMap((asset) => (
-    asset.linkedVoiceAssetIds.map((voiceAssetId): AssetRelation => ({
+    [
+      ...asset.linkedVoiceAssetIds.map((voiceAssetId): AssetRelation => ({
       id: createProjectStorageId(),
       project_id: options.projectId,
       source_asset_id: mappedId(assetIdMap, asset.id),
       target_asset_id: mappedId(assetIdMap, voiceAssetId),
       relation_type: 'effect_voice',
       created_at: options.now,
-    }))
+      })),
+      ...asset.linkedSpriteAssetIds.map((spriteAssetId): AssetRelation => ({
+        id: createProjectStorageId(),
+        project_id: options.projectId,
+        source_asset_id: mappedId(assetIdMap, asset.id),
+        target_asset_id: mappedId(assetIdMap, spriteAssetId),
+        relation_type: 'sound_sprite',
+        created_at: options.now,
+      })),
+    ]
   ))
 
   return {

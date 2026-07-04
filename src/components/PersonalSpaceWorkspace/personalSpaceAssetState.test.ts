@@ -48,8 +48,8 @@ test('personal space derived state groups assets and workspace options', () => {
   assert.deepEqual(derived.spriteAssets.map((asset) => asset.name), ['主角行走'])
   assert.deepEqual(derived.voiceAssets.map((asset) => asset.name), ['开场对白'])
   assert.deepEqual(derived.characterOptions, [{ label: '商人', value: derived.characterOptions[0]!.value }])
-  assert.deepEqual(derived.assetCounts, { image: 2, sprite: 1, voice: 1 })
-  assert.deepEqual(derived.resourceSections.map((section) => section.kind), ['image', 'sprite', 'voice'])
+  assert.deepEqual(derived.assetCounts, { image: 2, sprite: 1, voice: 1, sound: 0 })
+  assert.deepEqual(derived.resourceSections.map((section) => section.kind), ['image', 'sprite', 'voice', 'sound'])
   assert.deepEqual(
     derived.resourceSections.find((section) => section.kind === 'image')?.assets.map((asset) => asset.groupName),
     ['地图', '角色肖像'],
