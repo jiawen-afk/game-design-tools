@@ -9,6 +9,7 @@ const files = {
   generator: 'src/components/VoiceDeploymentWorkspace/SoundEffectGenerationPanel.tsx',
   library: 'src/components/VoiceDeploymentWorkspace/SoundEffectLibraryPanel.tsx',
   cssHub: 'src/components/VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css',
+  soundCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.css',
 }
 
 function read(path: string) {
@@ -38,6 +39,14 @@ test('sound effect panels expose model install generation and collection control
 
 test('sound effect CSS stays in a focused module imported by the workspace CSS hub', () => {
   assert.match(read(files.cssHub), /voiceDeployment\.sound\.css/)
+})
+
+test('sound effect mobile layout prevents long controls from forcing horizontal overflow', () => {
+  const css = read(files.soundCss)
+
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
+  assert.match(css, /\.sound-setup-panel \.ant-segmented[\s\S]*max-width: 100%/)
+  assert.match(css, /\.sound-setup-panel \.ant-segmented-item[\s\S]*flex: 1 1 0/)
 })
 
 test('sound effect workspace collects generated sounds and derives sprite link options from project space', () => {

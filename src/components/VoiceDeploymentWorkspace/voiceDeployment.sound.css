@@ -18,6 +18,32 @@
   align-items: start;
 }
 
+.sound-studio > *,
+.sound-setup-panel,
+.sound-setup-panel .ant-segmented {
+  min-width: 0;
+}
+
+.sound-setup-panel .ant-segmented {
+  max-width: 100%;
+}
+
+.sound-setup-panel .ant-segmented-group {
+  min-width: 0;
+  width: 100%;
+}
+
+.sound-setup-panel .ant-segmented-item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sound-setup-panel .ant-segmented-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sound-service-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -100,7 +126,7 @@
   .sound-service-row,
   .sound-model-meta,
   .sound-param-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sound-record-list {

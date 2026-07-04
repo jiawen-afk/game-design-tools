@@ -145,7 +145,7 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.match(resourceSectionBody, /onSelectedChange=\{\(checked\) => resourceGroups\.toggleAssetSelected\(item, checked\)\}/)
   assert.match(resourceSectionBody, /selectedAssetIds/)
   assert.match(resourceGroupsHookSource, /const isVoiceSection = section\.kind === 'voice'/)
-  assert.match(resourceGroupsHookSource, /const isGroupedResourceSection = section\.kind === 'image' \|\| section\.kind === 'sprite' \|\| isVoiceSection/)
+  assert.match(resourceGroupsHookSource, /const isGroupedResourceSection = section\.kind === 'image' \|\| section\.kind === 'sprite' \|\| section\.kind === 'sound' \|\| isVoiceSection/)
   assert.doesNotMatch(resourceSectionBody, /visibleItems: visibleResourceGroups/)
   assert.doesNotMatch(resourceSectionBody, /slice\(-\d+\)\.reverse\(\)/)
   assert.match(resourceSectionBody, /voice-group-filter/)

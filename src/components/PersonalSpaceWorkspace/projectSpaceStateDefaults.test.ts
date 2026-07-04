@@ -12,7 +12,7 @@ test('empty project space state clones defaults with project-local storage direc
   assert.deepEqual(empty.characters, [])
   assert.deepEqual(empty.storyboardGroups, [])
   assert.deepEqual(empty.pendingDeletedResourcePaths, [])
-  assert.deepEqual(empty.starredAssetGroups, { image: [], sprite: [], voice: [] })
+  assert.deepEqual(empty.starredAssetGroups, { image: [], sprite: [], voice: [], sound: [] })
   assert.notEqual(empty.assetGroups.image, defaultPersonalSpaceState.assetGroups.image)
   assert.deepEqual(empty.assetGroups, defaultPersonalSpaceState.assetGroups)
 })
