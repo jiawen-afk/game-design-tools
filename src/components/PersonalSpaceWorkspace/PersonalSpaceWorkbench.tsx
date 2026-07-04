@@ -169,6 +169,7 @@ export function PersonalSpaceWorkbench({ workspace, contextHolder }: PersonalSpa
                 onChangeEffectVoiceLinks={workspace.changeEffectVoiceLinks}
                 onChangeVoiceCharacterLinks={workspace.changeVoiceCharacterLinks}
                 onChangeVoiceStoryboardLinks={workspace.changeVoiceStoryboardLinks}
+                onChangeSoundSpriteLinks={workspace.changeSoundSpriteLinks}
                 onAddGroup={workspace.addAssetGroup}
                 onRenameGroup={workspace.renameAssetGroup}
                 onToggleGroupStar={workspace.toggleAssetGroupStar}

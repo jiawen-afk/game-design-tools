@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Empty, Input, Select, Tag } from 'antd'
+import { Alert, Button, Empty, Input, Select, Tag } from 'antd'
 import {
   DeleteOutlined,
   LinkOutlined,
@@ -13,6 +13,8 @@ interface SoundEffectLibraryPanelProps {
   records: SoundEffectRecord[]
   lastGeneratedId: string | null
   spriteLinkOptions: Array<{ label: string; value: string }>
+  collectingRecordId: string
+  collectError: string
   onLoad: (record: SoundEffectRecord) => void
   onRenameRecord: (recordId: string, name: string) => void
   onDeleteRecord: (recordId: string) => void
@@ -25,6 +27,8 @@ export function SoundEffectLibraryPanel({
   records,
   lastGeneratedId,
   spriteLinkOptions,
+  collectingRecordId,
+  collectError,
   onLoad,
   onRenameRecord,
   onDeleteRecord,
@@ -60,6 +64,8 @@ export function SoundEffectLibraryPanel({
         </Button>
       </div>
 
+      {collectError ? <Alert type="warning" showIcon title={collectError} /> : null}
+
       {records.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有生成音效" />
       ) : (
@@ -85,7 +91,12 @@ export function SoundEffectLibraryPanel({
                 <Button size="small" onClick={() => onLoad(record)}>
                   载入参数
                 </Button>
-                <Button size="small" icon={<SaveOutlined />} onClick={() => onCollectRecord(record)}>
+                <Button
+                  size="small"
+                  icon={<SaveOutlined />}
+                  loading={collectingRecordId === record.id}
+                  onClick={() => onCollectRecord(record)}
+                >
                   收藏到音效素材
                 </Button>
                 <Button size="small" icon={<LinkOutlined />} onClick={() => openLinkPicker(record.id)}>
@@ -104,7 +115,12 @@ export function SoundEffectLibraryPanel({
                     notFoundContent="项目空间还没有精灵图素材"
                     onChange={setSelectedSpriteId}
                   />
-                  <Button type="primary" disabled={!selectedSpriteId} onClick={() => collectWithSprite(record)}>
+                  <Button
+                    type="primary"
+                    loading={collectingRecordId === record.id}
+                    disabled={!selectedSpriteId}
+                    onClick={() => collectWithSprite(record)}
+                  >
                     收藏并关联
                   </Button>
                 </div>

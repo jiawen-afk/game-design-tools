@@ -9,6 +9,7 @@ interface PersonalResourceAssetRecordProps {
   sectionTitle: string
   item: PersonalSpaceAsset
   checked: boolean
+  spriteAssets: PersonalSpaceAsset[]
   voiceAssets: PersonalSpaceAsset[]
   characterOptions: Array<{ label: string; value: string }>
   storyboardOptions: Array<{ label: string; value: string }>
@@ -21,6 +22,7 @@ interface PersonalResourceAssetRecordProps {
   onChangeEffectVoiceLinks: (assetId: string, voiceIds: string[]) => void
   onChangeVoiceCharacterLinks: (assetId: string, characterIds: string[]) => void
   onChangeVoiceStoryboardLinks: (assetId: string, storyboardIds: string[]) => void
+  onChangeSoundSpriteLinks: (assetId: string, spriteIds: string[]) => void
   onDeleteAsset: (assetId: string) => void
   projectObjectStorage?: ProjectObjectStorage
   projectAssetManager?: ProjectAssetManager
@@ -38,6 +40,7 @@ export function PersonalResourceAssetRecord({
   sectionTitle,
   item,
   checked,
+  spriteAssets,
   voiceAssets,
   characterOptions,
   storyboardOptions,
@@ -50,6 +53,7 @@ export function PersonalResourceAssetRecord({
   onChangeEffectVoiceLinks,
   onChangeVoiceCharacterLinks,
   onChangeVoiceStoryboardLinks,
+  onChangeSoundSpriteLinks,
   onDeleteAsset,
   projectObjectStorage,
   projectAssetManager,
@@ -129,6 +133,18 @@ export function PersonalResourceAssetRecord({
             </label>
             <span className="field-note">剧情顺序：{getStoryboardVoiceRefs(item.id).join('、') || '未编排到剧情组'}</span>
           </>
+        )}
+        {item.kind === 'sound' && (
+          <label className="form-field">
+            <span className="field-label">关联精灵图</span>
+            <Select
+              mode="multiple"
+              value={item.linkedSpriteAssetIds}
+              options={getAssetOptions(spriteAssets)}
+              placeholder="选择精灵图素材"
+              onChange={(spriteIds) => onChangeSoundSpriteLinks(item.id, spriteIds)}
+            />
+          </label>
         )}
       </div>
     </article>

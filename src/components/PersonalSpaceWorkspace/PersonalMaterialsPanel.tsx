@@ -21,6 +21,7 @@ interface PersonalMaterialsPanelProps {
   onChangeEffectVoiceLinks: (assetId: string, voiceIds: string[]) => void
   onChangeVoiceCharacterLinks: (assetId: string, characterIds: string[]) => void
   onChangeVoiceStoryboardLinks: (assetId: string, storyboardIds: string[]) => void
+  onChangeSoundSpriteLinks: (assetId: string, spriteIds: string[]) => void
   onAddGroup: (kind: AssetGroupKind, name: string) => void
   onRenameGroup: (kind: AssetGroupKind, fromName: string, toName: string) => void
   onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
@@ -49,6 +50,7 @@ export function PersonalMaterialsPanel({
   onChangeEffectVoiceLinks,
   onChangeVoiceCharacterLinks,
   onChangeVoiceStoryboardLinks,
+  onChangeSoundSpriteLinks,
   onAddGroup,
   onRenameGroup,
   onToggleGroupStar,
@@ -60,10 +62,12 @@ export function PersonalMaterialsPanel({
   projectId,
   projectMode,
 }: PersonalMaterialsPanelProps) {
+  const spriteAssets = resourceSections.find((section) => section.kind === 'sprite')?.assets ?? []
   const materialSection = (section: PersonalResourceSectionConfig) => (
     <PersonalResourceSection
       key={`material-${section.kind}`}
       section={section}
+      spriteAssets={spriteAssets}
       voiceAssets={voiceAssets}
       characterOptions={characterOptions}
       storyboardOptions={storyboardOptions}
@@ -78,6 +82,7 @@ export function PersonalMaterialsPanel({
       onChangeEffectVoiceLinks={onChangeEffectVoiceLinks}
       onChangeVoiceCharacterLinks={onChangeVoiceCharacterLinks}
       onChangeVoiceStoryboardLinks={onChangeVoiceStoryboardLinks}
+      onChangeSoundSpriteLinks={onChangeSoundSpriteLinks}
       onAddGroup={onAddGroup}
       onRenameGroup={onRenameGroup}
       onToggleGroupStar={onToggleGroupStar}
@@ -110,6 +115,11 @@ export function PersonalMaterialsPanel({
           key: 'voices',
           label: '配音',
           children: resourceSections.filter((section) => section.kind === 'voice').map(materialSection),
+        },
+        {
+          key: 'sounds',
+          label: '音效',
+          children: resourceSections.filter((section) => section.kind === 'sound').map(materialSection),
         },
       ]}
     />

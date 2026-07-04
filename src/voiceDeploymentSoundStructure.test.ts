@@ -39,3 +39,13 @@ test('sound effect panels expose model install generation and collection control
 test('sound effect CSS stays in a focused module imported by the workspace CSS hub', () => {
   assert.match(read(files.cssHub), /voiceDeployment\.sound\.css/)
 })
+
+test('sound effect workspace collects generated sounds and derives sprite link options from project space', () => {
+  const hookSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
+
+  assert.match(hookSource, /readCurrentProjectSpaceState/)
+  assert.match(hookSource, /collectSoundEffectRecordToPersonalSpace/)
+  assert.match(hookSource, /currentProjectSpace\.assets/)
+  assert.match(hookSource, /asset\.kind === 'sprite'/)
+  assert.match(hookSource, /onCollectAndLinkSprite/)
+})

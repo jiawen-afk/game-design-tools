@@ -162,6 +162,10 @@ export function createPersonalSpaceEditActions(options: PersonalSpaceEditActions
     options.setSpace((current) => updatePersonalSpaceAsset(current, assetId, { linkedStoryboardIds }))
   }
 
+  const changeSoundSpriteLinks = (assetId: string, linkedSpriteAssetIds: string[]) => {
+    options.setSpace((current) => updatePersonalSpaceAsset(current, assetId, { linkedSpriteAssetIds }))
+  }
+
   const addAssetGroup = (kind: AssetGroupKind, name: string) => {
     options.setSpace((current) => addAssetGroupToState(current, kind, name))
   }
@@ -224,6 +228,7 @@ export function createPersonalSpaceEditActions(options: PersonalSpaceEditActions
     changeEffectVoiceLinks,
     changeVoiceCharacterLinks,
     changeVoiceStoryboardLinks,
+    changeSoundSpriteLinks,
     addAssetGroup,
     renameAssetGroup,
     toggleAssetGroupStar,

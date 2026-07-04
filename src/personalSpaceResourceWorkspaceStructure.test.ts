@@ -100,6 +100,21 @@ test('personal space workspace delegates active project resource derivation to a
   assert.match(projectResourcesSource, /changeActiveModuleAndRefresh/)
 })
 
+test('personal space material tabs expose sound assets as a first-class section', () => {
+  const derivedSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
+  const materialsSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalMaterialsPanel.tsx', 'utf8')
+
+  assert.match(derivedSource, /soundAssets/)
+  assert.match(derivedSource, /title:\s*'音效素材'/)
+  assert.match(derivedSource, /kind:\s*'sound'/)
+  assert.match(materialsSource, /key:\s*'sounds'/)
+  assert.match(materialsSource, /section\.kind === 'sound'/)
+  assert.match(materialsSource, /onChangeSoundSpriteLinks/)
+  const recordSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalResourceAssetRecord.tsx', 'utf8')
+  assert.match(recordSource, /关联精灵图/)
+  assert.match(recordSource, /linkedSpriteAssetIds/)
+})
+
 test('personal space workspace delegates creation name drafts to a focused hook', () => {
   const hookSource = readFileSync('src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspace.ts', 'utf8')
   const workspaceActionsHookPath = 'src/components/PersonalSpaceWorkspace/usePersonalSpaceWorkspaceActions.ts'

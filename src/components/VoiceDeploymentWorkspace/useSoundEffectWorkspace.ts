@@ -3,11 +3,16 @@ import { useMemo, useState } from 'react'
 import { useStableAudioSetup } from './useStableAudioSetup'
 import { useSoundEffectGenerationWorkflow } from './useSoundEffectGenerationWorkflow'
 import { stableAudioModels, type SoundEffectRecord } from './soundEffectModel'
+import { collectSoundEffectRecordToPersonalSpace, type SoundCollectLink } from './soundEffectPersonalSpaceCollector'
+import { readCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/projectSpaceState'
 
 export function useSoundEffectWorkspace() {
   const setup = useStableAudioSetup()
   const [records, setRecords] = useState<SoundEffectRecord[]>([])
   const [lastGeneratedId, setLastGeneratedId] = useState('')
+  const [currentProjectSpace, setCurrentProjectSpace] = useState(() => readCurrentProjectSpaceState())
+  const [collectingRecordId, setCollectingRecordId] = useState('')
+  const [collectError, setCollectError] = useState('')
   const generation = useSoundEffectGenerationWorkflow({
     connected: setup.connected,
     port: setup.port,
@@ -22,6 +27,11 @@ export function useSoundEffectWorkspace() {
     () => stableAudioModels.find((item) => item.id === setup.selectedModel) ?? stableAudioModels[0]!,
     [setup.selectedModel],
   )
+  const spriteLinkOptions = useMemo(() => (
+    currentProjectSpace.assets
+      .filter((asset) => asset.kind === 'sprite')
+      .map((asset) => ({ label: asset.name, value: asset.id }))
+  ), [currentProjectSpace.assets])
 
   const renameRecord = (recordId: string, name: string) => {
     setRecords((current) => current.map((record) => (
@@ -38,7 +48,22 @@ export function useSoundEffectWorkspace() {
     setLastGeneratedId('')
   }
 
-  const collectUnavailable = () => undefined
+  const collectRecord = async (record: SoundEffectRecord, link?: SoundCollectLink) => {
+    setCollectingRecordId(record.id)
+    setCollectError('')
+    try {
+      const nextProjectSpace = await collectSoundEffectRecordToPersonalSpace(record, link, {
+        onSyncError: (error) => {
+          setCollectError(error instanceof Error ? error.message : '音效素材已收藏，本次同步未完成。')
+        },
+      })
+      setCurrentProjectSpace(nextProjectSpace)
+    } catch (error) {
+      setCollectError(error instanceof Error ? error.message : '收藏音效素材失败。')
+    } finally {
+      setCollectingRecordId('')
+    }
+  }
 
   return {
     connected: setup.connected,
@@ -89,13 +114,18 @@ export function useSoundEffectWorkspace() {
     libraryPanelProps: {
       records,
       lastGeneratedId,
-      spriteLinkOptions: [] as Array<{ label: string; value: string }>,
+      spriteLinkOptions,
+      collectingRecordId,
+      collectError,
       onLoad: generation.loadParams,
       onRenameRecord: renameRecord,
       onDeleteRecord: deleteRecord,
       onClearRecords: clearRecords,
-      onCollectRecord: collectUnavailable,
-      onCollectAndLinkSprite: collectUnavailable,
+      onCollectRecord: (record: SoundEffectRecord) => void collectRecord(record),
+      onCollectAndLinkSprite: (record: SoundEffectRecord, spriteId: string) => void collectRecord(record, {
+        target: 'sprite',
+        targetId: spriteId,
+      }),
     },
   }
 }

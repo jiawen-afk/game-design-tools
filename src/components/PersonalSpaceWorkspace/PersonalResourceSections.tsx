@@ -12,6 +12,7 @@ import { useRenameDrafts } from './useRenameDrafts'
 
 interface PersonalResourceSectionProps {
   section: PersonalResourceSectionConfig
+  spriteAssets: PersonalSpaceAsset[]
   voiceAssets: PersonalSpaceAsset[]
   characterOptions: Array<{ label: string; value: string }>
   storyboardOptions: Array<{ label: string; value: string }>
@@ -26,6 +27,7 @@ interface PersonalResourceSectionProps {
   onChangeEffectVoiceLinks: (assetId: string, voiceIds: string[]) => void
   onChangeVoiceCharacterLinks: (assetId: string, characterIds: string[]) => void
   onChangeVoiceStoryboardLinks: (assetId: string, storyboardIds: string[]) => void
+  onChangeSoundSpriteLinks: (assetId: string, spriteIds: string[]) => void
   onAddGroup: (kind: AssetGroupKind, name: string) => void
   onRenameGroup: (kind: AssetGroupKind, fromName: string, toName: string) => void
   onToggleGroupStar: (kind: AssetGroupKind, name: string) => void
@@ -44,6 +46,7 @@ function EmptyBlock({ description }: { description: string }) {
 
 export function PersonalResourceSection({
   section,
+  spriteAssets,
   voiceAssets,
   characterOptions,
   storyboardOptions,
@@ -58,6 +61,7 @@ export function PersonalResourceSection({
   onChangeEffectVoiceLinks,
   onChangeVoiceCharacterLinks,
   onChangeVoiceStoryboardLinks,
+  onChangeSoundSpriteLinks,
   onAddGroup,
   onRenameGroup,
   onToggleGroupStar,
@@ -80,6 +84,7 @@ export function PersonalResourceSection({
       sectionTitle={section.title}
       item={item}
       checked={resourceGroups.selectedAssetIdsForGroup(item.groupName).includes(item.id)}
+      spriteAssets={spriteAssets}
       voiceAssets={voiceAssets}
       characterOptions={characterOptions}
       storyboardOptions={storyboardOptions}
@@ -92,6 +97,7 @@ export function PersonalResourceSection({
       onChangeEffectVoiceLinks={onChangeEffectVoiceLinks}
       onChangeVoiceCharacterLinks={onChangeVoiceCharacterLinks}
       onChangeVoiceStoryboardLinks={onChangeVoiceStoryboardLinks}
+      onChangeSoundSpriteLinks={onChangeSoundSpriteLinks}
       onDeleteAsset={onDeleteAsset}
       projectObjectStorage={projectObjectStorage}
       projectAssetManager={projectAssetManager}
