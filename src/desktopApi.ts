@@ -5,6 +5,7 @@ import type { DesktopImageEncodingApi } from './desktopImageEncodingApi'
 import type { DesktopProjectObjectApi } from './desktopProjectObjectApi'
 import type { DesktopProjectProfileApi } from './desktopProjectProfileApi'
 import type { DesktopProjectRepositoryApi } from './desktopProjectRepositoryApi'
+import type { DesktopStableAudioRuntimeApi } from './desktopStableAudioRuntimeApi'
 import type { DesktopSystemApi } from './desktopSystemApi'
 import type { DesktopUpscaleApi } from './desktopUpscaleApi'
 import type { DesktopVoiceRuntimeApi } from './desktopVoiceRuntimeApi'
@@ -45,6 +46,14 @@ export type {
 } from './desktopProjectProfileApi'
 export type { DesktopProjectRepositoryApi } from './desktopProjectRepositoryApi'
 export type {
+  DesktopStableAudioGenerateOptions,
+  DesktopStableAudioGenerateResult,
+  DesktopStableAudioModelId,
+  DesktopStableAudioRuntimeApi,
+  DesktopStableAudioSetupOptions,
+  DesktopStableAudioSetupResult,
+} from './desktopStableAudioRuntimeApi'
+export type {
   DesktopCommandResult,
   DesktopHardwareReport,
   DesktopSystemApi,
@@ -69,6 +78,7 @@ export interface GameDesignToolsDesktopApi extends
   DesktopAppUpdateApi,
   DesktopSystemApi,
   DesktopVoiceRuntimeApi,
+  DesktopStableAudioRuntimeApi,
   DesktopBirefnetApi,
   DesktopImageEncodingApi,
   DesktopUpscaleApi,

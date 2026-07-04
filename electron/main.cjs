@@ -24,6 +24,9 @@ const {
 const {
   registerVoxcpmIpcHandlers,
 } = require('./voxcpmIpcHandlers.cjs')
+const {
+  registerStableAudioIpcHandlers,
+} = require('./stableAudioIpcHandlers.cjs')
 
 function resolveAppPath(...parts) {
   return path.join(app.getAppPath(), ...parts)
@@ -120,6 +123,7 @@ registerProjectStorageIpcHandlers({ app, ipcMain })
 registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput })
 registerBirefnetIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
 registerVoxcpmIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
+registerStableAudioIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
 
 ipcMain.handle('shell:open-path', async (_event, targetPath) => {
   const error = await shell.openPath(normalizePath(targetPath))
