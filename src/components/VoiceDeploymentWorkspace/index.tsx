@@ -4,21 +4,21 @@ import { VoiceGenerationPanel } from './VoiceGenerationPanel'
 import { VoiceLibraryPanel } from './VoiceLibraryPanel'
 import { VoiceSetupPanels } from './VoiceSetupPanels'
 import { VoiceWorkspaceHeader } from './VoiceWorkspaceHeader'
+import { VoiceWorkspaceTabs } from './VoiceWorkspaceTabs'
+import { useSoundEffectWorkspace } from './useSoundEffectWorkspace'
 import { useVoiceDeploymentWorkspace } from './useVoiceDeploymentWorkspace'
 
 export default function VoiceDeploymentWorkspace() {
   const workspace = useVoiceDeploymentWorkspace()
+  const soundWorkspace = useSoundEffectWorkspace()
   const renderVoiceLibraryPanel = (libraryVariant: 'sticky' | 'embedded') => (
     <VoiceLibraryPanel
       libraryVariant={libraryVariant}
       {...workspace.libraryPanelProps}
     />
   )
-
-  return (
-    <section className="voice-workspace" aria-labelledby="voice-workspace-title">
-      {workspace.messageContextHolder}
-      <VoiceCollectLinkModal {...workspace.collectLinkModalProps} />
+  const voiceContent = (
+    <>
       <VoiceWorkspaceHeader {...workspace.headerProps} />
 
       {workspace.connected ? (
@@ -34,6 +34,14 @@ export default function VoiceDeploymentWorkspace() {
           {renderVoiceLibraryPanel('embedded')}
         </div>
       )}
+    </>
+  )
+
+  return (
+    <section className="voice-workspace" aria-labelledby="voice-workspace-title">
+      {workspace.messageContextHolder}
+      <VoiceCollectLinkModal {...workspace.collectLinkModalProps} />
+      <VoiceWorkspaceTabs voiceContent={voiceContent} soundWorkspace={soundWorkspace} />
     </section>
   )
 }

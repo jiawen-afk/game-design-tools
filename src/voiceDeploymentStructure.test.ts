@@ -13,6 +13,7 @@ test('voice deployment structure tests stay split by workspace responsibility', 
     'src/voiceDeploymentGenerationStructure.test.ts',
     'src/voiceDeploymentRecordLibraryStructure.test.ts',
     'src/voiceDeploymentCollectStructure.test.ts',
+    'src/voiceDeploymentSoundStructure.test.ts',
   ]
 
   for (const path of focusedSuites) {
