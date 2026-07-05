@@ -262,7 +262,7 @@ export function SoundEffectSetupPanel({
             danger
             icon={<PoweroffOutlined />}
             loading={desktopServiceBusy}
-            disabled={!desktopRuntime || desktopServiceBusy}
+            disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
             onClick={() => onControlDesktopService('stop')}
           >
             停止服务

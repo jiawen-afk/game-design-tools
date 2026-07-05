@@ -121,3 +121,22 @@ test('stable audio service start releases button loading before readiness pollin
   assert.match(hook, /onStartCommandSettled:\s*\(\) => setDesktopServiceBusy\(false\)/)
   assert.match(ipc, /AbortSignal\.timeout/)
 })
+
+test('stable audio stop service refreshes health and clears connected state', () => {
+  const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+
+  assert.match(hook, /action === 'stop'/)
+  assert.match(hook, /setConnectionStatus\('disconnected'\)/)
+  assert.match(hook, /runCheck\(port, true\)/)
+  assert.match(panel, /disabled=\{!desktopRuntime \|\| desktopServiceBusy \|\| !connected \|\| connectionStatus === 'checking'\}/)
+})
+
+test('stable audio service stop falls back to the listening port when pid file is stale', () => {
+  const service = read(files.service)
+
+  assert.match(service, /Get-NetTCPConnection/)
+  assert.match(service, /OwningProcess/)
+  assert.match(service, /Get-ServiceProcesses/)
+  assert.match(service, /foreach \(\$process in \$processes\)/)
+})

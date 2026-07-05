@@ -14,6 +14,23 @@ function Get-ServiceProcess {
     return Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
 }
 
+function Get-ServiceProcesses {
+    $processes = @()
+    $pidProcess = Get-ServiceProcess
+    if ($pidProcess) { $processes += $pidProcess }
+
+    try {
+        $port = [int]$config.Port
+        $listeners = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
+        foreach ($listener in $listeners) {
+            $portProcess = Get-Process -Id ([int]$listener.OwningProcess) -ErrorAction SilentlyContinue
+            if ($portProcess) { $processes += $portProcess }
+        }
+    } catch {}
+
+    return @($processes | Where-Object { $_ } | Sort-Object -Property Id -Unique)
+}
+
 function Write-RecentLog($path, $title) {
     if (-not (Test-Path ([string]$path))) { return }
     Write-Host $title
@@ -23,8 +40,8 @@ function Write-RecentLog($path, $title) {
 }
 
 function Start-ServiceProcess {
-    $existing = Get-ServiceProcess
-    if ($existing) {
+    $existing = @(Get-ServiceProcesses)
+    if ($existing.Count -gt 0) {
         Write-Host "Stable Audio 3 已在运行：http://127.0.0.1:$($config.Port)"
         return
     }
@@ -67,25 +84,36 @@ function Start-ServiceProcess {
 }
 
 function Stop-ServiceProcess {
-    $existing = Get-ServiceProcess
-    if (-not $existing) {
+    $processes = @(Get-ServiceProcesses)
+    if ($processes.Count -eq 0) {
         Remove-Item ([string]$config.PidPath) -ErrorAction SilentlyContinue
         Write-Host "Stable Audio 3 未运行"
         return
     }
-    & taskkill /PID $existing.Id /T /F | Out-Null
-    if ($LASTEXITCODE -ne 0) { Stop-Process -Id $existing.Id -Force -ErrorAction SilentlyContinue }
+    foreach ($process in $processes) {
+        $processId = [int]$process.Id
+        & taskkill /PID $processId /T /F | Out-Null
+        if ($LASTEXITCODE -ne 0) { Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue }
+    }
+    Start-Sleep -Milliseconds 500
+    $remaining = @(Get-ServiceProcesses)
+    if ($remaining.Count -gt 0) {
+        $remainingIds = ($remaining | ForEach-Object { [string]$_.Id }) -join ", "
+        Write-Host "Stable Audio 3 停止后仍有进程运行：$remainingIds" -ForegroundColor Red
+        exit 1
+    }
     Remove-Item ([string]$config.PidPath) -ErrorAction SilentlyContinue
     Write-Host "Stable Audio 3 已停止"
 }
 
 function Show-ServiceStatus {
-    $existing = Get-ServiceProcess
-    if (-not $existing) {
+    $existing = @(Get-ServiceProcesses)
+    if ($existing.Count -eq 0) {
         Write-Host "Stable Audio 3 未运行"
         return
     }
-    Write-Host "Stable Audio 3 进程运行中 (PID $($existing.Id))"
+    $processIds = ($existing | ForEach-Object { [string]$_.Id }) -join ", "
+    Write-Host "Stable Audio 3 进程运行中 (PID $processIds)"
     try {
         $res = Invoke-WebRequest -Uri "http://127.0.0.1:$($config.Port)/health" -TimeoutSec 2 -UseBasicParsing
         if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 300) {

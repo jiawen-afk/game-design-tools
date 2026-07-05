@@ -44,9 +44,10 @@ export function useStableAudioSetup() {
     const result: DesktopCommandResult = api
       ? await api.checkStableAudioService(targetPort)
       : { ok: await checkStableAudioConnection(targetPort), output: '' }
-    if (checkRef.current !== id) return
+    if (checkRef.current !== id) return null
     if (reportResult && !result.ok && result.output) setDesktopServiceResult(result)
     setConnectionStatus(result.ok ? 'connected' : 'disconnected')
+    return result
   }, [port])
 
   const waitForDesktopConnection = useCallback(async (targetPort: number) => {
@@ -131,8 +132,21 @@ export function useStableAudioSetup() {
     if (!api) return
     setDesktopServiceBusy(true)
     try {
-      setDesktopServiceResult(await api.controlStableAudioService(action))
+      const result = await api.controlStableAudioService(action)
+      setDesktopServiceResult(result)
       if (action === 'start' || action === 'restart') void runCheck(port, true)
+      if (action === 'stop') {
+        setConnectionStatus('disconnected')
+        const probe = await runCheck(port, true)
+        if (probe?.ok) {
+          setDesktopServiceResult({
+            ok: false,
+            output: `${result.output || '停止服务命令已执行。'}\n停止后服务仍在响应，请稍后再试，或检查 Stable Audio 3 服务日志。`,
+          })
+        } else {
+          setDesktopServiceResult(result)
+        }
+      }
     } finally {
       setDesktopServiceBusy(false)
     }
