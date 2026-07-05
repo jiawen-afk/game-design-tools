@@ -18,6 +18,7 @@ $Port = 8818
 $RepoUrl = "https://github.com/Stability-AI/stable-audio-3.git"
 $RepoDir = Join-Path $ModelPath "stable-audio-3"
 # Invoke-StableAudioInstall runs: uv sync --extra ui
+# Invoke-StableAudioModelDownload runs stable_audio_3 model cfg.resolve()
 
 . (Join-Path $PSScriptRoot "stable-audio-deploy-common.ps1")
 . (Join-Path $PSScriptRoot "stable-audio-service-install.ps1")
@@ -27,6 +28,7 @@ try {
     Ensure-UvAvailable
     Ensure-Repository $RepoUrl $RepoDir
     Invoke-StableAudioInstall $RepoDir
+    Invoke-StableAudioModelDownload $RepoDir $ModelVariant $Source
     Install-StableAudioServiceCommands $RepoDir $ModelPath $ModelVariant $Port $Source
 
     Write-Step "准备完成"

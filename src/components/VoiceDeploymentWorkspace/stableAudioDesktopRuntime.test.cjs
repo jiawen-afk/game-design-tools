@@ -199,6 +199,54 @@ test('stable audio dependency status rejects a requested model that is not insta
   }
 })
 
+test('stable audio dependency status requires the selected model checkpoint in the local cache', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-cache-'))
+  const originalLocalAppData = process.env.LOCALAPPDATA
+  process.env.LOCALAPPDATA = tempDir
+  try {
+    const paths = resolveStableAudioInstallPaths({ LOCALAPPDATA: tempDir })
+    const repoDir = path.join(tempDir, 'stable-audio-3')
+    const pythonCommand = path.join(repoDir, '.venv', 'Scripts', 'python.exe')
+    fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true })
+    fs.mkdirSync(path.dirname(paths.configPath), { recursive: true })
+    fs.mkdirSync(path.dirname(pythonCommand), { recursive: true })
+    fs.writeFileSync(paths.servicePath, 'service')
+    fs.writeFileSync(pythonCommand, 'python')
+    fs.writeFileSync(paths.configPath, JSON.stringify({
+      PythonCommand: pythonCommand,
+      PythonArgs: [],
+      RepoDir: repoDir,
+      ModelVariant: 'medium',
+    }))
+
+    const ipcMain = createIpcMain()
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      runCommandOutput: async (_command, args) => {
+        const script = args.at(-1)
+        if (script.includes('import torch')) return { ok: true, output: 'torch ok' }
+        assert.match(script, /try_to_load_from_cache/)
+        assert.match(script, /model\.safetensors/)
+        return {
+          ok: false,
+          output: '模型 medium 尚未下载到本机缓存：stabilityai/stable-audio-3-medium\n请先选择 medium 后点击“安装依赖”。',
+        }
+      },
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:setup-status')({}, { model: 'medium' })
+
+    assert.equal(result.ok, false)
+    assert.match(result.output, /模型 medium 尚未下载到本机缓存/)
+    assert.match(result.output, /安装依赖/)
+  } finally {
+    if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
+    else process.env.LOCALAPPDATA = originalLocalAppData
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('stable audio health applies a timeout signal to local service probes', async () => {
   const originalFetch = global.fetch
   global.fetch = async (_url, options = {}) => {

@@ -178,3 +178,58 @@ function Invoke-StableAudioInstall($repoDir) {
     }
     Write-OK "Stable Audio 3 依赖安装完成"
 }
+
+function Invoke-StableAudioModelDownload($repoDir, $modelVariant, $source) {
+    Write-Step "下载 Stable Audio 3 模型 $modelVariant"
+    $sourceText = [string]$source
+    $previousHfEndpoint = $env:HF_ENDPOINT
+    if ($sourceText -eq "ms") {
+        Write-Host "    Stable Audio 3 官方服务读取 HuggingFace 本机缓存；ModelScope 暂不作为该模型的启动缓存。" -ForegroundColor Yellow
+        Write-Host "    本次将使用 HuggingFace 镜像下载到官方缓存，启动和检测会读取同一份模型文件。" -ForegroundColor Yellow
+    }
+    if ($sourceText -eq "auto" -or $sourceText -eq "hf" -or $sourceText -eq "ms") {
+        $env:HF_ENDPOINT = "https://hf-mirror.com"
+        Write-Host "    HuggingFace 下载端点：$env:HF_ENDPOINT" -ForegroundColor Gray
+    }
+
+    $modelJson = $modelVariant | ConvertTo-Json -Compress
+    $pyCode = @"
+from stable_audio_3.model_configs import models
+
+model = $modelJson
+cfg = models[model]
+model_url = f"https://huggingface.co/{cfg.repo_id}"
+
+print(f"准备下载模型：{model} ({cfg.repo_id})")
+print(f"访问链接：{model_url}")
+try:
+    config_path, ckpt_path = cfg.resolve()
+except Exception as exc:
+    print(f"模型下载失败：{exc}")
+    print(f"请打开访问链接并确认许可：{model_url}")
+    print("登录命令：uv run hf auth login")
+    raise
+
+print(f"model_config.json: {config_path}")
+print(f"model.safetensors: {ckpt_path}")
+"@
+    $pyFile = Join-Path ([System.IO.Path]::GetTempPath()) ("stable_audio_model_download_" + [System.Guid]::NewGuid().ToString("N") + ".py")
+    Set-Content -Path $pyFile -Value $pyCode -Encoding utf8
+
+    Push-Location $repoDir
+    try {
+        uv run python $pyFile
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "模型 $modelVariant 下载失败。请打开上方 HuggingFace 访问链接确认许可，然后在 $repoDir 运行：uv run hf auth login"
+        }
+    } finally {
+        Pop-Location
+        Remove-Item $pyFile -ErrorAction SilentlyContinue
+        if ($null -eq $previousHfEndpoint) {
+            Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue
+        } else {
+            $env:HF_ENDPOINT = $previousHfEndpoint
+        }
+    }
+    Write-OK "Stable Audio 3 模型 $modelVariant 已下载到本机缓存"
+}

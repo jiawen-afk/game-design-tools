@@ -23,6 +23,22 @@ test('stable audio deployment script uses official repository and uv ui extras',
   assert.match(deploy, /\$Port\s*=\s*8818/)
 })
 
+test('stable audio install prefetches selected model weights before installing service commands', () => {
+  const deploy = read(files.deploy)
+  const common = read(files.common)
+  const downloadIndex = deploy.indexOf('Invoke-StableAudioModelDownload $RepoDir $ModelVariant $Source')
+  const serviceIndex = deploy.indexOf('Install-StableAudioServiceCommands $RepoDir $ModelPath $ModelVariant $Port $Source')
+
+  assert.ok(downloadIndex > -1, 'deploy script should download the selected model')
+  assert.ok(serviceIndex > downloadIndex, 'service config should be written after model download succeeds')
+  assert.match(common, /function Invoke-StableAudioModelDownload/)
+  assert.match(common, /from stable_audio_3\.model_configs import models/)
+  assert.match(common, /cfg\.resolve\(\)/)
+  assert.match(common, /model\.safetensors/)
+  assert.match(common, /https:\/\/huggingface\.co\/\{cfg\.repo_id\}/)
+  assert.match(common, /uv run hf auth login/)
+})
+
 test('stable audio repository setup retries clone through fallback URLs before failing', () => {
   const common = read(files.common)
 

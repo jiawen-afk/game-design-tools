@@ -66,6 +66,7 @@ function stableAudioModelUrl(model) {
 function formatStableAudioModelAccessFailure(model, output, repoDir = '') {
   const repoId = stableAudioModelRepos[normalizeStableAudioModel(model)]
   const raw = String(output || '').trim()
+  if (raw.includes('尚未下载到本机缓存')) return raw
   if (isStableAudioModelAccessError(raw)) {
     const loginLocation = repoDir
       ? `进入 ${repoDir} 后运行：uv run hf auth login`
@@ -86,10 +87,21 @@ function formatStableAudioModelAccessFailure(model, output, repoDir = '') {
 function buildStableAudioModelProbeScript(model) {
   const normalizedModel = normalizeStableAudioModel(model)
   const repoId = stableAudioModelRepos[normalizedModel]
+  const modelUrl = stableAudioModelUrl(normalizedModel)
   return [
-    'from huggingface_hub import hf_hub_download',
-    `hf_hub_download(repo_id=${JSON.stringify(repoId)}, filename="model_config.json", etag_timeout=10)`,
-    `print(${JSON.stringify(`model access ok: ${normalizedModel}`)})`,
+    'from huggingface_hub import try_to_load_from_cache',
+    'from stable_audio_3.model_configs import models',
+    `model = ${JSON.stringify(normalizedModel)}`,
+    'cfg = models[model]',
+    'missing = []',
+    'for label, filename in [("model_config.json", cfg.config_path), ("model.safetensors", cfg.ckpt_path)]:',
+    '    cached = try_to_load_from_cache(cfg.repo_id, filename)',
+    '    if not isinstance(cached, str):',
+    '        missing.append(label)',
+    'if missing:',
+    `    print(${JSON.stringify(`模型 ${normalizedModel} 尚未下载到本机缓存：${repoId}\n访问链接：${modelUrl}\n缺少文件：`)} + ", ".join(missing) + ${JSON.stringify(`\n请先选择 ${normalizedModel} 后点击“安装依赖”。如果模型是受限仓库，请先登录 HuggingFace 并同意访问许可。`)})`,
+    '    raise SystemExit(2)',
+    `print(${JSON.stringify(`model installed: ${normalizedModel}`)})`,
   ].join('\n')
 }
 
@@ -267,8 +279,8 @@ function registerStableAudioIpcHandlers({
           [...pythonArgs, '-c', buildStableAudioModelProbeScript(model)],
           repoDir && fsExists(repoDir) ? { cwd: repoDir } : {},
         )
-        if (modelProbe.ok) details.push(`模型访问：${modelProbe.output || `${model} ok`}`)
-        else missing.push(`模型访问不可用：${formatStableAudioModelAccessFailure(model, modelProbe.output, repoDir)}`)
+        if (modelProbe.ok) details.push(`模型缓存：${modelProbe.output || `${model} ok`}`)
+        else missing.push(formatStableAudioModelAccessFailure(model, modelProbe.output, repoDir))
       }
     }
 
