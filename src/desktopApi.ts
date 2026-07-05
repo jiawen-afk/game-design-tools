@@ -52,6 +52,7 @@ export type {
   DesktopStableAudioRuntimeApi,
   DesktopStableAudioSetupOptions,
   DesktopStableAudioSetupResult,
+  DesktopStableAudioStatusOptions,
 } from './desktopStableAudioRuntimeApi'
 export type {
   DesktopCommandResult,

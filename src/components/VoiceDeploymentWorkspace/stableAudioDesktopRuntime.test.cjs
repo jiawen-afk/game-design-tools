@@ -150,6 +150,53 @@ test('stable audio dependency status reports gated model access before service s
   }
 })
 
+test('stable audio dependency status probes the requested model instead of the installed default', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-model-'))
+  const originalLocalAppData = process.env.LOCALAPPDATA
+  process.env.LOCALAPPDATA = tempDir
+  try {
+    const paths = resolveStableAudioInstallPaths({ LOCALAPPDATA: tempDir })
+    const repoDir = path.join(tempDir, 'stable-audio-3')
+    const pythonCommand = path.join(repoDir, '.venv', 'Scripts', 'python.exe')
+    fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true })
+    fs.mkdirSync(path.dirname(paths.configPath), { recursive: true })
+    fs.mkdirSync(path.dirname(pythonCommand), { recursive: true })
+    fs.writeFileSync(paths.servicePath, 'service')
+    fs.writeFileSync(pythonCommand, 'python')
+    fs.writeFileSync(paths.configPath, JSON.stringify({
+      PythonCommand: pythonCommand,
+      PythonArgs: [],
+      RepoDir: repoDir,
+      ModelVariant: 'small-sfx',
+    }))
+
+    const probedScripts = []
+    const ipcMain = createIpcMain()
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      runCommandOutput: async (_command, args) => {
+        const script = args.at(-1)
+        probedScripts.push(script)
+        if (script.includes('import torch')) return { ok: true, output: 'torch ok' }
+        return { ok: true, output: 'model access ok: medium' }
+      },
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:setup-status')({}, { model: 'medium' })
+
+    assert.equal(result.ok, true)
+    assert.match(result.output, /模型：medium/)
+    assert.match(result.output, /模型访问：model access ok: medium/)
+    assert.ok(probedScripts.some((script) => script.includes('stable-audio-3-medium')))
+    assert.ok(!probedScripts.some((script) => script.includes('stable-audio-3-small-sfx')))
+  } finally {
+    if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
+    else process.env.LOCALAPPDATA = originalLocalAppData
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('stable audio health applies a timeout signal to local service probes', async () => {
   const originalFetch = global.fetch
   global.fetch = async (_url, options = {}) => {

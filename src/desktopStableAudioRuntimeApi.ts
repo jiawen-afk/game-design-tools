@@ -9,6 +9,10 @@ export interface DesktopStableAudioSetupOptions {
   source: DownloadSource
 }
 
+export interface DesktopStableAudioStatusOptions {
+  model?: DesktopStableAudioModelId
+}
+
 export interface DesktopStableAudioSetupResult {
   started: boolean
   scriptPath: string
@@ -37,7 +41,7 @@ export interface DesktopStableAudioGenerateResult {
 export interface DesktopStableAudioRuntimeApi {
   runStableAudioSetup(options: DesktopStableAudioSetupOptions): Promise<DesktopStableAudioSetupResult>
   runStableAudioHfLogin(): Promise<DesktopStableAudioSetupResult>
-  queryStableAudioSetupStatus(): Promise<DesktopCommandResult>
+  queryStableAudioSetupStatus(options?: DesktopStableAudioStatusOptions): Promise<DesktopCommandResult>
   controlStableAudioService(action: 'start' | 'stop' | 'restart' | 'status'): Promise<DesktopCommandResult>
   checkStableAudioService(port: number): Promise<DesktopCommandResult>
   generateStableAudio(options: DesktopStableAudioGenerateOptions): Promise<DesktopStableAudioGenerateResult>

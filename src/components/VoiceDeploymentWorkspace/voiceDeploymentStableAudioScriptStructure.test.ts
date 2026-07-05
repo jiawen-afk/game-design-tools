@@ -112,6 +112,16 @@ test('stable audio setup exposes one-click HuggingFace login through the desktop
   assert.match(panel, /登录 HuggingFace/)
 })
 
+test('stable audio dependency checks use the selected model from the setup panel', () => {
+  const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+  const preload = read('electron/preload.cjs')
+  const api = read('src/desktopStableAudioRuntimeApi.ts')
+
+  assert.match(api, /queryStableAudioSetupStatus\(options\?:/)
+  assert.match(preload, /queryStableAudioSetupStatus:\s*\(options\) => invoke\('stable-audio:setup-status', options\)/)
+  assert.match(hook, /api\.queryStableAudioSetupStatus\(\{\s*model: selectedModel\s*\}\)/)
+})
+
 test('stable audio service start releases button loading before readiness polling', () => {
   const workflow = read('src/components/DesktopServiceRuntime/desktopServiceWorkflow.ts')
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')

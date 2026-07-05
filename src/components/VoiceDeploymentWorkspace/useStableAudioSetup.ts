@@ -106,11 +106,11 @@ export function useStableAudioSetup() {
     if (!api) return
     setDesktopDependencyStatusBusy(true)
     try {
-      setDesktopDependencyStatusResult(await api.queryStableAudioSetupStatus())
+      setDesktopDependencyStatusResult(await api.queryStableAudioSetupStatus({ model: selectedModel }))
     } finally {
       setDesktopDependencyStatusBusy(false)
     }
-  }, [])
+  }, [selectedModel])
 
   const runDesktopHfLogin = useCallback(async () => {
     const api = getDesktopApi()
@@ -160,7 +160,7 @@ export function useStableAudioSetup() {
     lastStableAudioProbeRef.current = ''
     try {
       await runDesktopServiceStartup({
-        queryDependencyStatus: () => api.queryStableAudioSetupStatus(),
+        queryDependencyStatus: () => api.queryStableAudioSetupStatus({ model: selectedModel }),
         startService: () => api.controlStableAudioService('start'),
         waitForConnection: () => waitForDesktopConnection(port),
         onDependencyStatus: setDesktopDependencyStatusResult,
@@ -182,7 +182,7 @@ export function useStableAudioSetup() {
       setDesktopDependencyStatusBusy(false)
       setDesktopServiceBusy(false)
     }
-  }, [port, waitForDesktopConnection])
+  }, [port, selectedModel, waitForDesktopConnection])
 
   return {
     port,

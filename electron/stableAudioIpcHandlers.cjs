@@ -20,6 +20,12 @@ function normalizeStableAudioModel(model) {
   return supportedStableAudioModels.has(value) ? value : 'small-sfx'
 }
 
+function resolveStableAudioStatusModel(options, config) {
+  const requested = String(options?.model || '')
+  if (supportedStableAudioModels.has(requested)) return requested
+  return normalizeStableAudioModel(config?.ModelVariant)
+}
+
 function normalizeDownloadSource(source) {
   const value = String(source || '')
   return supportedDownloadSources.has(value) ? value : 'auto'
@@ -194,7 +200,7 @@ function registerStableAudioIpcHandlers({
     })
   })
 
-  ipcMain.handle('stable-audio:setup-status', async () => {
+  ipcMain.handle('stable-audio:setup-status', async (_event, options = {}) => {
     const { configPath, servicePath } = resolveStableAudioInstallPaths()
     const missing = []
     const details = []
@@ -216,8 +222,10 @@ function registerStableAudioIpcHandlers({
 
     const pythonCommand = config?.PythonCommand ? String(config.PythonCommand) : ''
     const repoDir = config?.RepoDir ? String(config.RepoDir) : ''
-    const model = normalizeStableAudioModel(config?.ModelVariant)
+    const configuredModel = normalizeStableAudioModel(config?.ModelVariant)
+    const model = resolveStableAudioStatusModel(options, config)
     details.push(`模型：${model}`)
+    if (config?.ModelVariant && configuredModel !== model) details.push(`安装配置模型：${configuredModel}`)
     if (pythonCommand) {
       if (fsExists(pythonCommand)) details.push(`Python：${pythonCommand}`)
       else missing.push(`Python 解释器不存在：${pythonCommand}`)
