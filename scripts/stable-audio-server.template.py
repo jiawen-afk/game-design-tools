@@ -39,6 +39,7 @@ def stable_audio_error_message(error: object, model_id: str = MODEL_ID) -> str:
     text = str(error)
     lowered = text.lower()
     repo_id = MODEL_REPOS.get(model_id, model_id)
+    model_url = f"https://huggingface.co/{repo_id}"
     if (
         "gatedrepoerror" in lowered
         or "401 unauthorized" in lowered
@@ -48,8 +49,12 @@ def stable_audio_error_message(error: object, model_id: str = MODEL_ID) -> str:
     ):
         return (
             f"Stable Audio 3 模型 {model_id} 需要 HuggingFace 授权后才能下载：{repo_id}\n"
-            "请先打开对应 HuggingFace 模型页申请或同意访问许可，然后在 Stable Audio 3 安装目录运行："
-            "uv run hf auth login"
+            f"访问链接：{model_url}\n"
+            "操作步骤：\n"
+            "1. 登录 HuggingFace。\n"
+            "2. 打开上面的访问链接，申请或同意模型访问许可。\n"
+            "3. 在 Stable Audio 3 安装目录运行：uv run hf auth login\n"
+            "4. 回到本工具重新点击“检测依赖和模型”。"
         )
     return f"Stable Audio 3 模型访问检测失败：{text}"
 

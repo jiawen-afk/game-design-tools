@@ -59,6 +59,24 @@ const sourceOptions = downloadSources.map((source) => ({
   value: source.id,
 }))
 
+function renderCommandDescription(output: string) {
+  if (!output) return '没有返回详细信息。'
+  const parts = output.split(/(https?:\/\/[^\s]+)/g)
+  return (
+    <span style={{ whiteSpace: 'pre-wrap' }}>
+      {parts.map((part, index) => (
+        /^https?:\/\//.test(part)
+          ? (
+              <a key={`${part}:${index}`} href={part} target="_blank" rel="noreferrer">
+                {part}
+              </a>
+            )
+          : <span key={`${part}:${index}`}>{part}</span>
+      ))}
+    </span>
+  )
+}
+
 function commandAlert(result: DesktopCommandResult | null, successTitle: string, warningTitle: string) {
   if (!result) return null
   return (
@@ -66,7 +84,7 @@ function commandAlert(result: DesktopCommandResult | null, successTitle: string,
       type={result.ok ? 'success' : 'warning'}
       showIcon
       title={result.ok ? successTitle : warningTitle}
-      description={result.output || '没有返回详细信息。'}
+      description={renderCommandDescription(result.output)}
     />
   )
 }

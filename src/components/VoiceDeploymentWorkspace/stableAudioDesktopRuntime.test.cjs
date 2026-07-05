@@ -98,6 +98,10 @@ test('stable audio dependency status reports gated model access before service s
 
     assert.equal(result.ok, false)
     assert.match(result.output, /HuggingFace 授权/)
+    assert.match(result.output, /访问链接：https:\/\/huggingface\.co\/stabilityai\/stable-audio-3-small-sfx/)
+    assert.match(result.output, /操作步骤/)
+    assert.match(result.output, /登录 HuggingFace/)
+    assert.match(result.output, /同意模型访问许可/)
     assert.match(result.output, /uv run hf auth login/)
   } finally {
     if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA

@@ -87,3 +87,13 @@ test('stable audio setup waits for model readiness instead of plain http livenes
   assert.match(hook, /Stable Audio 3 模型已就绪/)
   assert.match(panel, /desktopServiceBusy \? '服务启动中'/)
 })
+
+test('stable audio setup panel renders guidance URLs as clickable links', () => {
+  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+
+  assert.match(panel, /renderCommandDescription/)
+  assert.ok(panel.includes('output.split(/(https?:\\/\\/[^\\s]+)/g)'))
+  assert.match(panel, /href=\{part\}/)
+  assert.match(panel, /target="_blank"/)
+  assert.match(panel, /rel="noreferrer"/)
+})

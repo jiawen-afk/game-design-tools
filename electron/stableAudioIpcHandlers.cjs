@@ -46,13 +46,26 @@ function isStableAudioModelAccessError(output) {
   )
 }
 
-function formatStableAudioModelAccessFailure(model, output) {
+function stableAudioModelUrl(model) {
+  const repoId = stableAudioModelRepos[normalizeStableAudioModel(model)]
+  return `https://huggingface.co/${repoId}`
+}
+
+function formatStableAudioModelAccessFailure(model, output, repoDir = '') {
   const repoId = stableAudioModelRepos[normalizeStableAudioModel(model)]
   const raw = String(output || '').trim()
   if (isStableAudioModelAccessError(raw)) {
+    const loginLocation = repoDir
+      ? `进入 ${repoDir} 后运行：uv run hf auth login`
+      : '在 Stable Audio 3 安装目录运行：uv run hf auth login'
     return [
       `模型 ${model} 需要 HuggingFace 授权后才能下载：${repoId}`,
-      '请先打开对应 HuggingFace 模型页申请或同意访问许可，然后在 Stable Audio 3 安装目录运行：uv run hf auth login',
+      `访问链接：${stableAudioModelUrl(model)}`,
+      '操作步骤：',
+      '1. 登录 HuggingFace。',
+      '2. 打开上面的访问链接，申请或同意模型访问许可。',
+      `3. ${loginLocation}`,
+      '4. 回到本工具重新点击“检测依赖和模型”。',
     ].join('\n')
   }
   return `模型 ${model} 访问检测失败：${raw || '无法读取 HuggingFace 模型配置。'}`
@@ -170,7 +183,7 @@ function registerStableAudioIpcHandlers({
           repoDir && fsExists(repoDir) ? { cwd: repoDir } : {},
         )
         if (modelProbe.ok) details.push(`模型访问：${modelProbe.output || `${model} ok`}`)
-        else missing.push(`模型访问不可用：${formatStableAudioModelAccessFailure(model, modelProbe.output)}`)
+        else missing.push(`模型访问不可用：${formatStableAudioModelAccessFailure(model, modelProbe.output, repoDir)}`)
       }
     }
 
