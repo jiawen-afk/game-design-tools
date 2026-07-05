@@ -14,6 +14,8 @@ type SpawnCall = {
 type FakeChild = EventEmitter & {
   stdout: EventEmitter
   stderr: EventEmitter
+  kill: () => boolean
+  killCalled: boolean
   unref: () => void
   unrefCalled: boolean
 }
@@ -29,6 +31,7 @@ type ScriptServiceRuntime = {
     action?: string
     servicePath: string
     spawn: (command: string, args: string[], options: Record<string, unknown>) => FakeChild
+    timeoutMs?: number
   }) => Promise<{ ok: boolean; output: string }>
 }
 
@@ -40,6 +43,11 @@ function createFakeChild(): FakeChild {
   const child = new EventEmitter() as FakeChild
   child.stdout = new EventEmitter()
   child.stderr = new EventEmitter()
+  child.killCalled = false
+  child.kill = () => {
+    child.killCalled = true
+    return true
+  }
   child.unrefCalled = false
   child.unref = () => {
     child.unrefCalled = true
@@ -117,4 +125,21 @@ test('service command defaults unknown actions to status and combines output str
   child.emit('close', 0)
 
   assert.deepEqual(await result, { ok: true, output: 'service ok\nwarning' })
+})
+
+test('service command times out instead of leaving desktop buttons busy forever', async () => {
+  const { runServiceCommand } = loadRuntime()
+  const child = createFakeChild()
+
+  const result = await runServiceCommand({
+    action: 'restart',
+    servicePath: 'C:\\stable-audio-service.ps1',
+    spawn: recordSpawn([], child),
+    timeoutMs: 1,
+  })
+
+  assert.equal(child.killCalled, true)
+  assert.equal(result.ok, false)
+  assert.match(result.output, /服务命令执行超时/)
+  assert.match(result.output, /restart/)
 })
