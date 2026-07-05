@@ -53,6 +53,33 @@ test('desktop service startup can publish start progress and ready messages arou
   ])
 })
 
+test('desktop service startup can settle command busy state before readiness polling finishes', async () => {
+  const events: string[] = []
+
+  const result = await runDesktopServiceStartup({
+    queryDependencyStatus: async () => ({ ok: true, output: 'dependencies ready' }),
+    startService: async () => ({ ok: true, output: 'start command accepted' }),
+    waitForConnection: async () => {
+      events.push('wait-for-connection')
+      return true
+    },
+    onDependencyStatus: () => {},
+    onServiceResult: (status) => events.push(`service:${status.output}`),
+    onStartCommandSettled: () => events.push('start-command-settled'),
+    startingMessage: (output) => `${output}\nloading model`,
+    readyMessage: (output) => `${output}\nservice ready`,
+  })
+
+  assert.deepEqual(result, { connected: true, phase: 'connected' })
+  assert.deepEqual(events, [
+    'service:start command accepted',
+    'start-command-settled',
+    'service:start command accepted\nloading model',
+    'wait-for-connection',
+    'service:start command accepted\nservice ready',
+  ])
+})
+
 test('desktop service connection waiter retries probes and reports probe output', async () => {
   const statuses: string[] = []
   const probeOutputs: string[] = []

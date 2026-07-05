@@ -34,6 +34,7 @@ export interface RunDesktopServiceStartupOptions {
   onDependencyStatus: (status: DesktopServiceCommandResult) => void
   onDependencyStatusSettled?: () => void
   onServiceResult: (result: DesktopServiceCommandResult) => void
+  onStartCommandSettled?: () => void
   dependencyMissingMessage?: (dependencyOutput: string) => string
   startingMessage?: (startOutput: string) => string
   readyMessage?: (startOutput: string) => string
@@ -89,6 +90,7 @@ export async function runDesktopServiceStartup({
   onDependencyStatus,
   onDependencyStatusSettled,
   onServiceResult,
+  onStartCommandSettled,
   dependencyMissingMessage = (output) => `依赖安装未完成，启动服务已取消。\n${output}`,
   startingMessage,
   readyMessage,
@@ -107,6 +109,7 @@ export async function runDesktopServiceStartup({
 
   const serviceStart = await startService()
   onServiceResult(serviceStart)
+  onStartCommandSettled?.()
   if (!serviceStart.ok) {
     return { connected: false, phase: 'start-failed' }
   }

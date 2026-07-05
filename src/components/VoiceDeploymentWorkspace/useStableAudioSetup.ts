@@ -23,6 +23,9 @@ export function useStableAudioSetup() {
   const [desktopSetupBusy, setDesktopSetupBusy] = useState(false)
   const [desktopSetupResult, setDesktopSetupResult] = useState<DesktopStableAudioSetupResult | null>(null)
   const [desktopSetupError, setDesktopSetupError] = useState('')
+  const [desktopHfLoginBusy, setDesktopHfLoginBusy] = useState(false)
+  const [desktopHfLoginResult, setDesktopHfLoginResult] = useState<DesktopStableAudioSetupResult | null>(null)
+  const [desktopHfLoginError, setDesktopHfLoginError] = useState('')
   const [desktopDependencyStatusBusy, setDesktopDependencyStatusBusy] = useState(false)
   const [desktopDependencyStatusResult, setDesktopDependencyStatusResult] = useState<DesktopCommandResult | null>(null)
   const [desktopServiceBusy, setDesktopServiceBusy] = useState(false)
@@ -108,6 +111,21 @@ export function useStableAudioSetup() {
     }
   }, [])
 
+  const runDesktopHfLogin = useCallback(async () => {
+    const api = getDesktopApi()
+    if (!api) return
+    setDesktopHfLoginBusy(true)
+    setDesktopHfLoginResult(null)
+    setDesktopHfLoginError('')
+    try {
+      setDesktopHfLoginResult(await api.runStableAudioHfLogin())
+    } catch (error) {
+      setDesktopHfLoginError(error instanceof Error ? error.message : 'HuggingFace 登录终端启动失败，请先完成 Stable Audio 3 安装。')
+    } finally {
+      setDesktopHfLoginBusy(false)
+    }
+  }, [])
+
   const controlDesktopService = useCallback(async (action: 'start' | 'stop' | 'restart' | 'status') => {
     const api = getDesktopApi()
     if (!api) return
@@ -134,6 +152,7 @@ export function useStableAudioSetup() {
         onDependencyStatus: setDesktopDependencyStatusResult,
         onDependencyStatusSettled: () => setDesktopDependencyStatusBusy(false),
         onServiceResult: setDesktopServiceResult,
+        onStartCommandSettled: () => setDesktopServiceBusy(false),
         startingMessage: (output) => `${output || '服务启动命令已执行。'}\n正在检测 Stable Audio 3 模型访问和服务健康状态，首次启动可能需要登录或下载模型。`,
         readyMessage: (output) => `${output || '服务启动命令已执行。'}\nStable Audio 3 模型已就绪，音效服务可用。`,
         timeoutMessage: (output) => {
@@ -168,6 +187,9 @@ export function useStableAudioSetup() {
     desktopSetupBusy,
     desktopSetupResult,
     desktopSetupError,
+    desktopHfLoginBusy,
+    desktopHfLoginResult,
+    desktopHfLoginError,
     desktopDependencyStatusBusy,
     desktopDependencyStatusResult,
     desktopServiceBusy,
@@ -175,6 +197,7 @@ export function useStableAudioSetup() {
     applyPort,
     runCheck,
     runDesktopSetup,
+    runDesktopHfLogin,
     queryDesktopDependencyStatus,
     startDesktopService,
     controlDesktopService,

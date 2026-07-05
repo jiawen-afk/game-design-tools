@@ -13,6 +13,7 @@ const stableAudioModelRepos = {
   'small-music': 'stabilityai/stable-audio-3-small-music',
   medium: 'stabilityai/stable-audio-3-medium',
 }
+const stableAudioHealthTimeoutMs = 8000
 
 function normalizeStableAudioModel(model) {
   const value = String(model || '')
@@ -81,6 +82,30 @@ function buildStableAudioModelProbeScript(model) {
   ].join('\n')
 }
 
+function buildStableAudioHfLoginScript() {
+  return [
+    'param(',
+    '    [Parameter(Mandatory=$true)]',
+    '    [string]$RepoDir',
+    ')',
+    '',
+    '$ErrorActionPreference = "Stop"',
+    'Write-Host "==> Stable Audio 3 HuggingFace 登录"',
+    'if (-not (Test-Path -LiteralPath $RepoDir)) {',
+    '    Write-Host "Stable Audio 3 仓库不存在：$RepoDir" -ForegroundColor Red',
+    '    exit 1',
+    '}',
+    'Set-Location -LiteralPath $RepoDir',
+    'Write-Host "请先在 HuggingFace 模型页申请或同意模型访问许可。"',
+    'Write-Host "Token 页面：https://huggingface.co/settings/tokens"',
+    'Write-Host "下面会执行：uv run hf auth login"',
+    'uv run hf auth login',
+    'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }',
+    'Write-Host ""',
+    'Write-Host "HuggingFace 登录完成。请回到工具点击“检测依赖和模型”。"',
+  ].join('\r\n')
+}
+
 function resolveStableAudioInstallPaths(env = process.env) {
   const localAppData = env.LOCALAPPDATA || ''
   const stateDir = path.join(localAppData, 'GameDesignTools', 'StableAudio3')
@@ -107,6 +132,12 @@ async function fetchJson(url, options) {
   return data
 }
 
+function stableAudioHealthSignal() {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+    ? AbortSignal.timeout(stableAudioHealthTimeoutMs)
+    : undefined
+}
+
 function registerStableAudioIpcHandlers({
   ipcMain,
   resolveDeploymentScript,
@@ -129,6 +160,37 @@ function registerStableAudioIpcHandlers({
       args: [modelPath, model, source],
       scriptPath,
       title: 'Stable Audio 3 安装依赖',
+    })
+  })
+
+  ipcMain.handle('stable-audio:hf-login', async () => {
+    const { configPath, stateDir } = resolveStableAudioInstallPaths()
+    if (!fsExists(configPath)) {
+      throw new Error('尚未找到 Stable Audio 3 安装配置，请先安装依赖。')
+    }
+
+    let config = null
+    try {
+      config = parseJsonText(await fsp.readFile(configPath, 'utf8'))
+    } catch (error) {
+      throw new Error(`Stable Audio 3 安装配置无法读取：${error.message}`)
+    }
+
+    const repoDir = config?.RepoDir ? String(config.RepoDir) : ''
+    if (!repoDir) {
+      throw new Error('Stable Audio 3 安装配置缺少仓库路径，请先重新安装依赖。')
+    }
+    if (!fsExists(repoDir)) {
+      throw new Error(`Stable Audio 3 仓库不存在：${repoDir}`)
+    }
+
+    await fsp.mkdir(stateDir, { recursive: true })
+    const scriptPath = path.join(stateDir, 'stable-audio-hf-login.ps1')
+    await fsp.writeFile(scriptPath, buildStableAudioHfLoginScript(), 'utf8')
+    return launchSetupTerminal({
+      args: [repoDir],
+      scriptPath,
+      title: 'Stable Audio 3 登录 HuggingFace',
     })
   })
 
@@ -204,7 +266,7 @@ function registerStableAudioIpcHandlers({
 
   ipcMain.handle('stable-audio:health', async (_event, port = 8818) => {
     try {
-      const result = await fetchJson(`${serviceUrl(port)}/health`)
+      const result = await fetchJson(`${serviceUrl(port)}/health`, { signal: stableAudioHealthSignal() })
       return { ok: Boolean(result?.ok ?? result?.ready), output: JSON.stringify(result) }
     } catch (error) {
       return { ok: false, output: error?.message || 'Stable Audio 3 服务未就绪。' }

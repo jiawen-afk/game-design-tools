@@ -97,3 +97,27 @@ test('stable audio setup panel renders guidance URLs as clickable links', () => 
   assert.match(panel, /target="_blank"/)
   assert.match(panel, /rel="noreferrer"/)
 })
+
+test('stable audio setup exposes one-click HuggingFace login through the desktop bridge', () => {
+  const ipc = read('electron/stableAudioIpcHandlers.cjs')
+  const preload = read('electron/preload.cjs')
+  const api = read('src/desktopStableAudioRuntimeApi.ts')
+  const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+
+  assert.match(ipc, /stable-audio:hf-login/)
+  assert.match(preload, /runStableAudioHfLogin/)
+  assert.match(api, /runStableAudioHfLogin/)
+  assert.match(hook, /runDesktopHfLogin/)
+  assert.match(panel, /登录 HuggingFace/)
+})
+
+test('stable audio service start releases button loading before readiness polling', () => {
+  const workflow = read('src/components/DesktopServiceRuntime/desktopServiceWorkflow.ts')
+  const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+  const ipc = read('electron/stableAudioIpcHandlers.cjs')
+
+  assert.match(workflow, /onStartCommandSettled/)
+  assert.match(hook, /onStartCommandSettled:\s*\(\) => setDesktopServiceBusy\(false\)/)
+  assert.match(ipc, /AbortSignal\.timeout/)
+})

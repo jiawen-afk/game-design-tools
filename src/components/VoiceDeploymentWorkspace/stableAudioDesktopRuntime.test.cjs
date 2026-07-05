@@ -61,6 +61,46 @@ test('stable audio setup launches the deployment script with normalized defaults
   assert.deepEqual(launchCalls[0].args, ['D:\\models\\StableAudio3', 'small-sfx', 'auto'])
 })
 
+test('stable audio HuggingFace login launches an interactive auth terminal in the installed repo', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-login-'))
+  const originalLocalAppData = process.env.LOCALAPPDATA
+  process.env.LOCALAPPDATA = tempDir
+  try {
+    const paths = resolveStableAudioInstallPaths({ LOCALAPPDATA: tempDir })
+    const repoDir = path.join(tempDir, 'stable-audio-3')
+    fs.mkdirSync(repoDir, { recursive: true })
+    fs.mkdirSync(path.dirname(paths.configPath), { recursive: true })
+    fs.writeFileSync(paths.configPath, JSON.stringify({ RepoDir: repoDir }))
+
+    const ipcMain = createIpcMain()
+    const launchCalls = []
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      launchSetupTerminal: async (input) => {
+        launchCalls.push(input)
+        return { started: true, scriptPath: input.scriptPath }
+      },
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:hf-login')()
+
+    const loginScriptPath = path.join(paths.stateDir, 'stable-audio-hf-login.ps1')
+    assert.deepEqual(result, { started: true, scriptPath: loginScriptPath })
+    assert.equal(launchCalls[0].scriptPath, loginScriptPath)
+    assert.equal(launchCalls[0].title, 'Stable Audio 3 登录 HuggingFace')
+    assert.deepEqual(launchCalls[0].args, [repoDir])
+    const loginScript = fs.readFileSync(loginScriptPath, 'utf8')
+    assert.match(loginScript, /Set-Location -LiteralPath \$RepoDir/)
+    assert.match(loginScript, /uv run hf auth login/)
+    assert.match(loginScript, /检测依赖和模型/)
+  } finally {
+    if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
+    else process.env.LOCALAPPDATA = originalLocalAppData
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
 test('stable audio dependency status reports gated model access before service startup', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-'))
   const originalLocalAppData = process.env.LOCALAPPDATA
@@ -107,6 +147,29 @@ test('stable audio dependency status reports gated model access before service s
     if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
     else process.env.LOCALAPPDATA = originalLocalAppData
     fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('stable audio health applies a timeout signal to local service probes', async () => {
+  const originalFetch = global.fetch
+  global.fetch = async (_url, options = {}) => {
+    assert.ok(options.signal, 'health probes should pass an AbortSignal')
+    return new Response(JSON.stringify({ ok: true, ready: true }), { status: 200 })
+  }
+  try {
+    const ipcMain = createIpcMain()
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      fsExists: () => true,
+      runCommandOutput: async () => ({ ok: true, output: 'ok' }),
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:health')({}, 8818)
+
+    assert.equal(result.ok, true)
+  } finally {
+    global.fetch = originalFetch
   }
 })
 

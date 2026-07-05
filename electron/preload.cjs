@@ -26,6 +26,7 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   queryVoxcpmSetupStatus: () => invoke('voxcpm:setup-status'),
   controlVoxcpmService: (action) => invoke('voxcpm:service', action),
   runStableAudioSetup: (options) => invoke('stable-audio:run-setup', options),
+  runStableAudioHfLogin: () => invoke('stable-audio:hf-login'),
   queryStableAudioSetupStatus: () => invoke('stable-audio:setup-status'),
   controlStableAudioService: (action) => invoke('stable-audio:service', action),
   checkStableAudioService: (port) => invoke('stable-audio:health', port),

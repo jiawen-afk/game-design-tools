@@ -1,6 +1,7 @@
 import { Alert, Button, Input, Segmented, Tag } from 'antd'
 import {
   CheckCircleOutlined,
+  LoginOutlined,
   LoadingOutlined,
   PlayCircleOutlined,
   PoweroffOutlined,
@@ -38,6 +39,9 @@ interface SoundEffectSetupPanelProps {
   desktopSetupBusy: boolean
   desktopSetupResult: DesktopStableAudioSetupResult | null
   desktopSetupError: string
+  desktopHfLoginBusy: boolean
+  desktopHfLoginResult: DesktopStableAudioSetupResult | null
+  desktopHfLoginError: string
   desktopDependencyStatusBusy: boolean
   desktopDependencyStatusResult: DesktopCommandResult | null
   desktopServiceBusy: boolean
@@ -49,6 +53,7 @@ interface SoundEffectSetupPanelProps {
   onApplyPort: () => void
   onRunCheck: () => void
   onRunDesktopSetup: () => void
+  onRunDesktopHfLogin: () => void
   onQueryDesktopDependencyStatus: () => void
   onStartDesktopService: () => void
   onControlDesktopService: (action: StableAudioServiceAction) => void
@@ -104,6 +109,9 @@ export function SoundEffectSetupPanel({
   desktopSetupBusy,
   desktopSetupResult,
   desktopSetupError,
+  desktopHfLoginBusy,
+  desktopHfLoginResult,
+  desktopHfLoginError,
   desktopDependencyStatusBusy,
   desktopDependencyStatusResult,
   desktopServiceBusy,
@@ -115,6 +123,7 @@ export function SoundEffectSetupPanel({
   onApplyPort,
   onRunCheck,
   onRunDesktopSetup,
+  onRunDesktopHfLogin,
   onQueryDesktopDependencyStatus,
   onStartDesktopService,
   onControlDesktopService,
@@ -226,9 +235,17 @@ export function SoundEffectSetupPanel({
             安装依赖
           </Button>
           <Button
+            icon={<LoginOutlined />}
+            loading={desktopHfLoginBusy}
+            disabled={!desktopRuntime || desktopHfLoginBusy}
+            onClick={onRunDesktopHfLogin}
+          >
+            登录 HuggingFace
+          </Button>
+          <Button
             icon={<PlayCircleOutlined />}
             loading={desktopServiceBusy}
-            disabled={!desktopRuntime || desktopServiceBusy || connected}
+            disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
             onClick={onStartDesktopService}
           >
             启动服务
@@ -261,6 +278,12 @@ export function SoundEffectSetupPanel({
       ) : null}
       {desktopSetupError ? (
         <Alert type="error" showIcon title="安装依赖启动失败" description={desktopSetupError} />
+      ) : null}
+      {desktopHfLoginResult ? (
+        <Alert type="success" showIcon title="HuggingFace 登录终端已打开" description={`脚本路径：${desktopHfLoginResult.scriptPath}`} />
+      ) : null}
+      {desktopHfLoginError ? (
+        <Alert type="error" showIcon title="HuggingFace 登录终端启动失败" description={desktopHfLoginError} />
       ) : null}
       {commandAlert(desktopDependencyStatusResult, '依赖和模型检测完成', '依赖或模型尚未就绪')}
       {commandAlert(desktopServiceResult, desktopServiceBusy ? '服务启动中' : connected ? '服务已就绪' : '服务命令已执行', '服务未就绪')}
