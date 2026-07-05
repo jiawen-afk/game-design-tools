@@ -30,6 +30,21 @@ function Write-Utf8PowerShellFile($path, $content) {
     [System.IO.File]::WriteAllText($path, $content, $encoding)
 }
 
+$StableAudioRepoFallbackUrls = @(
+    "https://gh-proxy.com/https://github.com/Stability-AI/stable-audio-3.git"
+)
+
+function Test-StableAudioRepositoryReady($repoDir) {
+    return (Test-Path (Join-Path $repoDir ".git")) -or (Test-Path (Join-Path $repoDir "pyproject.toml"))
+}
+
+function Remove-PartialStableAudioRepository($repoDir) {
+    if ((Test-Path $repoDir) -and -not (Test-StableAudioRepositoryReady $repoDir)) {
+        Write-Host "    清理未完成的仓库目录：$repoDir" -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $repoDir
+    }
+}
+
 function Ensure-GitAvailable {
     Write-Step "检测 git"
     Refresh-PathFromRegistry
@@ -69,13 +84,28 @@ function Ensure-Repository($repoUrl, $repoDir) {
     Write-Step "准备 Stable Audio 3 仓库到 $repoDir"
     $parent = Split-Path -Parent $repoDir
     if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-    if (Test-Path (Join-Path $repoDir ".git")) {
+    if (Test-StableAudioRepositoryReady $repoDir) {
         Write-OK "仓库已存在，跳过克隆"
         return
     }
-    & git clone --depth 1 $repoUrl $repoDir
-    if ($LASTEXITCODE -ne 0) { Write-Fail "克隆 Stable Audio 3 仓库失败，请检查网络或 git 配置。" }
-    Write-OK "仓库克隆完成"
+
+    $repoUrls = @($repoUrl) + $StableAudioRepoFallbackUrls
+    if ($env:STABLE_AUDIO_REPO_URLS) {
+        $repoUrls += ($env:STABLE_AUDIO_REPO_URLS -split ';' | Where-Object { $_.Trim() })
+    }
+
+    foreach ($candidateRepoUrl in $repoUrls) {
+        Remove-PartialStableAudioRepository $repoDir
+        Write-Host "    尝试克隆：$candidateRepoUrl"
+        & git clone --depth 1 $candidateRepoUrl $repoDir
+        if ($LASTEXITCODE -eq 0 -and (Test-StableAudioRepositoryReady $repoDir)) {
+            Write-OK "仓库克隆完成"
+            return
+        }
+        Write-Host "    克隆失败，准备尝试下一个源。" -ForegroundColor Yellow
+    }
+
+    Write-Fail "克隆 Stable Audio 3 仓库失败。请检查网络或 git 代理；请手动把仓库放到 $repoDir 后重新运行安装脚本。"
 }
 
 function Invoke-StableAudioInstall($repoDir) {
