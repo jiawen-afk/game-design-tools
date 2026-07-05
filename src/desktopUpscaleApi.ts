@@ -23,6 +23,8 @@ export interface DesktopUpscaleOptions {
   scale: number
   tileSize: number
   ttaMode: boolean
+  gpuId: string
+  threadProfile: string
 }
 
 export interface DesktopUpscaleImageOptions {

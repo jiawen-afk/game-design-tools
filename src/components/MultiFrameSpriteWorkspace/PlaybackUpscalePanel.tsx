@@ -1,7 +1,14 @@
 import { Button, Progress, Segmented, Select, Slider, Space, Typography } from 'antd'
 import { ThunderboltOutlined } from '@ant-design/icons'
 
-import { upscaylModels, type UpscaleModel } from '../ImageProcessingWorkspace/imageUpscaleModel'
+import {
+  upscaylGpuOptions,
+  upscaylModels,
+  upscaylThreadProfileOptions,
+  type UpscaleGpuId,
+  type UpscaleModel,
+  type UpscaleThreadProfile,
+} from '../ImageProcessingWorkspace/imageUpscaleModel'
 import type { SpriteUpscaleMode } from './spriteUpscaleModel'
 import type { SpriteUpscaleWorkspaceViewModel } from './useSpriteUpscaleWorkspace'
 
@@ -83,7 +90,24 @@ export function PlaybackUpscalePanel({ upscale }: PlaybackUpscalePanelProps) {
                     onChange={(scale) => upscale.updateUpscaleOptions({ scale })}
                   />
                 </label>
+                <label className="sprite-upscale-field">
+                  <span>GPU 设备</span>
+                  <Select
+                    value={upscale.upscaleOptions.gpuId}
+                    options={upscaylGpuOptions.map((option) => ({ value: option.value, label: option.label }))}
+                    onChange={(gpuId: UpscaleGpuId) => upscale.updateUpscaleOptions({ gpuId })}
+                  />
+                </label>
+                <label className="sprite-upscale-field">
+                  <span>线程配置</span>
+                  <Select
+                    value={upscale.upscaleOptions.threadProfile}
+                    options={upscaylThreadProfileOptions.map((option) => ({ value: option.value, label: option.label }))}
+                    onChange={(threadProfile: UpscaleThreadProfile) => upscale.updateUpscaleOptions({ threadProfile })}
+                  />
+                </label>
                 <Button
+                  className="sprite-upscale-action"
                   icon={<ThunderboltOutlined />}
                   loading={upscale.upscaleProcessing}
                   disabled={upscale.targetFrameCount === 0}

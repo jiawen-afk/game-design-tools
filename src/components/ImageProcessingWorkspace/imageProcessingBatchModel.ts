@@ -97,6 +97,8 @@ export function createBatchPreviewSignature({
       scale: upscaleOptions.scale,
       tileSize: upscaleOptions.tileSize,
       ttaMode: upscaleOptions.ttaMode,
+      gpuId: upscaleOptions.gpuId,
+      threadProfile: upscaleOptions.threadProfile,
     },
   })
 }

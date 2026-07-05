@@ -12,11 +12,30 @@ export const upscaylModels = [
 
 export type UpscaleModel = typeof upscaylModels[number]
 
+export const upscaylGpuOptions = [
+  { value: '0', label: 'GPU 0' },
+  { value: 'auto', label: '自动选择' },
+  { value: '1', label: 'GPU 1' },
+  { value: '2', label: 'GPU 2' },
+] as const
+
+export type UpscaleGpuId = typeof upscaylGpuOptions[number]['value']
+
+export const upscaylThreadProfileOptions = [
+  { value: 'balanced', label: '均衡 · 1:2:2', cliValue: '1:2:2' },
+  { value: 'low-memory', label: '保守 · 1:1:1', cliValue: '1:1:1' },
+  { value: 'throughput', label: '加速 · 2:2:2', cliValue: '2:2:2' },
+] as const
+
+export type UpscaleThreadProfile = typeof upscaylThreadProfileOptions[number]['value']
+
 export interface UpscaleOptions {
   model: UpscaleModel
   scale: number
   tileSize: number
   ttaMode: boolean
+  gpuId: UpscaleGpuId
+  threadProfile: UpscaleThreadProfile
 }
 
 export interface UpscaleRuntimeStatus {
@@ -49,10 +68,14 @@ export const defaultUpscaleOptions: UpscaleOptions = {
   scale: 4,
   tileSize: 0,
   ttaMode: false,
+  gpuId: '0',
+  threadProfile: 'balanced',
 }
 
 const upscaylModelSet = new Set<string>(upscaylModels)
 const allowedScales = new Set([2, 3, 4])
+const upscaylGpuIdSet = new Set<string>(upscaylGpuOptions.map((option) => option.value))
+const upscaylThreadProfileSet = new Set<string>(upscaylThreadProfileOptions.map((option) => option.value))
 
 function trimTrailingSlash(value: string) {
   return value.replace(/\/+$/, '')
@@ -66,12 +89,25 @@ export function normalizeUpscaleOptions(options: Partial<UpscaleOptions>): Upsca
   const tileSize = Number.isFinite(options.tileSize) && Number(options.tileSize) >= 32
     ? Math.round(Number(options.tileSize))
     : 0
+  const gpuId = options.gpuId && upscaylGpuIdSet.has(options.gpuId)
+    ? options.gpuId
+    : defaultUpscaleOptions.gpuId
+  const threadProfile = options.threadProfile && upscaylThreadProfileSet.has(options.threadProfile)
+    ? options.threadProfile
+    : defaultUpscaleOptions.threadProfile
   return {
     model,
     scale,
     tileSize,
     ttaMode: options.ttaMode === true,
+    gpuId,
+    threadProfile,
   }
+}
+
+export function getUpscaylThreadProfileCliValue(profile: UpscaleThreadProfile): string {
+  return upscaylThreadProfileOptions.find((option) => option.value === profile)?.cliValue
+    ?? upscaylThreadProfileOptions[0].cliValue
 }
 
 export function canUseUpscaleForExport(enabled: boolean, status: UpscaleRuntimeStatus | null): boolean {
@@ -107,6 +143,10 @@ export function buildUpscaylCliArgs(input: UpscaleCliArgsInput): string[] {
     '-s', String(options.scale),
     '-c', '0',
   ]
+  if (options.gpuId !== 'auto') {
+    args.push('-g', options.gpuId)
+  }
+  args.push('-j', getUpscaylThreadProfileCliValue(options.threadProfile))
   if (options.tileSize > 0) {
     args.push('-t', String(options.tileSize))
   }

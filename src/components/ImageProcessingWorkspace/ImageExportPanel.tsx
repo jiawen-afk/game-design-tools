@@ -10,7 +10,14 @@ import {
   MIN_IMAGE_EXPORT_SCALE,
   type ImageExportEncodingFormat,
 } from './imageProcessingModel'
-import { upscaylModels, type UpscaleModel } from './imageUpscaleModel'
+import {
+  upscaylGpuOptions,
+  upscaylModels,
+  upscaylThreadProfileOptions,
+  type UpscaleGpuId,
+  type UpscaleModel,
+  type UpscaleThreadProfile,
+} from './imageUpscaleModel'
 import type { ImageProcessingWorkspaceViewModel } from './useImageProcessingWorkspace'
 
 const { Text } = Typography
@@ -130,14 +137,32 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
                 </>
               ) : (
                 <>
-                  <label className="image-field">
-                    <span>模型</span>
-                    <Select
-                      value={workspace.upscaleOptions.model}
-                      options={upscaylModels.map((model) => ({ value: model, label: model }))}
-                      onChange={(model: UpscaleModel) => workspace.updateUpscaleOptions({ model })}
-                    />
-                  </label>
+                  <div className="image-upscale-options-grid">
+                    <label className="image-field">
+                      <span>模型</span>
+                      <Select
+                        value={workspace.upscaleOptions.model}
+                        options={upscaylModels.map((model) => ({ value: model, label: model }))}
+                        onChange={(model: UpscaleModel) => workspace.updateUpscaleOptions({ model })}
+                      />
+                    </label>
+                    <label className="image-field">
+                      <span>GPU 设备</span>
+                      <Select
+                        value={workspace.upscaleOptions.gpuId}
+                        options={upscaylGpuOptions.map((option) => ({ value: option.value, label: option.label }))}
+                        onChange={(gpuId: UpscaleGpuId) => workspace.updateUpscaleOptions({ gpuId })}
+                      />
+                    </label>
+                    <label className="image-field">
+                      <span>线程配置</span>
+                      <Select
+                        value={workspace.upscaleOptions.threadProfile}
+                        options={upscaylThreadProfileOptions.map((option) => ({ value: option.value, label: option.label }))}
+                        onChange={(threadProfile: UpscaleThreadProfile) => workspace.updateUpscaleOptions({ threadProfile })}
+                      />
+                    </label>
+                  </div>
                   <label className="image-field">
                     <span>高清化倍数：{workspace.upscaleOptions.scale}x</span>
                     <Slider

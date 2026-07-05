@@ -59,6 +59,8 @@ test('image processing batch preview signatures survive proportional image switc
       scale: 4,
       tileSize: 0,
       ttaMode: false,
+      gpuId: '0' as const,
+      threadProfile: 'balanced' as const,
     },
   }
 
@@ -77,7 +79,21 @@ test('image processing batch preview signatures survive proportional image switc
     crop: { x: 110, y: 50, width: 400, height: 200 },
     sourceSize: { width: 1000, height: 500 },
   })
+  const gpuChanged = createBatchPreviewSignature({
+    ...shared,
+    upscaleOptions: { ...shared.upscaleOptions, gpuId: '1' },
+    crop: { x: 100, y: 50, width: 400, height: 200 },
+    sourceSize: { width: 1000, height: 500 },
+  })
+  const threadsChanged = createBatchPreviewSignature({
+    ...shared,
+    upscaleOptions: { ...shared.upscaleOptions, threadProfile: 'throughput' },
+    crop: { x: 100, y: 50, width: 400, height: 200 },
+    sourceSize: { width: 1000, height: 500 },
+  })
 
   assert.equal(first, switched)
   assert.notEqual(first, edited)
+  assert.notEqual(first, gpuChanged)
+  assert.notEqual(first, threadsChanged)
 })

@@ -17,7 +17,7 @@
 
 .sprite-upscale-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
   gap: 10px;
   align-items: end;
 }
@@ -35,6 +35,10 @@
 
 .sprite-upscale-scale .ant-slider {
   margin: 3px 6px 6px;
+}
+
+.sprite-upscale-action {
+  align-self: end;
 }
 
 .sprite-upscale-progress {

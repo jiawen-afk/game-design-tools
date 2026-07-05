@@ -13,6 +13,13 @@ const upscaylModels = [
   'digital-art-4x',
 ]
 
+const upscaylGpuIds = ['auto', '0', '1', '2']
+const upscaylThreadProfileArgs = {
+  balanced: '1:2:2',
+  'low-memory': '1:1:1',
+  throughput: '2:2:2',
+}
+
 const upscaylMirrorBaseUrls = [
   'https://gh.llkk.cc/https://raw.githubusercontent.com/upscayl/upscayl/main',
   'https://gh-proxy.com/https://raw.githubusercontent.com/upscayl/upscayl/main',
@@ -111,6 +118,8 @@ function buildUpscaylArgs({ inputPath, outputPath, modelsPath, format, options }
   const model = upscaylModels.includes(options?.model) ? options.model : 'upscayl-standard-4x'
   const scale = [2, 3, 4].includes(Number(options?.scale)) ? String(Number(options.scale)) : '4'
   const tileSize = Number(options?.tileSize) >= 32 ? String(Math.round(Number(options.tileSize))) : ''
+  const gpuId = upscaylGpuIds.includes(String(options?.gpuId)) ? String(options.gpuId) : '0'
+  const threadArgs = upscaylThreadProfileArgs[String(options?.threadProfile)] || upscaylThreadProfileArgs.balanced
   const args = [
     '-i', inputPath,
     '-o', outputPath,
@@ -120,6 +129,8 @@ function buildUpscaylArgs({ inputPath, outputPath, modelsPath, format, options }
     '-s', scale,
     '-c', '0',
   ]
+  if (gpuId !== 'auto') args.push('-g', gpuId)
+  args.push('-j', threadArgs)
   if (tileSize) args.push('-t', tileSize)
   if (options?.ttaMode === true) args.push('-x')
   return args
