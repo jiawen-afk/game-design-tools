@@ -41,7 +41,7 @@ export function createPersonalSpaceDerivedState(space: PersonalSpaceState) {
     {
       kind: 'sprite',
       title: '精灵图',
-      description: '角色精灵图和特效精灵图，使用 PNG / WebP 与 index.json 成套管理。',
+      description: '角色精灵图和特效精灵图，使用 PNG / WebP 与 index.json，或包含它们的 ZIP 成套管理。',
       importLabel: '导入精灵图',
       emptyDescription: '还没有精灵图。导入精灵图或从精灵图工作台收藏后会显示在这里。',
       groupNames: uniqueGroupNames(space.assetGroups.sprite, spriteAssets),

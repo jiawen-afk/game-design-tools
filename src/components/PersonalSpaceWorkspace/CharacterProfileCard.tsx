@@ -150,7 +150,7 @@ export function CharacterProfileCard({
           emptyThumb="精灵"
           fallbackName="精灵图"
           unlinkAriaLabel="取消关联角色精灵图"
-          helperNote="一次选择 png 或 webp 和 index.json，会自动加入角色精灵图。"
+          helperNote="一次选择 png 或 webp 和 index.json，也可以选择包含它们的 zip，会自动加入角色精灵图。"
           detailForAsset={() => '精灵图'}
           getStoryboardVoiceRefs={getStoryboardVoiceRefs}
           onAssignAsset={onAssignAsset}

@@ -18,7 +18,7 @@ test('personal space asset actions delegate Ant upload props to a focused module
   assert.match(uploadPropsSource, /from 'antd'/)
   assert.match(uploadPropsSource, /export function createPersonalSpaceUploadProps/)
   assert.match(uploadPropsSource, /beforeUpload/)
-  assert.match(uploadPropsSource, /createSpriteUploadBatch/)
+  assert.match(uploadPropsSource, /resolveSpriteUploadBatch/)
   assert.match(uploadPropsSource, /consumeSpriteUploadBatch/)
 })
 
@@ -44,11 +44,11 @@ test('personal space asset actions delegate upload workflows to a focused module
   assert.match(uploadActionsSource, /assignVoiceToStoryboardGroup/)
 })
 
-test('personal space sprite upload pickers expose png webp and index json', () => {
+test('personal space sprite upload pickers expose png webp zip and index json', () => {
   const uploadPropsSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceUploadProps.ts', 'utf8')
   const acceptUsages = uploadPropsSource.match(/accept: SPRITE_UPLOAD_ACCEPT/g) ?? []
 
-  assert.match(uploadPropsSource, /const SPRITE_UPLOAD_ACCEPT = '\.png,\.webp,\.json'/)
+  assert.match(uploadPropsSource, /const SPRITE_UPLOAD_ACCEPT = '\.png,\.webp,\.json,\.zip'/)
   assert.equal(acceptUsages.length, 2)
   assert.doesNotMatch(uploadPropsSource, /accept: '\.png,\.json'/)
 })
@@ -57,6 +57,6 @@ test('personal space sprite upload copy mentions webp support', () => {
   const characterCardSource = readFileSync('src/components/PersonalSpaceWorkspace/CharacterProfileCard.tsx', 'utf8')
   const derivedStateSource = readFileSync('src/components/PersonalSpaceWorkspace/personalSpaceDerivedState.ts', 'utf8')
 
-  assert.match(characterCardSource, /png 或 webp 和 index\.json/)
-  assert.match(derivedStateSource, /PNG \/ WebP 与 index\.json/)
+  assert.match(characterCardSource, /png 或 webp 和 index\.json，也可以选择包含它们的 zip/)
+  assert.match(derivedStateSource, /PNG \/ WebP 与 index\.json，或包含它们的 ZIP/)
 })

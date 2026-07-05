@@ -5,13 +5,13 @@ import {
   consumeSpriteUploadBatch,
   createNullableSpriteUploadBatchTracker,
   createRecordSpriteUploadBatchTracker,
-  createSpriteUploadBatch,
+  resolveSpriteUploadBatch,
   type SpriteUploadBatchTracker,
 } from './personalSpaceUploadModel'
 
 type UploadChangeFileList = Parameters<NonNullable<UploadProps['onChange']>>[0]['fileList']
 
-const SPRITE_UPLOAD_ACCEPT = '.png,.webp,.json'
+const SPRITE_UPLOAD_ACCEPT = '.png,.webp,.json,.zip'
 
 export interface PersonalSpaceUploadPropsOptions {
   spriteUploadBatchKeyByCharacter: { current: Record<string, string> }
@@ -24,12 +24,18 @@ export interface PersonalSpaceUploadPropsOptions {
   uploadImageSprite: (files: File[], groupName?: string) => Promise<void>
 }
 
-function handleSpriteUploadChange(
+async function handleSpriteUploadChange(
   fileList: UploadChangeFileList,
   tracker: SpriteUploadBatchTracker,
   upload: (files: File[]) => Promise<void>,
 ) {
-  const batch = consumeSpriteUploadBatch(createSpriteUploadBatch(fileList), tracker)
+  let batch = null
+  try {
+    batch = consumeSpriteUploadBatch(await resolveSpriteUploadBatch(fileList), tracker)
+  } catch (error) {
+    console.error('Failed to resolve sprite upload batch', error)
+    return
+  }
   if (!batch) return
   window.setTimeout(() => {
     if (tracker.current === batch.batchKey) tracker.current = ''
@@ -56,7 +62,7 @@ export function createPersonalSpaceUploadProps(options: PersonalSpaceUploadProps
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
       const tracker = createRecordSpriteUploadBatchTracker(options.spriteUploadBatchKeyByCharacter, characterId)
-      handleSpriteUploadChange(fileList, tracker, (files) => options.uploadCharacterSprite(characterId, files))
+      void handleSpriteUploadChange(fileList, tracker, (files) => options.uploadCharacterSprite(characterId, files))
     },
   })
 
@@ -98,7 +104,7 @@ export function createPersonalSpaceUploadProps(options: PersonalSpaceUploadProps
     beforeUpload: () => false,
     onChange: ({ fileList }) => {
       const tracker = createNullableSpriteUploadBatchTracker(options.imageSpriteUploadBatchKey)
-      handleSpriteUploadChange(fileList, tracker, (files) => options.uploadImageSprite(files, groupName))
+      void handleSpriteUploadChange(fileList, tracker, (files) => options.uploadImageSprite(files, groupName))
     },
   })
 

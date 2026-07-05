@@ -6,11 +6,22 @@ import {
   createNullableSpriteUploadBatchTracker,
   createRecordSpriteUploadBatchTracker,
   createSpriteUploadBatch,
+  resolveSpriteUploadBatch,
 } from './personalSpaceUploadModel'
 import type { UploadFileEntry } from './personalSpaceUploadModel'
 
 function uploadFile(name: string, size: number) {
   return { name, size } as File
+}
+
+async function createSpriteZipFile() {
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  zip.file('docs/readme.txt', 'ignored')
+  zip.file('sprites/hero.webp', new Uint8Array([1, 2, 3]))
+  zip.file('metadata/index.json', JSON.stringify({ frames: [] }))
+  const blob = await zip.generateAsync({ type: 'blob' })
+  return new File([blob], 'hero-sprite.zip', { type: 'application/zip' })
 }
 
 test('sprite upload batch requires one png or webp and index json', () => {
@@ -36,6 +47,15 @@ test('sprite upload batch accepts uppercase sprite image extensions and ignores 
 
   assert.deepEqual(batch?.files.map((file) => file.name), ['HERO.WEBP', 'index.json'])
   assert.equal(batch?.batchKey, 'HERO.WEBP:20|index.json:5')
+})
+
+test('sprite upload batch resolves sprite image and index json from zip archives', async () => {
+  const batch = await resolveSpriteUploadBatch([await createSpriteZipFile()])
+
+  assert.deepEqual(batch?.files.map((file) => file.name), ['hero.webp', 'index.json'])
+  assert.equal(batch?.files[0]?.type, 'image/webp')
+  assert.equal(batch?.files[1]?.type, 'application/json')
+  assert.equal(batch?.batchKey, `hero.webp:${batch?.files[0]?.size}|index.json:${batch?.files[1]?.size}`)
 })
 
 test('sprite upload batch unwraps upload file entries before reading object URLs', () => {

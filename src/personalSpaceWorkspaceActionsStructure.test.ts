@@ -30,7 +30,7 @@ test('personal space workspace delegates asset upload and export actions', () =>
   assert.doesNotMatch(actionsSource, /consumeSpriteUploadBatch/)
   assert.doesNotMatch(actionsSource, /createRecordSpriteUploadBatchTracker/)
   assert.doesNotMatch(actionsSource, /createNullableSpriteUploadBatchTracker/)
-  assert.match(uploadPropsSource, /createSpriteUploadBatch/)
+  assert.match(uploadPropsSource, /resolveSpriteUploadBatch/)
   assert.match(uploadPropsSource, /consumeSpriteUploadBatch/)
   assert.match(uploadPropsSource, /createRecordSpriteUploadBatchTracker/)
   assert.match(uploadPropsSource, /createNullableSpriteUploadBatchTracker/)
