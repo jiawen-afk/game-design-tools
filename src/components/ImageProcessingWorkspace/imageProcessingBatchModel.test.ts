@@ -79,6 +79,12 @@ test('image processing batch preview signatures survive proportional image switc
     crop: { x: 110, y: 50, width: 400, height: 200 },
     sourceSize: { width: 1000, height: 500 },
   })
+  const formatChanged = createBatchPreviewSignature({
+    ...shared,
+    exportFormat: 'webp',
+    crop: { x: 100, y: 50, width: 400, height: 200 },
+    sourceSize: { width: 1000, height: 500 },
+  })
   const gpuChanged = createBatchPreviewSignature({
     ...shared,
     upscaleOptions: { ...shared.upscaleOptions, gpuId: '1' },
@@ -93,6 +99,7 @@ test('image processing batch preview signatures survive proportional image switc
   })
 
   assert.equal(first, switched)
+  assert.equal(first, formatChanged)
   assert.notEqual(first, edited)
   assert.notEqual(first, gpuChanged)
   assert.notEqual(first, threadsChanged)

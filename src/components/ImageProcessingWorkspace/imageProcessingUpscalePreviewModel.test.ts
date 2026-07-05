@@ -13,7 +13,7 @@ test('image processing workspace keeps an upscale preview until its source input
 
   assert.equal(shouldInvalidateUpscalePreview(previewInputs, previewInputs), false)
   assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, crop: { ...previewInputs.crop, width: 300 } }), true)
-  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, exportFormat: 'webp' }), true)
+  assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, exportFormat: 'webp' }), false)
   assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, processedUrl: 'processed://next' }), true)
   assert.equal(shouldInvalidateUpscalePreview(previewInputs, { ...previewInputs, upscaleOptions: { ...previewInputs.upscaleOptions, model: 'digital-art-4x' } }), true)
 })
