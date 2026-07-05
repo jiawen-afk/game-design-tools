@@ -32,6 +32,26 @@ test('stable audio repository setup retries clone through fallback URLs before f
   assert.match(common, /请手动把仓库放到/)
 })
 
+test('stable audio repository clone has timeout and low speed guard before trying mirrors', () => {
+  const common = read(files.common)
+
+  assert.match(common, /StableAudioGitCloneTimeoutSeconds/)
+  assert.match(common, /STABLE_AUDIO_GIT_CLONE_TIMEOUT_SECONDS/)
+  assert.match(common, /Invoke-GitCloneWithTimeout/)
+  assert.match(common, /http\.lowSpeedLimit/)
+  assert.match(common, /http\.lowSpeedTime/)
+  assert.match(common, /WaitForExit\(\$timeoutSeconds \* 1000\)/)
+})
+
+test('stable audio repository readiness does not accept partial git folders', () => {
+  const common = read(files.common)
+
+  assert.match(common, /Test-StableAudioRepositoryReady/)
+  assert.match(common, /pyproject\.toml/)
+  assert.match(common, /rev-parse --verify HEAD/)
+  assert.doesNotMatch(common, /Join-Path \$repoDir "\.git"\)\) -or/)
+})
+
 test('stable audio service template exposes start stop restart and status actions', () => {
   const service = read(files.service)
 

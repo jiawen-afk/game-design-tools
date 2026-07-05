@@ -33,9 +33,68 @@ function Write-Utf8PowerShellFile($path, $content) {
 $StableAudioRepoFallbackUrls = @(
     "https://gh-proxy.com/https://github.com/Stability-AI/stable-audio-3.git"
 )
+$StableAudioGitCloneTimeoutSeconds = 180
+$StableAudioGitLowSpeedLimit = 16384
+$StableAudioGitLowSpeedTime = 45
+
+if ($env:STABLE_AUDIO_GIT_CLONE_TIMEOUT_SECONDS) {
+    $configuredTimeout = 0
+    if ([int]::TryParse($env:STABLE_AUDIO_GIT_CLONE_TIMEOUT_SECONDS, [ref]$configuredTimeout) -and $configuredTimeout -gt 0) {
+        $StableAudioGitCloneTimeoutSeconds = $configuredTimeout
+    }
+}
+if ($env:STABLE_AUDIO_GIT_LOW_SPEED_LIMIT) {
+    $configuredLowSpeedLimit = 0
+    if ([int]::TryParse($env:STABLE_AUDIO_GIT_LOW_SPEED_LIMIT, [ref]$configuredLowSpeedLimit) -and $configuredLowSpeedLimit -gt 0) {
+        $StableAudioGitLowSpeedLimit = $configuredLowSpeedLimit
+    }
+}
+if ($env:STABLE_AUDIO_GIT_LOW_SPEED_TIME) {
+    $configuredLowSpeedTime = 0
+    if ([int]::TryParse($env:STABLE_AUDIO_GIT_LOW_SPEED_TIME, [ref]$configuredLowSpeedTime) -and $configuredLowSpeedTime -gt 0) {
+        $StableAudioGitLowSpeedTime = $configuredLowSpeedTime
+    }
+}
+
+function ConvertTo-ProcessArgument($value) {
+    $text = [string]$value
+    if ($text -notmatch '[\s"]') { return $text }
+    return '"' + ($text -replace '"', '\"') + '"'
+}
+
+function Stop-ProcessTree([int]$processId) {
+    try {
+        Get-CimInstance Win32_Process -Filter "ParentProcessId = $processId" | ForEach-Object {
+            Stop-ProcessTree ([int]$_.ProcessId)
+        }
+    } catch {}
+    try { Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue } catch {}
+}
+
+function Invoke-GitCloneWithTimeout($repoUrl, $repoDir, $timeoutSeconds) {
+    $gitArgs = @(
+        "-c", "http.lowSpeedLimit=$StableAudioGitLowSpeedLimit",
+        "-c", "http.lowSpeedTime=$StableAudioGitLowSpeedTime",
+        "clone", "--depth", "1", "--single-branch", $repoUrl, $repoDir
+    )
+    $argumentList = ($gitArgs | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " "
+    Write-Host "    克隆保护：单个源最多等待 $timeoutSeconds 秒；低于 $StableAudioGitLowSpeedLimit B/s 持续 $StableAudioGitLowSpeedTime 秒会失败换源。" -ForegroundColor Gray
+    $process = Start-Process -FilePath "git" -ArgumentList $argumentList -NoNewWindow -PassThru
+    if (-not $process.WaitForExit($timeoutSeconds * 1000)) {
+        Write-Host "    克隆超时，正在停止 git 并切换下一个源。" -ForegroundColor Yellow
+        Stop-ProcessTree ([int]$process.Id)
+        return $false
+    }
+    return $process.ExitCode -eq 0
+}
 
 function Test-StableAudioRepositoryReady($repoDir) {
-    return (Test-Path (Join-Path $repoDir ".git")) -or (Test-Path (Join-Path $repoDir "pyproject.toml"))
+    if (-not (Test-Path (Join-Path $repoDir "pyproject.toml"))) { return $false }
+    if (Test-Path (Join-Path $repoDir ".git")) {
+        & git -C $repoDir rev-parse --verify HEAD *> $null
+        return $LASTEXITCODE -eq 0
+    }
+    return $true
 }
 
 function Remove-PartialStableAudioRepository($repoDir) {
@@ -97,12 +156,12 @@ function Ensure-Repository($repoUrl, $repoDir) {
     foreach ($candidateRepoUrl in $repoUrls) {
         Remove-PartialStableAudioRepository $repoDir
         Write-Host "    尝试克隆：$candidateRepoUrl"
-        & git clone --depth 1 $candidateRepoUrl $repoDir
-        if ($LASTEXITCODE -eq 0 -and (Test-StableAudioRepositoryReady $repoDir)) {
+        $cloneSucceeded = Invoke-GitCloneWithTimeout $candidateRepoUrl $repoDir $StableAudioGitCloneTimeoutSeconds
+        if ($cloneSucceeded -and (Test-StableAudioRepositoryReady $repoDir)) {
             Write-OK "仓库克隆完成"
             return
         }
-        Write-Host "    克隆失败，准备尝试下一个源。" -ForegroundColor Yellow
+        Write-Host "    克隆失败或超时，准备尝试下一个源。" -ForegroundColor Yellow
     }
 
     Write-Fail "克隆 Stable Audio 3 仓库失败。请检查网络或 git 代理；请手动把仓库放到 $repoDir 后重新运行安装脚本。"
