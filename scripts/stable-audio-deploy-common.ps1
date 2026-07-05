@@ -182,33 +182,65 @@ function Invoke-StableAudioInstall($repoDir) {
 function Invoke-StableAudioModelDownload($repoDir, $modelVariant, $source) {
     Write-Step "下载 Stable Audio 3 模型 $modelVariant"
     $sourceText = [string]$source
-    $previousHfEndpoint = $env:HF_ENDPOINT
     if ($sourceText -eq "ms") {
         Write-Host "    Stable Audio 3 官方服务读取 HuggingFace 本机缓存；ModelScope 暂不作为该模型的启动缓存。" -ForegroundColor Yellow
-        Write-Host "    本次将使用 HuggingFace 镜像下载到官方缓存，启动和检测会读取同一份模型文件。" -ForegroundColor Yellow
-    }
-    if ($sourceText -eq "auto" -or $sourceText -eq "hf" -or $sourceText -eq "ms") {
-        $env:HF_ENDPOINT = "https://hf-mirror.com"
-        Write-Host "    HuggingFace 下载端点：$env:HF_ENDPOINT" -ForegroundColor Gray
+        Write-Host "    本次将优先使用 HuggingFace 镜像下载到官方缓存，失败时回退官方端点。" -ForegroundColor Yellow
+    } else {
+        Write-Host "    优先下载端点：https://hf-mirror.com；失败时回退 https://huggingface.co" -ForegroundColor Gray
     }
 
     $modelJson = $modelVariant | ConvertTo-Json -Compress
+    $sourceJson = $sourceText | ConvertTo-Json -Compress
     $pyCode = @"
+from huggingface_hub import hf_hub_download
 from stable_audio_3.model_configs import models
 
 model = $modelJson
+source = $sourceJson
 cfg = models[model]
 model_url = f"https://huggingface.co/{cfg.repo_id}"
 
 print(f"准备下载模型：{model} ({cfg.repo_id})")
 print(f"访问链接：{model_url}")
-try:
-    config_path, ckpt_path = cfg.resolve()
-except Exception as exc:
-    print(f"模型下载失败：{exc}")
+
+endpoint_plan = []
+if source in ("auto", "hf", "ms"):
+    endpoint_plan.append(("HF 镜像", "https://hf-mirror.com"))
+endpoint_plan.append(("HuggingFace 官方", "https://huggingface.co"))
+
+def download_model_from_endpoint(label, endpoint):
+    print(f"下载端点：{label} ({endpoint})")
+    kwargs = {
+        "repo_id": cfg.repo_id,
+        "endpoint": endpoint,
+        "etag_timeout": 20,
+    }
+    config_path = hf_hub_download(filename=cfg.config_path, **kwargs)
+    ckpt_path = hf_hub_download(filename=cfg.ckpt_path, **kwargs)
+    return config_path, ckpt_path
+
+config_path = None
+ckpt_path = None
+last_error = None
+for index, (label, endpoint) in enumerate(endpoint_plan):
+    try:
+        config_path, ckpt_path = download_model_from_endpoint(label, endpoint)
+        break
+    except Exception as exc:
+        last_error = exc
+        print(f"{label} 下载失败：{type(exc).__name__}: {exc}")
+        if index + 1 < len(endpoint_plan):
+            next_label = endpoint_plan[index + 1][0]
+            if next_label == "HuggingFace 官方":
+                print("将切换到 HuggingFace 官方端点重试。")
+            else:
+                print(f"将切换到 {next_label}端点重试。")
+
+if not config_path or not ckpt_path:
+    print(f"模型下载失败：所有下载端点均不可用。最后错误：{last_error}")
     print(f"请打开访问链接并确认许可：{model_url}")
     print("登录命令：uv run hf auth login")
-    raise
+    raise SystemExit(1)
 
 print(f"model_config.json: {config_path}")
 print(f"model.safetensors: {ckpt_path}")
@@ -225,11 +257,6 @@ print(f"model.safetensors: {ckpt_path}")
     } finally {
         Pop-Location
         Remove-Item $pyFile -ErrorAction SilentlyContinue
-        if ($null -eq $previousHfEndpoint) {
-            Remove-Item Env:HF_ENDPOINT -ErrorAction SilentlyContinue
-        } else {
-            $env:HF_ENDPOINT = $previousHfEndpoint
-        }
     }
     Write-OK "Stable Audio 3 模型 $modelVariant 已下载到本机缓存"
 }

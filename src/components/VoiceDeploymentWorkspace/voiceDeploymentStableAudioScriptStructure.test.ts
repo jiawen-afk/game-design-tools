@@ -33,10 +33,19 @@ test('stable audio install prefetches selected model weights before installing s
   assert.ok(serviceIndex > downloadIndex, 'service config should be written after model download succeeds')
   assert.match(common, /function Invoke-StableAudioModelDownload/)
   assert.match(common, /from stable_audio_3\.model_configs import models/)
-  assert.match(common, /cfg\.resolve\(\)/)
+  assert.match(common, /hf_hub_download/)
   assert.match(common, /model\.safetensors/)
   assert.match(common, /https:\/\/huggingface\.co\/\{cfg\.repo_id\}/)
   assert.match(common, /uv run hf auth login/)
+})
+
+test('stable audio model download falls back from hf mirror to official HuggingFace', () => {
+  const common = read(files.common)
+
+  assert.match(common, /download_model_from_endpoint/)
+  assert.match(common, /"HF 镜像", "https:\/\/hf-mirror\.com"/)
+  assert.match(common, /"HuggingFace 官方", "https:\/\/huggingface\.co"/)
+  assert.match(common, /将切换到 HuggingFace 官方端点重试/)
 })
 
 test('stable audio repository setup retries clone through fallback URLs before failing', () => {
