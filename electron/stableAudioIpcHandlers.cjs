@@ -26,6 +26,11 @@ function resolveStableAudioStatusModel(options, config) {
   return normalizeStableAudioModel(config?.ModelVariant)
 }
 
+function getRequestedStableAudioStatusModel(options) {
+  const requested = String(options?.model || '')
+  return supportedStableAudioModels.has(requested) ? requested : ''
+}
+
 function normalizeDownloadSource(source) {
   const value = String(source || '')
   return supportedDownloadSources.has(value) ? value : 'auto'
@@ -223,9 +228,19 @@ function registerStableAudioIpcHandlers({
     const pythonCommand = config?.PythonCommand ? String(config.PythonCommand) : ''
     const repoDir = config?.RepoDir ? String(config.RepoDir) : ''
     const configuredModel = normalizeStableAudioModel(config?.ModelVariant)
+    const requestedModel = getRequestedStableAudioStatusModel(options)
     const model = resolveStableAudioStatusModel(options, config)
-    details.push(`模型：${model}`)
-    if (config?.ModelVariant && configuredModel !== model) details.push(`安装配置模型：${configuredModel}`)
+    const modelMismatch = Boolean(requestedModel && config?.ModelVariant && configuredModel !== requestedModel)
+    if (requestedModel) details.push(`当前选择模型：${requestedModel}`)
+    else details.push(`模型：${model}`)
+    if (config?.ModelVariant) details.push(`${modelMismatch ? '已安装配置模型' : '安装配置模型'}：${configuredModel}`)
+    if (modelMismatch) {
+      missing.push([
+        `当前选择模型尚未安装到 Stable Audio 3 服务配置：${requestedModel}`,
+        `已安装配置模型：${configuredModel}`,
+        `请先选择 ${requestedModel} 后点击“安装依赖”，或切回 ${configuredModel}。`,
+      ].join('\n'))
+    }
     if (pythonCommand) {
       if (fsExists(pythonCommand)) details.push(`Python：${pythonCommand}`)
       else missing.push(`Python 解释器不存在：${pythonCommand}`)
@@ -246,7 +261,7 @@ function registerStableAudioIpcHandlers({
       if (probe.ok) details.push(`Python 依赖：${probe.output || 'torch ok'}`)
       else missing.push(`Python 依赖不可用：${probe.output || 'import torch 失败'}`)
 
-      if (probe.ok) {
+      if (probe.ok && !modelMismatch) {
         const modelProbe = await runCommandOutput(
           pythonCommand,
           [...pythonArgs, '-c', buildStableAudioModelProbeScript(model)],
