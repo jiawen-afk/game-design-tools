@@ -59,6 +59,9 @@ test('stable audio service template exposes start stop restart and status action
   assert.match(service, /stable-audio-config\.json/)
   assert.match(service, /Start-ServiceProcess/)
   assert.match(service, /Stop-ServiceProcess/)
+  assert.match(service, /Start-Sleep -Seconds 2/)
+  assert.match(service, /启动后立即退出/)
+  assert.match(service, /exit 1/)
 })
 
 test('stable audio helper exposes health and generate endpoints', () => {
@@ -66,6 +69,21 @@ test('stable audio helper exposes health and generate endpoints', () => {
 
   assert.match(server, /@app\.get\("\/health"\)/)
   assert.match(server, /@app\.post\("\/generate"\)/)
+  assert.match(server, /probe_model_access/)
+  assert.match(server, /hf_hub_download/)
+  assert.match(server, /HTTPException/)
+  assert.match(server, /status_code=503/)
   assert.match(server, /uv/)
   assert.match(server, /stable-audio/)
+})
+
+test('stable audio setup waits for model readiness instead of plain http liveness', () => {
+  const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+
+  assert.match(hook, /checkStableAudioService/)
+  assert.match(hook, /onProbeResult/)
+  assert.match(hook, /lastStableAudioProbeRef/)
+  assert.match(hook, /Stable Audio 3 模型已就绪/)
+  assert.match(panel, /desktopServiceBusy \? '服务启动中'/)
 })

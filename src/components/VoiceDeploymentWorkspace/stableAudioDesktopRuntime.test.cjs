@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const os = require('node:os')
 const path = require('node:path')
 
 const {
@@ -57,4 +59,72 @@ test('stable audio setup launches the deployment script with normalized defaults
   assert.equal(result.started, true)
   assert.equal(launchCalls[0].scriptPath, 'D:\\app\\scripts\\deploy-stable-audio-3.ps1')
   assert.deepEqual(launchCalls[0].args, ['D:\\models\\StableAudio3', 'small-sfx', 'auto'])
+})
+
+test('stable audio dependency status reports gated model access before service startup', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-'))
+  const originalLocalAppData = process.env.LOCALAPPDATA
+  process.env.LOCALAPPDATA = tempDir
+  try {
+    const paths = resolveStableAudioInstallPaths({ LOCALAPPDATA: tempDir })
+    const repoDir = path.join(tempDir, 'stable-audio-3')
+    const pythonCommand = path.join(repoDir, '.venv', 'Scripts', 'python.exe')
+    fs.mkdirSync(path.dirname(paths.servicePath), { recursive: true })
+    fs.mkdirSync(path.dirname(paths.configPath), { recursive: true })
+    fs.mkdirSync(path.dirname(pythonCommand), { recursive: true })
+    fs.writeFileSync(paths.servicePath, 'service')
+    fs.writeFileSync(pythonCommand, 'python')
+    fs.writeFileSync(paths.configPath, JSON.stringify({
+      PythonCommand: pythonCommand,
+      PythonArgs: [],
+      RepoDir: repoDir,
+      ModelVariant: 'small-sfx',
+    }))
+
+    const ipcMain = createIpcMain()
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      runCommandOutput: async (_command, args) => {
+        const script = args.at(-1)
+        if (script.includes('import torch')) return { ok: true, output: 'torch ok' }
+        assert.match(script, /stable-audio-3-small-sfx/)
+        assert.match(script, /model_config\.json/)
+        return { ok: false, output: 'GatedRepoError: 401 Unauthorized. Please log in.' }
+      },
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:setup-status')()
+
+    assert.equal(result.ok, false)
+    assert.match(result.output, /HuggingFace 授权/)
+    assert.match(result.output, /uv run hf auth login/)
+  } finally {
+    if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA
+    else process.env.LOCALAPPDATA = originalLocalAppData
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('stable audio health returns model readiness errors from the local server', async () => {
+  const originalFetch = global.fetch
+  global.fetch = async () => new Response(JSON.stringify({
+    detail: 'Stable Audio 3 模型需要 HuggingFace 授权。',
+  }), { status: 503 })
+  try {
+    const ipcMain = createIpcMain()
+    registerStableAudioIpcHandlers({
+      ipcMain,
+      resolveDeploymentScript: (name) => `D:\\app\\scripts\\${name}`,
+      fsExists: () => true,
+      runCommandOutput: async () => ({ ok: true, output: 'ok' }),
+    })
+
+    const result = await ipcMain.handlers.get('stable-audio:health')({}, 8818)
+
+    assert.equal(result.ok, false)
+    assert.match(result.output, /HuggingFace 授权/)
+  } finally {
+    global.fetch = originalFetch
+  }
 })

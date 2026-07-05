@@ -14,6 +14,14 @@ function Get-ServiceProcess {
     return Get-Process -Id ([int]$pidText) -ErrorAction SilentlyContinue
 }
 
+function Write-RecentLog($path, $title) {
+    if (-not (Test-Path ([string]$path))) { return }
+    Write-Host $title
+    Get-Content -Path ([string]$path) -Tail 40 -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "  $_"
+    }
+}
+
 function Start-ServiceProcess {
     $existing = Get-ServiceProcess
     if ($existing) {
@@ -45,6 +53,15 @@ function Start-ServiceProcess {
         -WindowStyle Hidden `
         -PassThru
     Set-Content -Path ([string]$config.PidPath) -Value ([string]$process.Id) -Encoding ascii
+    Start-Sleep -Seconds 2
+    $started = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+    if (-not $started) {
+        Remove-Item ([string]$config.PidPath) -ErrorAction SilentlyContinue
+        Write-Host "Stable Audio 3 启动后立即退出" -ForegroundColor Red
+        Write-RecentLog ([string]$config.StderrPath) "错误日志："
+        Write-RecentLog ([string]$config.LogPath) "输出日志："
+        exit 1
+    }
     Write-Host "Stable Audio 3 正在后台启动：http://127.0.0.1:$($config.Port)"
     Write-Host "日志：$($config.LogPath)"
 }
@@ -75,7 +92,10 @@ function Show-ServiceStatus {
             Write-Host "服务已响应：http://127.0.0.1:$($config.Port)"
         }
     } catch {
-        Write-Host "进程已启动，模型仍在加载。日志：$($config.LogPath)"
+        Write-Host "进程已启动，模型仍在加载或未授权。日志：$($config.LogPath)"
+        if ($_.ErrorDetails.Message) { Write-Host $_.ErrorDetails.Message }
+        else { Write-Host $_.Exception.Message }
+        exit 1
     }
 }
 

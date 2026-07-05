@@ -28,24 +28,42 @@ export function useStableAudioSetup() {
   const [desktopServiceBusy, setDesktopServiceBusy] = useState(false)
   const [desktopServiceResult, setDesktopServiceResult] = useState<DesktopCommandResult | null>(null)
   const checkRef = useRef(0)
+  const lastStableAudioProbeRef = useRef('')
 
   const serviceUrl = `http://127.0.0.1:${port}`
   const connected = connectionStatus === 'connected'
   const desktopRuntime = isDesktopRuntime()
 
-  const runCheck = useCallback(async (targetPort: number = port) => {
+  const runCheck = useCallback(async (targetPort: number = port, reportResult = false) => {
     const id = ++checkRef.current
     setConnectionStatus('checking')
-    const ok = await checkStableAudioConnection(targetPort)
+    const api = getDesktopApi()
+    const result: DesktopCommandResult = api
+      ? await api.checkStableAudioService(targetPort)
+      : { ok: await checkStableAudioConnection(targetPort), output: '' }
     if (checkRef.current !== id) return
-    setConnectionStatus(ok ? 'connected' : 'disconnected')
+    if (reportResult && !result.ok && result.output) setDesktopServiceResult(result)
+    setConnectionStatus(result.ok ? 'connected' : 'disconnected')
   }, [port])
 
   const waitForDesktopConnection = useCallback(async (targetPort: number) => {
     const id = ++checkRef.current
+    const api = getDesktopApi()
     return waitForDesktopServiceConnection({
-      checkConnection: () => checkStableAudioConnection(targetPort),
+      checkConnection: () => api
+        ? api.checkStableAudioService(targetPort)
+        : checkStableAudioConnection(targetPort),
       isCurrent: () => checkRef.current === id,
+      onProbeResult: (result) => {
+        if (!result.output) return
+        lastStableAudioProbeRef.current = result.output
+        if (!result.ok) {
+          setDesktopServiceResult({
+            ok: false,
+            output: `正在等待 Stable Audio 3 模型就绪...\n${result.output}`,
+          })
+        }
+      },
       onStatus: setConnectionStatus,
     })
   }, [])
@@ -96,7 +114,7 @@ export function useStableAudioSetup() {
     setDesktopServiceBusy(true)
     try {
       setDesktopServiceResult(await api.controlStableAudioService(action))
-      if (action === 'start' || action === 'restart') void runCheck(port)
+      if (action === 'start' || action === 'restart') void runCheck(port, true)
     } finally {
       setDesktopServiceBusy(false)
     }
@@ -107,6 +125,7 @@ export function useStableAudioSetup() {
     if (!api) return
     setDesktopServiceBusy(true)
     setDesktopDependencyStatusBusy(true)
+    lastStableAudioProbeRef.current = ''
     try {
       await runDesktopServiceStartup({
         queryDependencyStatus: () => api.queryStableAudioSetupStatus(),
@@ -115,7 +134,16 @@ export function useStableAudioSetup() {
         onDependencyStatus: setDesktopDependencyStatusResult,
         onDependencyStatusSettled: () => setDesktopDependencyStatusBusy(false),
         onServiceResult: setDesktopServiceResult,
-        timeoutMessage: (output) => `${output || '服务启动命令已执行。'}\n等待连接超时，请查看 Stable Audio 3 服务日志。`,
+        startingMessage: (output) => `${output || '服务启动命令已执行。'}\n正在检测 Stable Audio 3 模型访问和服务健康状态，首次启动可能需要登录或下载模型。`,
+        readyMessage: (output) => `${output || '服务启动命令已执行。'}\nStable Audio 3 模型已就绪，音效服务可用。`,
+        timeoutMessage: (output) => {
+          const probe = lastStableAudioProbeRef.current
+          return [
+            output || '服务启动命令已执行。',
+            '等待 Stable Audio 3 模型就绪超时，请查看 Stable Audio 3 服务日志。',
+            probe ? `最后一次检测：\n${probe}` : '',
+          ].filter(Boolean).join('\n')
+        },
       })
     } finally {
       setDesktopDependencyStatusBusy(false)

@@ -245,7 +245,7 @@ export function SoundEffectSetupPanel({
         <Alert type="error" showIcon title="安装依赖启动失败" description={desktopSetupError} />
       ) : null}
       {commandAlert(desktopDependencyStatusResult, '依赖和模型检测完成', '依赖或模型尚未就绪')}
-      {commandAlert(desktopServiceResult, '服务命令已执行', '服务命令未完成')}
+      {commandAlert(desktopServiceResult, desktopServiceBusy ? '服务启动中' : connected ? '服务已就绪' : '服务命令已执行', '服务未就绪')}
       <p className="field-note">
         当前端口 {port}。small-sfx 适合音效默认生成，small-music 适合 loop 和短音乐，medium 需要 CUDA GPU。
       </p>

@@ -8,6 +8,11 @@ const {
 
 const supportedStableAudioModels = new Set(['small-sfx', 'small-music', 'medium'])
 const supportedDownloadSources = new Set(['auto', 'hf', 'ms'])
+const stableAudioModelRepos = {
+  'small-sfx': 'stabilityai/stable-audio-3-small-sfx',
+  'small-music': 'stabilityai/stable-audio-3-small-music',
+  medium: 'stabilityai/stable-audio-3-medium',
+}
 
 function normalizeStableAudioModel(model) {
   const value = String(model || '')
@@ -21,6 +26,46 @@ function normalizeDownloadSource(source) {
 
 function parseJsonText(text) {
   return JSON.parse(String(text).replace(/^\uFEFF/, ''))
+}
+
+function httpErrorMessage(data, text, status) {
+  if (typeof data?.detail === 'string') return data.detail
+  if (data?.detail) return JSON.stringify(data.detail)
+  if (typeof data?.message === 'string') return data.message
+  return text || `HTTP ${status}`
+}
+
+function isStableAudioModelAccessError(output) {
+  const text = String(output || '').toLowerCase()
+  return (
+    text.includes('gatedrepoerror') ||
+    text.includes('401 unauthorized') ||
+    text.includes('cannot access gated repo') ||
+    text.includes('access to model') ||
+    text.includes('please log in')
+  )
+}
+
+function formatStableAudioModelAccessFailure(model, output) {
+  const repoId = stableAudioModelRepos[normalizeStableAudioModel(model)]
+  const raw = String(output || '').trim()
+  if (isStableAudioModelAccessError(raw)) {
+    return [
+      `模型 ${model} 需要 HuggingFace 授权后才能下载：${repoId}`,
+      '请先打开对应 HuggingFace 模型页申请或同意访问许可，然后在 Stable Audio 3 安装目录运行：uv run hf auth login',
+    ].join('\n')
+  }
+  return `模型 ${model} 访问检测失败：${raw || '无法读取 HuggingFace 模型配置。'}`
+}
+
+function buildStableAudioModelProbeScript(model) {
+  const normalizedModel = normalizeStableAudioModel(model)
+  const repoId = stableAudioModelRepos[normalizedModel]
+  return [
+    'from huggingface_hub import hf_hub_download',
+    `hf_hub_download(repo_id=${JSON.stringify(repoId)}, filename="model_config.json", etag_timeout=10)`,
+    `print(${JSON.stringify(`model access ok: ${normalizedModel}`)})`,
+  ].join('\n')
 }
 
 function resolveStableAudioInstallPaths(env = process.env) {
@@ -44,7 +89,7 @@ async function fetchJson(url, options) {
   const text = await response.text()
   const data = text ? parseJsonText(text) : null
   if (!response.ok) {
-    throw new Error(data?.detail || data?.message || text || `HTTP ${response.status}`)
+    throw new Error(httpErrorMessage(data, text, response.status))
   }
   return data
 }
@@ -117,6 +162,16 @@ function registerStableAudioIpcHandlers({
       )
       if (probe.ok) details.push(`Python 依赖：${probe.output || 'torch ok'}`)
       else missing.push(`Python 依赖不可用：${probe.output || 'import torch 失败'}`)
+
+      if (probe.ok) {
+        const modelProbe = await runCommandOutput(
+          pythonCommand,
+          [...pythonArgs, '-c', buildStableAudioModelProbeScript(model)],
+          repoDir && fsExists(repoDir) ? { cwd: repoDir } : {},
+        )
+        if (modelProbe.ok) details.push(`模型访问：${modelProbe.output || `${model} ok`}`)
+        else missing.push(`模型访问不可用：${formatStableAudioModelAccessFailure(model, modelProbe.output)}`)
+      }
     }
 
     if (missing.length === 0) {

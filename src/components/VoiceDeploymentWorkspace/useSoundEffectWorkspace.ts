@@ -95,7 +95,7 @@ export function useSoundEffectWorkspace() {
       onModelPathChange: setup.setModelPath,
       onPortInputChange: setup.setPortInput,
       onApplyPort: setup.applyPort,
-      onRunCheck: () => void setup.runCheck(setup.port),
+      onRunCheck: () => void setup.runCheck(setup.port, true),
       onRunDesktopSetup: () => void setup.runDesktopSetup(),
       onQueryDesktopDependencyStatus: () => void setup.queryDesktopDependencyStatus(),
       onStartDesktopService: () => void setup.startDesktopService(),
