@@ -11,6 +11,8 @@ import {
 
 type UploadChangeFileList = Parameters<NonNullable<UploadProps['onChange']>>[0]['fileList']
 
+const SPRITE_UPLOAD_ACCEPT = '.png,.webp,.json'
+
 export interface PersonalSpaceUploadPropsOptions {
   spriteUploadBatchKeyByCharacter: { current: Record<string, string> }
   imageSpriteUploadBatchKey: { current: string | null }
@@ -47,7 +49,7 @@ export function createPersonalSpaceUploadProps(options: PersonalSpaceUploadProps
   })
 
   const spriteUploadProps = (characterId: string): UploadProps => ({
-    accept: '.png,.json',
+    accept: SPRITE_UPLOAD_ACCEPT,
     multiple: true,
     maxCount: 2,
     showUploadList: false,
@@ -89,7 +91,7 @@ export function createPersonalSpaceUploadProps(options: PersonalSpaceUploadProps
   })
 
   const imageSpriteUploadProps = (groupName?: string): UploadProps => ({
-    accept: '.png,.json',
+    accept: SPRITE_UPLOAD_ACCEPT,
     multiple: true,
     maxCount: 2,
     showUploadList: false,

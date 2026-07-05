@@ -154,7 +154,7 @@ test('personal space page covers required management modules', () => {
   assert.match(source, /getSpriteUploadProps/)
   assert.match(source, /spriteUploadProps/)
   assert.match(source, /上传精灵图/)
-  assert.match(source, /png 和 index\.json/)
+  assert.match(source, /png 或 webp 和 index\.json/)
   assert.match(source, /角色配音/)
   assert.match(source, /关联配音素材/)
   assert.match(source, /导入公共图片/)
