@@ -5,9 +5,9 @@ import {
   HANDLE_CURSORS,
   HANDLE_SIZE,
 } from './constants'
-import { getLayoutFramePreviewUrl } from './layoutModel'
+import { getLayoutFramePreviewUrl, getLayoutFrameSilhouettePreviewLayers } from './layoutModel'
 import type { ResizeHandle } from './layoutModel'
-import type { FrameItem } from './types'
+import type { ComposeStyle, FrameItem } from './types'
 import type { LayoutWorkspaceViewModel } from './useLayoutWorkspace'
 
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
@@ -16,6 +16,7 @@ export interface CanvasActiveFrameLayerProps {
   activeFrame: FrameItem
   canvasWidth: number
   canvasHeight: number
+  composeStyle: ComposeStyle
   setDragState: LayoutWorkspaceViewModel['setDragState']
 }
 
@@ -23,11 +24,14 @@ export function CanvasActiveFrameLayer({
   activeFrame,
   canvasWidth,
   canvasHeight,
+  composeStyle,
   setDragState,
 }: CanvasActiveFrameLayerProps) {
   const stopNativeDrag: React.DragEventHandler<HTMLElement> = (e) => {
     e.preventDefault()
   }
+  const previewUrl = getLayoutFramePreviewUrl(activeFrame)
+  const silhouetteLayers = previewUrl ? getLayoutFrameSilhouettePreviewLayers(composeStyle) : []
   const frameStyle: React.CSSProperties & { WebkitUserDrag: 'none' } = {
     position: 'absolute',
     left: canvasWidth / 2 - activeFrame.layout.width / 2 + activeFrame.layout.offsetX,
@@ -40,6 +44,7 @@ export function CanvasActiveFrameLayer({
     touchAction: 'none',
     userSelect: 'none',
     WebkitUserDrag: 'none',
+    overflow: 'visible',
   }
 
   return (
@@ -61,12 +66,35 @@ export function CanvasActiveFrameLayer({
       }}
       style={frameStyle}
     >
+      {silhouetteLayers.map((layer) => (
+        <span
+          key={layer.id}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            transform: `translate(${layer.offsetX}px, ${layer.offsetY}px)`,
+            background: layer.color,
+            pointerEvents: 'none',
+            zIndex: 0,
+            WebkitMaskImage: `url("${previewUrl}")`,
+            maskImage: `url("${previewUrl}")`,
+            WebkitMaskPosition: 'center',
+            maskPosition: 'center',
+            WebkitMaskRepeat: 'no-repeat',
+            maskRepeat: 'no-repeat',
+            WebkitMaskSize: 'contain',
+            maskSize: 'contain',
+          }}
+        />
+      ))}
       <img
-        src={getLayoutFramePreviewUrl(activeFrame)}
+        src={previewUrl}
         alt="active composed"
         draggable={false}
         onDragStart={stopNativeDrag}
         style={{
+          position: 'relative',
           width: '100%',
           height: '100%',
           objectFit: 'contain',
@@ -74,6 +102,7 @@ export function CanvasActiveFrameLayer({
           display: 'block',
           userSelect: 'none',
           pointerEvents: 'none',
+          zIndex: 1,
         }}
       />
       {RESIZE_HANDLES.map((handle) => {
@@ -96,7 +125,7 @@ export function CanvasActiveFrameLayer({
           <span
             key={handle}
             style={pos}
-          onPointerDown={(e) => {
+            onPointerDown={(e) => {
               e.preventDefault()
               e.stopPropagation()
               setDragState({

@@ -64,6 +64,7 @@ export function CanvasStage({ activeFrame, layout }: CanvasStageProps) {
               activeFrame={activeFrame}
               canvasWidth={layout.canvasWidth}
               canvasHeight={layout.canvasHeight}
+              composeStyle={layout.composeStyle}
               setDragState={layout.setDragState}
             />
           ) : (

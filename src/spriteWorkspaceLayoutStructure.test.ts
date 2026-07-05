@@ -114,3 +114,18 @@ test('layout workspace delegates frame action orchestration to a focused hook', 
   assert.match(actionHookSource, /window\.requestAnimationFrame/)
   assert.match(actionHookSource, /startCanvasRatioApplyFeedback/)
 })
+
+test('active layout frame preview renders public stroke and outline styles without using composed canvas output', () => {
+  const stageSource = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx', 'utf8')
+  const layerSource = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasActiveFrameLayer.tsx', 'utf8')
+  const modelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/layoutModel.ts', 'utf8')
+
+  assert.match(modelSource, /export function getLayoutFrameSilhouettePreviewLayers/)
+  assert.match(stageSource, /composeStyle=\{layout\.composeStyle\}/)
+  assert.match(layerSource, /composeStyle/)
+  assert.match(layerSource, /getLayoutFrameSilhouettePreviewLayers\(composeStyle\)/)
+  assert.match(layerSource, /maskImage/)
+  assert.match(layerSource, /WebkitMaskImage/)
+  assert.match(layerSource, /getLayoutFramePreviewUrl\(activeFrame\)/)
+  assert.doesNotMatch(layerSource, /composedUrl\s*\?\?/)
+})

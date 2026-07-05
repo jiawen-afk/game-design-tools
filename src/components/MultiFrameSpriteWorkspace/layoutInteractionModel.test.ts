@@ -10,6 +10,7 @@ import {
   computeWheelFrameResize,
   computeWheelResize,
   getLayoutFramePreviewUrl,
+  getLayoutFrameSilhouettePreviewLayers,
   getWheelScalingButtonLabel,
   shouldStopLayoutDragFromPointer,
 } from './model'
@@ -112,7 +113,7 @@ test('layout drag stops when a mouse pointer no longer has a pressed button', ()
   assert.equal(shouldStopLayoutDragFromPointer({ pointerType: 'touch', buttons: 0 }), false)
 })
 
-test('layout frame adjustment previews the matte frame instead of stale composed canvas output', () => {
+test('layout frame adjustment previews the matte frame and derives style layers for strokes', () => {
   assert.equal(
     getLayoutFramePreviewUrl({ matteUrl: 'blob:matte', composedUrl: 'blob:composed' }),
     'blob:matte'
@@ -120,5 +121,31 @@ test('layout frame adjustment previews the matte frame instead of stale composed
   assert.equal(
     getLayoutFramePreviewUrl({ matteUrl: null, composedUrl: 'blob:composed' }),
     undefined
+  )
+
+  const layers = getLayoutFrameSilhouettePreviewLayers({
+    strokeColor: '#ff3300',
+    strokeWidth: 1,
+    outlineColor: '#101820',
+    outlineWidth: 2,
+  })
+
+  assert.equal(layers.length, 32)
+  assert.equal(layers.filter((layer) => layer.kind === 'outline').length, 24)
+  assert.equal(layers.filter((layer) => layer.kind === 'stroke').length, 8)
+  assert.deepEqual(layers[0], { kind: 'outline', id: 'outline-1-1-0', color: '#101820', offsetX: 1, offsetY: 0 })
+  assert.deepEqual(layers[23], { kind: 'outline', id: 'outline-3--3--3', color: '#101820', offsetX: -3, offsetY: -3 })
+  assert.deepEqual(layers[24], { kind: 'stroke', id: 'stroke-1-1-0', color: '#ff3300', offsetX: 1, offsetY: 0 })
+})
+
+test('layout frame style preview omits zero-width stroke and outline layers', () => {
+  assert.deepEqual(
+    getLayoutFrameSilhouettePreviewLayers({
+      strokeColor: '#ff3300',
+      strokeWidth: 0,
+      outlineColor: '#101820',
+      outlineWidth: 0,
+    }),
+    []
   )
 })
