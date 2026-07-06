@@ -1,11 +1,11 @@
-import { Alert, Button, Input, InputNumber, Space } from 'antd'
+import { Alert, Button, Input, InputNumber, Select, Space } from 'antd'
 import {
   LoadingOutlined,
   SoundOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
 
-import type { SoundEffectParams, StableAudioModelMeta } from './soundEffectModel'
+import type { SoundEffectParams, StableAudioModelId, StableAudioModelMeta } from './soundEffectModel'
 import { VoiceFieldLabel } from './VoiceFieldLabel'
 
 interface SoundEffectGenerationPanelProps {
@@ -13,8 +13,10 @@ interface SoundEffectGenerationPanelProps {
   generationError: string
   generating: boolean
   canGenerate: boolean
+  stableAudioModels: StableAudioModelMeta[]
   selectedModelMeta: StableAudioModelMeta
   onParamsChange: (patch: Partial<SoundEffectParams>) => void
+  onGenerationModelChange: (model: StableAudioModelId) => void
   onGenerate: () => void
   onResetParams: () => void
 }
@@ -24,11 +26,18 @@ export function SoundEffectGenerationPanel({
   generationError,
   generating,
   canGenerate,
+  stableAudioModels,
   selectedModelMeta,
   onParamsChange,
+  onGenerationModelChange,
   onGenerate,
   onResetParams,
 }: SoundEffectGenerationPanelProps) {
+  const modelOptions = (stableAudioModels.length > 0 ? stableAudioModels : [selectedModelMeta]).map((model) => ({
+    label: `${model.label} · ${model.id}`,
+    value: model.id,
+  }))
+
   return (
     <section className="voice-panel sound-generation-panel" aria-labelledby="sound-generation-title">
       <div className="panel-title">
@@ -48,6 +57,14 @@ export function SoundEffectGenerationPanel({
         </label>
 
         <div className="sound-param-grid">
+          <label className="form-field">
+            <VoiceFieldLabel label="模型" help="选择本次生成使用的 Stable Audio 3 模型。" />
+            <Select
+              value={soundParams.model}
+              options={modelOptions}
+              onChange={(value) => onGenerationModelChange(value as StableAudioModelId)}
+            />
+          </label>
           <label className="form-field">
             <VoiceFieldLabel label="时长" help={`当前模型最长 ${selectedModelMeta.maxDurationSeconds} 秒。`} />
             <InputNumber

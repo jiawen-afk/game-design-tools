@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useStableAudioSetup } from './useStableAudioSetup'
 import { useSoundEffectGenerationWorkflow } from './useSoundEffectGenerationWorkflow'
-import { stableAudioModels, type SoundEffectRecord } from './soundEffectModel'
+import {
+  chooseSoundEffectModel,
+  deriveStableAudioInstallState,
+  stableAudioModels,
+  type SoundEffectRecord,
+  type StableAudioModelId,
+} from './soundEffectModel'
 import { collectSoundEffectRecordToPersonalSpace, type SoundCollectLink } from './soundEffectPersonalSpaceCollector'
 import { readCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/projectSpaceState'
 
@@ -23,9 +29,21 @@ export function useSoundEffectWorkspace() {
     },
   })
 
-  const selectedModelMeta = useMemo(
+  const installState = useMemo(
+    () => deriveStableAudioInstallState(setup.modelStatusResults),
+    [setup.modelStatusResults],
+  )
+  const setupModelMeta = useMemo(
     () => stableAudioModels.find((item) => item.id === setup.selectedModel) ?? stableAudioModels[0]!,
     [setup.selectedModel],
+  )
+  const availableGenerationModels = useMemo(() => {
+    if (!installState.dependenciesReady) return stableAudioModels
+    return stableAudioModels.filter((model) => installState.installedModelIds.includes(model.id))
+  }, [installState.dependenciesReady, installState.installedModelIds])
+  const generationModelMeta = useMemo(
+    () => stableAudioModels.find((item) => item.id === generation.soundParams.model) ?? stableAudioModels[0]!,
+    [generation.soundParams.model],
   )
   const spriteLinkOptions = useMemo(() => (
     currentProjectSpace.assets
@@ -46,6 +64,29 @@ export function useSoundEffectWorkspace() {
   const clearRecords = () => {
     setRecords([])
     setLastGeneratedId('')
+  }
+
+  useEffect(() => {
+    if (!installState.dependenciesReady || installState.installedModelIds.length === 0) return
+    const model = chooseSoundEffectModel(generation.soundParams.model, installState.installedModelIds)
+    if (model !== generation.soundParams.model) generation.updateModel(model)
+  }, [generation, installState.dependenciesReady, installState.installedModelIds])
+
+  const changeSoundEffectModel = (model: StableAudioModelId) => {
+    generation.updateModel(model)
+  }
+
+  const loadSoundEffectRecord = (record: SoundEffectRecord) => {
+    generation.loadParams(record)
+  }
+
+  const canGenerateWithSelectedModel = generation.canGenerate && (
+    !installState.dependenciesReady || installState.installedModelIds.includes(generation.soundParams.model)
+  )
+
+  const generateSoundEffect = () => {
+    if (!canGenerateWithSelectedModel) return
+    void generation.generateSound()
   }
 
   const collectRecord = async (record: SoundEffectRecord, link?: SoundCollectLink) => {
@@ -74,7 +115,10 @@ export function useSoundEffectWorkspace() {
     setupPanelProps: {
       stableAudioModels,
       selectedModel: setup.selectedModel,
-      selectedModelMeta,
+      selectedModelMeta: setupModelMeta,
+      dependenciesReady: installState.dependenciesReady,
+      installedModelIds: installState.installedModelIds,
+      missingModelIds: installState.missingModelIds,
       downloadSource: setup.downloadSource,
       modelPath: setup.modelPath,
       port: setup.port,
@@ -99,7 +143,7 @@ export function useSoundEffectWorkspace() {
       onPortInputChange: setup.setPortInput,
       onApplyPort: setup.applyPort,
       onRunCheck: () => void setup.runCheck(setup.port, true),
-      onRunDesktopSetup: () => void setup.runDesktopSetup(),
+      onRunDesktopSetup: (model?: StableAudioModelId) => void setup.runDesktopSetup(model),
       onRunDesktopHfLogin: () => void setup.runDesktopHfLogin(),
       onQueryDesktopDependencyStatus: () => void setup.queryDesktopDependencyStatus(),
       onStartDesktopService: () => void setup.startDesktopService(),
@@ -109,11 +153,13 @@ export function useSoundEffectWorkspace() {
       soundParams: generation.soundParams,
       generationError: generation.generationError,
       generating: generation.generating,
-      canGenerate: generation.canGenerate,
-      selectedModelMeta,
+      canGenerate: canGenerateWithSelectedModel,
+      stableAudioModels: availableGenerationModels,
+      selectedModelMeta: generationModelMeta,
       onParamsChange: generation.updateParams,
-      onGenerate: () => void generation.generateSound(),
-      onResetParams: generation.resetParams,
+      onGenerationModelChange: changeSoundEffectModel,
+      onGenerate: generateSoundEffect,
+      onResetParams: () => generation.resetParams(generation.soundParams.model),
     },
     libraryPanelProps: {
       records,
@@ -121,7 +167,7 @@ export function useSoundEffectWorkspace() {
       spriteLinkOptions,
       collectingRecordId,
       collectError,
-      onLoad: generation.loadParams,
+      onLoad: loadSoundEffectRecord,
       onRenameRecord: renameRecord,
       onDeleteRecord: deleteRecord,
       onClearRecords: clearRecords,

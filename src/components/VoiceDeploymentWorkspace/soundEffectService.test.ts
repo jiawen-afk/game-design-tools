@@ -29,6 +29,7 @@ test('stable audio generation surfaces server detail on failure', async () => {
   try {
     await assert.rejects(
       () => generateStableAudioSound(8818, {
+        model: 'small-sfx',
         prompt: 'sword hit',
         durationSeconds: 2,
         seed: null,

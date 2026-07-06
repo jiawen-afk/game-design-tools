@@ -150,7 +150,7 @@ test('stable audio dependency status reports gated model access before service s
   }
 })
 
-test('stable audio dependency status rejects a requested model that is not installed in the config', async () => {
+test('stable audio dependency status checks the requested model cache even when service config names another model', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdt-stable-audio-model-'))
   const originalLocalAppData = process.env.LOCALAPPDATA
   process.env.LOCALAPPDATA = tempDir
@@ -185,12 +185,12 @@ test('stable audio dependency status rejects a requested model that is not insta
 
     const result = await ipcMain.handlers.get('stable-audio:setup-status')({}, { model: 'medium' })
 
-    assert.equal(result.ok, false)
+    assert.equal(result.ok, true)
     assert.match(result.output, /当前选择模型：medium/)
     assert.match(result.output, /已安装配置模型：small-sfx/)
-    assert.match(result.output, /请先选择 medium 后点击“安装依赖”/)
+    assert.match(result.output, /模型缓存：model access ok: medium/)
     assert.ok(probedScripts.some((script) => script.includes('import torch')))
-    assert.ok(!probedScripts.some((script) => script.includes('stable-audio-3-medium')))
+    assert.ok(probedScripts.some((script) => script.includes('stable-audio-3-medium')))
     assert.ok(!probedScripts.some((script) => script.includes('stable-audio-3-small-sfx')))
   } finally {
     if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA

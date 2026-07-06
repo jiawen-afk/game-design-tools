@@ -30,8 +30,12 @@ test('sound effect panels expose model install generation and collection control
   assert.match(read(files.setup), /small-music/)
   assert.match(read(files.setup), /medium/)
   assert.match(read(files.setup), /安装依赖/)
+  assert.match(read(files.setup), /安装模型/)
+  assert.match(read(files.setup), /未安装模型/)
   assert.match(read(files.setup), /启动服务/)
   assert.match(read(files.generator), /提示词/)
+  assert.match(read(files.generator), /模型/)
+  assert.match(read(files.generator), /Select/)
   assert.match(read(files.generator), /生成音效/)
   assert.match(read(files.library), /收藏到音效素材/)
   assert.match(read(files.library), /关联精灵图/)
@@ -57,4 +61,70 @@ test('sound effect workspace collects generated sounds and derives sprite link o
   assert.match(hookSource, /currentProjectSpace\.assets/)
   assert.match(hookSource, /asset\.kind === 'sprite'/)
   assert.match(hookSource, /onCollectAndLinkSprite/)
+})
+
+test('sound effect workspace keeps the generation model aligned with the setup selection', () => {
+  const hookSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
+  const generationHookSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectGenerationWorkflow.ts')
+
+  assert.match(hookSource, /changeSoundEffectModel/)
+  assert.match(hookSource, /generation\.updateModel\(model\)/)
+  assert.match(hookSource, /onGenerationModelChange: changeSoundEffectModel/)
+  assert.match(hookSource, /loadSoundEffectRecord/)
+  assert.match(hookSource, /onLoad: loadSoundEffectRecord/)
+  assert.match(generationHookSource, /updateModel/)
+  assert.match(generationHookSource, /clampSoundDuration\(model, current\.durationSeconds\)/)
+})
+
+test('sound effect setup collapses installed dependency controls and exposes missing model install', () => {
+  const setupSource = read(files.setup)
+  const soundCss = read(files.soundCss)
+  const workspaceSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
+  const setupHookSource = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
+
+  assert.match(setupSource, /dependenciesReady/)
+  assert.match(setupSource, /missingModelOptions/)
+  assert.match(setupSource, /compact-service-controls/)
+  assert.match(setupSource, /sound-compact-service-toolbar/)
+  assert.match(setupSource, /sound-service-address/)
+  assert.match(setupSource, /sound-model-status-inline/)
+  assert.match(soundCss, /\.sound-compact-service-toolbar[\s\S]*grid-template-columns: minmax\(220px, auto\) minmax\(140px, 0\.45fr\) minmax\(240px, 0\.65fr\) auto/)
+  assert.match(workspaceSource, /installState/)
+  assert.match(workspaceSource, /availableGenerationModels/)
+  assert.match(setupHookSource, /modelStatusResults/)
+  assert.match(setupHookSource, /queryStableAudioModelStatuses/)
+})
+
+test('sound effect setup uses a compact grid for service path source and model facts', () => {
+  const setupSource = read(files.setup)
+  const soundCss = read(files.soundCss)
+
+  assert.match(setupSource, /sound-setup-grid/)
+  assert.match(setupSource, /sound-service-compact-row/)
+  assert.match(setupSource, /sound-model-path-field/)
+  assert.match(setupSource, /sound-model-detail-grid/)
+  assert.match(setupSource, /<dt>下载源<\/dt>/)
+  assert.match(setupSource, /selectedDownloadSource/)
+  assert.doesNotMatch(setupSource, /<div className="sound-service-row">/)
+  assert.match(soundCss, /\.sound-setup-grid[\s\S]*grid-template-columns: minmax\(260px, 1fr\) minmax\(280px, 1\.05fr\) minmax\(180px, 0\.7fr\)/)
+  assert.match(soundCss, /\.sound-model-detail-grid[\s\S]*grid-template-columns: minmax\(56px, 0\.48fr\) minmax\(96px, 0\.85fr\) minmax\(56px, 0\.48fr\) minmax\(160px, 1\.45fr\) minmax\(88px, 0\.72fr\)/)
+  assert.match(soundCss, /\.sound-service-compact-row[\s\S]*grid-template-columns: minmax\(0, 1fr\) 126px auto/)
+  assert.match(soundCss, /\.sound-setup-title-actions[\s\S]*justify-content: flex-end/)
+})
+
+test('sound effect setup places install service controls in the title row and swaps model path after model selector', () => {
+  const setupSource = read(files.setup)
+  const soundCss = read(files.soundCss)
+
+  assert.match(setupSource, /sound-setup-title-row/)
+  assert.match(setupSource, /sound-setup-title-actions/)
+  assert.match(setupSource, /sound-setup-title-main/)
+  assert.doesNotMatch(setupSource, /desktop-boost sound-setup-actions/)
+  assert.ok(
+    setupSource.indexOf('sound-model-select-field') < setupSource.indexOf('sound-model-path-field'),
+    'model selector should render before model path',
+  )
+  assert.match(soundCss, /\.sound-setup-title-row[\s\S]*grid-template-columns: minmax\(0, auto\) minmax\(520px, 1fr\)/)
+  assert.match(soundCss, /\.sound-setup-title-actions[\s\S]*justify-content: flex-end/)
+  assert.match(soundCss, /@media \(max-width: 1180px\)[\s\S]*\.sound-setup-title-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
 })

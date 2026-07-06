@@ -31,6 +31,26 @@ export interface SoundEffectRecord {
   model: StableAudioModelId
 }
 
+export interface StableAudioGeneratePayload {
+  model: StableAudioModelId
+  prompt: string
+  durationSeconds: number
+  seed: number | null
+  outputName: string
+}
+
+export type StableAudioModelStatusResults = Partial<Record<StableAudioModelId, {
+  ok: boolean
+  output: string
+}>>
+
+export interface StableAudioInstallState {
+  hasChecked: boolean
+  dependenciesReady: boolean
+  installedModelIds: StableAudioModelId[]
+  missingModelIds: StableAudioModelId[]
+}
+
 export const defaultStableAudioPort = 8818
 
 export const stableAudioModels: StableAudioModelMeta[] = [
@@ -63,6 +83,8 @@ export const stableAudioModels: StableAudioModelMeta[] = [
   },
 ]
 
+export const stableAudioModelIds = stableAudioModels.map((model) => model.id)
+
 export const defaultSoundEffectParams: SoundEffectParams = {
   model: 'small-sfx',
   prompt: 'short fantasy sword slash impact',
@@ -76,8 +98,47 @@ export function clampSoundDuration(model: StableAudioModelId, seconds: number) {
   return Math.max(1, Math.min(meta.maxDurationSeconds, Math.round(Number(seconds) || 1)))
 }
 
-export function buildStableAudioGeneratePayload(params: SoundEffectParams) {
+function isStableAudioModelInstalled(model: StableAudioModelId, output: string) {
+  return output.includes(`model installed: ${model}`) || output.includes(`model access ok: ${model}`)
+}
+
+function isStableAudioDependencyReady(output: string) {
+  return output.includes('Stable Audio 3 依赖已安装。') || output.includes('Python 依赖：')
+}
+
+export function deriveStableAudioInstallState(
+  statusResults: StableAudioModelStatusResults,
+  modelIds: StableAudioModelId[] = stableAudioModelIds,
+): StableAudioInstallState {
+  const results = modelIds.map((model) => ({ model, result: statusResults[model] }))
+  const hasChecked = results.some(({ result }) => Boolean(result))
+  const dependenciesReady = results.some(({ result }) => isStableAudioDependencyReady(result?.output ?? ''))
+  const installedModelIds = results
+    .filter(({ model, result }) => Boolean(result?.ok) && isStableAudioModelInstalled(model, result?.output ?? ''))
+    .map(({ model }) => model)
+  const missingModelIds = dependenciesReady
+    ? modelIds.filter((model) => !installedModelIds.includes(model))
+    : []
+
   return {
+    hasChecked,
+    dependenciesReady,
+    installedModelIds,
+    missingModelIds,
+  }
+}
+
+export function chooseSoundEffectModel(
+  preferredModel: StableAudioModelId | null | undefined,
+  installedModelIds: StableAudioModelId[],
+) {
+  if (preferredModel && installedModelIds.includes(preferredModel)) return preferredModel
+  return installedModelIds[0] ?? defaultSoundEffectParams.model
+}
+
+export function buildStableAudioGeneratePayload(params: SoundEffectParams): StableAudioGeneratePayload {
+  return {
+    model: params.model,
     prompt: params.prompt.trim(),
     durationSeconds: clampSoundDuration(params.model, params.durationSeconds),
     seed: Number.isFinite(params.seed) ? params.seed : null,

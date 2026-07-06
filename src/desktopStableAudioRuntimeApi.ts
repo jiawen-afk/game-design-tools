@@ -19,6 +19,7 @@ export interface DesktopStableAudioSetupResult {
 }
 
 export interface DesktopStableAudioGenerateOptions {
+  model: DesktopStableAudioModelId
   prompt: string
   durationSeconds: number
   seed: number | null

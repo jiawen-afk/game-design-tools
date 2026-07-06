@@ -1,4 +1,4 @@
-import { Alert, Button, Input, Segmented, Tag } from 'antd'
+import { Alert, Button, Input, Segmented, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
   LoginOutlined,
@@ -46,13 +46,16 @@ interface SoundEffectSetupPanelProps {
   desktopDependencyStatusResult: DesktopCommandResult | null
   desktopServiceBusy: boolean
   desktopServiceResult: DesktopCommandResult | null
+  dependenciesReady: boolean
+  installedModelIds: StableAudioModelId[]
+  missingModelIds: StableAudioModelId[]
   onModelChange: (model: StableAudioModelId) => void
   onDownloadSourceChange: (source: DownloadSource) => void
   onModelPathChange: (modelPath: string) => void
   onPortInputChange: (portInput: string) => void
   onApplyPort: () => void
   onRunCheck: () => void
-  onRunDesktopSetup: () => void
+  onRunDesktopSetup: (model?: StableAudioModelId) => void
   onRunDesktopHfLogin: () => void
   onQueryDesktopDependencyStatus: () => void
   onStartDesktopService: () => void
@@ -116,6 +119,9 @@ export function SoundEffectSetupPanel({
   desktopDependencyStatusResult,
   desktopServiceBusy,
   desktopServiceResult,
+  dependenciesReady,
+  installedModelIds,
+  missingModelIds,
   onModelChange,
   onDownloadSourceChange,
   onModelPathChange,
@@ -132,143 +138,249 @@ export function SoundEffectSetupPanel({
     label: `${model.label} · ${model.id}`,
     value: model.id,
   }))
+  const installedModels = stableAudioModels.filter((model) => installedModelIds.includes(model.id))
+  const missingModels = stableAudioModels.filter((model) => missingModelIds.includes(model.id))
+  const missingModelOptions = missingModels.map((model) => ({
+    label: `${model.label} · ${model.id}`,
+    value: model.id,
+  }))
+  const installTarget = missingModelIds.includes(selectedModel)
+    ? selectedModel
+    : missingModels[0]?.id
   const connectionTag = {
     idle: <Tag>未检测</Tag>,
     checking: <Tag icon={<LoadingOutlined />} color="blue">检测中</Tag>,
     connected: <Tag icon={<CheckCircleOutlined />} color="success">已连接</Tag>,
     disconnected: <Tag color="error">未连接</Tag>,
   }[connectionStatus]
+  const selectedDownloadSource = downloadSources.find((source) => source.id === downloadSource)
+  const setupActionButtons = (
+    <>
+      <Button icon={<SearchOutlined />} onClick={onRunCheck} disabled={connectionStatus === 'checking'}>
+        检测服务
+      </Button>
+      <Button
+        icon={<SearchOutlined />}
+        loading={desktopDependencyStatusBusy}
+        disabled={!desktopRuntime || desktopDependencyStatusBusy}
+        onClick={onQueryDesktopDependencyStatus}
+      >
+        检测依赖和模型
+      </Button>
+      <Button
+        type="primary"
+        icon={<ThunderboltOutlined />}
+        loading={desktopSetupBusy}
+        disabled={!desktopRuntime || desktopSetupBusy}
+        onClick={() => onRunDesktopSetup()}
+      >
+        安装依赖
+      </Button>
+      <Button
+        icon={<LoginOutlined />}
+        loading={desktopHfLoginBusy}
+        disabled={!desktopRuntime || desktopHfLoginBusy}
+        onClick={onRunDesktopHfLogin}
+      >
+        登录 HuggingFace
+      </Button>
+      <Button
+        icon={<PlayCircleOutlined />}
+        loading={desktopServiceBusy}
+        disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
+        onClick={onStartDesktopService}
+      >
+        启动服务
+      </Button>
+      <Button
+        icon={<ReloadOutlined />}
+        loading={desktopServiceBusy}
+        disabled={!desktopRuntime || desktopServiceBusy}
+        onClick={() => onControlDesktopService('restart')}
+      >
+        重启服务
+      </Button>
+      <Button
+        danger
+        icon={<PoweroffOutlined />}
+        loading={desktopServiceBusy}
+        disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
+        onClick={() => onControlDesktopService('stop')}
+      >
+        停止服务
+      </Button>
+    </>
+  )
 
   return (
-    <section className="voice-panel sound-setup-panel" aria-labelledby="sound-setup-title">
-      <div className="panel-title">
-        <SoundOutlined />
-        <h3 id="sound-setup-title">Stable Audio 3 本机服务</h3>
-      </div>
-
-      <div className="sound-service-row">
-        <div>
-          <span className="model-select-label">服务地址</span>
-          <code>{serviceUrl}</code>
+    <section
+      className={`voice-panel sound-setup-panel${dependenciesReady ? ' sound-setup-panel-compact' : ''}`}
+      aria-labelledby="sound-setup-title"
+    >
+      <div className="panel-title sound-setup-title-row">
+        <div className="sound-setup-title-main">
+          <SoundOutlined />
+          <h3 id="sound-setup-title">Stable Audio 3 本机服务</h3>
+          {dependenciesReady ? <Tag color="success">依赖已安装</Tag> : null}
         </div>
-        <Input
-          value={portInput}
-          onChange={(event) => onPortInputChange(event.target.value)}
-          onPressEnter={onApplyPort}
-          onBlur={onApplyPort}
-          addonBefore="端口"
-          style={{ width: 152 }}
-        />
-        {connectionTag}
+        {!dependenciesReady ? (
+          <div className="sound-setup-title-actions" aria-label="Stable Audio 3 服务控制">
+            <span className="sound-setup-title-actions-label">
+              <ThunderboltOutlined />
+              <span>安装与服务</span>
+            </span>
+            <div className="desktop-boost-actions">
+              {setupActionButtons}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div className="model-select">
-        <span className="model-select-label">模型</span>
-        <Segmented
-          value={selectedModel}
-          options={modelOptions}
-          onChange={(value) => onModelChange(value as StableAudioModelId)}
-        />
-        <dl className="sound-model-meta">
-          <div>
-            <dt>参数</dt>
-            <dd>{selectedModelMeta.parameterCount}</dd>
+      {dependenciesReady ? (
+        <div className="sound-compact-service">
+          <div className="sound-compact-service-toolbar">
+            <div className="sound-service-address">
+              <span className="model-select-label">服务</span>
+              <code>{serviceUrl}</code>
+              {connectionTag}
+            </div>
+            <div className="sound-model-status-line sound-model-status-inline">
+              <span className="model-select-label">已安装模型</span>
+              <span>{installedModels.map((model) => model.id).join('、') || '无'}</span>
+            </div>
+            <div className="sound-model-install-row">
+              <span className="model-select-label">未安装模型</span>
+              {missingModels.length > 0 ? (
+                <>
+                  <Select
+                    value={installTarget}
+                    options={missingModelOptions}
+                    onChange={(value) => onModelChange(value)}
+                    className="sound-install-model-select"
+                  />
+                  <Button
+                    type="primary"
+                    icon={<ThunderboltOutlined />}
+                    loading={desktopSetupBusy}
+                    disabled={!desktopRuntime || desktopSetupBusy || !installTarget}
+                    onClick={() => installTarget ? onRunDesktopSetup(installTarget) : undefined}
+                  >
+                    安装模型
+                  </Button>
+                </>
+              ) : (
+                <Tag color="success">无</Tag>
+              )}
+            </div>
+            <div className="compact-service-controls">
+              <Button
+                icon={<PlayCircleOutlined />}
+                loading={desktopServiceBusy}
+                disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
+                onClick={onStartDesktopService}
+              >
+                启动服务
+              </Button>
+              <Button
+                icon={<ReloadOutlined />}
+                loading={desktopServiceBusy}
+                disabled={!desktopRuntime || desktopServiceBusy}
+                onClick={() => onControlDesktopService('restart')}
+              >
+                重启服务
+              </Button>
+              <Button
+                danger
+                icon={<PoweroffOutlined />}
+                loading={desktopServiceBusy}
+                disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
+                onClick={() => onControlDesktopService('stop')}
+              >
+                停止服务
+              </Button>
+            </div>
           </div>
-          <div>
-            <dt>硬件</dt>
-            <dd>{selectedModelMeta.hardware}</dd>
-          </div>
-          <div>
-            <dt>最长</dt>
-            <dd>{selectedModelMeta.maxDurationSeconds}s</dd>
-          </div>
-          <div>
-            <dt>适用</dt>
-            <dd>{selectedModelMeta.recommendedUse}</dd>
-          </div>
-        </dl>
-        <p className="model-select-note">{selectedModelMeta.note}</p>
-      </div>
-
-      <div className="model-select">
-        <span className="model-select-label">下载源</span>
-        <Segmented
-          value={downloadSource}
-          options={sourceOptions}
-          onChange={(value) => onDownloadSourceChange(value as DownloadSource)}
-        />
-        <p className="model-select-note">
-          {downloadSources.find((source) => source.id === downloadSource)?.note}
-        </p>
-      </div>
-
-      <Input
-        value={modelPath}
-        onChange={(event) => onModelPathChange(event.target.value)}
-        placeholder="D:\\models\\StableAudio3"
-      />
-
-      <div className="desktop-boost" aria-label="Stable Audio 3 服务控制">
-        <div className="desktop-boost-title">
-          <ThunderboltOutlined />
-          <span>安装与服务</span>
         </div>
-        <div className="desktop-boost-actions">
-          <Button icon={<SearchOutlined />} onClick={onRunCheck} disabled={connectionStatus === 'checking'}>
-            检测服务
-          </Button>
-          <Button
-            icon={<SearchOutlined />}
-            loading={desktopDependencyStatusBusy}
-            disabled={!desktopRuntime || desktopDependencyStatusBusy}
-            onClick={onQueryDesktopDependencyStatus}
-          >
-            检测依赖和模型
-          </Button>
-          <Button
-            type="primary"
-            icon={<ThunderboltOutlined />}
-            loading={desktopSetupBusy}
-            disabled={!desktopRuntime || desktopSetupBusy}
-            onClick={onRunDesktopSetup}
-          >
-            安装依赖
-          </Button>
-          <Button
-            icon={<LoginOutlined />}
-            loading={desktopHfLoginBusy}
-            disabled={!desktopRuntime || desktopHfLoginBusy}
-            onClick={onRunDesktopHfLogin}
-          >
-            登录 HuggingFace
-          </Button>
-          <Button
-            icon={<PlayCircleOutlined />}
-            loading={desktopServiceBusy}
-            disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
-            onClick={onStartDesktopService}
-          >
-            启动服务
-          </Button>
-          <Button
-            icon={<ReloadOutlined />}
-            loading={desktopServiceBusy}
-            disabled={!desktopRuntime || desktopServiceBusy}
-            onClick={() => onControlDesktopService('restart')}
-          >
-            重启服务
-          </Button>
-          <Button
-            danger
-            icon={<PoweroffOutlined />}
-            loading={desktopServiceBusy}
-            disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
-            onClick={() => onControlDesktopService('stop')}
-          >
-            停止服务
-          </Button>
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="sound-setup-grid">
+            <div className="sound-setup-field sound-service-field">
+              <span className="model-select-label">服务地址</span>
+              <div className="sound-service-compact-row">
+                <code>{serviceUrl}</code>
+                <Input
+                  value={portInput}
+                  onChange={(event) => onPortInputChange(event.target.value)}
+                  onPressEnter={onApplyPort}
+                  onBlur={onApplyPort}
+                  addonBefore="端口"
+                  className="sound-port-input"
+                />
+                {connectionTag}
+              </div>
+            </div>
+
+            <div className="sound-setup-field sound-model-select-field">
+              <span className="model-select-label">模型</span>
+              <Segmented
+                value={selectedModel}
+                options={modelOptions}
+                onChange={(value) => onModelChange(value as StableAudioModelId)}
+              />
+            </div>
+
+            <div className="sound-setup-field sound-download-source-field">
+              <span className="model-select-label">下载源</span>
+              <Segmented
+                value={downloadSource}
+                options={sourceOptions}
+                onChange={(value) => onDownloadSourceChange(value as DownloadSource)}
+              />
+            </div>
+
+            <div className="sound-setup-field sound-model-path-field">
+              <span className="model-select-label">模型路径</span>
+              <Input
+                value={modelPath}
+                onChange={(event) => onModelPathChange(event.target.value)}
+                placeholder="D:\\models\\StableAudio3"
+              />
+            </div>
+
+            <dl className="sound-model-detail-grid">
+              <div>
+                <dt>参数</dt>
+                <dd>{selectedModelMeta.parameterCount}</dd>
+              </div>
+              <div>
+                <dt>硬件</dt>
+                <dd>{selectedModelMeta.hardware}</dd>
+              </div>
+              <div>
+                <dt>最长</dt>
+                <dd>{selectedModelMeta.maxDurationSeconds}s</dd>
+              </div>
+              <div>
+                <dt>适用</dt>
+                <dd>{selectedModelMeta.recommendedUse}</dd>
+              </div>
+              <div>
+                <dt>下载源</dt>
+                <dd>{selectedDownloadSource?.label ?? downloadSource}</dd>
+              </div>
+            </dl>
+
+            <p className="model-select-note sound-setup-hint">
+              {selectedModelMeta.note}
+              {selectedDownloadSource?.note ? ` 下载源：${selectedDownloadSource.note}` : ''}
+            </p>
+          </div>
+
+          <p className="field-note">
+            当前端口 {port}。small-sfx 适合音效默认生成，small-music 适合 loop 和短音乐，medium 需要 CUDA GPU。
+          </p>
+        </>
+      )}
 
       {!desktopRuntime ? (
         <Alert type="warning" showIcon title="当前是 Web 运行环境" description="安装、检测模型和服务控制需要从 Windows 桌面应用启动。" />
@@ -285,11 +397,8 @@ export function SoundEffectSetupPanel({
       {desktopHfLoginError ? (
         <Alert type="error" showIcon title="HuggingFace 登录终端启动失败" description={desktopHfLoginError} />
       ) : null}
-      {commandAlert(desktopDependencyStatusResult, '依赖和模型检测完成', '依赖或模型尚未就绪')}
+      {!dependenciesReady ? commandAlert(desktopDependencyStatusResult, '依赖和模型检测完成', '依赖或模型尚未就绪') : null}
       {commandAlert(desktopServiceResult, desktopServiceBusy ? '服务启动中' : connected ? '服务已就绪' : '服务命令已执行', '服务未就绪')}
-      <p className="field-note">
-        当前端口 {port}。small-sfx 适合音效默认生成，small-music 适合 loop 和短音乐，medium 需要 CUDA GPU。
-      </p>
     </section>
   )
 }

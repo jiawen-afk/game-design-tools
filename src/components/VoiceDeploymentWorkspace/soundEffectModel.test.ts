@@ -3,10 +3,12 @@ import assert from 'node:assert/strict'
 
 import {
   buildStableAudioGeneratePayload,
+  chooseSoundEffectModel,
   clampSoundDuration,
   createSoundEffectRecordName,
   defaultSoundEffectParams,
   defaultStableAudioPort,
+  deriveStableAudioInstallState,
   stableAudioModels,
 } from './soundEffectModel'
 
@@ -32,6 +34,7 @@ test('duration clamps to the selected model limits', () => {
 test('builds stable audio generate payload from params', () => {
   const payload = buildStableAudioGeneratePayload({
     ...defaultSoundEffectParams,
+    model: 'medium',
     prompt: 'short magical pickup chime',
     durationSeconds: 8.4,
     seed: 42,
@@ -39,11 +42,57 @@ test('builds stable audio generate payload from params', () => {
   })
 
   assert.deepEqual(payload, {
+    model: 'medium',
     prompt: 'short magical pickup chime',
     durationSeconds: 8,
     seed: 42,
     outputName: 'pickup chime',
   })
+})
+
+test('derives installed and missing stable audio models from dependency checks', () => {
+  const state = deriveStableAudioInstallState({
+    'small-sfx': {
+      ok: true,
+      output: [
+        'Stable Audio 3 依赖已安装。',
+        '服务管理脚本：C:\\tools\\stable-audio-service.ps1',
+        '安装配置：C:\\tools\\stable-audio-config.json',
+        'Python：D:\\models\\StableAudio3\\stable-audio-3\\.venv\\Scripts\\python.exe',
+        'Stable Audio 3 仓库：D:\\models\\StableAudio3\\stable-audio-3',
+        'Python 依赖：torch ok',
+        '模型缓存：model installed: small-sfx',
+      ].join('\n'),
+    },
+    'small-music': {
+      ok: false,
+      output: [
+        '尚未完成 Stable Audio 3 依赖安装。',
+        '模型 small-music 尚未下载到本机缓存：stabilityai/stable-audio-3-small-music',
+        'Python 依赖：torch ok',
+      ].join('\n'),
+    },
+    medium: {
+      ok: false,
+      output: [
+        '尚未完成 Stable Audio 3 依赖安装。',
+        '模型 medium 尚未下载到本机缓存：stabilityai/stable-audio-3-medium',
+        'Python 依赖：torch ok',
+      ].join('\n'),
+    },
+  })
+
+  assert.equal(state.hasChecked, true)
+  assert.equal(state.dependenciesReady, true)
+  assert.deepEqual(state.installedModelIds, ['small-sfx'])
+  assert.deepEqual(state.missingModelIds, ['small-music', 'medium'])
+})
+
+test('chooses the last used sound effect model when installed, otherwise first installed model', () => {
+  assert.equal(chooseSoundEffectModel('medium', ['small-sfx', 'medium']), 'medium')
+  assert.equal(chooseSoundEffectModel('medium', ['small-music', 'small-sfx']), 'small-music')
+  assert.equal(chooseSoundEffectModel(null, ['small-music', 'small-sfx']), 'small-music')
+  assert.equal(chooseSoundEffectModel(null, []), 'small-sfx')
 })
 
 test('creates concise sound effect record names', () => {

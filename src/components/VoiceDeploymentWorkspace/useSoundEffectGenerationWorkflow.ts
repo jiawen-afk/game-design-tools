@@ -2,16 +2,32 @@ import { useState } from 'react'
 
 import {
   buildStableAudioGeneratePayload,
+  clampSoundDuration,
   createSoundEffectRecordName,
   defaultSoundEffectParams,
+  stableAudioModelIds,
   type SoundEffectParams,
   type SoundEffectRecord,
+  type StableAudioModelId,
 } from './soundEffectModel'
 import { generateStableAudioSound } from './soundEffectService'
+
+const soundEffectModelStorageKey = 'game-design-tools.sound-effect.model'
 
 function randomId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function readStoredSoundEffectModel() {
+  if (typeof localStorage === 'undefined') return defaultSoundEffectParams.model
+  const stored = localStorage.getItem(soundEffectModelStorageKey) as StableAudioModelId | null
+  return stored && stableAudioModelIds.includes(stored) ? stored : defaultSoundEffectParams.model
+}
+
+function storeSoundEffectModel(model: StableAudioModelId) {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(soundEffectModelStorageKey, model)
 }
 
 export interface UseSoundEffectGenerationWorkflowParams {
@@ -27,7 +43,10 @@ export function useSoundEffectGenerationWorkflow({
   recordCount,
   onRecordCreated,
 }: UseSoundEffectGenerationWorkflowParams) {
-  const [soundParams, setSoundParams] = useState<SoundEffectParams>(() => ({ ...defaultSoundEffectParams }))
+  const [soundParams, setSoundParams] = useState<SoundEffectParams>(() => ({
+    ...defaultSoundEffectParams,
+    model: readStoredSoundEffectModel(),
+  }))
   const [generating, setGenerating] = useState(false)
   const [generationError, setGenerationError] = useState('')
 
@@ -35,11 +54,22 @@ export function useSoundEffectGenerationWorkflow({
     setSoundParams((current) => ({ ...current, ...patch }))
   }
 
-  const resetParams = () => {
-    setSoundParams({ ...defaultSoundEffectParams })
+  const updateModel = (model: StableAudioModelId) => {
+    storeSoundEffectModel(model)
+    setSoundParams((current) => ({
+      ...current,
+      model,
+      durationSeconds: clampSoundDuration(model, current.durationSeconds),
+    }))
+  }
+
+  const resetParams = (model: StableAudioModelId = defaultSoundEffectParams.model) => {
+    storeSoundEffectModel(model)
+    setSoundParams({ ...defaultSoundEffectParams, model })
   }
 
   const loadParams = (record: SoundEffectRecord) => {
+    storeSoundEffectModel(record.model)
     setSoundParams({
       model: record.model,
       prompt: record.prompt,
@@ -81,6 +111,7 @@ export function useSoundEffectGenerationWorkflow({
     generationError,
     canGenerate,
     updateParams,
+    updateModel,
     resetParams,
     loadParams,
     generateSound,

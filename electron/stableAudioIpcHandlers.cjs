@@ -246,13 +246,6 @@ function registerStableAudioIpcHandlers({
     if (requestedModel) details.push(`当前选择模型：${requestedModel}`)
     else details.push(`模型：${model}`)
     if (config?.ModelVariant) details.push(`${modelMismatch ? '已安装配置模型' : '安装配置模型'}：${configuredModel}`)
-    if (modelMismatch) {
-      missing.push([
-        `当前选择模型尚未安装到 Stable Audio 3 服务配置：${requestedModel}`,
-        `已安装配置模型：${configuredModel}`,
-        `请先选择 ${requestedModel} 后点击“安装依赖”，或切回 ${configuredModel}。`,
-      ].join('\n'))
-    }
     if (pythonCommand) {
       if (fsExists(pythonCommand)) details.push(`Python：${pythonCommand}`)
       else missing.push(`Python 解释器不存在：${pythonCommand}`)
@@ -273,7 +266,7 @@ function registerStableAudioIpcHandlers({
       if (probe.ok) details.push(`Python 依赖：${probe.output || 'torch ok'}`)
       else missing.push(`Python 依赖不可用：${probe.output || 'import torch 失败'}`)
 
-      if (probe.ok && !modelMismatch) {
+      if (probe.ok) {
         const modelProbe = await runCommandOutput(
           pythonCommand,
           [...pythonArgs, '-c', buildStableAudioModelProbeScript(model)],
@@ -314,6 +307,7 @@ function registerStableAudioIpcHandlers({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        model: normalizeStableAudioModel(options.model),
         prompt: String(options.prompt || ''),
         durationSeconds: Number(options.durationSeconds || 1),
         seed: Number.isFinite(options.seed) ? options.seed : null,

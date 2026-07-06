@@ -23,12 +23,13 @@ MODEL_REPOS = {
 }
 MODEL_CONFIG_FILE = "model_config.json"
 MODEL_ACCESS_PROBE_TTL_SECONDS = 15
-MODEL_ACCESS_READY = False
-LAST_MODEL_ACCESS_PROBE = 0.0
-LAST_MODEL_ACCESS_ERROR = ""
+MODEL_ACCESS_READY = set()
+LAST_MODEL_ACCESS_PROBE = {}
+LAST_MODEL_ACCESS_ERROR = {}
 
 
 class GenerateRequest(BaseModel):
+    model: str | None = None
     prompt: str
     durationSeconds: float
     seed: int | None = None
@@ -59,35 +60,45 @@ def stable_audio_error_message(error: object, model_id: str = MODEL_ID) -> str:
     return f"Stable Audio 3 模型访问检测失败：{text}"
 
 
-def probe_model_access(force: bool = False) -> tuple[bool, str]:
-    global LAST_MODEL_ACCESS_ERROR, LAST_MODEL_ACCESS_PROBE, MODEL_ACCESS_READY
-    if MODEL_ACCESS_READY:
+def resolve_request_model(model_id: str | None = None) -> str:
+    requested_model = (model_id or MODEL_ID).strip()
+    if requested_model not in MODEL_REPOS:
+        raise HTTPException(status_code=400, detail=f"Stable Audio 3 不支持的模型：{requested_model}")
+    return requested_model
+
+
+def probe_model_access(model_id: str = MODEL_ID, force: bool = False) -> tuple[bool, str]:
+    if model_id in MODEL_ACCESS_READY:
         return True, ""
 
     now = time.time()
+    last_error = LAST_MODEL_ACCESS_ERROR.get(model_id, "")
+    last_probe = LAST_MODEL_ACCESS_PROBE.get(model_id, 0.0)
     if (
         not force
-        and LAST_MODEL_ACCESS_ERROR
-        and now - LAST_MODEL_ACCESS_PROBE < MODEL_ACCESS_PROBE_TTL_SECONDS
+        and last_error
+        and now - last_probe < MODEL_ACCESS_PROBE_TTL_SECONDS
     ):
-        return False, LAST_MODEL_ACCESS_ERROR
+        return False, last_error
 
-    repo_id = MODEL_REPOS.get(MODEL_ID)
+    repo_id = MODEL_REPOS.get(model_id)
     if not repo_id:
-        LAST_MODEL_ACCESS_PROBE = now
-        LAST_MODEL_ACCESS_ERROR = f"Stable Audio 3 不支持的模型：{MODEL_ID}"
-        return False, LAST_MODEL_ACCESS_ERROR
+        message = f"Stable Audio 3 不支持的模型：{model_id}"
+        LAST_MODEL_ACCESS_PROBE[model_id] = now
+        LAST_MODEL_ACCESS_ERROR[model_id] = message
+        return False, message
 
     try:
         hf_hub_download(repo_id=repo_id, filename=MODEL_CONFIG_FILE, etag_timeout=10)
-        MODEL_ACCESS_READY = True
-        LAST_MODEL_ACCESS_ERROR = ""
-        LAST_MODEL_ACCESS_PROBE = now
+        MODEL_ACCESS_READY.add(model_id)
+        LAST_MODEL_ACCESS_ERROR[model_id] = ""
+        LAST_MODEL_ACCESS_PROBE[model_id] = now
         return True, ""
     except Exception as exc:
-        LAST_MODEL_ACCESS_PROBE = now
-        LAST_MODEL_ACCESS_ERROR = stable_audio_error_message(exc)
-        return False, LAST_MODEL_ACCESS_ERROR
+        message = stable_audio_error_message(exc, model_id)
+        LAST_MODEL_ACCESS_PROBE[model_id] = now
+        LAST_MODEL_ACCESS_ERROR[model_id] = message
+        return False, message
 
 
 @app.get("/health")
@@ -100,6 +111,7 @@ def health():
 
 @app.post("/generate")
 def generate(request: GenerateRequest):
+    request_model = resolve_request_model(request.model)
     file_id = f"sound-{int(time.time() * 1000)}"
     output_path = OUTPUT_DIR / f"{file_id}.wav"
     seconds = max(1.0, min(float(request.durationSeconds), 380.0))
@@ -108,7 +120,7 @@ def generate(request: GenerateRequest):
         "run",
         "stable-audio",
         "--model",
-        MODEL_ID,
+        request_model,
         "-p",
         request.prompt,
         "--duration",
@@ -118,7 +130,7 @@ def generate(request: GenerateRequest):
     ]
     if request.seed is not None:
         command.extend(["--seed", str(request.seed)])
-    ready, message = probe_model_access(force=True)
+    ready, message = probe_model_access(request_model, force=True)
     if not ready:
         raise HTTPException(status_code=503, detail=message)
 
@@ -131,7 +143,10 @@ def generate(request: GenerateRequest):
         command_output = "\n".join(part for part in [completed.stdout, completed.stderr] if part).strip()
         raise HTTPException(
             status_code=500,
-            detail=stable_audio_error_message(command_output or f"stable-audio exited with {completed.returncode}"),
+            detail=stable_audio_error_message(
+                command_output or f"stable-audio exited with {completed.returncode}",
+                request_model,
+            ),
         )
     return {
         "id": file_id,
@@ -141,7 +156,7 @@ def generate(request: GenerateRequest):
         "prompt": request.prompt,
         "durationSeconds": seconds,
         "seed": request.seed,
-        "model": MODEL_ID,
+        "model": request_model,
         "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 

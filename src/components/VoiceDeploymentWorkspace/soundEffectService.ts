@@ -1,4 +1,4 @@
-import type { SoundEffectRecord } from './soundEffectModel'
+import type { SoundEffectRecord, StableAudioGeneratePayload } from './soundEffectModel'
 
 async function readErrorDetail(response: Response) {
   const text = await response.text().catch(() => '')
@@ -27,7 +27,7 @@ export async function checkStableAudioConnection(port: number): Promise<boolean>
 
 export async function generateStableAudioSound(
   port: number,
-  payload: { prompt: string; durationSeconds: number; seed: number | null; outputName: string },
+  payload: StableAudioGeneratePayload,
 ): Promise<SoundEffectRecord> {
   const serviceUrl = `http://127.0.0.1:${port}`
   const response = await fetch(`${serviceUrl}/generate`, {

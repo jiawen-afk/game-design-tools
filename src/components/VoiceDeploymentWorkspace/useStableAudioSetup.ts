@@ -8,10 +8,39 @@ import {
 import type { DownloadSource } from './voiceDeploymentModel'
 import {
   defaultStableAudioPort,
+  deriveStableAudioInstallState,
+  stableAudioModelIds,
   type StableAudioConnectionStatus,
   type StableAudioModelId,
+  type StableAudioModelStatusResults,
 } from './soundEffectModel'
 import { checkStableAudioConnection } from './soundEffectService'
+
+function summarizeStableAudioStatusResults(statusResults: StableAudioModelStatusResults): DesktopCommandResult {
+  const installState = deriveStableAudioInstallState(statusResults)
+  const installed = installState.installedModelIds.join('、') || '无'
+  const missing = installState.missingModelIds.join('、') || '无'
+  const firstOutput = stableAudioModelIds
+    .map((model) => statusResults[model]?.output)
+    .find((output) => Boolean(output))
+
+  if (installState.dependenciesReady) {
+    return {
+      ok: true,
+      output: [
+        'Stable Audio 3 依赖已安装。',
+        `已安装模型：${installed}`,
+        `未安装模型：${missing}`,
+        firstOutput,
+      ].filter(Boolean).join('\n'),
+    }
+  }
+
+  return {
+    ok: false,
+    output: firstOutput || '尚未完成 Stable Audio 3 依赖安装。',
+  }
+}
 
 export function useStableAudioSetup() {
   const [port, setPort] = useState(defaultStableAudioPort)
@@ -28,6 +57,7 @@ export function useStableAudioSetup() {
   const [desktopHfLoginError, setDesktopHfLoginError] = useState('')
   const [desktopDependencyStatusBusy, setDesktopDependencyStatusBusy] = useState(false)
   const [desktopDependencyStatusResult, setDesktopDependencyStatusResult] = useState<DesktopCommandResult | null>(null)
+  const [modelStatusResults, setModelStatusResults] = useState<StableAudioModelStatusResults>({})
   const [desktopServiceBusy, setDesktopServiceBusy] = useState(false)
   const [desktopServiceResult, setDesktopServiceResult] = useState<DesktopCommandResult | null>(null)
   const checkRef = useRef(0)
@@ -82,16 +112,17 @@ export function useStableAudioSetup() {
     }
   }
 
-  const runDesktopSetup = useCallback(async () => {
+  const runDesktopSetup = useCallback(async (modelOverride?: StableAudioModelId) => {
     const api = getDesktopApi()
     if (!api) return
     setDesktopSetupBusy(true)
     setDesktopSetupResult(null)
     setDesktopSetupError('')
+    const model = modelOverride ?? selectedModel
     try {
       setDesktopSetupResult(await api.runStableAudioSetup({
         modelPath,
-        model: selectedModel,
+        model,
         source: downloadSource,
       }))
     } catch (error) {
@@ -101,16 +132,28 @@ export function useStableAudioSetup() {
     }
   }, [downloadSource, modelPath, selectedModel])
 
+  const queryStableAudioModelStatuses = useCallback(async () => {
+    const api = getDesktopApi()
+    if (!api) return {}
+    const entries = await Promise.all(stableAudioModelIds.map(async (model) => (
+      [model, await api.queryStableAudioSetupStatus({ model })] as const
+    )))
+    const results = Object.fromEntries(entries) as StableAudioModelStatusResults
+    setModelStatusResults(results)
+    return results
+  }, [])
+
   const queryDesktopDependencyStatus = useCallback(async () => {
     const api = getDesktopApi()
     if (!api) return
     setDesktopDependencyStatusBusy(true)
     try {
-      setDesktopDependencyStatusResult(await api.queryStableAudioSetupStatus({ model: selectedModel }))
+      const results = await queryStableAudioModelStatuses()
+      setDesktopDependencyStatusResult(summarizeStableAudioStatusResults(results))
     } finally {
       setDesktopDependencyStatusBusy(false)
     }
-  }, [selectedModel])
+  }, [queryStableAudioModelStatuses])
 
   const runDesktopHfLogin = useCallback(async () => {
     const api = getDesktopApi()
@@ -158,9 +201,13 @@ export function useStableAudioSetup() {
     setDesktopServiceBusy(true)
     setDesktopDependencyStatusBusy(true)
     lastStableAudioProbeRef.current = ''
+    const installState = deriveStableAudioInstallState(modelStatusResults)
+    const startupModel = installState.installedModelIds.includes(selectedModel)
+      ? selectedModel
+      : installState.installedModelIds[0] ?? selectedModel
     try {
       await runDesktopServiceStartup({
-        queryDependencyStatus: () => api.queryStableAudioSetupStatus({ model: selectedModel }),
+        queryDependencyStatus: () => api.queryStableAudioSetupStatus({ model: startupModel }),
         startService: () => api.controlStableAudioService('start'),
         waitForConnection: () => waitForDesktopConnection(port),
         onDependencyStatus: setDesktopDependencyStatusResult,
@@ -182,7 +229,7 @@ export function useStableAudioSetup() {
       setDesktopDependencyStatusBusy(false)
       setDesktopServiceBusy(false)
     }
-  }, [port, selectedModel, waitForDesktopConnection])
+  }, [modelStatusResults, port, selectedModel, waitForDesktopConnection])
 
   return {
     port,
@@ -206,12 +253,14 @@ export function useStableAudioSetup() {
     desktopHfLoginError,
     desktopDependencyStatusBusy,
     desktopDependencyStatusResult,
+    modelStatusResults,
     desktopServiceBusy,
     desktopServiceResult,
     applyPort,
     runCheck,
     runDesktopSetup,
     runDesktopHfLogin,
+    queryStableAudioModelStatuses,
     queryDesktopDependencyStatus,
     startDesktopService,
     controlDesktopService,

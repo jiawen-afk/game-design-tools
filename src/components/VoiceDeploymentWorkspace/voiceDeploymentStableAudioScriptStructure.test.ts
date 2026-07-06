@@ -102,6 +102,19 @@ test('stable audio helper exposes health and generate endpoints', () => {
   assert.match(server, /stable-audio/)
 })
 
+test('stable audio generate endpoint uses the selected model from each request', () => {
+  const server = read(files.server)
+  const ipc = read('electron/stableAudioIpcHandlers.cjs')
+
+  assert.match(server, /model: str \| None = None/)
+  assert.match(server, /resolve_request_model/)
+  assert.match(server, /request_model = resolve_request_model\(request\.model\)/)
+  assert.match(server, /probe_model_access\(request_model, force=True\)/)
+  assert.match(server, /"--model",[\s\S]*request_model/)
+  assert.match(server, /"model": request_model/)
+  assert.match(ipc, /model: normalizeStableAudioModel\(options\.model\)/)
+})
+
 test('stable audio setup waits for model readiness instead of plain http liveness', () => {
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
   const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
@@ -137,14 +150,16 @@ test('stable audio setup exposes one-click HuggingFace login through the desktop
   assert.match(panel, /登录 HuggingFace/)
 })
 
-test('stable audio dependency checks use the selected model from the setup panel', () => {
+test('stable audio dependency checks scan each supported model for installed cache state', () => {
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
   const preload = read('electron/preload.cjs')
   const api = read('src/desktopStableAudioRuntimeApi.ts')
 
   assert.match(api, /queryStableAudioSetupStatus\(options\?:/)
   assert.match(preload, /queryStableAudioSetupStatus:\s*\(options\) => invoke\('stable-audio:setup-status', options\)/)
-  assert.match(hook, /api\.queryStableAudioSetupStatus\(\{\s*model: selectedModel\s*\}\)/)
+  assert.match(hook, /stableAudioModelIds\.map/)
+  assert.match(hook, /api\.queryStableAudioSetupStatus\(\{\s*model\s*\}\)/)
+  assert.match(hook, /modelStatusResults/)
 })
 
 test('stable audio service start releases button loading before readiness polling', () => {
