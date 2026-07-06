@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useStableAudioSetup } from './useStableAudioSetup'
 import { useSoundEffectGenerationWorkflow } from './useSoundEffectGenerationWorkflow'
+import { useSoundEffectRecordLibrary } from './useSoundEffectRecordLibrary'
 import {
   chooseSoundEffectModel,
   deriveStableAudioInstallState,
@@ -11,22 +12,19 @@ import {
 } from './soundEffectModel'
 import { collectSoundEffectRecordToPersonalSpace, type SoundCollectLink } from './soundEffectPersonalSpaceCollector'
 import { readCurrentProjectSpaceState } from '../PersonalSpaceWorkspace/projectSpaceState'
+import { getDesktopApi } from '../../desktopApi'
 
 export function useSoundEffectWorkspace() {
   const setup = useStableAudioSetup()
-  const [records, setRecords] = useState<SoundEffectRecord[]>([])
-  const [lastGeneratedId, setLastGeneratedId] = useState('')
+  const recordLibrary = useSoundEffectRecordLibrary()
   const [currentProjectSpace, setCurrentProjectSpace] = useState(() => readCurrentProjectSpaceState())
   const [collectingRecordId, setCollectingRecordId] = useState('')
   const [collectError, setCollectError] = useState('')
   const generation = useSoundEffectGenerationWorkflow({
     connected: setup.connected,
     port: setup.port,
-    recordCount: records.length,
-    onRecordCreated: (record) => {
-      setRecords((current) => [record, ...current.filter((item) => item.id !== record.id)])
-      setLastGeneratedId(record.id)
-    },
+    recordCount: recordLibrary.records.length,
+    onRecordCreated: recordLibrary.addRecord,
   })
 
   const installState = useMemo(
@@ -45,26 +43,18 @@ export function useSoundEffectWorkspace() {
     () => stableAudioModels.find((item) => item.id === generation.soundParams.model) ?? stableAudioModels[0]!,
     [generation.soundParams.model],
   )
-  const spriteLinkOptions = useMemo(() => (
+  const spriteAssets = useMemo(() => (
     currentProjectSpace.assets
       .filter((asset) => asset.kind === 'sprite')
-      .map((asset) => ({ label: asset.name, value: asset.id }))
   ), [currentProjectSpace.assets])
-
-  const renameRecord = (recordId: string, name: string) => {
-    setRecords((current) => current.map((record) => (
-      record.id === recordId ? { ...record, name: name.trim() || record.name } : record
-    )))
-  }
-
-  const deleteRecord = (recordId: string) => {
-    setRecords((current) => current.filter((record) => record.id !== recordId))
-  }
-
-  const clearRecords = () => {
-    setRecords([])
-    setLastGeneratedId('')
-  }
+  const spriteLinkOptions = useMemo(() => (
+    spriteAssets
+      .map((asset) => ({ label: asset.name, value: asset.id }))
+  ), [spriteAssets])
+  const personalSpaceSoundAssets = useMemo(() => (
+    currentProjectSpace.assets
+      .filter((asset) => asset.kind === 'sound')
+  ), [currentProjectSpace.assets])
 
   useEffect(() => {
     if (!installState.dependenciesReady || installState.installedModelIds.length === 0) return
@@ -74,6 +64,12 @@ export function useSoundEffectWorkspace() {
 
   const changeSoundEffectModel = (model: StableAudioModelId) => {
     generation.updateModel(model)
+  }
+
+  const openStableAudioModelPath = () => {
+    const desktopApi = getDesktopApi()
+    if (!desktopApi || !setup.modelPath.trim()) return
+    void desktopApi.openPath(setup.modelPath).catch(() => {})
   }
 
   const loadSoundEffectRecord = (record: SoundEffectRecord) => {
@@ -110,8 +106,8 @@ export function useSoundEffectWorkspace() {
     connected: setup.connected,
     setup,
     generation,
-    records,
-    lastGeneratedId,
+    records: recordLibrary.records,
+    lastGeneratedId: recordLibrary.lastGeneratedId,
     setupPanelProps: {
       stableAudioModels,
       selectedModel: setup.selectedModel,
@@ -140,6 +136,7 @@ export function useSoundEffectWorkspace() {
       onModelChange: setup.setSelectedModel,
       onDownloadSourceChange: setup.setDownloadSource,
       onModelPathChange: setup.setModelPath,
+      onOpenModelPath: openStableAudioModelPath,
       onPortInputChange: setup.setPortInput,
       onApplyPort: setup.applyPort,
       onRunCheck: () => void setup.runCheck(setup.port, true),
@@ -162,15 +159,16 @@ export function useSoundEffectWorkspace() {
       onResetParams: () => generation.resetParams(generation.soundParams.model),
     },
     libraryPanelProps: {
-      records,
-      lastGeneratedId,
+      records: recordLibrary.records,
+      lastGeneratedId: recordLibrary.lastGeneratedId,
+      personalSpaceSoundAssets,
       spriteLinkOptions,
       collectingRecordId,
       collectError,
       onLoad: loadSoundEffectRecord,
-      onRenameRecord: renameRecord,
-      onDeleteRecord: deleteRecord,
-      onClearRecords: clearRecords,
+      onRenameRecord: recordLibrary.renameRecord,
+      onDeleteRecord: recordLibrary.deleteRecord,
+      onClearRecords: recordLibrary.clearRecords,
       onCollectRecord: (record: SoundEffectRecord) => void collectRecord(record),
       onCollectAndLinkSprite: (record: SoundEffectRecord, spriteId: string) => void collectRecord(record, {
         target: 'sprite',

@@ -28,7 +28,8 @@ export function PersonalAssetPreview({
   const [spritePlaying, setSpritePlaying] = useState(false)
   const [spriteFrameIndex, setSpriteFrameIndex] = useState(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const shouldLoadFullSource = asset.kind === 'voice'
+  const isAudioAsset = asset.kind === 'voice' || asset.kind === 'sound'
+  const shouldLoadFullSource = isAudioAsset
     ? audioPlaying
     : asset.kind === 'sprite'
       ? spriteOpen
@@ -38,7 +39,7 @@ export function PersonalAssetPreview({
     projectAssetManager,
     projectId,
     projectMode,
-    enabled: asset.kind !== 'voice',
+    enabled: !isAudioAsset,
   })
   const source = useStoredResourcePreviewSource(asset, 0, assetPrimaryPreviewSource(asset), {
     projectObjectStorage,
@@ -66,7 +67,7 @@ export function PersonalAssetPreview({
     return () => window.clearInterval(timer)
   }, [spriteFrames.length, spriteIndex?.fps, spritePlaying])
 
-  if (asset.kind === 'voice') {
+  if (isAudioAsset) {
     const toggleAudio = () => {
       if (audioPlaying) {
         audioRef.current?.pause()
@@ -75,14 +76,21 @@ export function PersonalAssetPreview({
       }
       setAudioPlaying(true)
     }
+    const playAudioLabel = asset.kind === 'sound' ? '播放音效' : '播放声音预览'
+    const pauseAudioLabel = asset.kind === 'sound' ? '暂停音效播放' : '暂停声音预览'
+    const audioButtonLabel = audioPlaying ? pauseAudioLabel : playAudioLabel
+    const audioButtonText = asset.kind === 'sound' ? (audioPlaying ? '暂停' : '播放') : null
     return (
-      <div className="asset-preview asset-preview-audio">
+      <div className={`asset-preview asset-preview-audio${asset.kind === 'sound' ? ' asset-preview-sound' : ''}`}>
         <Button
           type="text"
           icon={audioPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
           onClick={toggleAudio}
-          aria-label={audioPlaying ? '暂停声音预览' : '播放声音预览'}
-        />
+          aria-label={audioButtonLabel}
+          title={audioButtonLabel}
+        >
+          {audioButtonText}
+        </Button>
         <audio
           ref={audioRef}
           src={source}

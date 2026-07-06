@@ -223,3 +223,11 @@ test('personal space resource kinds are first-level tabs instead of a common res
   assert.doesNotMatch(source, /<strong>地图素材 \/ 特效素材 \/ 配音素材<\/strong>/)
   assert.doesNotMatch(source, /space\.assets\.map\(\(item\)/)
 })
+
+test('personal space sound assets use playback copy instead of image preview copy', () => {
+  const previewSource = readFileSync('src/components/PersonalSpaceWorkspace/PersonalAssetPreview.tsx', 'utf8')
+
+  assert.match(previewSource, /const isAudioAsset = asset\.kind === 'voice' \|\| asset\.kind === 'sound'/)
+  assert.match(previewSource, /asset\.kind === 'sound'\s*\?\s*'播放音效'\s*:\s*'播放声音预览'/)
+  assert.match(previewSource, /asset\.kind === 'sound'\s*\?\s*'暂停音效播放'\s*:\s*'暂停声音预览'/)
+})

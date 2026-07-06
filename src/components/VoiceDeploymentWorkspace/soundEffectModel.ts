@@ -151,3 +151,18 @@ export function createSoundEffectRecordName(params: SoundEffectParams, index: nu
   const suffix = prompt ? ` · ${prompt.slice(0, 11)}` : ''
   return `${params.outputName.trim() || `音效 ${index}`}${suffix}`
 }
+
+export function updateSoundEffectRecordName(records: SoundEffectRecord[], id: string, name: string): SoundEffectRecord[] {
+  const trimmed = name.trim()
+  if (!trimmed) return records
+  return records.map((record) => (record.id === id ? { ...record, name: trimmed } : record))
+}
+
+export function deleteSoundEffectRecord(records: SoundEffectRecord[], id: string): SoundEffectRecord[] {
+  return records.filter((record) => record.id !== id)
+}
+
+export function clearSoundEffectRecords(records: SoundEffectRecord[]): SoundEffectRecord[] {
+  void records
+  return []
+}

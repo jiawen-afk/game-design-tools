@@ -5,11 +5,15 @@ import {
   buildStableAudioGeneratePayload,
   chooseSoundEffectModel,
   clampSoundDuration,
+  clearSoundEffectRecords,
   createSoundEffectRecordName,
   defaultSoundEffectParams,
   defaultStableAudioPort,
+  deleteSoundEffectRecord,
   deriveStableAudioInstallState,
   stableAudioModels,
+  updateSoundEffectRecordName,
+  type SoundEffectRecord,
 } from './soundEffectModel'
 
 test('stable audio model metadata describes the three supported models', () => {
@@ -100,4 +104,25 @@ test('creates concise sound effect record names', () => {
     ...defaultSoundEffectParams,
     prompt: 'heavy stone door opening with dust',
   }, 3), '音效 3 · heavy stone')
+})
+
+test('sound effect records can be renamed deleted and cleared', () => {
+  const record: SoundEffectRecord = {
+    id: 'sound-1',
+    name: 'Slash',
+    createdAt: '2026-07-06T00:00:00.000Z',
+    audioUrl: 'blob:sound',
+    audioPath: '/tmp/slash.wav',
+    prompt: 'sharp slash',
+    durationSeconds: 2,
+    seed: 7,
+    model: 'small-sfx',
+  }
+
+  const renamed = updateSoundEffectRecordName([record], 'sound-1', '剑击')
+  assert.equal(renamed[0].name, '剑击')
+  assert.equal(updateSoundEffectRecordName(renamed, 'sound-1', '   ')[0].name, '剑击')
+
+  assert.deepEqual(deleteSoundEffectRecord(renamed, 'sound-1'), [])
+  assert.deepEqual(clearSoundEffectRecords(renamed), [])
 })

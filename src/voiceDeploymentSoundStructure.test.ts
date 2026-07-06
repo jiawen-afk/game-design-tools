@@ -57,10 +57,38 @@ test('sound effect workspace collects generated sounds and derives sprite link o
   const hookSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
 
   assert.match(hookSource, /readCurrentProjectSpaceState/)
+  assert.match(hookSource, /useSoundEffectRecordLibrary/)
   assert.match(hookSource, /collectSoundEffectRecordToPersonalSpace/)
   assert.match(hookSource, /currentProjectSpace\.assets/)
   assert.match(hookSource, /asset\.kind === 'sprite'/)
+  assert.match(hookSource, /asset\.kind === 'sound'/)
+  assert.match(hookSource, /personalSpaceSoundAssets/)
   assert.match(hookSource, /onCollectAndLinkSprite/)
+  assert.doesNotMatch(hookSource, /useState<SoundEffectRecord\[\]>\(\[\]\)/)
+})
+
+test('sound effect library mirrors voice history and project space tabs', () => {
+  const librarySource = read(files.library)
+
+  assert.match(librarySource, /Tabs/)
+  assert.match(librarySource, /key:\s*'history'/)
+  assert.match(librarySource, /label:\s*`历史 \$\{records\.length\}`/)
+  assert.match(librarySource, /key:\s*'personal-space'/)
+  assert.match(librarySource, /label:\s*`项目空间 \$\{personalSpaceSoundAssets\.length\}`/)
+  assert.match(librarySource, /PersonalSpaceSoundAssetList/)
+  assert.match(librarySource, /还没有收藏到项目空间的音效/)
+})
+
+test('sound effect records use a focused persistent record library', () => {
+  const libraryHookSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectRecordLibrary.ts')
+  const storageSource = read('src/components/VoiceDeploymentWorkspace/soundEffectRecordStorage.ts')
+
+  assert.match(libraryHookSource, /readStoredSoundEffectRecords/)
+  assert.match(libraryHookSource, /writeStoredSoundEffectRecords\(records\)/)
+  assert.match(libraryHookSource, /addRecord/)
+  assert.match(libraryHookSource, /updateSoundEffectRecordName/)
+  assert.match(storageSource, /game-design-tools\.stable-audio\.records\.v1/)
+  assert.match(storageSource, /records\.slice\(0, 80\)/)
 })
 
 test('sound effect workspace keeps the generation model aligned with the setup selection', () => {
@@ -127,4 +155,36 @@ test('sound effect setup places install service controls in the title row and sw
   assert.match(soundCss, /\.sound-setup-title-row[\s\S]*grid-template-columns: minmax\(0, auto\) minmax\(520px, 1fr\)/)
   assert.match(soundCss, /\.sound-setup-title-actions[\s\S]*justify-content: flex-end/)
   assert.match(soundCss, /@media \(max-width: 1180px\)[\s\S]*\.sound-setup-title-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
+})
+
+test('sound effect records edit names through an explicit local draft confirmation flow', () => {
+  const librarySource = read(files.library)
+  const soundCss = read(files.soundCss)
+
+  assert.match(librarySource, /editingRecordId/)
+  assert.match(librarySource, /recordNameDraft/)
+  assert.match(librarySource, /startRename\(record\)/)
+  assert.match(librarySource, /confirmRename\(record\)/)
+  assert.match(librarySource, /onRenameRecord\(record\.id, recordNameDraft\)/)
+  assert.match(librarySource, /disabled=\{!isRenaming\}/)
+  assert.match(librarySource, /编辑/)
+  assert.match(librarySource, /确认/)
+  assert.doesNotMatch(librarySource, /onChange=\{\(event\) => onRenameRecord\(record\.id, event\.target\.value\)\}/)
+  assert.match(soundCss, /\.sound-record-name-row[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/)
+})
+
+test('sound effect setup can open the Stable Audio model folder from the model path field', () => {
+  const setupSource = read(files.setup)
+  const workspaceSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
+  const soundCss = read(files.soundCss)
+
+  assert.match(setupSource, /FolderOpenOutlined/)
+  assert.match(setupSource, /onOpenModelPath/)
+  assert.match(setupSource, /打开文件夹/)
+  assert.match(setupSource, /sound-model-path-row/)
+  assert.match(workspaceSource, /getDesktopApi/)
+  assert.match(workspaceSource, /openStableAudioModelPath/)
+  assert.match(workspaceSource, /desktopApi\.openPath\(setup\.modelPath\)/)
+  assert.match(workspaceSource, /onOpenModelPath: openStableAudioModelPath/)
+  assert.match(soundCss, /\.sound-model-path-row[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/)
 })

@@ -1,6 +1,7 @@
 import { Alert, Button, Input, Segmented, Select, Tag } from 'antd'
 import {
   CheckCircleOutlined,
+  FolderOpenOutlined,
   LoginOutlined,
   LoadingOutlined,
   PlayCircleOutlined,
@@ -52,6 +53,7 @@ interface SoundEffectSetupPanelProps {
   onModelChange: (model: StableAudioModelId) => void
   onDownloadSourceChange: (source: DownloadSource) => void
   onModelPathChange: (modelPath: string) => void
+  onOpenModelPath: () => void
   onPortInputChange: (portInput: string) => void
   onApplyPort: () => void
   onRunCheck: () => void
@@ -125,6 +127,7 @@ export function SoundEffectSetupPanel({
   onModelChange,
   onDownloadSourceChange,
   onModelPathChange,
+  onOpenModelPath,
   onPortInputChange,
   onApplyPort,
   onRunCheck,
@@ -340,11 +343,20 @@ export function SoundEffectSetupPanel({
 
             <div className="sound-setup-field sound-model-path-field">
               <span className="model-select-label">模型路径</span>
-              <Input
-                value={modelPath}
-                onChange={(event) => onModelPathChange(event.target.value)}
-                placeholder="D:\\models\\StableAudio3"
-              />
+              <div className="sound-model-path-row">
+                <Input
+                  value={modelPath}
+                  onChange={(event) => onModelPathChange(event.target.value)}
+                  placeholder="D:\\models\\StableAudio3"
+                />
+                <Button
+                  icon={<FolderOpenOutlined />}
+                  disabled={!desktopRuntime || !modelPath.trim()}
+                  onClick={onOpenModelPath}
+                >
+                  打开文件夹
+                </Button>
+              </div>
             </div>
 
             <dl className="sound-model-detail-grid">

@@ -132,6 +132,19 @@
   height: 32px;
 }
 
+.sound-model-path-row,
+.sound-record-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.sound-model-path-row .ant-btn,
+.sound-record-name-row .ant-btn {
+  height: 32px;
+}
+
 .sound-download-source-field .ant-segmented,
 .sound-model-select-field .ant-segmented {
   width: 100%;
