@@ -18,14 +18,14 @@ test('image processing batch maps the active crop box proportionally to another 
   assert.deepEqual(mapped, { x: 250, y: 100, width: 400, height: 200 })
 })
 
-test('image processing batch clamps proportional crop boxes inside the target image', () => {
+test('image processing batch keeps proportional crop boxes expandable in the target image', () => {
   const mapped = mapCropBoxToImageSize(
     { x: 190, y: 90, width: 40, height: 30 },
     { width: 200, height: 100 },
     { width: 80, height: 40 },
   )
 
-  assert.deepEqual(mapped, { x: 64, y: 24, width: 16, height: 16 })
+  assert.deepEqual(mapped, { x: 76, y: 36, width: 16, height: 16 })
 })
 
 test('image processing batch derives unique exported file names from source names', () => {
@@ -43,6 +43,7 @@ test('image processing batch derives a zip archive name for multi-image export',
 test('image processing batch preview signatures survive proportional image switching', () => {
   const shared = {
     exportFormat: 'png' as const,
+    exportBackgroundColor: null,
     exportScale: 2,
     matte: {
       keyColor: [0, 255, 0] as [number, number, number],
@@ -85,6 +86,12 @@ test('image processing batch preview signatures survive proportional image switc
     crop: { x: 100, y: 50, width: 400, height: 200 },
     sourceSize: { width: 1000, height: 500 },
   })
+  const backgroundChanged = createBatchPreviewSignature({
+    ...shared,
+    exportBackgroundColor: '#000000',
+    crop: { x: 100, y: 50, width: 400, height: 200 },
+    sourceSize: { width: 1000, height: 500 },
+  })
   const gpuChanged = createBatchPreviewSignature({
     ...shared,
     upscaleOptions: { ...shared.upscaleOptions, gpuId: '1' },
@@ -100,6 +107,7 @@ test('image processing batch preview signatures survive proportional image switc
 
   assert.equal(first, switched)
   assert.equal(first, formatChanged)
+  assert.notEqual(first, backgroundChanged)
   assert.notEqual(first, edited)
   assert.notEqual(first, gpuChanged)
   assert.notEqual(first, threadsChanged)

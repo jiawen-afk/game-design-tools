@@ -1,13 +1,36 @@
 import { getExportFormatInfo } from './imageProcessingFileModel'
-import { getImageExportEncodingInfo, type ImageExportEncodingSettings } from './imageExportEncodingModel'
+import {
+  getImageExportEncodingInfo,
+  normalizeImageExportEncoding,
+  type ImageExportEncodingSettings,
+} from './imageExportEncodingModel'
 import { finiteOr } from './imageProcessingMath'
-import type { CropBox, ExportDimension, ImageExportFormat, ImageSourceLike, RectSize } from './imageProcessingTypes'
+import { clampCropBox } from './imageProcessingCropModel'
+import type {
+  CropBox,
+  ExportDimension,
+  ImageExportBackgroundSettings,
+  ImageExportFormat,
+  ImageSourceLike,
+  RectSize,
+} from './imageProcessingTypes'
 import {
   MAX_IMAGE_EXPORT_SCALE,
   MAX_IMAGE_EXPORT_SIZE,
   MIN_IMAGE_EXPORT_SCALE,
   MIN_IMAGE_EXPORT_SIZE,
 } from './imageProcessingTypes'
+
+export interface CropDrawPlan {
+  crop: CropBox
+  targetSize: RectSize
+  sourceRect: CropBox | null
+  destinationRect: CropBox | null
+}
+
+function roundDrawValue(value: number): number {
+  return Number(finiteOr(value, 0).toFixed(6))
+}
 
 export function sanitizeExportBaseName(name: string): string {
   const withoutExtension = name.trim().replace(/\.[^.]+$/, '')
@@ -79,4 +102,103 @@ export function resolveImageExportTarget(
     }
   }
   return { sourceUrl: activeImageSource.url, crop }
+}
+
+export function normalizeExportBackgroundColor(value: string | null | undefined, fallback = '#000000'): string {
+  const normalizedFallback = /^#[0-9a-f]{6}$/i.test(fallback) ? fallback.toLowerCase() : '#000000'
+  const color = String(value ?? '').trim()
+  if (/^#[0-9a-f]{3}$/i.test(color)) {
+    const short = color.slice(1).toLowerCase()
+    const r = short.charAt(0)
+    const g = short.charAt(1)
+    const b = short.charAt(2)
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  if (/^#[0-9a-f]{6}$/i.test(color)) {
+    return color.toLowerCase()
+  }
+  return normalizedFallback
+}
+
+export function canUseTransparentImageExportBackground(settings: ImageExportEncodingSettings): boolean {
+  return getImageExportEncodingInfo(normalizeImageExportEncoding(settings)).preservesAlpha
+}
+
+export function getDefaultImageExportBackground(settings: ImageExportEncodingSettings): ImageExportBackgroundSettings {
+  return canUseTransparentImageExportBackground(settings)
+    ? { mode: 'transparent', color: '#000000' }
+    : { mode: 'color', color: '#000000' }
+}
+
+export function normalizeImageExportBackground(
+  settings: Partial<ImageExportBackgroundSettings> | null | undefined,
+  encoding: ImageExportEncodingSettings
+): ImageExportBackgroundSettings {
+  const color = normalizeExportBackgroundColor(settings?.color)
+  if (!canUseTransparentImageExportBackground(encoding)) {
+    return {
+      mode: 'color',
+      color: settings?.mode === 'color' ? color : '#000000',
+    }
+  }
+  return {
+    mode: settings?.mode === 'color' ? 'color' : 'transparent',
+    color,
+  }
+}
+
+export function resolveImageExportBackgroundColor(
+  background: ImageExportBackgroundSettings,
+  encoding: ImageExportEncodingSettings
+): string | null {
+  const normalized = normalizeImageExportBackground(background, encoding)
+  return normalized.mode === 'transparent' ? null : normalized.color
+}
+
+export function resolveCropDrawPlan(
+  crop: CropBox,
+  sourceSize: RectSize,
+  outputSize?: RectSize
+): CropDrawPlan {
+  const sourceWidth = Math.max(1, Math.round(finiteOr(sourceSize.width, 1)))
+  const sourceHeight = Math.max(1, Math.round(finiteOr(sourceSize.height, 1)))
+  const safeCrop = clampCropBox(crop, sourceWidth, sourceHeight)
+  const targetSize = normalizeExportSize(outputSize ?? safeCrop, safeCrop)
+  const sourceLeft = Math.max(0, safeCrop.x)
+  const sourceTop = Math.max(0, safeCrop.y)
+  const sourceRight = Math.min(sourceWidth, safeCrop.x + safeCrop.width)
+  const sourceBottom = Math.min(sourceHeight, safeCrop.y + safeCrop.height)
+  const sourceWidthInsideCrop = sourceRight - sourceLeft
+  const sourceHeightInsideCrop = sourceBottom - sourceTop
+
+  if (sourceWidthInsideCrop <= 0 || sourceHeightInsideCrop <= 0) {
+    return {
+      crop: safeCrop,
+      targetSize,
+      sourceRect: null,
+      destinationRect: null,
+    }
+  }
+
+  const scaleX = targetSize.width / safeCrop.width
+  const scaleY = targetSize.height / safeCrop.height
+  const sourceRect = {
+    x: sourceLeft,
+    y: sourceTop,
+    width: sourceWidthInsideCrop,
+    height: sourceHeightInsideCrop,
+  }
+  const destinationRect = {
+    x: roundDrawValue((sourceLeft - safeCrop.x) * scaleX),
+    y: roundDrawValue((sourceTop - safeCrop.y) * scaleY),
+    width: roundDrawValue(sourceWidthInsideCrop * scaleX),
+    height: roundDrawValue(sourceHeightInsideCrop * scaleY),
+  }
+
+  return {
+    crop: safeCrop,
+    targetSize,
+    sourceRect,
+    destinationRect,
+  }
 }

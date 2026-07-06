@@ -1,4 +1,5 @@
 export type ImageExportFormat = 'png' | 'webp' | 'jpg' | 'jpeg'
+export type ImageExportBackgroundMode = 'transparent' | 'color'
 
 export interface ImageFileLike {
   name: string
@@ -20,6 +21,11 @@ export interface Point {
 export interface RectSize {
   width: number
   height: number
+}
+
+export interface ImageExportBackgroundSettings {
+  mode: ImageExportBackgroundMode
+  color: string
 }
 
 export interface ImageSourceLike extends RectSize {

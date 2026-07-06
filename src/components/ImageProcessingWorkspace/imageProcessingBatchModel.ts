@@ -11,6 +11,7 @@ export interface BatchPreviewSignatureInput {
   crop: CropBox | null
   sourceSize: RectSize | null
   exportFormat: ImageExportFormat
+  exportBackgroundColor?: string | null
   exportScale: number
   matte: MatteParams
   matteEnabled: boolean
@@ -66,6 +67,7 @@ function ratio(value: number, size: number) {
 export function createBatchPreviewSignature({
   crop,
   sourceSize,
+  exportBackgroundColor,
   exportScale,
   matte,
   matteEnabled,
@@ -79,6 +81,7 @@ export function createBatchPreviewSignature({
       width: ratio(crop.width, sourceSize.width),
       height: ratio(crop.height, sourceSize.height),
     },
+    exportBackgroundColor: exportBackgroundColor ?? null,
     exportScale: rounded(exportScale, 1),
     matte: matteEnabled ? {
       keyColor: matte.keyColor.map((value) => rounded(value)),

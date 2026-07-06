@@ -77,7 +77,7 @@ export function ImageMattePanel({ workspace }: ImageMattePanelProps) {
             onChange={(value) => workspace.updateMatte('erosion', value)}
           />
         </label>
-        <Text type="secondary">参数调整会自动刷新处理结果。JPEG 导出会自动铺白底。</Text>
+          <Text type="secondary">参数调整会自动刷新处理结果。JPG/JPEG 导出使用导出背景。</Text>
       </Space>
     </Card>
   )

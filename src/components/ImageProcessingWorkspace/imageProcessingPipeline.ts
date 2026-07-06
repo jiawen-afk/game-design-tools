@@ -1,9 +1,9 @@
 import { chromaKey, loadImage } from '../MultiFrameSpriteWorkspace/imagePipeline'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 import {
-  clampCropBox,
   getExportFormatInfo,
   getImageExportEncodingInfo,
+  resolveCropDrawPlan,
   sampleImagePixel,
   type CropBox,
   type ImageExportEncodingSettings,
@@ -77,15 +77,27 @@ export async function applyImageMatte(sourceUrl: string, matte: MatteParams): Pr
 
 export async function renderCroppedImageUrl(sourceUrl: string, crop: CropBox): Promise<ProcessedImageDraft> {
   const img = await loadImage(sourceUrl)
-  const safeCrop = clampCropBox(crop, img.naturalWidth, img.naturalHeight)
+  const drawPlan = resolveCropDrawPlan(crop, { width: img.naturalWidth, height: img.naturalHeight })
   const canvas = document.createElement('canvas')
-  canvas.width = safeCrop.width
-  canvas.height = safeCrop.height
+  canvas.width = drawPlan.targetSize.width
+  canvas.height = drawPlan.targetSize.height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('无法创建裁剪预览画布')
-  ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, safeCrop.width, safeCrop.height)
+  if (drawPlan.sourceRect && drawPlan.destinationRect) {
+    ctx.drawImage(
+      img,
+      drawPlan.sourceRect.x,
+      drawPlan.sourceRect.y,
+      drawPlan.sourceRect.width,
+      drawPlan.sourceRect.height,
+      drawPlan.destinationRect.x,
+      drawPlan.destinationRect.y,
+      drawPlan.destinationRect.width,
+      drawPlan.destinationRect.height
+    )
+  }
   const blob = await canvasToFormatBlob(canvas, 'png')
-  return { url: URL.createObjectURL(blob), width: safeCrop.width, height: safeCrop.height }
+  return { url: URL.createObjectURL(blob), width: drawPlan.targetSize.width, height: drawPlan.targetSize.height }
 }
 
 export async function sampleSourceImagePixel(sourceUrl: string, point: Point): Promise<[number, number, number]> {
@@ -104,23 +116,36 @@ export async function exportProcessedImage(
   crop: CropBox,
   format: ImageExportFormat,
   outputSize?: RectSize,
-  matteBackground = '#ffffff'
+  backgroundColor: string | null = null
 ): Promise<Blob> {
   const img = await loadImage(sourceUrl)
-  const safeCrop = clampCropBox(crop, img.naturalWidth, img.naturalHeight)
-  const targetWidth = outputSize?.width ?? safeCrop.width
-  const targetHeight = outputSize?.height ?? safeCrop.height
+  const drawPlan = resolveCropDrawPlan(crop, { width: img.naturalWidth, height: img.naturalHeight }, outputSize)
+  const targetWidth = drawPlan.targetSize.width
+  const targetHeight = drawPlan.targetSize.height
   const canvas = document.createElement('canvas')
   canvas.width = targetWidth
   canvas.height = targetHeight
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('无法创建导出画布')
   const formatInfo = getExportFormatInfo(format)
-  if (!formatInfo.preservesAlpha) {
-    ctx.fillStyle = matteBackground
+  const fillColor = backgroundColor ?? (formatInfo.preservesAlpha ? null : '#000000')
+  if (fillColor) {
+    ctx.fillStyle = fillColor
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
-  ctx.drawImage(img, safeCrop.x, safeCrop.y, safeCrop.width, safeCrop.height, 0, 0, targetWidth, targetHeight)
+  if (drawPlan.sourceRect && drawPlan.destinationRect) {
+    ctx.drawImage(
+      img,
+      drawPlan.sourceRect.x,
+      drawPlan.sourceRect.y,
+      drawPlan.sourceRect.width,
+      drawPlan.sourceRect.height,
+      drawPlan.destinationRect.x,
+      drawPlan.destinationRect.y,
+      drawPlan.destinationRect.width,
+      drawPlan.destinationRect.height
+    )
+  }
   return canvasToFormatBlob(canvas, format)
 }
 

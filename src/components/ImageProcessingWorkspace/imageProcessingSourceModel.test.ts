@@ -16,6 +16,7 @@ test('image processing workspace resolves the active image source from matte sta
 test('image processing upscale preview survives export format changes', () => {
   const previous = {
     crop: { x: 4, y: 8, width: 64, height: 32 },
+    exportBackgroundColor: null,
     exportFormat: 'png' as const,
     processedUrl: 'blob://processed',
     upscaleOptions: {
@@ -27,5 +28,6 @@ test('image processing upscale preview survives export format changes', () => {
   }
 
   assert.equal(shouldInvalidateUpscalePreview(previous, { ...previous, exportFormat: 'webp' }), false)
+  assert.equal(shouldInvalidateUpscalePreview(previous, { ...previous, exportBackgroundColor: '#000000' }), true)
   assert.equal(shouldInvalidateUpscalePreview(previous, { ...previous, crop: { ...previous.crop, width: 65 } }), true)
 })

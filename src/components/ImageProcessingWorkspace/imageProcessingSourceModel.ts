@@ -10,6 +10,7 @@ export function resolveMatteImageSource(
 
 export interface UpscalePreviewInputs {
   crop: CropBox | null
+  exportBackgroundColor: string | null
   exportFormat: ImageExportFormat
   processedUrl: string | null
   upscaleOptions: {
@@ -26,9 +27,10 @@ export function shouldInvalidateUpscalePreview(previous: UpscalePreviewInputs, n
     && previous.crop?.width === next.crop?.width
     && previous.crop?.height === next.crop?.height
   const sameProcessed = previous.processedUrl === next.processedUrl
+  const sameBackground = previous.exportBackgroundColor === next.exportBackgroundColor
   const sameOptions = previous.upscaleOptions.model === next.upscaleOptions.model
     && previous.upscaleOptions.scale === next.upscaleOptions.scale
     && previous.upscaleOptions.tileSize === next.upscaleOptions.tileSize
     && previous.upscaleOptions.ttaMode === next.upscaleOptions.ttaMode
-  return !(sameCrop && sameProcessed && sameOptions)
+  return !(sameCrop && sameProcessed && sameBackground && sameOptions)
 }

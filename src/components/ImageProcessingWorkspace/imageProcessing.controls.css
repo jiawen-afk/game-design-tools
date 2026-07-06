@@ -33,6 +33,26 @@
   width: 100%;
 }
 
+.image-export-background-row {
+  display: grid;
+  grid-template-columns: auto 40px minmax(76px, auto);
+  gap: 8px;
+  align-items: center;
+}
+
+.image-export-background-color {
+  width: 40px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.image-export-background-color:disabled {
+  opacity: 0.45;
+}
+
 .image-export-scale-unit {
   color: var(--color-muted);
   font-weight: 600;

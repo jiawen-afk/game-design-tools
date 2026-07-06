@@ -49,12 +49,16 @@ test('image processing workspace uses compact toolbar, tabbed controls, and stab
 test('image crop panel owns crop aspect ratio while export panel scales locked output size', () => {
   const cropSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropPanel.tsx', 'utf8')
   const exportSource = readFileSync('src/components/ImageProcessingWorkspace/ImageExportPanel.tsx', 'utf8')
+  const workspaceSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
 
   assert.match(cropSource, /title=\{cropPanelTitle\}/)
   assert.match(cropSource, /裁剪框居中/)
   assert.match(cropSource, /centerCropBox/)
   assert.match(cropSource, /value=\{workspace\.cropAspectRatio\}/)
   assert.match(cropSource, /onCommit=\{workspace\.updateCropAspectRatio\}/)
+  assert.match(cropSource, /min=\{-MAX_IMAGE_EXPORT_SIZE\}/)
+  assert.doesNotMatch(cropSource, /max=\{activeImageSource\.width\}/)
+  assert.doesNotMatch(cropSource, /max=\{activeImageSource\.height\}/)
   assert.match(exportSource, /value=\{workspace\.exportScale\}/)
   assert.match(exportSource, /onCommit=\{workspace\.setExportScale\}/)
   assert.match(exportSource, /value=\{workspace\.exportSize\.width\}/)
@@ -65,6 +69,13 @@ test('image crop panel owns crop aspect ratio while export panel scales locked o
   assert.doesNotMatch(exportSource, /updateExportAspectRatio/)
   assert.doesNotMatch(exportSource, /setExportAspectLocked/)
   assert.doesNotMatch(exportSource, /addonAfter/)
+  assert.match(exportSource, /导出背景/)
+  assert.match(exportSource, /workspace\.exportBackground/)
+  assert.match(exportSource, /workspace\.setExportBackgroundMode/)
+  assert.match(exportSource, /workspace\.setExportBackgroundColor/)
+  assert.match(exportSource, /type="color"/)
+  assert.match(workspaceSource, /exportBackground/)
+  assert.match(workspaceSource, /exportBackgroundColor/)
 })
 
 test('image processing result stage delegates preview DOM interactions to a focused hook', () => {

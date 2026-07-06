@@ -37,6 +37,7 @@ interface UseImageExportWorkflowOptions {
   batchImages: ImageProcessingBatchItem[]
   crop: CropBox | null
   exportFormat: ImageExportFormat
+  exportBackgroundColor: string | null
   exportEncoding: ImageExportEncodingSettings
   exportName: string
   exportSize: RectSize
@@ -68,6 +69,7 @@ export function useImageExportWorkflow({
   batchImages,
   crop,
   exportFormat,
+  exportBackgroundColor,
   exportEncoding,
   exportName,
   exportSize,
@@ -111,6 +113,7 @@ export function useImageExportWorkflow({
     crop,
     sourceSize: activeImageSource,
     exportFormat,
+    exportBackgroundColor,
     exportScale,
     matte,
     matteEnabled,
@@ -119,6 +122,7 @@ export function useImageExportWorkflow({
     activeImageSource?.height,
     activeImageSource?.width,
     crop,
+    exportBackgroundColor,
     exportFormat,
     exportScale,
     matte,
@@ -157,7 +161,7 @@ export function useImageExportWorkflow({
 
     const prepared = await prepareBatchExport(item)
     try {
-      const originalBlob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, exportFormat, prepared.outputSize)
+      const originalBlob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, exportFormat, prepared.outputSize, exportBackgroundColor)
       let originalUrl: string | null = null
       let upscaledUrl: string | null = null
       try {
@@ -185,7 +189,7 @@ export function useImageExportWorkflow({
     } finally {
       prepared.cleanup()
     }
-  }, [exportFormat, prepareBatchExport, upscaleOptions, upscaleRuntimeStatus])
+  }, [exportBackgroundColor, exportFormat, prepareBatchExport, upscaleOptions, upscaleRuntimeStatus])
 
   const encodeUpscalePreview = useCallback(async (
     preview: ImageUpscalePreview,
@@ -194,9 +198,9 @@ export function useImageExportWorkflow({
     desktopApi: ReturnType<typeof getDesktopApi>,
   ) => {
     const fullCrop = { x: 0, y: 0, width: preview.width, height: preview.height }
-    const blob = await exportProcessedImage(preview.url, fullCrop, renderFormat, { width: preview.width, height: preview.height })
+    const blob = await exportProcessedImage(preview.url, fullCrop, renderFormat, { width: preview.width, height: preview.height }, exportBackgroundColor)
     return encodeImageExportBlob(fileName, blob, exportEncoding, desktopApi)
-  }, [exportEncoding])
+  }, [exportBackgroundColor, exportEncoding])
 
   const exportImage = useCallback(async () => {
     const exportTarget = resolveImageExportTarget(activeImageSource, crop, upscaleEnabled, upscalePreview)
@@ -205,7 +209,7 @@ export function useImageExportWorkflow({
     try {
       const encodingInfo = getImageExportEncodingInfo(exportEncoding)
       const renderFormat = encodingInfo.requiresDesktopEncoding ? 'png' : exportFormat
-      const exportBlob = await exportProcessedImage(exportTarget.sourceUrl, exportTarget.crop, renderFormat, exportSize)
+      const exportBlob = await exportProcessedImage(exportTarget.sourceUrl, exportTarget.crop, renderFormat, exportSize, exportBackgroundColor)
       const desktopApi = getDesktopApi()
       const encoded = await encodeImageExportBlob(exportName, exportBlob, exportEncoding, desktopApi)
       await saveImageExportBlob(encoded.fileName, encoded.blob, desktopApi)
@@ -215,7 +219,7 @@ export function useImageExportWorkflow({
     } finally {
       setExporting(false)
     }
-  }, [activeImageSource, crop, exportEncoding, exportFormat, exportName, exportSize, upscaleEnabled, upscalePreview])
+  }, [activeImageSource, crop, exportBackgroundColor, exportEncoding, exportFormat, exportName, exportSize, upscaleEnabled, upscalePreview])
 
   const applyAllPreviews = useCallback(async () => {
     if (!activeImageSource || !crop || batchImages.length === 0) return
@@ -275,7 +279,7 @@ export function useImageExportWorkflow({
         }
         const prepared = await prepareBatchExport(item)
         try {
-          const blob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, renderFormat, prepared.outputSize)
+          const blob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, renderFormat, prepared.outputSize, exportBackgroundColor)
           encodedFiles.push(await encodeImageExportBlob(fileNames[index]!, blob, exportEncoding, desktopApi))
         } finally {
           prepared.cleanup()
@@ -312,6 +316,7 @@ export function useImageExportWorkflow({
     crop,
     createUpscalePreviewForItem,
     encodeUpscalePreview,
+    exportBackgroundColor,
     exportEncoding,
     exportFormat,
     exportImage,

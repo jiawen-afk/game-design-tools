@@ -6,28 +6,29 @@ import {
   clampCropBox,
   getAspectRatioValue,
   getCropBoxAfterAspectRatioChange,
+  MAX_IMAGE_EXPORT_SIZE,
   normalizeCropBox,
 } from './imageProcessingModel'
 
-test('image processing workspace clamps crop boxes inside image bounds', () => {
+test('image processing workspace allows crop boxes to expand outside image bounds', () => {
   assert.deepEqual(
     clampCropBox({ x: -20, y: 30, width: 260, height: 180 }, 200, 120, 16),
-    { x: 0, y: 30, width: 200, height: 90 }
+    { x: -20, y: 30, width: 260, height: 180 }
   )
   assert.deepEqual(
     clampCropBox({ x: 190, y: 110, width: 4, height: 5 }, 200, 120, 16),
-    { x: 184, y: 104, width: 16, height: 16 }
+    { x: 190, y: 110, width: 16, height: 16 }
   )
   assert.deepEqual(
-    clampCropBox({ x: 20, y: 30, width: 260, height: 180 }, 200, 120, 16),
-    { x: 20, y: 30, width: 180, height: 90 }
+    clampCropBox({ x: 20, y: 30, width: MAX_IMAGE_EXPORT_SIZE + 200, height: 180 }, 200, 120, 16),
+    { x: 20, y: 30, width: MAX_IMAGE_EXPORT_SIZE, height: 180 }
   )
 })
 
 test('image processing workspace normalizes crop boxes from drag coordinates', () => {
   assert.deepEqual(
-    normalizeCropBox({ x: 120, y: 90, width: -80, height: -50 }, 200, 120, 16),
-    { x: 40, y: 40, width: 80, height: 50 }
+    normalizeCropBox({ x: 120, y: 90, width: -180, height: -140 }, 200, 120, 16),
+    { x: -60, y: -50, width: 180, height: 140 }
   )
 })
 
@@ -38,7 +39,7 @@ test('image processing workspace centers crop boxes without changing crop size',
   )
   assert.deepEqual(
     centerCropBox({ x: 12, y: 24, width: 260, height: 90 }, 200, 120, 16),
-    { x: 0, y: 15, width: 200, height: 90 }
+    { x: -30, y: 15, width: 260, height: 90 }
   )
 })
 
@@ -54,6 +55,6 @@ test('image processing workspace adjusts crop boxes by aspect ratio', () => {
   )
   assert.deepEqual(
     getCropBoxAfterAspectRatioChange({ x: 10, y: 150, width: 180, height: 40 }, 300, 200, 1),
-    { x: 10, y: 150, width: 50, height: 50 }
+    { x: 10, y: 150, width: 180, height: 180 }
   )
 })

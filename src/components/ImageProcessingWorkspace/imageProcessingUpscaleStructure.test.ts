@@ -33,7 +33,7 @@ test('image processing upscale is an optional export enhancement and keeps norma
   assert.match(exportWorkflowSource, /resolveImageExportTarget\(activeImageSource, crop, upscaleEnabled, upscalePreview\)/)
   assert.match(exportWorkflowSource, /getImageExportEncodingInfo\(exportEncoding\)/)
   assert.match(exportWorkflowSource, /const renderFormat = encodingInfo\.requiresDesktopEncoding \? 'png' : exportFormat/)
-  assert.match(exportWorkflowSource, /exportProcessedImage\(exportTarget\.sourceUrl, exportTarget\.crop, renderFormat, exportSize\)/)
+  assert.match(exportWorkflowSource, /exportProcessedImage\(exportTarget\.sourceUrl, exportTarget\.crop, renderFormat, exportSize, exportBackgroundColor\)/)
   assert.match(upscaleHookSource, /queryUpscaleStatus/)
   assert.match(upscaleHookSource, /upscaleImage/)
   assert.match(upscaleHookSource, /resolveExportBaseSize/)

@@ -35,6 +35,7 @@ interface UseImageUpscaleWorkflowOptions {
   activeImageSource: ImageSourceLike | null
   crop: CropBox | null
   cropPreview: ProcessedImageDraft | null
+  exportBackgroundColor: string | null
   exportFormat: ImageExportFormat
   exportName: string
   exportScale: number
@@ -46,6 +47,7 @@ export function useImageUpscaleWorkflow({
   activeImageSource,
   crop,
   cropPreview,
+  exportBackgroundColor,
   exportFormat,
   exportName,
   exportScale,
@@ -59,6 +61,7 @@ export function useImageUpscaleWorkflow({
   const exportScaleSnapshotRef = useRef<number | null>(null)
   const upscalePreviewInputsRef = useRef<{
     crop: CropBox | null
+    exportBackgroundColor: string | null
     exportFormat: ImageExportFormat
     processedUrl: string | null
     upscaleOptions: UpscaleOptions
@@ -102,13 +105,14 @@ export function useImageUpscaleWorkflow({
     const previewInputs = upscalePreviewInputsRef.current
     const currentInputs = {
       crop,
+      exportBackgroundColor,
       exportFormat,
       processedUrl: activeImageSource?.url ?? null,
       upscaleOptions,
     }
     if (previewInputs && !shouldInvalidateUpscalePreview(previewInputs, currentInputs)) return
     clearUpscalePreview()
-  }, [activeImageSource, clearUpscalePreview, crop, exportFormat, upscaleOptions, upscalePreview])
+  }, [activeImageSource, clearUpscalePreview, crop, exportBackgroundColor, exportFormat, upscaleOptions, upscalePreview])
 
   const resetUpscale = useCallback((enabled = false) => {
     setUpscaleEnabled(enabled)
@@ -137,7 +141,7 @@ export function useImageUpscaleWorkflow({
     }
     setUpscaleProcessing(true)
     try {
-      const blob = await exportProcessedImage(activeImageSource.url, crop, exportFormat, exportSize)
+      const blob = await exportProcessedImage(activeImageSource.url, crop, exportFormat, exportSize, exportBackgroundColor)
       if (exportScaleSnapshotRef.current === null) {
         exportScaleSnapshotRef.current = exportScale
       }
@@ -161,6 +165,7 @@ export function useImageUpscaleWorkflow({
       })
       upscalePreviewInputsRef.current = {
         crop,
+        exportBackgroundColor,
         exportFormat,
         processedUrl: activeImageSource.url,
         upscaleOptions,
@@ -173,7 +178,7 @@ export function useImageUpscaleWorkflow({
     } finally {
       setUpscaleProcessing(false)
     }
-  }, [activeImageSource, crop, cropPreview, exportFormat, exportName, exportScale, exportSize, onPreviewGenerated, setExportScale, upscaleOptions, upscaleRuntimeStatus])
+  }, [activeImageSource, crop, cropPreview, exportBackgroundColor, exportFormat, exportName, exportScale, exportSize, onPreviewGenerated, setExportScale, upscaleOptions, upscaleRuntimeStatus])
 
   return {
     upscaleEnabled,

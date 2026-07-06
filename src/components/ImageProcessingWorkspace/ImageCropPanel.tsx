@@ -59,8 +59,8 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
             <label className="image-field">
               <span>X</span>
               <CommittedNumberInput
-                min={0}
-                max={activeImageSource.width}
+                min={-MAX_IMAGE_EXPORT_SIZE}
+                max={MAX_IMAGE_EXPORT_SIZE}
                 value={crop.x}
                 onCommit={(value) => updateCrop(workspace, { x: value })}
               />
@@ -68,8 +68,8 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
             <label className="image-field">
               <span>Y</span>
               <CommittedNumberInput
-                min={0}
-                max={activeImageSource.height}
+                min={-MAX_IMAGE_EXPORT_SIZE}
+                max={MAX_IMAGE_EXPORT_SIZE}
                 value={crop.y}
                 onCommit={(value) => updateCrop(workspace, { y: value })}
               />
@@ -78,7 +78,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>宽度</span>
               <CommittedNumberInput
                 min={workspace.minCropSize}
-                max={activeImageSource.width}
+                max={MAX_IMAGE_EXPORT_SIZE}
                 value={crop.width}
                 onCommit={(value) => updateCrop(workspace, { width: value })}
               />
@@ -87,7 +87,7 @@ export function ImageCropPanel({ workspace }: ImageCropPanelProps) {
               <span>高度</span>
               <CommittedNumberInput
                 min={workspace.minCropSize}
-                max={activeImageSource.height}
+                max={MAX_IMAGE_EXPORT_SIZE}
                 value={crop.height}
                 onCommit={(value) => updateCrop(workspace, { height: value })}
               />

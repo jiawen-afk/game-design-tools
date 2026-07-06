@@ -1,4 +1,4 @@
-import { Button, Card, Progress, Select, Slider, Space, Switch, Typography } from 'antd'
+import { Button, Card, Progress, Segmented, Select, Slider, Space, Switch, Typography } from 'antd'
 import { DownloadOutlined, ThunderboltOutlined } from '@ant-design/icons'
 
 import { CommittedNumberInput } from './CommittedNumberInput'
@@ -8,6 +8,7 @@ import {
   MAX_IMAGE_EXPORT_SCALE,
   MIN_IMAGE_EXPORT_SIZE,
   MIN_IMAGE_EXPORT_SCALE,
+  type ImageExportBackgroundMode,
   type ImageExportEncodingFormat,
 } from './imageProcessingModel'
 import {
@@ -38,6 +39,10 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
   })
   const upscaleInstalled = workspace.upscaleRuntimeStatus?.installed === true
   const upscaleProgress = workspace.upscaleInstallProgress
+  const backgroundModeOptions = [
+    { value: 'transparent', label: '透明', disabled: !workspace.canUseTransparentExportBackground },
+    { value: 'color', label: '颜色' },
+  ]
 
   return (
     <Card title="导出图片" className="image-control-card">
@@ -59,6 +64,26 @@ export function ImageExportPanel({ workspace }: ImageExportPanelProps) {
             />
           </label>
         ) : null}
+        <label className="image-field">
+          <span>导出背景</span>
+          <div className="image-export-background-row">
+            <Segmented
+              size="small"
+              value={workspace.exportBackground.mode}
+              options={backgroundModeOptions}
+              onChange={(mode) => workspace.setExportBackgroundMode(mode as ImageExportBackgroundMode)}
+            />
+            <input
+              aria-label="导出背景颜色"
+              className="image-export-background-color"
+              type="color"
+              value={workspace.exportBackground.color}
+              disabled={workspace.exportBackground.mode === 'transparent'}
+              onChange={(event) => workspace.setExportBackgroundColor(event.target.value)}
+            />
+            <Text code>{workspace.exportBackground.mode === 'transparent' ? '透明' : workspace.exportBackground.color}</Text>
+          </div>
+        </label>
         <label className="image-field">
           <span>等比缩放</span>
           <div className="image-export-scale-row">
