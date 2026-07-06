@@ -10,13 +10,16 @@ import {
 } from '@ant-design/icons'
 
 import type { PersonalSpaceAsset } from '../PersonalSpaceWorkspace/personalSpaceModel'
+import { ProjectSpaceAudioPlayer } from './ProjectSpaceAudioPlayer'
 import type { SoundEffectRecord } from './soundEffectModel'
+import type { VoiceProjectResourceReadOptions } from './useVoiceProjectResourceReadOptions'
 
 interface SoundEffectLibraryPanelProps {
   records: SoundEffectRecord[]
   lastGeneratedId: string | null
   personalSpaceSoundAssets: PersonalSpaceAsset[]
   spriteLinkOptions: Array<{ label: string; value: string }>
+  projectResourceReadOptions: VoiceProjectResourceReadOptions
   collectingRecordId: string
   collectError: string
   onLoad: (record: SoundEffectRecord) => void
@@ -35,9 +38,11 @@ function linkedOptionNames(ids: string[], options: Array<{ label: string; value:
 function PersonalSpaceSoundAssetList({
   assets,
   spriteLinkOptions,
+  projectResourceReadOptions,
 }: {
   assets: PersonalSpaceAsset[]
   spriteLinkOptions: Array<{ label: string; value: string }>
+  projectResourceReadOptions: VoiceProjectResourceReadOptions
 }) {
   if (assets.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到项目空间的音效" />
@@ -46,7 +51,6 @@ function PersonalSpaceSoundAssetList({
   return (
     <div className="voice-record-list sound-record-list">
       {assets.map((asset) => {
-        const audioSource = asset.resourcePaths[0] ?? ''
         const spriteNames = linkedOptionNames(asset.linkedSpriteAssetIds, spriteLinkOptions)
         return (
           <article key={asset.id} className="voice-record">
@@ -57,7 +61,11 @@ function PersonalSpaceSoundAssetList({
               <Tag>音效素材</Tag>
               <span>{new Date(asset.createdAt).toLocaleString()}</span>
             </div>
-            {audioSource ? <audio controls src={audioSource} /> : <p className="record-text">没有可播放音效</p>}
+            <ProjectSpaceAudioPlayer
+              asset={asset}
+              emptyText="没有可播放音效"
+              {...projectResourceReadOptions}
+            />
             {spriteNames.length > 0 && (
               <div className="record-meta record-link-names">
                 <span>精灵图：{spriteNames.join('、')}</span>
@@ -75,6 +83,7 @@ export function SoundEffectLibraryPanel({
   lastGeneratedId,
   personalSpaceSoundAssets,
   spriteLinkOptions,
+  projectResourceReadOptions,
   collectingRecordId,
   collectError,
   onLoad,
@@ -219,6 +228,7 @@ export function SoundEffectLibraryPanel({
               <PersonalSpaceSoundAssetList
                 assets={personalSpaceSoundAssets}
                 spriteLinkOptions={spriteLinkOptions}
+                projectResourceReadOptions={projectResourceReadOptions}
               />
             ),
           },

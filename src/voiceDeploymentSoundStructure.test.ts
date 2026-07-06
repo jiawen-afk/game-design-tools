@@ -188,3 +188,15 @@ test('sound effect setup can open the Stable Audio model folder from the model p
   assert.match(workspaceSource, /onOpenModelPath: openStableAudioModelPath/)
   assert.match(soundCss, /\.sound-model-path-row[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/)
 })
+
+test('sound project-space audio assets use stored project resource playback', () => {
+  const workspaceSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
+  const librarySource = read(files.library)
+
+  assert.match(workspaceSource, /useVoiceProjectResourceReadOptions/)
+  assert.match(workspaceSource, /projectResourceReadOptions/)
+  assert.match(librarySource, /projectResourceReadOptions/)
+  assert.match(librarySource, /ProjectSpaceAudioPlayer/)
+  assert.match(librarySource, /\{\.\.\.projectResourceReadOptions\}/)
+  assert.doesNotMatch(librarySource, /const audioSource = asset\.resourcePaths\[0\]/)
+})

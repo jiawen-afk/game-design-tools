@@ -4,6 +4,8 @@ import { DeleteOutlined, DownOutlined } from '@ant-design/icons'
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 import { voiceModeMeta } from './voiceDeploymentModel'
+import { ProjectSpaceAudioPlayer } from './ProjectSpaceAudioPlayer'
+import type { VoiceProjectResourceReadOptions } from './useVoiceProjectResourceReadOptions'
 import type { VoiceCollectLinkTarget } from './voicePersonalSpaceCollector'
 
 interface VoiceRecordListProps {
@@ -103,6 +105,7 @@ interface PersonalSpaceVoiceAssetListProps {
   assets: PersonalSpaceAsset[]
   characters: CharacterProfile[]
   storyboardGroups: StoryboardGroup[]
+  projectResourceReadOptions: VoiceProjectResourceReadOptions
 }
 
 function linkedNames(ids: string[], items: Array<{ id: string; name: string }>) {
@@ -114,6 +117,7 @@ export function PersonalSpaceVoiceAssetList({
   assets,
   characters,
   storyboardGroups,
+  projectResourceReadOptions,
 }: PersonalSpaceVoiceAssetListProps) {
   if (assets.length === 0) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有收藏到项目空间的配音" />
@@ -122,7 +126,6 @@ export function PersonalSpaceVoiceAssetList({
   return (
     <div className="voice-record-list">
       {assets.map((asset) => {
-        const audioSource = asset.resourcePaths[0] ?? ''
         const characterNames = linkedNames(asset.linkedCharacterIds, characters)
         const storyboardNames = linkedNames(asset.linkedStoryboardIds, storyboardGroups)
 
@@ -135,7 +138,11 @@ export function PersonalSpaceVoiceAssetList({
               <Tag>配音素材</Tag>
               <span>{new Date(asset.createdAt).toLocaleString()}</span>
             </div>
-            {audioSource ? <audio controls src={audioSource} /> : <p className="record-text">没有可播放音频</p>}
+            <ProjectSpaceAudioPlayer
+              asset={asset}
+              emptyText="没有可播放音频"
+              {...projectResourceReadOptions}
+            />
             {asset.dialogueText && <p className="record-text">{asset.dialogueText}</p>}
             {(characterNames.length > 0 || storyboardNames.length > 0) && (
               <div className="record-meta record-link-names">

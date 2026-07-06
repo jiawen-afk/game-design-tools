@@ -56,3 +56,24 @@ test('voice deployment workspace delegates record library persistence to a focus
   assert.match(recordHookSource, /writeStoredRecords/)
   assert.match(recordHookSource, /updateRecordName/)
 })
+
+test('voice project-space audio assets use stored project resource playback', () => {
+  const workspaceHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useVoiceDeploymentWorkspace.ts', 'utf8')
+  const listSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx', 'utf8')
+  const panelSource = readFileSync('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx', 'utf8')
+
+  assert.ok(
+    existsSync('src/components/VoiceDeploymentWorkspace/ProjectSpaceAudioPlayer.tsx'),
+    'project-space voice playback should use a focused resource-aware player',
+  )
+  assert.ok(
+    existsSync('src/components/VoiceDeploymentWorkspace/useVoiceProjectResourceReadOptions.ts'),
+    'voice workbench should expose active project resource read options',
+  )
+  assert.match(workspaceHookSource, /useVoiceProjectResourceReadOptions/)
+  assert.match(workspaceHookSource, /projectResourceReadOptions/)
+  assert.match(panelSource, /projectResourceReadOptions/)
+  assert.match(listSource, /ProjectSpaceAudioPlayer/)
+  assert.match(listSource, /\{\.\.\.projectResourceReadOptions\}/)
+  assert.doesNotMatch(listSource, /const audioSource = asset\.resourcePaths\[0\]/)
+})

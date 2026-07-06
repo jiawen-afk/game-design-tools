@@ -4,6 +4,7 @@ import { DeleteOutlined, UserOutlined } from '@ant-design/icons'
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 import type { VoiceCollectLinkTarget } from './voicePersonalSpaceCollector'
+import type { VoiceProjectResourceReadOptions } from './useVoiceProjectResourceReadOptions'
 import { PersonalSpaceVoiceAssetList, VoiceRecordList } from './VoiceRecordLists'
 
 interface VoiceLibraryPanelProps {
@@ -13,6 +14,7 @@ interface VoiceLibraryPanelProps {
   personalSpaceVoiceAssets: PersonalSpaceAsset[]
   personalSpaceCharacters: CharacterProfile[]
   personalSpaceStoryboardGroups: StoryboardGroup[]
+  projectResourceReadOptions: VoiceProjectResourceReadOptions
   onLoad: (record: VoiceGenerationRecord) => void
   onClone: (record: VoiceGenerationRecord) => void
   onDelete: (id: string) => void
@@ -31,6 +33,7 @@ export function VoiceLibraryPanel({
   personalSpaceVoiceAssets,
   personalSpaceCharacters,
   personalSpaceStoryboardGroups,
+  projectResourceReadOptions,
   onLoad,
   onClone,
   onDelete,
@@ -88,6 +91,7 @@ export function VoiceLibraryPanel({
                 assets={personalSpaceVoiceAssets}
                 characters={personalSpaceCharacters}
                 storyboardGroups={personalSpaceStoryboardGroups}
+                projectResourceReadOptions={projectResourceReadOptions}
               />
             ),
           },

@@ -7,6 +7,7 @@ import { useVoiceCollectLinkDialog } from './useVoiceCollectLinkDialog'
 import { useVoiceDeploymentSetup } from './useVoiceDeploymentSetup'
 import { useVoiceGenerationWorkflow } from './useVoiceGenerationWorkflow'
 import { useVoiceProjectSpaceActions } from './useVoiceProjectSpaceActions'
+import { useVoiceProjectResourceReadOptions } from './useVoiceProjectResourceReadOptions'
 import { useVoiceRecordLibrary } from './useVoiceRecordLibrary'
 
 export function useVoiceDeploymentWorkspace() {
@@ -14,6 +15,7 @@ export function useVoiceDeploymentWorkspace() {
   const { showToast } = useAppToast()
   const setup = useVoiceDeploymentSetup()
   const projectSpace = useVoiceProjectSpaceActions(messageApi)
+  const projectResourceReadOptions = useVoiceProjectResourceReadOptions()
   const recordLibrary = useVoiceRecordLibrary()
   const generation = useVoiceGenerationWorkflow({
     connected: setup.connected,
@@ -113,6 +115,7 @@ export function useVoiceDeploymentWorkspace() {
       personalSpaceVoiceAssets: projectSpace.personalSpaceVoiceAssets,
       personalSpaceCharacters: projectSpace.personalSpaceSnapshot.characters,
       personalSpaceStoryboardGroups: projectSpace.personalSpaceSnapshot.storyboardGroups,
+      projectResourceReadOptions,
       onLoad: generation.loadParams,
       onClone: generation.cloneFromRecord,
       onDelete: recordLibrary.deleteRecord,

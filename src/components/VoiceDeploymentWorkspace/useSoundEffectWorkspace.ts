@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStableAudioSetup } from './useStableAudioSetup'
 import { useSoundEffectGenerationWorkflow } from './useSoundEffectGenerationWorkflow'
 import { useSoundEffectRecordLibrary } from './useSoundEffectRecordLibrary'
+import { useVoiceProjectResourceReadOptions } from './useVoiceProjectResourceReadOptions'
 import {
   chooseSoundEffectModel,
   deriveStableAudioInstallState,
@@ -17,6 +18,7 @@ import { getDesktopApi } from '../../desktopApi'
 export function useSoundEffectWorkspace() {
   const setup = useStableAudioSetup()
   const recordLibrary = useSoundEffectRecordLibrary()
+  const projectResourceReadOptions = useVoiceProjectResourceReadOptions()
   const [currentProjectSpace, setCurrentProjectSpace] = useState(() => readCurrentProjectSpaceState())
   const [collectingRecordId, setCollectingRecordId] = useState('')
   const [collectError, setCollectError] = useState('')
@@ -163,6 +165,7 @@ export function useSoundEffectWorkspace() {
       lastGeneratedId: recordLibrary.lastGeneratedId,
       personalSpaceSoundAssets,
       spriteLinkOptions,
+      projectResourceReadOptions,
       collectingRecordId,
       collectError,
       onLoad: loadSoundEffectRecord,
