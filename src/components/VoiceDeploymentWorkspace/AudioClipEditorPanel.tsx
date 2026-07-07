@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type DragEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Alert, Button, Input, InputNumber, Switch, Tag, Upload } from 'antd'
 import {
   DeleteOutlined,
@@ -20,15 +20,20 @@ import {
   type AudioClipRange,
   type AudioClipSource,
 } from './audioClipModel'
-import type {
-  AudioPendingSegment,
-  AudioSegmentRegion,
+import {
+  reorderPendingSegmentsAroundTarget,
+  resolvePendingPlaybackStep,
+  type AudioPendingDropPlacement,
+  type AudioPendingSegment,
+  type AudioSegmentRegion,
 } from './audioSegmentModel'
 
 type AudioContextMenuState =
   | { type: 'waveform'; x: number; y: number; atSeconds: number }
   | { type: 'region'; x: number; y: number; regionId: string }
   | null
+
+type AudioPendingDropTarget = { regionId: string; placement: AudioPendingDropPlacement } | null
 
 export interface AudioClipEditorPanelProps {
   source: AudioClipSource | null
@@ -54,14 +59,26 @@ export interface AudioClipEditorPanelProps {
   onAddSelectedRegionToPending: () => void
   onRemovePendingSegment: (regionId: string) => void
   onReorderPendingSegment: (fromIndex: number, toIndex: number) => void
+  onCommitPendingSegmentsOrder: (segments: AudioPendingSegment[]) => void
+  onReorderPendingSegmentAroundTarget: (
+    draggedRegionId: string,
+    targetRegionId: string,
+    placement: AudioPendingDropPlacement,
+  ) => void
   onRangeChange: (range: AudioClipRange) => void
   onCurrentTimeChange: (seconds: number) => void
   onOutputNameChange: (name: string) => void
   onImportAudioFile: (file: File) => void
-  onGenerateHistory: () => void
-  onExportClip: () => void
-  onCollectVoiceClip: () => void
-  onCollectSoundClip: () => void
+  onPlayPendingSegments: (
+    segments: AudioPendingSegment[],
+    loop: boolean,
+    onProgress: (sourceTimeSeconds: number) => void,
+  ) => void
+  onStopPendingPreviewPlayback: () => void
+  onGenerateHistory: (segments: AudioPendingSegment[]) => void
+  onExportClip: (segments: AudioPendingSegment[]) => void
+  onCollectVoiceClip: (segments: AudioPendingSegment[]) => void
+  onCollectSoundClip: (segments: AudioPendingSegment[]) => void
 }
 
 const selectedRegionColor = 'rgba(49, 95, 186, 0.28)'
@@ -90,11 +107,13 @@ export function AudioClipEditorPanel({
   onDeleteRegion,
   onAddSelectedRegionToPending,
   onRemovePendingSegment,
-  onReorderPendingSegment,
+  onCommitPendingSegmentsOrder,
   onRangeChange,
   onCurrentTimeChange,
   onOutputNameChange,
   onImportAudioFile,
+  onPlayPendingSegments,
+  onStopPendingPreviewPlayback,
   onGenerateHistory,
   onExportClip,
   onCollectVoiceClip,
@@ -111,9 +130,20 @@ export function AudioClipEditorPanel({
     onSelectRegion,
     onUpdateRegion,
   })
-  const draggedPendingIndexRef = useRef<number | null>(null)
-  const pendingPlaybackRef = useRef({ active: false, index: 0, loop: false })
+  const draggedPendingRegionIdRef = useRef<string | null>(null)
+  const pendingDropTargetRef = useRef<AudioPendingDropTarget>(null)
+  const previewPendingSegmentsRef = useRef<AudioPendingSegment[] | null>(null)
+  const pendingPlaybackRef = useRef({
+    active: false,
+    index: 0,
+    loop: false,
+    seekingToSeconds: null as number | null,
+  })
+  const pendingPlaybackFrameRef = useRef<number | null>(null)
   const [contextMenu, setContextMenu] = useState<AudioContextMenuState>(null)
+  const [draggedPendingRegionId, setDraggedPendingRegionId] = useState('')
+  const [pendingDropTarget, setPendingDropTarget] = useState<AudioPendingDropTarget>(null)
+  const [previewPendingSegments, setPreviewPendingSegments] = useState<AudioPendingSegment[] | null>(null)
 
   useEffect(() => {
     editorCallbacksRef.current = {
@@ -124,8 +154,15 @@ export function AudioClipEditorPanel({
     }
   }, [onCurrentTimeChange, onDurationChange, onSelectRegion, onUpdateRegion])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     pendingSegmentsRef.current = pendingSegments
+  }, [pendingSegments])
+
+  useEffect(() => {
+    pendingDropTargetRef.current = null
+    previewPendingSegmentsRef.current = null
+    setPendingDropTarget(null)
+    setPreviewPendingSegments(null)
   }, [pendingSegments])
 
   useEffect(() => {
@@ -138,13 +175,45 @@ export function AudioClipEditorPanel({
     }
   }, [])
 
-  const playPendingAt = (index: number) => {
+  const clearPendingPlaybackFrame = () => {
+    if (pendingPlaybackFrameRef.current === null) return
+    cancelAnimationFrame(pendingPlaybackFrameRef.current)
+    pendingPlaybackFrameRef.current = null
+  }
+
+  const stopPendingSequencePlayback = () => {
+    clearPendingPlaybackFrame()
+    pendingPlaybackRef.current.active = false
+    pendingPlaybackRef.current.seekingToSeconds = null
+  }
+
+  const schedulePendingPlaybackFrame = () => {
+    clearPendingPlaybackFrame()
+    pendingPlaybackFrameRef.current = requestAnimationFrame(() => {
+      pendingPlaybackFrameRef.current = null
+      const waveSurfer = waveSurferRef.current
+      if (!waveSurfer || !pendingPlaybackRef.current.active) return
+      applyPendingPlaybackStep(waveSurfer.getCurrentTime())
+      if (pendingPlaybackRef.current.active && pendingPlaybackFrameRef.current === null) {
+        schedulePendingPlaybackFrame()
+      }
+    })
+  }
+
+  const playPendingAt = (index: number, mode: 'single' | 'sequence' = 'single') => {
     const segment = pendingSegmentsRef.current[index]
     if (!segment) {
-      pendingPlaybackRef.current.active = false
+      stopPendingSequencePlayback()
       return
     }
     pendingPlaybackRef.current.index = index
+    if (mode === 'sequence') {
+      clearPendingPlaybackFrame()
+      pendingPlaybackRef.current.seekingToSeconds = segment.startSeconds
+      void waveSurferRef.current?.play(segment.startSeconds, segment.endSeconds)
+      schedulePendingPlaybackFrame()
+      return
+    }
     const region = regionMapRef.current.get(segment.regionId)
     if (region) {
       region.play(true)
@@ -152,6 +221,31 @@ export function AudioClipEditorPanel({
     }
     waveSurferRef.current?.setTime(segment.startSeconds)
     void waveSurferRef.current?.play()
+  }
+
+  const applyPendingPlaybackStep = (seconds: number) => {
+    const waveSurfer = waveSurferRef.current
+    if (!waveSurfer) return
+    const pendingPlaybackStep = resolvePendingPlaybackStep(
+      pendingSegmentsRef.current,
+      pendingPlaybackRef.current,
+      seconds,
+    )
+    if (pendingPlaybackStep.action === 'continue' && pendingPlaybackStep.seekSettled) {
+      pendingPlaybackRef.current.seekingToSeconds = null
+    }
+    if (pendingPlaybackStep.action === 'play') {
+      playPendingAt(pendingPlaybackStep.index, 'sequence')
+      return
+    }
+    if (pendingPlaybackStep.action === 'stop') {
+      stopPendingSequencePlayback()
+      waveSurfer.pause()
+      if (typeof pendingPlaybackStep.seekSeconds === 'number') {
+        waveSurfer.setTime(pendingPlaybackStep.seekSeconds)
+        editorCallbacksRef.current.onCurrentTimeChange(pendingPlaybackStep.seekSeconds)
+      }
+    }
   }
 
   useEffect(() => {
@@ -184,36 +278,25 @@ export function AudioClipEditorPanel({
     })
     waveSurfer.on('timeupdate', (seconds) => {
       editorCallbacksRef.current.onCurrentTimeChange(seconds)
+      applyPendingPlaybackStep(seconds)
+    })
+    waveSurfer.on('finish', () => {
+      const seconds = waveSurfer.getCurrentTime()
+      editorCallbacksRef.current.onCurrentTimeChange(seconds)
+      applyPendingPlaybackStep(seconds)
     })
     regionsPlugin.on('region-clicked', (region, event) => {
       event.stopPropagation()
       editorCallbacksRef.current.onSelectRegion(region.id)
       setContextMenu(null)
     })
-    regionsPlugin.on('region-update', syncUpdatedRegion)
     regionsPlugin.on('region-updated', syncUpdatedRegion)
-    regionsPlugin.on('region-out', (region) => {
-      const playback = pendingPlaybackRef.current
-      const currentSegment = pendingSegmentsRef.current[playback.index]
-      if (!playback.active || currentSegment?.regionId !== region.id) return
-      const nextIndex = playback.index + 1
-      if (nextIndex < pendingSegmentsRef.current.length) {
-        playPendingAt(nextIndex)
-        return
-      }
-      if (playback.loop) {
-        playPendingAt(0)
-        return
-      }
-      playback.active = false
-    })
-
     return () => {
       waveSurfer.destroy()
       waveSurferRef.current = null
       regionsPluginRef.current = null
       regionMapRef.current = new Map()
-      pendingPlaybackRef.current.active = false
+      stopPendingSequencePlayback()
     }
   }, [source?.record.id])
 
@@ -283,6 +366,85 @@ export function AudioClipEditorPanel({
   const pendingDuration = pendingSegments.reduce((sum, segment) => (
     sum + Math.max(0, segment.endSeconds - segment.startSeconds)
   ), 0)
+  const visiblePendingSegments = previewPendingSegments ?? pendingSegments
+
+  const getPendingDropTarget = (
+    event: DragEvent<HTMLElement>,
+    draggedRegionId: string,
+  ): AudioPendingDropTarget => {
+    const cards = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-audio-pending-region-id]'))
+      .map((card) => ({ card, regionId: card.dataset.audioPendingRegionId ?? '' }))
+      .filter((card) => card.regionId && card.regionId !== draggedRegionId)
+    if (cards.length === 0) return null
+
+    const beforeCard = cards.find(({ card }) => {
+      const rect = card.getBoundingClientRect()
+      if (event.clientY < rect.top + rect.height / 2) return true
+      return event.clientY <= rect.bottom && event.clientX < rect.left + rect.width / 2
+    })
+    if (beforeCard) return { regionId: beforeCard.regionId, placement: 'before' }
+    return { regionId: cards[cards.length - 1].regionId, placement: 'after' }
+  }
+
+  const previewPendingSegmentDrop = (event: DragEvent<HTMLElement>, draggedRegionId: string) => {
+    const target = getPendingDropTarget(event, draggedRegionId)
+    if (!target) return
+    const previewSegments = reorderPendingSegmentsAroundTarget(
+      pendingSegmentsRef.current,
+      draggedRegionId,
+      target.regionId,
+      target.placement,
+    )
+    pendingDropTargetRef.current = target
+    previewPendingSegmentsRef.current = previewSegments
+    setPendingDropTarget(target)
+    setPreviewPendingSegments(previewSegments)
+  }
+
+  const clearPendingDropPreview = () => {
+    pendingDropTargetRef.current = null
+    previewPendingSegmentsRef.current = null
+    setPendingDropTarget(null)
+    setPreviewPendingSegments(null)
+  }
+
+  const endPendingDrag = () => {
+    draggedPendingRegionIdRef.current = null
+    setDraggedPendingRegionId('')
+    clearPendingDropPreview()
+  }
+
+  const handlePendingListDragOver = (event: DragEvent<HTMLElement>) => {
+    const draggedRegionId = event.dataTransfer.getData('text/plain') || draggedPendingRegionIdRef.current
+    if (!draggedRegionId) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    previewPendingSegmentDrop(event, draggedRegionId)
+  }
+
+  const handlePendingListDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    clearPendingDropPreview()
+  }
+
+  const handlePendingListDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const draggedRegionId = event.dataTransfer.getData('text/plain') || draggedPendingRegionIdRef.current
+    if (draggedRegionId) {
+      const target = pendingDropTargetRef.current ?? getPendingDropTarget(event, draggedRegionId)
+      if (target) {
+        const committedPendingSegments = previewPendingSegmentsRef.current ?? reorderPendingSegmentsAroundTarget(
+          pendingSegmentsRef.current,
+          draggedRegionId,
+          target.regionId,
+          target.placement,
+        )
+        pendingSegmentsRef.current = committedPendingSegments
+        onCommitPendingSegmentsOrder(committedPendingSegments)
+      }
+    }
+    endPendingDrag()
+  }
 
   const handleWaveformContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!waveformRef.current || durationSeconds <= 0) return
@@ -298,18 +460,28 @@ export function AudioClipEditorPanel({
   }
 
   const playSelectedRegion = () => {
-    pendingPlaybackRef.current.active = false
+    onStopPendingPreviewPlayback()
+    stopPendingSequencePlayback()
     regionMapRef.current.get(selectedRegionId)?.play(true)
   }
 
   const playPendingSegments = () => {
-    if (pendingSegments.length === 0) return
-    pendingPlaybackRef.current.active = true
-    playPendingAt(0)
+    if (pendingSegmentsRef.current.length === 0) return
+    stopPendingSequencePlayback()
+    waveSurferRef.current?.pause()
+    onPlayPendingSegments(
+      pendingSegmentsRef.current,
+      pendingPlaybackRef.current.loop,
+      (sourceTimeSeconds) => {
+        waveSurferRef.current?.setTime(sourceTimeSeconds)
+        editorCallbacksRef.current.onCurrentTimeChange(sourceTimeSeconds)
+      },
+    )
   }
 
   const pausePlayback = () => {
-    pendingPlaybackRef.current.active = false
+    onStopPendingPreviewPlayback()
+    stopPendingSequencePlayback()
     waveSurferRef.current?.pause()
   }
 
@@ -376,7 +548,8 @@ export function AudioClipEditorPanel({
 
       <div className="audio-editor-controls">
         <Button icon={<PlayCircleOutlined />} onClick={() => {
-          pendingPlaybackRef.current.active = false
+          onStopPendingPreviewPlayback()
+          stopPendingSequencePlayback()
           void waveSurferRef.current?.playPause()
         }}>
           播放源音频
@@ -386,6 +559,13 @@ export function AudioClipEditorPanel({
         </Button>
         <Button icon={<PlayCircleOutlined />} disabled={!selectedRegionId} onClick={playSelectedRegion}>
           播放选中区块
+        </Button>
+        <Button
+          icon={<PlusOutlined />}
+          disabled={!canAddSelectedRegionToPending}
+          onClick={onAddSelectedRegionToPending}
+        >
+          添加选中区块到待处理
         </Button>
       </div>
 
@@ -444,79 +624,88 @@ export function AudioClipEditorPanel({
             <span className="audio-editor-loop">
               循环 <Switch size="small" onChange={(checked) => { pendingPlaybackRef.current.loop = checked }} />
             </span>
-            <Button
-              size="small"
-              icon={<PlusOutlined />}
-              disabled={!canAddSelectedRegionToPending}
-              onClick={onAddSelectedRegionToPending}
-            >
-              添加选中区块
-            </Button>
           </div>
         </div>
 
-        <div className="audio-editor-pending-list">
+        <div
+          className="audio-editor-pending-list"
+          onDragOver={handlePendingListDragOver}
+          onDragLeave={handlePendingListDragLeave}
+          onDrop={handlePendingListDrop}
+        >
           {pendingSegments.length === 0 ? (
             <div className="audio-editor-empty-row">暂无待处理片段</div>
-          ) : pendingSegments.map((segment, index) => (
-            <div
-              key={segment.regionId}
-              className="audio-editor-pending-card"
-              draggable
-              onDragStart={() => { draggedPendingIndexRef.current = index }}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault()
-                const fromIndex = draggedPendingIndexRef.current
-                draggedPendingIndexRef.current = null
-                if (fromIndex === null) return
-                onReorderPendingSegment(fromIndex, index)
-              }}
-            >
-              <div className="audio-editor-pending-card-head">
+          ) : visiblePendingSegments.map((segment, index) => {
+            const isDropTarget = pendingDropTarget?.regionId === segment.regionId
+            const cardClassName = [
+              'audio-editor-pending-card',
+              draggedPendingRegionId === segment.regionId ? 'is-dragging' : '',
+              isDropTarget ? 'is-drop-target' : '',
+              isDropTarget && pendingDropTarget.placement === 'before' ? 'is-drop-before' : '',
+              isDropTarget && pendingDropTarget.placement === 'after' ? 'is-drop-after' : '',
+            ].filter(Boolean).join(' ')
+            const pendingIndex = pendingSegments.findIndex((item) => item.regionId === segment.regionId)
+
+            return (
+              <div
+                key={segment.regionId}
+                className={cardClassName}
+                data-audio-pending-region-id={segment.regionId}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'move'
+                  event.dataTransfer.setData('text/plain', segment.regionId)
+                  draggedPendingRegionIdRef.current = segment.regionId
+                  setDraggedPendingRegionId(segment.regionId)
+                }}
+                onDragEnd={endPendingDrag}
+              >
+                <div className="audio-editor-pending-card-head">
+                  <button
+                    type="button"
+                    className="audio-editor-pending-index"
+                    onClick={() => onSelectRegion(segment.regionId)}
+                  >
+                    {index + 1}
+                  </button>
+                  <strong>{formatAudioClipTime(segment.endSeconds - segment.startSeconds)}</strong>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<PlayCircleOutlined />}
+                    onClick={() => {
+                      onStopPendingPreviewPlayback()
+                      stopPendingSequencePlayback()
+                      playPendingAt(pendingIndex)
+                    }}
+                  >
+                    播放
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<DeleteOutlined />}
+                    onClick={() => onRemovePendingSegment(segment.regionId)}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="audio-editor-pending-index"
+                  className="audio-editor-pending-time"
                   onClick={() => onSelectRegion(segment.regionId)}
                 >
-                  {index + 1}
+                  {formatAudioClipTime(segment.startSeconds)} - {formatAudioClipTime(segment.endSeconds)}
                 </button>
-                <strong>{formatAudioClipTime(segment.endSeconds - segment.startSeconds)}</strong>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<PlayCircleOutlined />}
-                  onClick={() => {
-                    pendingPlaybackRef.current.active = false
-                    playPendingAt(index)
-                  }}
-                >
-                  播放
-                </Button>
-                <Button
-                  size="small"
-                  type="text"
-                  icon={<DeleteOutlined />}
-                  onClick={() => onRemovePendingSegment(segment.regionId)}
-                />
+                <div className="audio-editor-pending-waveform" aria-hidden="true">
+                  {Array.from({ length: 18 }, (_, barIndex) => (
+                    <span
+                      key={barIndex}
+                      style={{ height: `${30 + (((barIndex + 3) * (index + 5) * 13) % 58)}%` }}
+                    />
+                  ))}
+                </div>
               </div>
-              <button
-                type="button"
-                className="audio-editor-pending-time"
-                onClick={() => onSelectRegion(segment.regionId)}
-              >
-                {formatAudioClipTime(segment.startSeconds)} - {formatAudioClipTime(segment.endSeconds)}
-              </button>
-              <div className="audio-editor-pending-waveform" aria-hidden="true">
-                {Array.from({ length: 18 }, (_, barIndex) => (
-                  <span
-                    key={barIndex}
-                    style={{ height: `${30 + (((barIndex + 3) * (index + 5) * 13) % 58)}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -528,20 +717,41 @@ export function AudioClipEditorPanel({
         />
         <div className="audio-editor-output-actions">
           {canGenerateHistory ? (
-            <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={!canExport} onClick={onGenerateHistory}>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              disabled={!canExport}
+              onClick={() => onGenerateHistory(pendingSegmentsRef.current)}
+            >
               生成到历史
             </Button>
           ) : null}
-          <Button icon={<DownloadOutlined />} loading={saving} disabled={!canExport} onClick={onExportClip}>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={saving}
+            disabled={!canExport}
+            onClick={() => onExportClip(pendingSegmentsRef.current)}
+          >
             导出到本地
           </Button>
           {canCollectVoice ? (
-            <Button icon={<FolderAddOutlined />} loading={saving} disabled={!canExport} onClick={onCollectVoiceClip}>
+            <Button
+              icon={<FolderAddOutlined />}
+              loading={saving}
+              disabled={!canExport}
+              onClick={() => onCollectVoiceClip(pendingSegmentsRef.current)}
+            >
               收藏到项目空间-配音
             </Button>
           ) : null}
           {canCollectSound ? (
-            <Button icon={<FolderAddOutlined />} loading={saving} disabled={!canExport} onClick={onCollectSoundClip}>
+            <Button
+              icon={<FolderAddOutlined />}
+              loading={saving}
+              disabled={!canExport}
+              onClick={() => onCollectSoundClip(pendingSegmentsRef.current)}
+            >
               收藏到项目空间-音效
             </Button>
           ) : null}

@@ -14,12 +14,16 @@ import {
 } from './audioClipModel'
 import {
   addPendingSegment,
+  createAudioClipOutputRanges,
   createAudioSegmentRegion,
   deleteAudioSegmentRegion,
   removePendingSegment,
   reorderPendingSegments,
+  reorderPendingSegmentsAroundTarget,
+  resolvePendingPreviewSourceTime,
   syncPendingSegmentsWithRegions,
   updateAudioSegmentRegion,
+  type AudioPendingDropPlacement,
   type AudioPendingSegment,
   type AudioSegmentRegion,
 } from './audioSegmentModel'
@@ -96,12 +100,16 @@ export function useAudioClipEditorWorkspace({
   const [outputName, setOutputName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const pendingSegmentsRef = useRef<AudioPendingSegment[]>([])
+  const pendingPreviewAudioRef = useRef<HTMLAudioElement | null>(null)
+  const pendingPreviewAudioUrlRef = useRef<string | null>(null)
+  const pendingPreviewProgressFrameRef = useRef<number | null>(null)
+  const pendingPreviewRequestIdRef = useRef(0)
 
   const selectedRegion = useMemo(
     () => regions.find((region) => region.id === selectedRegionId) ?? null,
     [regions, selectedRegionId],
   )
-  const outputRanges = pendingSegments.map(({ startSeconds, endSeconds }) => ({ startSeconds, endSeconds }))
   const hasValidPendingSegments = pendingSegments.length > 0 && pendingSegments.every(isValidAudioClipRange)
   const canGenerateHistory = Boolean(source && source.sourceKind !== 'imported-audio')
   const canCollectVoice = Boolean(source && (source.sourceKind === 'voice' || source.sourceKind === 'imported-audio'))
@@ -116,19 +124,68 @@ export function useAudioClipEditorWorkspace({
     if (currentUrl !== exceptUrl) importedAudioUrlRef.current = null
   }
 
-  useEffect(() => () => revokeImportedAudioUrl(), [])
+  const updatePendingSegments = (
+    updater: AudioPendingSegment[] | ((current: AudioPendingSegment[]) => AudioPendingSegment[]),
+  ) => {
+    const next = typeof updater === 'function'
+      ? updater(pendingSegmentsRef.current)
+      : updater
+    pendingSegmentsRef.current = next
+    setPendingSegments(next)
+    return next
+  }
+
+  const currentOutputRanges = (segments: AudioPendingSegment[] = pendingSegmentsRef.current) => (
+    createAudioClipOutputRanges(segments)
+  )
+
+  const hasValidCurrentPendingSegments = (
+    segments: AudioPendingSegment[] = pendingSegmentsRef.current,
+  ) => (
+    segments.length > 0 && segments.every(isValidAudioClipRange)
+  )
+
+  const clearPendingPreviewProgressFrame = () => {
+    if (pendingPreviewProgressFrameRef.current === null) return
+    cancelAnimationFrame(pendingPreviewProgressFrameRef.current)
+    pendingPreviewProgressFrameRef.current = null
+  }
+
+  const disposePendingPreviewAudio = () => {
+    clearPendingPreviewProgressFrame()
+    const audio = pendingPreviewAudioRef.current
+    if (audio) {
+      audio.pause()
+      audio.removeAttribute('src')
+      audio.load()
+    }
+    pendingPreviewAudioRef.current = null
+    if (pendingPreviewAudioUrlRef.current) URL.revokeObjectURL(pendingPreviewAudioUrlRef.current)
+    pendingPreviewAudioUrlRef.current = null
+  }
+
+  const stopPendingPreviewPlayback = () => {
+    pendingPreviewRequestIdRef.current += 1
+    disposePendingPreviewAudio()
+  }
+
+  useEffect(() => () => {
+    revokeImportedAudioUrl()
+    stopPendingPreviewPlayback()
+  }, [])
 
   useEffect(() => {
-    setPendingSegments((current) => syncPendingSegmentsWithRegions(current, regions))
+    updatePendingSegments((current) => syncPendingSegmentsWithRegions(current, regions))
   }, [regions])
 
   const loadSource = (nextSource: AudioClipSource) => {
+    stopPendingPreviewPlayback()
     if (nextSource.sourceKind !== 'imported-audio') revokeImportedAudioUrl()
     setSource(nextSource)
     setDurationSeconds(0)
     setRegions([])
     setSelectedRegionId('')
-    setPendingSegments([])
+    updatePendingSegments([])
     setCurrentTimeSeconds(0)
     setOutputName(createDefaultAudioClipName(nextSource))
     setError('')
@@ -171,17 +228,21 @@ export function useAudioClipEditorWorkspace({
 
   const deleteRegion = (regionId: string) => {
     setRegions((current) => deleteAudioSegmentRegion(current, regionId))
-    setPendingSegments((current) => removePendingSegment(current, regionId))
+    updatePendingSegments((current) => removePendingSegment(current, regionId))
     setSelectedRegionId((current) => (current === regionId ? '' : current))
   }
 
   const addSelectedRegionToPending = () => {
     if (!selectedRegionId) return
-    setPendingSegments((current) => addPendingSegment(current, regions, selectedRegionId))
+    updatePendingSegments((current) => addPendingSegment(current, regions, selectedRegionId))
   }
 
-  const runWithSavingState = async (workflow: () => Promise<void>, fallbackMessage: string) => {
-    if (!source || !hasValidPendingSegments || saving) return
+  const runWithSavingState = async (
+    segments: AudioPendingSegment[] | undefined,
+    workflow: () => Promise<void>,
+    fallbackMessage: string,
+  ) => {
+    if (!source || !hasValidCurrentPendingSegments(segments) || saving) return
     setSaving(true)
     setError('')
     try {
@@ -193,12 +254,13 @@ export function useAudioClipEditorWorkspace({
     }
   }
 
-  const generateHistory = async () => {
+  const generateHistory = async (segments?: AudioPendingSegment[]) => {
     if (!source || !canGenerateHistory) return
-    await runWithSavingState(async () => {
+    await runWithSavingState(segments, async () => {
+      const ranges = currentOutputRanges(segments)
       const result = await saveAudioClip({
         source,
-        ranges: outputRanges,
+        ranges,
         name: outputName,
         desktopApi: getDesktopApi(),
       })
@@ -208,12 +270,13 @@ export function useAudioClipEditorWorkspace({
     }, '剪辑音频保存失败。')
   }
 
-  const exportClip = async () => {
+  const exportClip = async (segments?: AudioPendingSegment[]) => {
     if (!source) return
-    await runWithSavingState(async () => {
+    await runWithSavingState(segments, async () => {
+      const ranges = currentOutputRanges(segments)
       const result = await exportAudioClip({
         source,
-        ranges: outputRanges,
+        ranges,
         name: outputName,
         desktopApi: getDesktopApi(),
       })
@@ -221,13 +284,72 @@ export function useAudioClipEditorWorkspace({
     }, '剪辑音频导出失败。')
   }
 
-  const saveRenderedAudio = async () => {
+  const playPendingSegmentsPreview = async (
+    segments: AudioPendingSegment[],
+    loop: boolean,
+    onProgress: (sourceTimeSeconds: number) => void,
+  ) => {
+    if (!source || !hasValidCurrentPendingSegments(segments)) return
+    const requestId = pendingPreviewRequestIdRef.current + 1
+    pendingPreviewRequestIdRef.current = requestId
+    disposePendingPreviewAudio()
+    setError('')
+    try {
+      const ranges = currentOutputRanges(segments)
+      const wav = await renderAudioClipWav({
+        source,
+        ranges,
+        name: outputName,
+        desktopApi: getDesktopApi(),
+      })
+      if (pendingPreviewRequestIdRef.current !== requestId) return
+      const previewAudioUrl = URL.createObjectURL(wav)
+      const audio = new Audio(previewAudioUrl)
+      audio.loop = loop
+      pendingPreviewAudioUrlRef.current = previewAudioUrl
+      pendingPreviewAudioRef.current = audio
+      const updatePreviewProgress = () => {
+        const sourceTimeSeconds = resolvePendingPreviewSourceTime(segments, audio.currentTime)
+        if (sourceTimeSeconds !== null) onProgress(sourceTimeSeconds)
+      }
+      const schedulePreviewProgress = () => {
+        clearPendingPreviewProgressFrame()
+        pendingPreviewProgressFrameRef.current = requestAnimationFrame(() => {
+          pendingPreviewProgressFrameRef.current = null
+          if (pendingPreviewAudioRef.current !== audio) return
+          updatePreviewProgress()
+          if (!audio.paused && !audio.ended) schedulePreviewProgress()
+        })
+      }
+      audio.addEventListener('timeupdate', updatePreviewProgress)
+      audio.addEventListener('play', schedulePreviewProgress)
+      audio.addEventListener('pause', clearPendingPreviewProgressFrame)
+      audio.addEventListener('ended', () => {
+        updatePreviewProgress()
+        if (audio.loop || pendingPreviewAudioRef.current !== audio) return
+        disposePendingPreviewAudio()
+      })
+      audio.addEventListener('error', () => {
+        if (pendingPreviewAudioRef.current !== audio) return
+        setError('待处理音频预览失败。')
+        disposePendingPreviewAudio()
+      }, { once: true })
+      updatePreviewProgress()
+      await audio.play()
+    } catch (previewError) {
+      if (pendingPreviewRequestIdRef.current !== requestId) return
+      setError(previewError instanceof Error ? previewError.message : '待处理音频预览失败。')
+      disposePendingPreviewAudio()
+    }
+  }
+
+  const saveRenderedAudio = async (ranges: AudioClipRange[]) => {
     if (!source) throw new Error('请先选择音频。')
     const desktopApi = getDesktopApi()
     if (!desktopApi?.saveEditedAudio) throw new Error('当前桌面运行时不可用，无法收藏剪辑音频。')
     const wav = await renderAudioClipWav({
       source,
-      ranges: outputRanges,
+      ranges,
       name: outputName,
       desktopApi,
     })
@@ -237,11 +359,12 @@ export function useAudioClipEditorWorkspace({
     })
   }
 
-  const collectVoiceClip = async () => {
+  const collectVoiceClip = async (segments?: AudioPendingSegment[]) => {
     if (!source || !canCollectVoice) return
-    await runWithSavingState(async () => {
-      const savedAudio = await saveRenderedAudio()
-      const range = combinedRange(outputRanges)
+    await runWithSavingState(segments, async () => {
+      const ranges = currentOutputRanges(segments)
+      const savedAudio = await saveRenderedAudio(ranges)
+      const range = combinedRange(ranges)
       const record = source.sourceKind === 'voice'
         ? createVoiceClipRecord({ source, name: outputName, range, savedAudio })
         : source.sourceKind === 'imported-audio'
@@ -254,11 +377,12 @@ export function useAudioClipEditorWorkspace({
     }, '收藏到项目空间-配音失败。')
   }
 
-  const collectSoundClip = async () => {
+  const collectSoundClip = async (segments?: AudioPendingSegment[]) => {
     if (!source || !canCollectSound) return
-    await runWithSavingState(async () => {
-      const savedAudio = await saveRenderedAudio()
-      const range = combinedRange(outputRanges)
+    await runWithSavingState(segments, async () => {
+      const ranges = currentOutputRanges(segments)
+      const savedAudio = await saveRenderedAudio(ranges)
+      const range = combinedRange(ranges)
       const record = source.sourceKind === 'sound-effect'
         ? createSoundEffectClipRecord({ source, name: outputName, range, savedAudio })
         : source.sourceKind === 'imported-audio'
@@ -283,7 +407,7 @@ export function useAudioClipEditorWorkspace({
     }
     setRegions([nextRegion])
     setSelectedRegionId(nextRegion.id)
-    setPendingSegments([{
+    updatePendingSegments([{
       regionId: nextRegion.id,
       startSeconds: nextRegion.startSeconds,
       endSeconds: nextRegion.endSeconds,
@@ -317,18 +441,39 @@ export function useAudioClipEditorWorkspace({
       onUpdateRegion: updateRegion,
       onDeleteRegion: deleteRegion,
       onAddSelectedRegionToPending: addSelectedRegionToPending,
-      onRemovePendingSegment: (regionId: string) => setPendingSegments((current) => removePendingSegment(current, regionId)),
+      onRemovePendingSegment: (regionId: string) => updatePendingSegments((current) => removePendingSegment(current, regionId)),
       onReorderPendingSegment: (fromIndex: number, toIndex: number) => {
-        setPendingSegments((current) => reorderPendingSegments(current, fromIndex, toIndex))
+        updatePendingSegments((current) => reorderPendingSegments(current, fromIndex, toIndex))
+      },
+      onCommitPendingSegmentsOrder: updatePendingSegments,
+      onReorderPendingSegmentAroundTarget: (
+        draggedRegionId: string,
+        targetRegionId: string,
+        placement: AudioPendingDropPlacement,
+      ) => {
+        updatePendingSegments((current) => reorderPendingSegmentsAroundTarget(
+          current,
+          draggedRegionId,
+          targetRegionId,
+          placement,
+        ))
       },
       onRangeChange: applyLegacyRangeChange,
       onCurrentTimeChange: setCurrentTimeSeconds,
       onOutputNameChange: setOutputName,
       onImportAudioFile: importAudioFile,
-      onGenerateHistory: () => void generateHistory(),
-      onExportClip: () => void exportClip(),
-      onCollectVoiceClip: () => void collectVoiceClip(),
-      onCollectSoundClip: () => void collectSoundClip(),
+      onPlayPendingSegments: (
+        segments: AudioPendingSegment[],
+        loop: boolean,
+        onProgress: (sourceTimeSeconds: number) => void,
+      ) => {
+        void playPendingSegmentsPreview(segments, loop, onProgress)
+      },
+      onStopPendingPreviewPlayback: stopPendingPreviewPlayback,
+      onGenerateHistory: (segments: AudioPendingSegment[]) => void generateHistory(segments),
+      onExportClip: (segments: AudioPendingSegment[]) => void exportClip(segments),
+      onCollectVoiceClip: (segments: AudioPendingSegment[]) => void collectVoiceClip(segments),
+      onCollectSoundClip: (segments: AudioPendingSegment[]) => void collectSoundClip(segments),
       onSaveClip: () => void generateHistory(),
     },
   }

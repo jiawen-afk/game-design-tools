@@ -14,6 +14,20 @@ export interface AudioPendingSegment extends AudioClipRange {
   regionId: string
 }
 
+export type AudioPendingDropPlacement = 'before' | 'after'
+
+export interface AudioPendingPlaybackState {
+  active: boolean
+  index: number
+  loop: boolean
+  seekingToSeconds?: number | null
+}
+
+export type AudioPendingPlaybackStep =
+  | { action: 'continue'; seekSettled?: boolean }
+  | { action: 'play'; index: number }
+  | { action: 'stop'; seekSeconds?: number }
+
 export interface CreateAudioSegmentRegionInput {
   id: string
   atSeconds: number
@@ -204,6 +218,71 @@ export function reorderPendingSegments(
   const [item] = next.splice(fromIndex, 1)
   next.splice(clampedToIndex, 0, item)
   return next
+}
+
+export function reorderPendingSegmentsAroundTarget(
+  pending: AudioPendingSegment[],
+  draggedRegionId: string,
+  targetRegionId: string,
+  placement: AudioPendingDropPlacement,
+): AudioPendingSegment[] {
+  if (draggedRegionId === targetRegionId) return pending
+  const dragged = pending.find((item) => item.regionId === draggedRegionId)
+  if (!dragged) return pending
+  const next = pending.filter((item) => item.regionId !== draggedRegionId)
+  const targetIndex = next.findIndex((item) => item.regionId === targetRegionId)
+  if (targetIndex < 0) return pending
+  next.splice(placement === 'before' ? targetIndex : targetIndex + 1, 0, dragged)
+  return next
+}
+
+export function createAudioClipOutputRanges(pending: AudioPendingSegment[]): AudioClipRange[] {
+  return pending.map(({ startSeconds, endSeconds }) => ({ startSeconds, endSeconds }))
+}
+
+export function resolvePendingPreviewSourceTime(
+  pending: AudioPendingSegment[],
+  previewTimeSeconds: number,
+): number | null {
+  if (pending.length === 0) return null
+  let remainingSeconds = Math.max(0, cleanNumber(previewTimeSeconds))
+  let lastEndSeconds: number | null = null
+
+  for (const segment of pending) {
+    const startSeconds = cleanNumber(segment.startSeconds)
+    const endSeconds = cleanNumber(segment.endSeconds)
+    const durationSeconds = Math.max(0, endSeconds - startSeconds)
+    lastEndSeconds = endSeconds
+    if (durationSeconds <= 0) continue
+    if (remainingSeconds <= durationSeconds) {
+      return roundSeconds(startSeconds + remainingSeconds)
+    }
+    remainingSeconds -= durationSeconds
+  }
+
+  return lastEndSeconds === null ? null : roundSeconds(lastEndSeconds)
+}
+
+export function resolvePendingPlaybackStep(
+  pending: AudioPendingSegment[],
+  playback: AudioPendingPlaybackState,
+  currentTimeSeconds: number,
+): AudioPendingPlaybackStep {
+  if (!playback.active) return { action: 'continue' }
+  const currentSegment = pending[playback.index]
+  if (!currentSegment) return { action: 'stop' }
+  if (typeof playback.seekingToSeconds === 'number') {
+    const seekSettled = currentTimeSeconds >= currentSegment.startSeconds - durationToleranceSeconds
+      && currentTimeSeconds < currentSegment.endSeconds - durationToleranceSeconds
+    return seekSettled ? { action: 'continue', seekSettled: true } : { action: 'continue' }
+  }
+  if (currentTimeSeconds < currentSegment.endSeconds - durationToleranceSeconds) {
+    return { action: 'continue' }
+  }
+  const nextIndex = playback.index + 1
+  if (nextIndex < pending.length) return { action: 'play', index: nextIndex }
+  if (playback.loop && pending.length > 0) return { action: 'play', index: 0 }
+  return { action: 'stop', seekSeconds: currentSegment.endSeconds }
 }
 
 export function syncPendingSegmentsWithRegions(

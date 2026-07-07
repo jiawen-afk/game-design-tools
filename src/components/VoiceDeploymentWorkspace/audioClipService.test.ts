@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { createAudioClipSourceFromImportedFile } from './audioClipModel'
-import { saveAudioClip } from './audioClipService'
+import { exportAudioClip, saveAudioClip } from './audioClipService'
 import { concatPcmAudioRanges, type PcmAudioData } from './audioClipEncoding'
 import type { SoundEffectRecord } from './soundEffectModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
@@ -34,6 +34,12 @@ const soundEffectRecord: SoundEffectRecord = {
   durationSeconds: 6,
   seed: 1,
   model: 'small-sfx',
+}
+
+function readWavInt16Samples(buffer: ArrayBuffer) {
+  const view = new DataView(buffer)
+  const byteLength = view.getUint32(40, true)
+  return Array.from({ length: byteLength / 2 }, (_, index) => view.getInt16(44 + index * 2, true))
 }
 
 test('concatenates pcm ranges in pending-list order', () => {
@@ -108,6 +114,43 @@ test('saving multiple ranges from a sound effect creates one sound effect record
   assert.equal(result.sourceKind, 'sound-effect')
   assert.equal(result.record.durationSeconds, 0.3)
   assert.equal(result.record.name, 'Hit edit')
+})
+
+test('exports multiple pending ranges as one wav in pending-list order', async () => {
+  const pcm: PcmAudioData = {
+    sampleRate: 10,
+    channelData: [new Float32Array([0, 1, 0, 0.5, -0.5, -1])],
+  }
+  let exportedData: ArrayBuffer | null = null
+
+  const result = await exportAudioClip({
+    source: { sourceKind: 'sound-effect', record: soundEffectRecord },
+    ranges: [
+      { startSeconds: 0.3, endSeconds: 0.5 },
+      { startSeconds: 0.1, endSeconds: 0.2 },
+    ],
+    name: 'Hit export',
+    desktopApi: {
+      saveEditedAudio: async () => ({
+        fileName: 'unused.wav',
+        audioUrl: 'file:///unused.wav',
+        audioPath: 'D:\\unused.wav',
+      }),
+      saveEditedAudioAs: async (options) => {
+        exportedData = options.data
+        return {
+          fileName: 'export.wav',
+          audioUrl: 'file:///export.wav',
+          audioPath: 'D:\\export.wav',
+        }
+      },
+    },
+    readSourcePcm: async () => pcm,
+  })
+
+  assert.equal(result?.fileName, 'export.wav')
+  assert.ok(exportedData)
+  assert.deepEqual(readWavInt16Samples(exportedData), [16383, -16384, 32767])
 })
 
 test('uploaded audio cannot be generated into history', async () => {

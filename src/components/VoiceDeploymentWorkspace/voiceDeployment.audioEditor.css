@@ -157,6 +157,24 @@
   cursor: grab;
 }
 
+.audio-editor-pending-card.is-dragging {
+  border-color: color-mix(in oklch, var(--color-brand) 68%, var(--color-line));
+  opacity: 0.72;
+  transform: scale(0.995);
+}
+
+.audio-editor-pending-card.is-drop-target {
+  border-color: color-mix(in oklch, var(--color-accent) 62%, var(--color-line));
+}
+
+.audio-editor-pending-card.is-drop-before {
+  box-shadow: inset 3px 0 0 color-mix(in oklch, var(--color-accent) 70%, var(--color-line));
+}
+
+.audio-editor-pending-card.is-drop-after {
+  box-shadow: inset -3px 0 0 color-mix(in oklch, var(--color-accent) 70%, var(--color-line));
+}
+
 .audio-editor-pending-card-head {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto auto;

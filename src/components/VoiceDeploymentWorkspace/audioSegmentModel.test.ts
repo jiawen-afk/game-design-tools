@@ -3,9 +3,13 @@ import { test } from 'node:test'
 
 import {
   addPendingSegment,
+  createAudioClipOutputRanges,
   createAudioSegmentRegion,
   deleteAudioSegmentRegion,
   reorderPendingSegments,
+  reorderPendingSegmentsAroundTarget,
+  resolvePendingPreviewSourceTime,
+  resolvePendingPlaybackStep,
   syncPendingSegmentsWithRegions,
   updateAudioSegmentRegion,
 } from './audioSegmentModel'
@@ -126,4 +130,118 @@ test('reorders pending segments by drag indexes', () => {
 
   deepEqual(reorderPendingSegments(pending, 0, 2).map((item) => item.regionId), ['b', 'c', 'a'])
   equal(deleteAudioSegmentRegion([{ id: 'a', startSeconds: 0, endSeconds: 1 }], 'a').length, 0)
+})
+
+test('creates export ranges from pending segments in pending-list order', () => {
+  deepEqual(createAudioClipOutputRanges([
+    { regionId: 'late', startSeconds: 10, endSeconds: 11 },
+    { regionId: 'early', startSeconds: 1, endSeconds: 2 },
+    { regionId: 'middle', startSeconds: 5, endSeconds: 6 },
+  ]), [
+    { startSeconds: 10, endSeconds: 11 },
+    { startSeconds: 1, endSeconds: 2 },
+    { startSeconds: 5, endSeconds: 6 },
+  ])
+})
+
+test('reorders pending segments around a target segment placement', () => {
+  const pending = [
+    { regionId: 'a', startSeconds: 0, endSeconds: 1 },
+    { regionId: 'b', startSeconds: 1, endSeconds: 2 },
+    { regionId: 'c', startSeconds: 2, endSeconds: 3 },
+    { regionId: 'd', startSeconds: 3, endSeconds: 4 },
+  ]
+
+  deepEqual(
+    reorderPendingSegmentsAroundTarget(pending, 'a', 'c', 'after').map((item) => item.regionId),
+    ['b', 'c', 'a', 'd'],
+  )
+  deepEqual(
+    reorderPendingSegmentsAroundTarget(pending, 'd', 'b', 'before').map((item) => item.regionId),
+    ['a', 'd', 'b', 'c'],
+  )
+  deepEqual(
+    reorderPendingSegmentsAroundTarget(pending, 'a', 'missing', 'before'),
+    pending,
+  )
+})
+
+test('resolves pending playback by pending order instead of source timeline order', () => {
+  const pending = [
+    { regionId: 'late', startSeconds: 10, endSeconds: 11 },
+    { regionId: 'early', startSeconds: 1, endSeconds: 2 },
+    { regionId: 'middle', startSeconds: 5, endSeconds: 6 },
+  ]
+
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 0, loop: false }, 11.01),
+    { action: 'play', index: 1 },
+  )
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 2, loop: true }, 6.01),
+    { action: 'play', index: 0 },
+  )
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 2, loop: false }, 6.01),
+    { action: 'stop', seekSeconds: 6 },
+  )
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 1, loop: false }, 1.5),
+    { action: 'continue' },
+  )
+})
+
+test('maps rendered pending preview time back to source waveform time', () => {
+  const pending = [
+    { regionId: 'late', startSeconds: 10, endSeconds: 11 },
+    { regionId: 'early', startSeconds: 1, endSeconds: 3 },
+  ]
+
+  equal(resolvePendingPreviewSourceTime(pending, 0), 10)
+  equal(resolvePendingPreviewSourceTime(pending, 0.4), 10.4)
+  equal(resolvePendingPreviewSourceTime(pending, 1), 11)
+  equal(resolvePendingPreviewSourceTime(pending, 1.25), 1.25)
+  equal(resolvePendingPreviewSourceTime(pending, 2.9), 2.9)
+  equal(resolvePendingPreviewSourceTime(pending, 3.2), 3)
+  equal(resolvePendingPreviewSourceTime([], 0.5), null)
+})
+
+test('resolves pending playback stop with the exact segment end time', () => {
+  const pending = [
+    { regionId: 'clip-a', startSeconds: 0, endSeconds: 1 },
+    { regionId: 'clip-b', startSeconds: 4, endSeconds: 6 },
+  ]
+
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 1, loop: false }, 6.18),
+    { action: 'stop', seekSeconds: 6 },
+  )
+})
+
+test('waits for non-linear pending playback seeks before evaluating segment end', () => {
+  const pending = [
+    { regionId: 'late', startSeconds: 10, endSeconds: 11 },
+    { regionId: 'early', startSeconds: 1, endSeconds: 2 },
+  ]
+
+  deepEqual(
+    resolvePendingPlaybackStep(
+      pending,
+      { active: true, index: 1, loop: false, seekingToSeconds: 1 },
+      11.02,
+    ),
+    { action: 'continue' },
+  )
+  deepEqual(
+    resolvePendingPlaybackStep(
+      pending,
+      { active: true, index: 1, loop: false, seekingToSeconds: 1 },
+      1.02,
+    ),
+    { action: 'continue', seekSettled: true },
+  )
+  deepEqual(
+    resolvePendingPlaybackStep(pending, { active: true, index: 1, loop: false }, 2.02),
+    { action: 'stop', seekSeconds: 2 },
+  )
 })
