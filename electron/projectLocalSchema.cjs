@@ -1,35 +1,10 @@
-const {
-  createProjectAssetSchemaIndexes,
-  createProjectAssetSchemaSql,
-} = require('./projectSchemaAsset.cjs')
-const {
-  createProjectCoreSchemaSql,
-  createProjectLifecycleSchemaSql,
-} = require('./projectSchemaCore.cjs')
-const {
-  createProjectDocumentSchemaIndexes,
-  createProjectDocumentSchemaSql,
-} = require('./projectSchemaDocument.cjs')
-
-function boolType() {
-  return 'integer'
-}
-
-function jsonType() {
-  return 'text'
-}
+const sharedSchema = require('../src/components/ProjectStorage/projectSchemaShared.cjs')
 
 function createProjectSchemaSql() {
-  const boolean = boolType()
-  const json = jsonType()
-  return [
-    ...createProjectCoreSchemaSql({ json, includeDeviceBindings: true }),
-    ...createProjectAssetSchemaSql({ boolean, json }),
-    ...createProjectDocumentSchemaSql({ documentContent: 'text', json }),
-    ...createProjectLifecycleSchemaSql({ json }),
-    ...createProjectAssetSchemaIndexes(),
-    ...createProjectDocumentSchemaIndexes({ extended: false }),
-  ].map((statement) => statement.trim())
+  return sharedSchema.createProjectSchemaSql('sqlite', {
+    includeDeviceBindings: true,
+    extendedDocumentIndexes: false,
+  })
 }
 
 function getTableColumns(database, tableName) {

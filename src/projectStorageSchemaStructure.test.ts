@@ -2,6 +2,48 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 
+test('project schema SQL has one shared source for electron and renderer wrappers', () => {
+  const sharedSchemaModulePath = 'src/components/ProjectStorage/projectSchemaShared.cjs'
+  const rendererSchemaModulePaths = [
+    'src/components/ProjectStorage/projectSchema.ts',
+    'src/components/ProjectStorage/projectSchemaAsset.ts',
+    'src/components/ProjectStorage/projectSchemaCore.ts',
+    'src/components/ProjectStorage/projectSchemaDocument.ts',
+  ]
+  const electronSchemaModulePaths = [
+    'electron/projectLocalSchema.cjs',
+    'electron/projectRemoteSchema.cjs',
+    'electron/projectSchemaAsset.cjs',
+    'electron/projectSchemaCore.cjs',
+    'electron/projectSchemaDocument.cjs',
+  ]
+
+  assert.ok(existsSync(sharedSchemaModulePath), `${sharedSchemaModulePath} should exist`)
+  const sharedSource = readFileSync(sharedSchemaModulePath, 'utf8')
+  assert.match(sharedSource, /function createProjectSchemaSql\b/)
+  assert.match(sharedSource, /function createProjectAssetSchemaSql\b/)
+  assert.match(sharedSource, /function createProjectCoreSchemaSql\b/)
+  assert.match(sharedSource, /function createProjectLifecycleSchemaSql\b/)
+  assert.match(sharedSource, /function createProjectDocumentSchemaSql\b/)
+  assert.match(sharedSource, /CREATE TABLE IF NOT EXISTS assets/)
+  assert.match(sharedSource, /CREATE TABLE IF NOT EXISTS document_collections/)
+
+  for (const path of rendererSchemaModulePaths) {
+    const source = readFileSync(path, 'utf8')
+    assert.match(source, /projectSchemaShared\.cjs/, `${path} should delegate to the shared schema source`)
+  }
+  for (const path of electronSchemaModulePaths) {
+    const source = readFileSync(path, 'utf8')
+    assert.match(source, /projectSchemaShared\.cjs/, `${path} should delegate to the shared schema source`)
+  }
+
+  const wrapperSources = [...rendererSchemaModulePaths, ...electronSchemaModulePaths]
+    .map((path) => readFileSync(path, 'utf8'))
+    .join('\n')
+  assert.doesNotMatch(wrapperSources, /CREATE TABLE IF NOT EXISTS assets/)
+  assert.doesNotMatch(wrapperSources, /CREATE TABLE IF NOT EXISTS document_collections/)
+})
+
 test('remote project repository delegates table metadata and upsert SQL helpers', () => {
   const repositorySource = readFileSync('electron/projectRemoteRepository.cjs', 'utf8')
   const sqlModulePath = 'electron/projectRemoteRepositorySql.cjs'
@@ -61,29 +103,31 @@ test('local project repository delegates sqlite schema creation to a focused mod
   const coreSchemaModulePath = 'electron/projectSchemaCore.cjs'
   const assetSchemaModulePath = 'electron/projectSchemaAsset.cjs'
   const documentSchemaModulePath = 'electron/projectSchemaDocument.cjs'
+  const sharedSchemaModulePath = 'src/components/ProjectStorage/projectSchemaShared.cjs'
 
   assert.ok(existsSync(schemaModulePath), `${schemaModulePath} should exist`)
   assert.ok(existsSync(coreSchemaModulePath), `${coreSchemaModulePath} should exist`)
   assert.ok(existsSync(assetSchemaModulePath), `${assetSchemaModulePath} should exist`)
   assert.ok(existsSync(documentSchemaModulePath), `${documentSchemaModulePath} should exist`)
+  assert.ok(existsSync(sharedSchemaModulePath), `${sharedSchemaModulePath} should exist`)
   const schemaSource = readFileSync(schemaModulePath, 'utf8')
   const coreSchemaSource = readFileSync(coreSchemaModulePath, 'utf8')
   const assetSchemaSource = readFileSync(assetSchemaModulePath, 'utf8')
   const documentSchemaSource = readFileSync(documentSchemaModulePath, 'utf8')
+  const sharedSchemaSource = readFileSync(sharedSchemaModulePath, 'utf8')
 
   assert.match(repositorySource, /projectLocalSchema\.cjs/)
   assert.match(schemaSource, /function createProjectSchemaSql\b/)
   assert.match(schemaSource, /function initializeSchemaInDatabase\b/)
-  assert.match(schemaSource, /projectSchemaCore\.cjs/)
-  assert.match(schemaSource, /projectSchemaAsset\.cjs/)
-  assert.match(schemaSource, /projectSchemaDocument\.cjs/)
+  assert.match(schemaSource, /projectSchemaShared\.cjs/)
+  assert.doesNotMatch(schemaSource, /projectSchemaCore\.cjs|projectSchemaAsset\.cjs|projectSchemaDocument\.cjs/)
   assert.match(coreSchemaSource, /function createProjectCoreSchemaSql\b/)
-  assert.match(coreSchemaSource, /includeDeviceBindings/)
   assert.match(coreSchemaSource, /function createProjectLifecycleSchemaSql\b/)
   assert.match(assetSchemaSource, /function createProjectAssetSchemaSql\b/)
   assert.match(assetSchemaSource, /function createProjectAssetSchemaIndexes\b/)
   assert.match(documentSchemaSource, /function createProjectDocumentSchemaSql\b/)
   assert.match(documentSchemaSource, /function createProjectDocumentSchemaIndexes\b/)
+  assert.match(sharedSchemaSource, /includeDeviceBindings/)
   assert.match(schemaSource, /ALTER TABLE assets ADD COLUMN cover_resource_id/)
   assert.doesNotMatch(schemaSource, /CREATE TABLE IF NOT EXISTS assets|CREATE TABLE IF NOT EXISTS document_collections/)
 
@@ -186,18 +230,17 @@ test('remote project database delegates schema SQL generation to a focused modul
   assert.match(schemaSource, /function createProjectRemoteSchemaMigrationSql\b/)
   assert.match(schemaSource, /function createProjectSchemaSql\b/)
   assert.match(schemaSource, /function documentContentType\b/)
-  assert.match(schemaSource, /projectSchemaCore\.cjs/)
-  assert.match(schemaSource, /projectSchemaAsset\.cjs/)
-  assert.match(schemaSource, /projectSchemaDocument\.cjs/)
+  assert.match(schemaSource, /projectSchemaShared\.cjs/)
+  assert.doesNotMatch(schemaSource, /projectSchemaCore\.cjs|projectSchemaAsset\.cjs|projectSchemaDocument\.cjs/)
   assert.match(coreSchemaSource, /function createProjectCoreSchemaSql\b/)
   assert.match(coreSchemaSource, /function createProjectLifecycleSchemaSql\b/)
-  assert.match(coreSchemaSource, /CREATE TABLE IF NOT EXISTS projects/)
   assert.match(assetSchemaSource, /function createProjectAssetSchemaSql\b/)
   assert.match(assetSchemaSource, /function createProjectAssetSchemaIndexes\b/)
-  assert.match(assetSchemaSource, /CREATE TABLE IF NOT EXISTS assets/)
   assert.match(documentSchemaSource, /function createProjectDocumentSchemaSql\b/)
   assert.match(documentSchemaSource, /function createProjectDocumentSchemaIndexes\b/)
-  assert.match(documentSchemaSource, /CREATE TABLE IF NOT EXISTS document_collections/)
+  assert.doesNotMatch(coreSchemaSource, /CREATE TABLE IF NOT EXISTS projects/)
+  assert.doesNotMatch(assetSchemaSource, /CREATE TABLE IF NOT EXISTS assets/)
+  assert.doesNotMatch(documentSchemaSource, /CREATE TABLE IF NOT EXISTS document_collections/)
   assert.doesNotMatch(schemaSource, /CREATE TABLE IF NOT EXISTS assets|CREATE TABLE IF NOT EXISTS document_collections/)
   assert.doesNotMatch(databaseSource, /function createProjectSchemaSql\b|function documentContentType\b/)
   assert.doesNotMatch(repositorySource, /createProjectRemoteSchemaSql,\s*createProjectRemoteSchemaMigrationSql,\s*normalizeDatabasePayload/)

@@ -1,15 +1,4 @@
-const {
-  createProjectAssetSchemaIndexes,
-  createProjectAssetSchemaSql,
-} = require('./projectSchemaAsset.cjs')
-const {
-  createProjectCoreSchemaSql,
-  createProjectLifecycleSchemaSql,
-} = require('./projectSchemaCore.cjs')
-const {
-  createProjectDocumentSchemaIndexes,
-  createProjectDocumentSchemaSql,
-} = require('./projectSchemaDocument.cjs')
+const sharedSchema = require('../src/components/ProjectStorage/projectSchemaShared.cjs')
 
 function createProjectRemoteSchemaSql(dialect) {
   if (dialect === 'postgresql') return createProjectSchemaSql('postgresql')
@@ -51,32 +40,13 @@ function createProjectRemoteSchemaMigrationSql(dialect) {
   throw new Error('初始化表结构仅支持 PostgreSQL 或 MySQL。')
 }
 
-function boolType(dialect) {
-  return dialect === 'sqlite' ? 'integer' : 'boolean'
-}
-
-function jsonType(dialect) {
-  if (dialect === 'postgresql') return 'jsonb'
-  if (dialect === 'mysql') return 'json'
-  return 'text'
-}
-
 function documentContentType(dialect) {
-  return dialect === 'mysql' ? 'longtext' : 'text'
+  return sharedSchema.documentContentType(dialect)
 }
 
 function createProjectSchemaSql(dialect) {
-  const boolean = boolType(dialect)
-  const json = jsonType(dialect)
-  const documentContent = documentContentType(dialect)
-  return [
-    ...createProjectCoreSchemaSql({ json }),
-    ...createProjectAssetSchemaSql({ boolean, json }),
-    ...createProjectDocumentSchemaSql({ documentContent, json }),
-    ...createProjectLifecycleSchemaSql({ json }),
-    ...createProjectAssetSchemaIndexes(),
-    ...createProjectDocumentSchemaIndexes(),
-  ].map((statement) => statement.trim())
+  documentContentType(dialect)
+  return sharedSchema.createProjectSchemaSql(dialect)
 }
 
 module.exports = {
