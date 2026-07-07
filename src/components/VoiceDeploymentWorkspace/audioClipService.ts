@@ -1,4 +1,5 @@
 import {
+  createImportedAudioClipRecord,
   createSoundEffectClipRecord,
   createVoiceClipRecord,
   isValidAudioClipRange,
@@ -91,6 +92,19 @@ export async function saveAudioClip(input: SaveAudioClipInput): Promise<AudioCli
     return {
       sourceKind: 'voice',
       record: createVoiceClipRecord({
+        source: input.source,
+        name: input.name,
+        range: input.range,
+        savedAudio: saved,
+        now: input.now,
+        createId: input.createId,
+      }),
+    }
+  }
+  if (input.source.sourceKind === 'imported-audio') {
+    return {
+      sourceKind: 'voice',
+      record: createImportedAudioClipRecord({
         source: input.source,
         name: input.name,
         range: input.range,

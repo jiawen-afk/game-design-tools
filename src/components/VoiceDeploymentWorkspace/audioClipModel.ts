@@ -8,9 +8,17 @@ export interface AudioClipRange {
   endSeconds: number
 }
 
+export interface ImportedAudioClipRecord {
+  id: string
+  name: string
+  audioUrl: string
+  audioPath: string | null
+}
+
 export type AudioClipSource =
   | { sourceKind: 'voice'; record: VoiceGenerationRecord }
   | { sourceKind: 'sound-effect'; record: SoundEffectRecord }
+  | { sourceKind: 'imported-audio'; record: ImportedAudioClipRecord }
 
 export interface SavedAudioClip {
   audioUrl: string
@@ -60,12 +68,30 @@ export function createDefaultAudioClipName(source: AudioClipSource) {
   return `${source.record.name.trim() || '未命名音频'} 剪辑`
 }
 
+function importedAudioNameFromFileName(fileName: string) {
+  const baseName = fileName.trim().split(/[\\/]/).pop() || '导入音频'
+  const withoutExtension = baseName.replace(/\.[^.]+$/, '').trim()
+  return withoutExtension || baseName || '导入音频'
+}
+
 export function createAudioClipSourceFromVoiceRecord(record: VoiceGenerationRecord): AudioClipSource {
   return { sourceKind: 'voice', record }
 }
 
 export function createAudioClipSourceFromSoundEffectRecord(record: SoundEffectRecord): AudioClipSource {
   return { sourceKind: 'sound-effect', record }
+}
+
+export function createAudioClipSourceFromImportedFile(fileName: string, audioUrl: string): AudioClipSource {
+  return {
+    sourceKind: 'imported-audio',
+    record: {
+      id: audioUrl,
+      name: importedAudioNameFromFileName(fileName),
+      audioUrl,
+      audioPath: null,
+    },
+  }
 }
 
 function createRandomId() {
@@ -106,5 +132,31 @@ export function createSoundEffectClipRecord(
     durationSeconds: roundedSeconds(input.range.endSeconds - input.range.startSeconds),
     seed: input.source.record.seed,
     model: input.source.record.model,
+  }
+}
+
+export function createImportedAudioClipRecord(
+  input: CreateAudioClipRecordInput<{ sourceKind: 'imported-audio'; record: ImportedAudioClipRecord }>,
+): VoiceGenerationRecord {
+  return {
+    id: (input.createId ?? createRandomId)(),
+    name: normalizedClipName(input.name, input.source),
+    createdAt: (input.now ?? (() => new Date().toISOString()))(),
+    audioUrl: input.savedAudio.audioUrl,
+    audioPath: input.savedAudio.audioPath,
+    params: {
+      mode: 'blind-box',
+      text: `导入音频：${input.source.record.name}`,
+      controlInstruction: '',
+      promptText: '',
+      referenceAudioName: '',
+      referenceAudioPath: null,
+      advanced: {
+        cfgValue: 2,
+        normalize: false,
+        denoise: false,
+        ditSteps: 10,
+      },
+    },
   }
 }

@@ -2,9 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  createAudioClipSourceFromImportedFile,
   createAudioClipSourceFromSoundEffectRecord,
   createAudioClipSourceFromVoiceRecord,
   createDefaultAudioClipName,
+  createImportedAudioClipRecord,
   createSoundEffectClipRecord,
   createVoiceClipRecord,
   formatAudioClipTime,
@@ -66,6 +68,10 @@ test('formats clip times as minute second millisecond labels', () => {
 test('derives default clip output names from source records', () => {
   assert.equal(createDefaultAudioClipName({ sourceKind: 'voice', record: voiceRecord }), '旁白 剪辑')
   assert.equal(createDefaultAudioClipName({ sourceKind: 'sound-effect', record: soundRecord }), '挥剑 剪辑')
+  assert.equal(
+    createDefaultAudioClipName(createAudioClipSourceFromImportedFile('impact hit.wav', 'blob:audio-1')),
+    'impact hit 剪辑',
+  )
 })
 
 test('creates voice clip records with preserved voice params and saved audio refs', () => {
@@ -103,6 +109,25 @@ test('creates sound effect clip records with preserved generation metadata and c
   assert.equal(clipped.model, soundRecord.model)
 })
 
+test('creates imported audio clip records as generic voice history records', () => {
+  const source = createAudioClipSourceFromImportedFile('footstep.webm', 'blob:audio-2')
+  const clipped = createImportedAudioClipRecord({
+    source,
+    name: '脚步短响',
+    range: { startSeconds: 0.2, endSeconds: 1.4 },
+    savedAudio: { audioUrl: 'file:///clip.wav', audioPath: 'D:\\clip.wav' },
+    now: () => '2026-07-07T01:00:00.000Z',
+    createId: () => 'clip-imported-1',
+  })
+
+  assert.equal(clipped.id, 'clip-imported-1')
+  assert.equal(clipped.name, '脚步短响')
+  assert.equal(clipped.audioUrl, 'file:///clip.wav')
+  assert.equal(clipped.audioPath, 'D:\\clip.wav')
+  assert.equal(clipped.params.mode, 'blind-box')
+  assert.equal(clipped.params.text, '导入音频：footstep')
+})
+
 test('creates editor sources from voice and sound effect records', () => {
   assert.deepEqual(createAudioClipSourceFromVoiceRecord(voiceRecord), {
     sourceKind: 'voice',
@@ -111,5 +136,14 @@ test('creates editor sources from voice and sound effect records', () => {
   assert.deepEqual(createAudioClipSourceFromSoundEffectRecord(soundRecord), {
     sourceKind: 'sound-effect',
     record: soundRecord,
+  })
+  assert.deepEqual(createAudioClipSourceFromImportedFile('door slam.mp3', 'blob:audio-3'), {
+    sourceKind: 'imported-audio',
+    record: {
+      id: 'blob:audio-3',
+      name: 'door slam',
+      audioUrl: 'blob:audio-3',
+      audioPath: null,
+    },
   })
 })
