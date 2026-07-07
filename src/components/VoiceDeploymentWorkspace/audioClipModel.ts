@@ -60,6 +60,14 @@ export function createDefaultAudioClipName(source: AudioClipSource) {
   return `${source.record.name.trim() || '未命名音频'} 剪辑`
 }
 
+export function createAudioClipSourceFromVoiceRecord(record: VoiceGenerationRecord): AudioClipSource {
+  return { sourceKind: 'voice', record }
+}
+
+export function createAudioClipSourceFromSoundEffectRecord(record: SoundEffectRecord): AudioClipSource {
+  return { sourceKind: 'sound-effect', record }
+}
+
 function createRandomId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`

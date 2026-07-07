@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  createAudioClipSourceFromSoundEffectRecord,
+  createAudioClipSourceFromVoiceRecord,
   createDefaultAudioClipName,
   createSoundEffectClipRecord,
   createVoiceClipRecord,
@@ -99,4 +101,15 @@ test('creates sound effect clip records with preserved generation metadata and c
   assert.equal(clipped.prompt, soundRecord.prompt)
   assert.equal(clipped.seed, soundRecord.seed)
   assert.equal(clipped.model, soundRecord.model)
+})
+
+test('creates editor sources from voice and sound effect records', () => {
+  assert.deepEqual(createAudioClipSourceFromVoiceRecord(voiceRecord), {
+    sourceKind: 'voice',
+    record: voiceRecord,
+  })
+  assert.deepEqual(createAudioClipSourceFromSoundEffectRecord(soundRecord), {
+    sourceKind: 'sound-effect',
+    record: soundRecord,
+  })
 })
