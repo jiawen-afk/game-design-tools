@@ -112,6 +112,9 @@ export function useVoiceDeploymentWorkspace() {
     audioClipActions: {
       addVoiceClipRecord: recordLibrary.addRecord,
     },
+    projectSpaceActions: {
+      refreshPersonalSpaceSnapshot: projectSpace.refreshPersonalSpaceSnapshot,
+    },
     libraryPanelProps: {
       records: recordLibrary.records,
       lastGeneratedId: recordLibrary.lastGeneratedId,

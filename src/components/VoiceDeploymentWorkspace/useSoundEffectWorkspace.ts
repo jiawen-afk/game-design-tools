@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { useStableAudioSetup } from './useStableAudioSetup'
 import { useSoundEffectGenerationWorkflow } from './useSoundEffectGenerationWorkflow'
@@ -74,6 +74,10 @@ export function useSoundEffectWorkspace() {
     void desktopApi.openPath(setup.modelPath).catch(() => {})
   }
 
+  const refreshCurrentProjectSpace = useCallback(() => {
+    setCurrentProjectSpace(readCurrentProjectSpaceState())
+  }, [])
+
   const loadSoundEffectRecord = (record: SoundEffectRecord) => {
     generation.loadParams(record)
   }
@@ -112,6 +116,9 @@ export function useSoundEffectWorkspace() {
     lastGeneratedId: recordLibrary.lastGeneratedId,
     audioClipActions: {
       addSoundEffectClipRecord: recordLibrary.addRecord,
+    },
+    projectSpaceActions: {
+      refreshCurrentProjectSpace,
     },
     setupPanelProps: {
       stableAudioModels,

@@ -52,7 +52,7 @@ test('audio edit export as writes the selected wav file', async () => {
   const result = await ipcMain.handlers.get('audio-edit:export-as')?.({}, {
     fileName: 'bad<>name.wav',
     data: new Uint8Array([4, 5, 6]).buffer,
-  })
+  }) as { fileName: string; audioPath: string; audioUrl: string }
 
   assert.deepEqual(new Uint8Array(await fsp.readFile(outputPath)), new Uint8Array([4, 5, 6]))
   assert.equal(result.fileName, 'chosen.wav')

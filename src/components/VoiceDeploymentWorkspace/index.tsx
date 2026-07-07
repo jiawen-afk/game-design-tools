@@ -24,6 +24,10 @@ export default function VoiceDeploymentWorkspace() {
   const audioClipEditor = useAudioClipEditorWorkspace({
     onVoiceClipCreated: workspace.audioClipActions.addVoiceClipRecord,
     onSoundEffectClipCreated: soundWorkspace.audioClipActions.addSoundEffectClipRecord,
+    onPersonalSpaceUpdated: () => {
+      workspace.projectSpaceActions.refreshPersonalSpaceSnapshot()
+      soundWorkspace.projectSpaceActions.refreshCurrentProjectSpace()
+    },
   })
 
   const openVoiceClipEditor = (record: VoiceGenerationRecord) => {
