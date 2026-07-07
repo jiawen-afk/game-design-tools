@@ -82,6 +82,7 @@ export const voiceDeploymentStyleModulePaths = [
   'src/components/VoiceDeploymentWorkspace/voiceDeployment.characters.css',
   'src/components/VoiceDeploymentWorkspace/voiceDeployment.library.css',
   'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.css',
+  'src/components/VoiceDeploymentWorkspace/voiceDeployment.audioEditor.css',
   'src/components/VoiceDeploymentWorkspace/voiceDeployment.responsive.css',
 ]
 
