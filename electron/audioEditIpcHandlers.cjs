@@ -38,7 +38,7 @@ function assertAudioFilePath(filePath) {
   }
 }
 
-function registerAudioEditIpcHandlers({ app, ipcMain }) {
+function registerAudioEditIpcHandlers({ app, dialog, ipcMain }) {
   ipcMain.handle('audio-edit:save', async (_event, options = {}) => {
     const outputDir = audioEditOutputDir(app)
     await fsp.mkdir(outputDir, { recursive: true })
@@ -60,6 +60,25 @@ function registerAudioEditIpcHandlers({ app, ipcMain }) {
       name: path.basename(targetPath),
       data,
       mimeType,
+    }
+  })
+
+  ipcMain.handle('audio-edit:export-as', async (_event, options = {}) => {
+    if (!dialog?.showSaveDialog) throw new Error('当前桌面运行时不可用，无法导出剪辑音频。')
+    const safeName = sanitizeAudioEditFileName(options.fileName)
+    const result = await dialog.showSaveDialog({
+      title: '导出新音频',
+      defaultPath: safeName,
+      filters: [{ name: 'WAV 音频', extensions: ['wav'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    const outputPath = path.resolve(result.filePath)
+    await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+    await fsp.writeFile(outputPath, Buffer.from(options.data))
+    return {
+      fileName: path.basename(outputPath),
+      audioUrl: pathToFileURL(outputPath).toString(),
+      audioPath: outputPath,
     }
   })
 }

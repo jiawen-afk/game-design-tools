@@ -1,5 +1,4 @@
 import {
-  createImportedAudioClipRecord,
   createSoundEffectClipRecord,
   createVoiceClipRecord,
   isValidAudioClipRange,
@@ -7,9 +6,9 @@ import {
   type AudioClipSource,
 } from './audioClipModel'
 import {
+  concatPcmAudioRanges,
   decodeAudioArrayBuffer,
   encodePcmAudioDataToWav,
-  slicePcmAudioData,
   type PcmAudioData,
 } from './audioClipEncoding'
 
@@ -25,6 +24,11 @@ interface AudioClipDesktopApi {
     audioUrl: string
     audioPath: string | null
   }>
+  saveEditedAudioAs?: (options: { fileName: string; data: ArrayBuffer }) => Promise<{
+    fileName: string
+    audioUrl: string
+    audioPath: string | null
+  } | null>
   readAudioFile?: (filePath: string) => Promise<{
     name: string
     data: ArrayBuffer
@@ -34,7 +38,8 @@ interface AudioClipDesktopApi {
 
 export interface SaveAudioClipInput {
   source: AudioClipSource
-  range: AudioClipRange
+  range?: AudioClipRange
+  ranges?: AudioClipRange[]
   name: string
   desktopApi: AudioClipDesktopApi | undefined
   readSourcePcm?: (source: AudioClipSource, desktopApi: AudioClipDesktopApi | undefined) => Promise<PcmAudioData>
@@ -46,6 +51,12 @@ export interface SaveAudioClipInput {
 export type AudioClipSaveResult =
   | { sourceKind: 'voice'; record: ReturnType<typeof createVoiceClipRecord> }
   | { sourceKind: 'sound-effect'; record: ReturnType<typeof createSoundEffectClipRecord> }
+
+export type AudioClipExportResult = {
+  fileName: string
+  audioUrl: string
+  audioPath: string | null
+} | null
 
 async function readSourceArrayBuffer(source: AudioClipSource, desktopApi: AudioClipDesktopApi | undefined) {
   const sourceUrl = source.record.audioUrl
@@ -74,15 +85,45 @@ async function readSourcePcm(
   return decodeAudioArrayBuffer(await readSourceArrayBuffer(source, desktopApi), audioContext)
 }
 
-export async function saveAudioClip(input: SaveAudioClipInput): Promise<AudioClipSaveResult> {
-  if (!input.desktopApi?.saveEditedAudio) throw new Error('当前桌面运行时不可用，无法保存剪辑音频。')
-  if (!isValidAudioClipRange(input.range)) throw new Error('剪辑片段太短，请重新选择有效声音片段。')
+function audioClipRangesFromInput(input: Pick<SaveAudioClipInput, 'range' | 'ranges'>) {
+  return input.ranges && input.ranges.length > 0
+    ? input.ranges
+    : input.range
+      ? [input.range]
+      : []
+}
 
+function assertValidAudioClipRanges(ranges: AudioClipRange[]) {
+  if (ranges.length === 0 || ranges.some((range) => !isValidAudioClipRange(range))) {
+    throw new Error('剪辑片段太短，请重新选择有效声音片段。')
+  }
+}
+
+function combinedAudioClipRange(ranges: AudioClipRange[]): AudioClipRange {
+  const duration = ranges.reduce((sum, range) => sum + Math.max(0, range.endSeconds - range.startSeconds), 0)
+  return {
+    startSeconds: 0,
+    endSeconds: Math.round(duration * 1000) / 1000,
+  }
+}
+
+export async function renderAudioClipWav(input: SaveAudioClipInput): Promise<Blob> {
+  const ranges = audioClipRangesFromInput(input)
+  assertValidAudioClipRanges(ranges)
   const pcm = await (input.readSourcePcm ?? ((source, desktopApi) => (
     readSourcePcm(source, desktopApi, input.createAudioContext)
   )))(input.source, input.desktopApi)
-  const clippedPcm = slicePcmAudioData(pcm, input.range)
-  const wav = encodePcmAudioDataToWav(clippedPcm)
+  const clippedPcm = concatPcmAudioRanges(pcm, ranges)
+  return encodePcmAudioDataToWav(clippedPcm)
+}
+
+export async function saveAudioClip(input: SaveAudioClipInput): Promise<AudioClipSaveResult> {
+  if (input.source.sourceKind === 'imported-audio') throw new Error('导入音频不能生成到历史，请使用导出到本地或收藏到项目空间。')
+  if (!input.desktopApi?.saveEditedAudio) throw new Error('当前桌面运行时不可用，无法保存剪辑音频。')
+
+  const ranges = audioClipRangesFromInput(input)
+  const outputRange = combinedAudioClipRange(ranges)
+  const wav = await renderAudioClipWav(input)
   const saved = await input.desktopApi.saveEditedAudio({
     fileName: input.name,
     data: await wav.arrayBuffer(),
@@ -94,20 +135,7 @@ export async function saveAudioClip(input: SaveAudioClipInput): Promise<AudioCli
       record: createVoiceClipRecord({
         source: input.source,
         name: input.name,
-        range: input.range,
-        savedAudio: saved,
-        now: input.now,
-        createId: input.createId,
-      }),
-    }
-  }
-  if (input.source.sourceKind === 'imported-audio') {
-    return {
-      sourceKind: 'voice',
-      record: createImportedAudioClipRecord({
-        source: input.source,
-        name: input.name,
-        range: input.range,
+        range: outputRange,
         savedAudio: saved,
         now: input.now,
         createId: input.createId,
@@ -119,10 +147,19 @@ export async function saveAudioClip(input: SaveAudioClipInput): Promise<AudioCli
     record: createSoundEffectClipRecord({
       source: input.source,
       name: input.name,
-      range: input.range,
+      range: outputRange,
       savedAudio: saved,
       now: input.now,
       createId: input.createId,
     }),
   }
+}
+
+export async function exportAudioClip(input: SaveAudioClipInput): Promise<AudioClipExportResult> {
+  if (!input.desktopApi?.saveEditedAudioAs) throw new Error('当前桌面运行时不可用，无法导出剪辑音频。')
+  const wav = await renderAudioClipWav(input)
+  return input.desktopApi.saveEditedAudioAs({
+    fileName: input.name,
+    data: await wav.arrayBuffer(),
+  })
 }

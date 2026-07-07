@@ -17,6 +17,7 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   removePersonalSpaceEntry: (parentPath, name) => invoke('personal-space:remove-entry', parentPath, name),
   saveFile: (fileName, data) => invoke('file:save', fileName, data),
   saveEditedAudio: (options) => invoke('audio-edit:save', options),
+  saveEditedAudioAs: (options) => invoke('audio-edit:export-as', options),
   readAudioFile: (filePath) => invoke('audio-edit:read-file', filePath),
   openPath: (targetPath) => invoke('shell:open-path', targetPath),
   getAppUpdateStatus: () => invoke('app-update:get-status'),

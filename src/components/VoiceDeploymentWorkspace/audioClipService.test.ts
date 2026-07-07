@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 
 import { createAudioClipSourceFromImportedFile } from './audioClipModel'
 import { saveAudioClip } from './audioClipService'
-import type { PcmAudioData } from './audioClipEncoding'
+import { concatPcmAudioRanges, type PcmAudioData } from './audioClipEncoding'
+import type { SoundEffectRecord } from './soundEffectModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 
 const voiceRecord: VoiceGenerationRecord = {
@@ -22,6 +23,31 @@ const voiceRecord: VoiceGenerationRecord = {
     advanced: { cfgValue: 2, normalize: false, denoise: false, ditSteps: 10 },
   },
 }
+
+const soundEffectRecord: SoundEffectRecord = {
+  id: 'sound-1',
+  name: 'Hit',
+  createdAt: '2026-07-07T00:00:00.000Z',
+  audioUrl: 'file:///sound.wav',
+  audioPath: null,
+  prompt: 'hit',
+  durationSeconds: 6,
+  seed: 1,
+  model: 'small-sfx',
+}
+
+test('concatenates pcm ranges in pending-list order', () => {
+  const result = concatPcmAudioRanges({
+    sampleRate: 10,
+    channelData: [new Float32Array([0, 1, 2, 3, 4, 5])],
+  }, [
+    { startSeconds: 0.3, endSeconds: 0.5 },
+    { startSeconds: 0.1, endSeconds: 0.2 },
+  ])
+
+  assert.deepEqual(Array.from(result.channelData[0]), [3, 4, 1])
+  assert.equal(result.sampleRate, 10)
+})
 
 test('saves a clipped voice record through the desktop audio edit bridge', async () => {
   const pcm: PcmAudioData = {
@@ -55,29 +81,57 @@ test('saves a clipped voice record through the desktop audio edit bridge', async
   assert.equal(savedBytes, 52)
 })
 
-test('saves a clipped imported audio file into voice history', async () => {
+test('saving multiple ranges from a sound effect creates one sound effect record with combined duration', async () => {
+  const pcm: PcmAudioData = {
+    sampleRate: 10,
+    channelData: [new Float32Array([0, 1, 2, 3, 4, 5])],
+  }
+  const result = await saveAudioClip({
+    source: { sourceKind: 'sound-effect', record: soundEffectRecord },
+    ranges: [
+      { startSeconds: 0.3, endSeconds: 0.5 },
+      { startSeconds: 0.1, endSeconds: 0.2 },
+    ],
+    name: 'Hit edit',
+    desktopApi: {
+      saveEditedAudio: async () => ({
+        fileName: 'out.wav',
+        audioUrl: 'file:///out.wav',
+        audioPath: 'D:\\out.wav',
+      }),
+    },
+    readSourcePcm: async () => pcm,
+    now: () => '2026-07-07T00:00:00.000Z',
+    createId: () => 'clip-1',
+  })
+
+  assert.equal(result.sourceKind, 'sound-effect')
+  assert.equal(result.record.durationSeconds, 0.3)
+  assert.equal(result.record.name, 'Hit edit')
+})
+
+test('uploaded audio cannot be generated into history', async () => {
   const pcm: PcmAudioData = {
     sampleRate: 4,
     channelData: [new Float32Array([0, 0.5, 1, 0.5, 0])],
   }
-  const result = await saveAudioClip({
-    source: createAudioClipSourceFromImportedFile('door slam.mp3', 'blob:door-slam'),
-    range: { startSeconds: 0, endSeconds: 1 },
-    name: '门响剪辑',
-    desktopApi: {
-      saveEditedAudio: async () => ({
-        fileName: 'clip.wav',
-        audioUrl: 'file:///clip.wav',
-        audioPath: 'D:\\clip.wav',
-      }),
-    },
-    readSourcePcm: async () => pcm,
-    now: () => '2026-07-07T01:00:00.000Z',
-    createId: () => 'clip-import-1',
-  })
 
-  assert.equal(result.sourceKind, 'voice')
-  assert.equal(result.record.id, 'clip-import-1')
-  assert.equal(result.record.name, '门响剪辑')
-  assert.equal(result.record.params.text, '导入音频：door slam')
+  await assert.rejects(
+    () => saveAudioClip({
+      source: createAudioClipSourceFromImportedFile('door slam.mp3', 'blob:door-slam'),
+      ranges: [{ startSeconds: 0, endSeconds: 1 }],
+      name: '门响剪辑',
+      desktopApi: {
+        saveEditedAudio: async () => ({
+          fileName: 'clip.wav',
+          audioUrl: 'file:///clip.wav',
+          audioPath: 'D:\\clip.wav',
+        }),
+      },
+      readSourcePcm: async () => pcm,
+      now: () => '2026-07-07T01:00:00.000Z',
+      createId: () => 'clip-import-1',
+    }),
+    /导入音频不能生成到历史/,
+  )
 })

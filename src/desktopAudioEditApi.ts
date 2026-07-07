@@ -17,5 +17,6 @@ export interface DesktopAudioFileReadResult {
 
 export interface DesktopAudioEditApi {
   saveEditedAudio(options: DesktopAudioEditSaveOptions): Promise<DesktopAudioEditSaveResult>
+  saveEditedAudioAs(options: DesktopAudioEditSaveOptions): Promise<DesktopAudioEditSaveResult | null>
   readAudioFile(filePath: string): Promise<DesktopAudioFileReadResult>
 }

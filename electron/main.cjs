@@ -121,7 +121,7 @@ ipcMain.handle('file:save', async (_event, fileName, data) => {
 })
 
 registerPersonalSpaceIpcHandlers({ dialog, ipcMain })
-registerAudioEditIpcHandlers({ app, ipcMain })
+registerAudioEditIpcHandlers({ app, dialog, ipcMain })
 registerImageEncodingIpcHandlers({ app, ipcMain, resolveUnpackedPath, runCommandOutput })
 registerProjectStorageIpcHandlers({ app, ipcMain })
 registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput })

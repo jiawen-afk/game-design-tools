@@ -30,6 +30,28 @@ export function slicePcmAudioData(data: PcmAudioData, range: AudioClipRange): Pc
   }
 }
 
+export function concatPcmAudioRanges(data: PcmAudioData, ranges: AudioClipRange[]): PcmAudioData {
+  const slices = ranges.map((range) => slicePcmAudioData(data, range))
+  const channelCount = Math.max(1, data.channelData.length)
+  const totalFrames = slices.reduce((sum, slice) => sum + (slice.channelData[0]?.length ?? 0), 0)
+  const channelData = Array.from({ length: channelCount }, () => new Float32Array(totalFrames))
+
+  let offset = 0
+  for (const slice of slices) {
+    const frameCount = slice.channelData[0]?.length ?? 0
+    for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+      const sourceChannel = slice.channelData[channelIndex] ?? new Float32Array(frameCount)
+      channelData[channelIndex].set(sourceChannel, offset)
+    }
+    offset += frameCount
+  }
+
+  return {
+    sampleRate: data.sampleRate,
+    channelData,
+  }
+}
+
 function writeAscii(view: DataView, offset: number, value: string) {
   for (let index = 0; index < value.length; index += 1) {
     view.setUint8(offset + index, value.charCodeAt(index))
