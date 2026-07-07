@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const files = {
   deploy: 'scripts/deploy-stable-audio-3.ps1',
@@ -117,23 +117,45 @@ test('stable audio generate endpoint uses the selected model from each request',
 
 test('stable audio setup waits for model readiness instead of plain http liveness', () => {
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
-  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+  const status = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupStatus.tsx')
 
   assert.match(hook, /checkStableAudioService/)
   assert.match(hook, /onProbeResult/)
   assert.match(hook, /lastStableAudioProbeRef/)
   assert.match(hook, /Stable Audio 3 模型已就绪/)
-  assert.match(panel, /desktopServiceBusy \? '服务启动中'/)
+  assert.match(status, /desktopServiceBusy \? '服务启动中'/)
 })
 
 test('stable audio setup panel renders guidance URLs as clickable links', () => {
-  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+  const status = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupStatus.tsx')
 
-  assert.match(panel, /renderCommandDescription/)
-  assert.ok(panel.includes('output.split(/(https?:\\/\\/[^\\s]+)/g)'))
-  assert.match(panel, /href=\{part\}/)
-  assert.match(panel, /target="_blank"/)
-  assert.match(panel, /rel="noreferrer"/)
+  assert.match(status, /renderCommandDescription/)
+  assert.ok(status.includes('output.split(/(https?:\\/\\/[^\\s]+)/g)'))
+  assert.match(status, /href=\{part\}/)
+  assert.match(status, /target="_blank"/)
+  assert.match(status, /rel="noreferrer"/)
+})
+
+test('stable audio desktop IPC delegates model access and login script helpers', () => {
+  const ipc = read('electron/stableAudioIpcHandlers.cjs')
+  const modelAccessPath = 'electron/stableAudioModelAccess.cjs'
+  const loginScriptPath = 'electron/stableAudioHfLoginScript.cjs'
+
+  assert.ok(existsSync(modelAccessPath), `${modelAccessPath} should exist`)
+  assert.ok(existsSync(loginScriptPath), `${loginScriptPath} should exist`)
+  const modelAccess = read(modelAccessPath)
+  const loginScript = read(loginScriptPath)
+
+  assert.match(ipc, /require\('\.\/stableAudioModelAccess\.cjs'\)/)
+  assert.match(ipc, /require\('\.\/stableAudioHfLoginScript\.cjs'\)/)
+  assert.doesNotMatch(ipc, /const stableAudioModelRepos/)
+  assert.doesNotMatch(ipc, /function buildStableAudioModelProbeScript/)
+  assert.doesNotMatch(ipc, /function buildStableAudioHfLoginScript/)
+  assert.match(modelAccess, /const stableAudioModelRepos/)
+  assert.match(modelAccess, /function buildStableAudioModelProbeScript/)
+  assert.match(modelAccess, /function formatStableAudioModelAccessFailure/)
+  assert.match(loginScript, /function buildStableAudioHfLoginScript/)
+  assert.match(loginScript, /uv run hf auth login/)
 })
 
 test('stable audio setup exposes one-click HuggingFace login through the desktop bridge', () => {
@@ -141,13 +163,13 @@ test('stable audio setup exposes one-click HuggingFace login through the desktop
   const preload = read('electron/preload.cjs')
   const api = read('src/desktopStableAudioRuntimeApi.ts')
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
-  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+  const actions = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupActions.tsx')
 
   assert.match(ipc, /stable-audio:hf-login/)
   assert.match(preload, /runStableAudioHfLogin/)
   assert.match(api, /runStableAudioHfLogin/)
   assert.match(hook, /runDesktopHfLogin/)
-  assert.match(panel, /登录 HuggingFace/)
+  assert.match(actions, /登录 HuggingFace/)
 })
 
 test('stable audio dependency checks scan each supported model for installed cache state', () => {
@@ -174,12 +196,12 @@ test('stable audio service start releases button loading before readiness pollin
 
 test('stable audio stop service refreshes health and clears connected state', () => {
   const hook = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
-  const panel = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupPanel.tsx')
+  const actions = read('src/components/VoiceDeploymentWorkspace/SoundEffectSetupActions.tsx')
 
   assert.match(hook, /action === 'stop'/)
   assert.match(hook, /setConnectionStatus\('disconnected'\)/)
   assert.match(hook, /runCheck\(port, true\)/)
-  assert.match(panel, /disabled=\{!desktopRuntime \|\| desktopServiceBusy \|\| !connected \|\| connectionStatus === 'checking'\}/)
+  assert.match(actions, /disabled=\{!desktopRuntime \|\| desktopServiceBusy \|\| !connected \|\| connectionStatus === 'checking'\}/)
 })
 
 test('stable audio service stop falls back to the listening port when pid file is stale', () => {
