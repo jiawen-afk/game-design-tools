@@ -387,12 +387,6 @@ export function AudioClipEditorPanel({
         <Button icon={<PlayCircleOutlined />} disabled={!selectedRegionId} onClick={playSelectedRegion}>
           播放选中区块
         </Button>
-        <Button icon={<PlayCircleOutlined />} disabled={pendingSegments.length === 0} onClick={playPendingSegments}>
-          播放待处理
-        </Button>
-        <span className="audio-editor-loop">
-          循环待处理 <Switch size="small" onChange={(checked) => { pendingPlaybackRef.current.loop = checked }} />
-        </span>
       </div>
 
       <div className="audio-editor-time-grid">
@@ -432,49 +426,99 @@ export function AudioClipEditorPanel({
         </label>
       </div>
 
-      <div className="audio-editor-pending-header">
-        <strong>待处理列表</strong>
-        <Button
-          size="small"
-          icon={<PlusOutlined />}
-          disabled={!canAddSelectedRegionToPending}
-          onClick={onAddSelectedRegionToPending}
-        >
-          添加选中区块到待处理列表
-        </Button>
-      </div>
-
-      <div className="audio-editor-pending-list">
-        {pendingSegments.length === 0 ? (
-          <div className="audio-editor-empty-row">待处理列表为空</div>
-        ) : pendingSegments.map((segment, index) => (
-          <div
-            key={segment.regionId}
-            className="audio-editor-pending-row"
-            draggable
-            onDragStart={() => { draggedPendingIndexRef.current = index }}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault()
-              const fromIndex = draggedPendingIndexRef.current
-              draggedPendingIndexRef.current = null
-              if (fromIndex === null) return
-              onReorderPendingSegment(fromIndex, index)
-            }}
-          >
-            <span>{index + 1}</span>
-            <button type="button" onClick={() => onSelectRegion(segment.regionId)}>
-              {formatAudioClipTime(segment.startSeconds)} - {formatAudioClipTime(segment.endSeconds)}
-            </button>
-            <strong>{formatAudioClipTime(segment.endSeconds - segment.startSeconds)}</strong>
+      <section className="audio-editor-pending-block" aria-labelledby="audio-editor-pending-title">
+        <div className="audio-editor-pending-header">
+          <div className="audio-editor-pending-title">
+            <strong id="audio-editor-pending-title">待处理</strong>
+            <span>{pendingSegments.length} 段 · {formatAudioClipTime(pendingDuration)}</span>
+          </div>
+          <div className="audio-editor-pending-actions">
             <Button
               size="small"
-              icon={<DeleteOutlined />}
-              onClick={() => onRemovePendingSegment(segment.regionId)}
-            />
+              icon={<PlayCircleOutlined />}
+              disabled={pendingSegments.length === 0}
+              onClick={playPendingSegments}
+            >
+              播放全部
+            </Button>
+            <span className="audio-editor-loop">
+              循环 <Switch size="small" onChange={(checked) => { pendingPlaybackRef.current.loop = checked }} />
+            </span>
+            <Button
+              size="small"
+              icon={<PlusOutlined />}
+              disabled={!canAddSelectedRegionToPending}
+              onClick={onAddSelectedRegionToPending}
+            >
+              添加选中区块
+            </Button>
           </div>
-        ))}
-      </div>
+        </div>
+
+        <div className="audio-editor-pending-list">
+          {pendingSegments.length === 0 ? (
+            <div className="audio-editor-empty-row">暂无待处理片段</div>
+          ) : pendingSegments.map((segment, index) => (
+            <div
+              key={segment.regionId}
+              className="audio-editor-pending-card"
+              draggable
+              onDragStart={() => { draggedPendingIndexRef.current = index }}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault()
+                const fromIndex = draggedPendingIndexRef.current
+                draggedPendingIndexRef.current = null
+                if (fromIndex === null) return
+                onReorderPendingSegment(fromIndex, index)
+              }}
+            >
+              <div className="audio-editor-pending-card-head">
+                <button
+                  type="button"
+                  className="audio-editor-pending-index"
+                  onClick={() => onSelectRegion(segment.regionId)}
+                >
+                  {index + 1}
+                </button>
+                <strong>{formatAudioClipTime(segment.endSeconds - segment.startSeconds)}</strong>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<PlayCircleOutlined />}
+                  onClick={() => {
+                    pendingPlaybackRef.current.active = false
+                    playPendingAt(index)
+                  }}
+                >
+                  播放
+                </Button>
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  onClick={() => onRemovePendingSegment(segment.regionId)}
+                />
+              </div>
+              <button
+                type="button"
+                className="audio-editor-pending-time"
+                onClick={() => onSelectRegion(segment.regionId)}
+              >
+                {formatAudioClipTime(segment.startSeconds)} - {formatAudioClipTime(segment.endSeconds)}
+              </button>
+              <div className="audio-editor-pending-waveform" aria-hidden="true">
+                {Array.from({ length: 18 }, (_, barIndex) => (
+                  <span
+                    key={barIndex}
+                    style={{ height: `${30 + (((barIndex + 3) * (index + 5) * 13) % 58)}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="audio-editor-save-row">
         <Input

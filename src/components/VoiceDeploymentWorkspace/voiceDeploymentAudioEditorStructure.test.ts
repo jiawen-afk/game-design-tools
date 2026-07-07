@@ -12,7 +12,7 @@ test('audio clip editor uses wavesurfer regions and focused editor styling', () 
 
   assert.match(panelSource, /wavesurfer\.js/)
   assert.match(panelSource, /regions/)
-  assert.match(panelSource, /添加选中区块到待处理列表/)
+  assert.match(panelSource, /添加选中区块/)
   assert.match(panelSource, /导出到本地/)
   assert.match(panelSource, /收藏到项目空间-配音/)
   assert.match(panelSource, /收藏到项目空间-音效/)
@@ -30,6 +30,23 @@ test('audio clip editor keeps wavesurfer region updates constrained with fresh c
   assert.match(panelSource, /region-update/)
   assert.match(panelSource, /editorCallbacksRef\.current\.onUpdateRegion/)
   assert.doesNotMatch(panelSource, /regionsPlugin\.on\('region-updated', \(region\) => \{\s+onSelectRegion/)
+})
+
+test('audio clip editor renders pending segments as wrapped waveform cards with playback in the pending block', () => {
+  const panelSource = read('src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx')
+  const cssSource = read('src/components/VoiceDeploymentWorkspace/voiceDeployment.audioEditor.css')
+
+  assert.match(panelSource, /audio-editor-pending-block/)
+  assert.match(panelSource, />待处理</)
+  assert.match(panelSource, /播放全部/)
+  assert.match(panelSource, /playPendingAt\(index\)/)
+  assert.match(panelSource, /audio-editor-pending-waveform/)
+  assert.match(panelSource, /audio-editor-pending-card/)
+  assert.doesNotMatch(panelSource, /播放待处理/)
+  assert.doesNotMatch(panelSource, /待处理列表/)
+  assert.match(cssSource, /audio-editor-pending-list[\s\S]*flex-wrap:\s*wrap/)
+  assert.match(cssSource, /audio-editor-pending-card/)
+  assert.match(cssSource, /audio-editor-pending-waveform/)
 })
 
 test('voice history records can open clip editing', () => {
