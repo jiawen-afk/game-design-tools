@@ -1,0 +1,65 @@
+.audio-editor-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.audio-editor-source-row,
+.audio-editor-controls,
+.audio-editor-save-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.audio-editor-source-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.audio-waveform {
+  min-height: 96px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel-strong);
+  overflow: hidden;
+}
+
+.audio-editor-loop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.audio-editor-time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.audio-editor-time-grid label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.audio-editor-time-grid strong {
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-editor-save-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 760px) {
+  .audio-editor-time-grid,
+  .audio-editor-save-row {
+    grid-template-columns: 1fr;
+  }
+}
