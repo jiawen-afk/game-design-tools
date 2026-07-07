@@ -23,6 +23,15 @@ test('audio clip editor uses wavesurfer regions and focused editor styling', () 
   assert.match(cssHub, /voiceDeployment\.audioEditor\.css/)
 })
 
+test('audio clip editor keeps wavesurfer region updates constrained with fresh callbacks', () => {
+  const panelSource = read('src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx')
+
+  assert.match(panelSource, /editorCallbacksRef/)
+  assert.match(panelSource, /region-update/)
+  assert.match(panelSource, /editorCallbacksRef\.current\.onUpdateRegion/)
+  assert.doesNotMatch(panelSource, /regionsPlugin\.on\('region-updated', \(region\) => \{\s+onSelectRegion/)
+})
+
 test('voice history records can open clip editing', () => {
   const voiceLibrarySource = read('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx')
   const voiceRecordListSource = read('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx')

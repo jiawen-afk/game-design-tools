@@ -105,9 +105,24 @@ export function AudioClipEditorPanel({
   const regionsPluginRef = useRef<RegionsPlugin | null>(null)
   const regionMapRef = useRef<Map<string, Region>>(new Map())
   const pendingSegmentsRef = useRef(pendingSegments)
+  const editorCallbacksRef = useRef({
+    onDurationChange,
+    onCurrentTimeChange,
+    onSelectRegion,
+    onUpdateRegion,
+  })
   const draggedPendingIndexRef = useRef<number | null>(null)
   const pendingPlaybackRef = useRef({ active: false, index: 0, loop: false })
   const [contextMenu, setContextMenu] = useState<AudioContextMenuState>(null)
+
+  useEffect(() => {
+    editorCallbacksRef.current = {
+      onDurationChange,
+      onCurrentTimeChange,
+      onSelectRegion,
+      onUpdateRegion,
+    }
+  }, [onCurrentTimeChange, onDurationChange, onSelectRegion, onUpdateRegion])
 
   useEffect(() => {
     pendingSegmentsRef.current = pendingSegments
@@ -156,19 +171,27 @@ export function AudioClipEditorPanel({
     regionsPluginRef.current = regionsPlugin
     regionMapRef.current = new Map()
 
+    const syncUpdatedRegion = (region: Region) => {
+      editorCallbacksRef.current.onSelectRegion(region.id)
+      editorCallbacksRef.current.onUpdateRegion(region.id, {
+        startSeconds: region.start,
+        endSeconds: region.end,
+      })
+    }
+
     waveSurfer.on('ready', () => {
-      onDurationChange(waveSurfer.getDuration())
+      editorCallbacksRef.current.onDurationChange(waveSurfer.getDuration())
     })
-    waveSurfer.on('timeupdate', onCurrentTimeChange)
+    waveSurfer.on('timeupdate', (seconds) => {
+      editorCallbacksRef.current.onCurrentTimeChange(seconds)
+    })
     regionsPlugin.on('region-clicked', (region, event) => {
       event.stopPropagation()
-      onSelectRegion(region.id)
+      editorCallbacksRef.current.onSelectRegion(region.id)
       setContextMenu(null)
     })
-    regionsPlugin.on('region-updated', (region) => {
-      onSelectRegion(region.id)
-      onUpdateRegion(region.id, { startSeconds: region.start, endSeconds: region.end })
-    })
+    regionsPlugin.on('region-update', syncUpdatedRegion)
+    regionsPlugin.on('region-updated', syncUpdatedRegion)
     regionsPlugin.on('region-out', (region) => {
       const playback = pendingPlaybackRef.current
       const currentSegment = pendingSegmentsRef.current[playback.index]

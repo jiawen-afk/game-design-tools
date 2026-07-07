@@ -69,6 +69,34 @@ test('moves a segment only inside its non-overlapping neighbors', () => {
   ])
 })
 
+test('clamps a dragged segment before the next neighbor instead of allowing overlap', () => {
+  const regions = updateAudioSegmentRegion([
+    { id: 'a', startSeconds: 0, endSeconds: 1 },
+    { id: 'b', startSeconds: 2, endSeconds: 3 },
+    { id: 'c', startSeconds: 4, endSeconds: 5 },
+  ], 'b', { startSeconds: 4.2, endSeconds: 5.2 }, 6)
+
+  deepEqual(regions, [
+    { id: 'a', startSeconds: 0, endSeconds: 1 },
+    { id: 'b', startSeconds: 3, endSeconds: 4 },
+    { id: 'c', startSeconds: 4, endSeconds: 5 },
+  ])
+})
+
+test('clamps a dragged segment after the previous neighbor instead of allowing overlap', () => {
+  const regions = updateAudioSegmentRegion([
+    { id: 'a', startSeconds: 0, endSeconds: 1 },
+    { id: 'b', startSeconds: 2, endSeconds: 3 },
+    { id: 'c', startSeconds: 4, endSeconds: 5 },
+  ], 'b', { startSeconds: -0.2, endSeconds: 0.8 }, 6)
+
+  deepEqual(regions, [
+    { id: 'a', startSeconds: 0, endSeconds: 1 },
+    { id: 'b', startSeconds: 1, endSeconds: 2 },
+    { id: 'c', startSeconds: 4, endSeconds: 5 },
+  ])
+})
+
 test('does not add the same region to pending twice', () => {
   const regions = [{ id: 'a', startSeconds: 0, endSeconds: 1 }]
   const first = addPendingSegment([], regions, 'a')

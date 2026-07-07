@@ -4,6 +4,7 @@ import {
 } from './audioClipModel'
 
 const defaultSegmentDurationSeconds = 3
+const durationToleranceSeconds = 0.001
 
 export interface AudioSegmentRegion extends AudioClipRange {
   id: string
@@ -40,6 +41,10 @@ function normalizeRange(range: AudioClipRange, durationSeconds: number): AudioCl
 
 function isValidRange(range: AudioClipRange) {
   return range.endSeconds - range.startSeconds >= minAudioClipDurationSeconds
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }
 
 function sortedRegions(regions: AudioSegmentRegion[]) {
@@ -116,10 +121,37 @@ export function updateAudioSegmentRegion(
     : Math.max(0, cleanNumber(durationSeconds))
 
   const normalized = normalizeRange(range, durationSeconds)
-  const nextRange = {
-    startSeconds: roundSeconds(Math.max(lowerBound, normalized.startSeconds)),
-    endSeconds: roundSeconds(Math.min(upperBound, normalized.endSeconds)),
-  }
+  const availableDuration = upperBound - lowerBound
+  if (availableDuration < minAudioClipDurationSeconds) return regions
+
+  const currentDuration = current.endSeconds - current.startSeconds
+  const requestedDuration = Math.abs(cleanNumber(range.endSeconds) - cleanNumber(range.startSeconds))
+  const isWholeRegionDrag = Math.abs(requestedDuration - currentDuration) <= durationToleranceSeconds
+  const nextRange = isWholeRegionDrag
+    ? (() => {
+      const segmentDuration = Math.min(currentDuration, availableDuration)
+      const startSeconds = roundSeconds(clampNumber(
+        normalized.startSeconds,
+        lowerBound,
+        upperBound - segmentDuration,
+      ))
+      return {
+        startSeconds,
+        endSeconds: roundSeconds(startSeconds + segmentDuration),
+      }
+    })()
+    : {
+      startSeconds: roundSeconds(clampNumber(
+        normalized.startSeconds,
+        lowerBound,
+        upperBound - minAudioClipDurationSeconds,
+      )),
+      endSeconds: roundSeconds(clampNumber(
+        normalized.endSeconds,
+        lowerBound + minAudioClipDurationSeconds,
+        upperBound,
+      )),
+    }
   if (!isValidRange(nextRange)) return regions
 
   return regions.map((region) => (
