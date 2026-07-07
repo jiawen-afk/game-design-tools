@@ -1,4 +1,5 @@
 import type { DesktopAppUpdateApi } from './desktopAppUpdateApi'
+import type { DesktopAudioEditApi } from './desktopAudioEditApi'
 import type { DesktopBirefnetApi } from './desktopBirefnetApi'
 import type { DesktopFileSystemApi } from './desktopFileSystemApi'
 import type { DesktopImageEncodingApi } from './desktopImageEncodingApi'
@@ -15,6 +16,12 @@ export type {
   DesktopAppUpdatePhase,
   DesktopAppUpdateStatus,
 } from './desktopAppUpdateApi'
+export type {
+  DesktopAudioEditApi,
+  DesktopAudioEditSaveOptions,
+  DesktopAudioEditSaveResult,
+  DesktopAudioFileReadResult,
+} from './desktopAudioEditApi'
 export type {
   DesktopBirefnetApi,
   DesktopBirefnetDevicePreference,
@@ -85,7 +92,8 @@ export interface GameDesignToolsDesktopApi extends
   DesktopUpscaleApi,
   DesktopProjectProfileApi,
   DesktopProjectRepositoryApi,
-  DesktopProjectObjectApi {}
+  DesktopProjectObjectApi,
+  DesktopAudioEditApi {}
 
 declare global {
   interface Window {

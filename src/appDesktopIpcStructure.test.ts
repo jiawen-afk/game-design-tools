@@ -142,3 +142,24 @@ test('electron main delegates image encoding IPC handlers to a focused module', 
   assert.match(packageSource, /setup:image-encoders/)
   assert.match(packageSource, /scripts\/image-encoders\/\*\*/)
 })
+
+test('electron main delegates edited audio persistence to a focused module', () => {
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+  const preloadSource = readFileSync('electron/preload.cjs', 'utf8')
+  const desktopApiSource = readFileSync('src/desktopApi.ts', 'utf8')
+  const audioEditIpcPath = 'electron/audioEditIpcHandlers.cjs'
+
+  assert.ok(existsSync(audioEditIpcPath), `${audioEditIpcPath} should exist`)
+  const audioEditIpcSource = readFileSync(audioEditIpcPath, 'utf8')
+
+  assert.match(mainSource, /registerAudioEditIpcHandlers/)
+  assert.doesNotMatch(mainSource, /audio-edit:save/)
+  assert.doesNotMatch(mainSource, /audio-edit:read-file/)
+  assert.match(audioEditIpcSource, /audio-edit:save/)
+  assert.match(audioEditIpcSource, /audio-edit:read-file/)
+  assert.match(audioEditIpcSource, /AudioEdits/)
+  assert.match(audioEditIpcSource, /pathToFileURL/)
+  assert.match(preloadSource, /saveEditedAudio: \(options\) => invoke\('audio-edit:save', options\)/)
+  assert.match(preloadSource, /readAudioFile: \(filePath\) => invoke\('audio-edit:read-file', filePath\)/)
+  assert.match(desktopApiSource, /DesktopAudioEditApi/)
+})
