@@ -153,23 +153,55 @@ test('audio clip editor delegates import surface, menus, toolbar, track, and pen
 test('audio clip editor delegates waveform orchestration and pending drag state to hooks', () => {
   const panelPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx'
   const waveformHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioClipWaveform.ts'
+  const pendingWaveformPlaybackHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioPendingWaveformPlayback.ts'
   const pendingDragHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioPendingSegmentDrag.ts'
 
   assert.ok(existsSync(waveformHookPath), `${waveformHookPath} should exist`)
+  assert.ok(existsSync(pendingWaveformPlaybackHookPath), `${pendingWaveformPlaybackHookPath} should exist`)
   assert.ok(existsSync(pendingDragHookPath), `${pendingDragHookPath} should exist`)
 
   const panelSource = readFileSync(panelPath, 'utf8')
   const waveformHookSource = readFileSync(waveformHookPath, 'utf8')
+  const pendingWaveformPlaybackHookSource = readFileSync(pendingWaveformPlaybackHookPath, 'utf8')
   const pendingDragHookSource = readFileSync(pendingDragHookPath, 'utf8')
 
   assert.match(panelSource, /useAudioClipWaveform/)
   assert.match(panelSource, /useAudioPendingSegmentDrag/)
+  assert.match(waveformHookSource, /useAudioPendingWaveformPlayback/)
   assert.doesNotMatch(panelSource, /WaveSurfer\.create|RegionsPlugin\.create|regionMapRef|regionsPluginRef/)
   assert.doesNotMatch(panelSource, /querySelectorAll<HTMLElement>\('\[data-audio-pending-region-id\]'\)/)
   assert.doesNotMatch(panelSource, /previewPendingSegmentDrop|getPendingDropTarget|clearPendingDropPreview/)
+  assert.doesNotMatch(waveformHookSource, /resolvePendingPlaybackStep/)
+  assert.doesNotMatch(waveformHookSource, /pendingPlaybackFrameRef/)
   assert.match(waveformHookSource, /WaveSurfer\.create/)
   assert.match(waveformHookSource, /RegionsPlugin\.create/)
-  assert.match(waveformHookSource, /resolvePendingPlaybackStep/)
+  assert.match(pendingWaveformPlaybackHookSource, /resolvePendingPlaybackStep/)
+  assert.match(pendingWaveformPlaybackHookSource, /pendingPlaybackFrameRef/)
   assert.match(pendingDragHookSource, /querySelectorAll<HTMLElement>\('\[data-audio-pending-region-id\]'\)/)
   assert.match(pendingDragHookSource, /reorderPendingSegmentsAroundTarget/)
+})
+
+test('audio clip editor workspace delegates save collect and pending preview playback workflows', () => {
+  const workspaceHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioClipEditorWorkspace.ts'
+  const saveActionsHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioClipEditorSaveActions.ts'
+  const previewHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioPendingPreviewPlayback.ts'
+
+  assert.ok(existsSync(saveActionsHookPath), `${saveActionsHookPath} should exist`)
+  assert.ok(existsSync(previewHookPath), `${previewHookPath} should exist`)
+
+  const workspaceHookSource = readFileSync(workspaceHookPath, 'utf8')
+  const saveActionsHookSource = readFileSync(saveActionsHookPath, 'utf8')
+  const previewHookSource = readFileSync(previewHookPath, 'utf8')
+
+  assert.match(workspaceHookSource, /useAudioClipEditorSaveActions/)
+  assert.match(workspaceHookSource, /useAudioPendingPreviewPlayback/)
+  assert.doesNotMatch(workspaceHookSource, /collectVoiceRecordToPersonalSpace|collectSoundEffectRecordToPersonalSpace/)
+  assert.doesNotMatch(workspaceHookSource, /createImportedSoundEffectRecord|saveRenderedAudio/)
+  assert.doesNotMatch(workspaceHookSource, /new Audio\(|pendingPreviewAudioRef|pendingPreviewProgressFrameRef/)
+  assert.match(saveActionsHookSource, /collectVoiceRecordToPersonalSpace/)
+  assert.match(saveActionsHookSource, /collectSoundEffectRecordToPersonalSpace/)
+  assert.match(saveActionsHookSource, /createImportedSoundEffectRecord/)
+  assert.match(previewHookSource, /new Audio\(/)
+  assert.match(previewHookSource, /pendingPreviewAudioRef/)
+  assert.match(previewHookSource, /resolvePendingPreviewSourceTime/)
 })
