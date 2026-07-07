@@ -153,6 +153,40 @@ test('exports multiple pending ranges as one wav in pending-list order', async (
   assert.deepEqual(readWavInt16Samples(exportedData), [16383, -16384, 32767])
 })
 
+test('exports a 0.01 second clipped range', async () => {
+  const pcm: PcmAudioData = {
+    sampleRate: 100,
+    channelData: [new Float32Array([0.5, -0.5, 1])],
+  }
+  let exportedData: ArrayBuffer | null = null
+
+  const result = await exportAudioClip({
+    source: { sourceKind: 'sound-effect', record: soundEffectRecord },
+    ranges: [{ startSeconds: 0, endSeconds: 0.01 }],
+    name: 'Short hit',
+    desktopApi: {
+      saveEditedAudio: async () => ({
+        fileName: 'unused.wav',
+        audioUrl: 'file:///unused.wav',
+        audioPath: 'D:\\unused.wav',
+      }),
+      saveEditedAudioAs: async (options) => {
+        exportedData = options.data
+        return {
+          fileName: 'short.wav',
+          audioUrl: 'file:///short.wav',
+          audioPath: 'D:\\short.wav',
+        }
+      },
+    },
+    readSourcePcm: async () => pcm,
+  })
+
+  assert.equal(result?.fileName, 'short.wav')
+  assert.ok(exportedData)
+  assert.deepEqual(readWavInt16Samples(exportedData), [16383])
+})
+
 test('uploaded audio cannot be generated into history', async () => {
   const pcm: PcmAudioData = {
     sampleRate: 4,

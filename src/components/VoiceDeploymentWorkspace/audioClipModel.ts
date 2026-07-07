@@ -1,7 +1,7 @@
 import type { SoundEffectRecord } from './soundEffectModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
 
-export const minAudioClipDurationSeconds = 0.05
+export const minAudioClipDurationSeconds = 0.01
 
 export interface AudioClipRange {
   startSeconds: number
