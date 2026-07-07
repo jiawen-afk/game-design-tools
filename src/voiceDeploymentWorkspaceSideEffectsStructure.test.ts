@@ -96,6 +96,8 @@ test('audio clip editor delegates import surface, menus, toolbar, track, and pen
   const trackPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorTrack.tsx'
   const segmentsPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorSegments.tsx'
   const menusPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorMenus.tsx'
+  const timeGridPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorTimeGrid.tsx'
+  const outputActionsPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorOutputActions.tsx'
 
   for (const path of [
     importWorkflowPath,
@@ -105,6 +107,8 @@ test('audio clip editor delegates import surface, menus, toolbar, track, and pen
     trackPath,
     segmentsPath,
     menusPath,
+    timeGridPath,
+    outputActionsPath,
   ]) {
     assert.ok(existsSync(path), `${path} should exist`)
   }
@@ -118,12 +122,16 @@ test('audio clip editor delegates import surface, menus, toolbar, track, and pen
   const trackSource = readFileSync(trackPath, 'utf8')
   const segmentsSource = readFileSync(segmentsPath, 'utf8')
   const menusSource = readFileSync(menusPath, 'utf8')
+  const timeGridSource = readFileSync(timeGridPath, 'utf8')
+  const outputActionsSource = readFileSync(outputActionsPath, 'utf8')
 
   assert.match(panelSource, /AudioClipEditorImportSurface/)
   assert.match(panelSource, /AudioClipEditorToolbar/)
   assert.match(panelSource, /AudioClipEditorTrack/)
   assert.match(panelSource, /AudioClipEditorSegments/)
   assert.match(panelSource, /AudioClipEditorMenus/)
+  assert.match(panelSource, /AudioClipEditorTimeGrid/)
+  assert.match(panelSource, /AudioClipEditorOutputActions/)
   assert.match(panelSource, /buildAudioClipEditorViewModel/)
   assert.match(workspaceHookSource, /useAudioClipImportWorkflow/)
   assert.doesNotMatch(panelSource, /supportedAudioFilePattern|createAudioClipSourceFromImportedFile/)
@@ -138,4 +146,30 @@ test('audio clip editor delegates import surface, menus, toolbar, track, and pen
   assert.match(trackSource, /audio-waveform/)
   assert.match(segmentsSource, /audio-editor-pending-card-head/)
   assert.match(menusSource, /audio-context-menu/)
+  assert.match(timeGridSource, /audio-editor-time-grid/)
+  assert.match(outputActionsSource, /audio-editor-save-row/)
+})
+
+test('audio clip editor delegates waveform orchestration and pending drag state to hooks', () => {
+  const panelPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx'
+  const waveformHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioClipWaveform.ts'
+  const pendingDragHookPath = 'src/components/VoiceDeploymentWorkspace/useAudioPendingSegmentDrag.ts'
+
+  assert.ok(existsSync(waveformHookPath), `${waveformHookPath} should exist`)
+  assert.ok(existsSync(pendingDragHookPath), `${pendingDragHookPath} should exist`)
+
+  const panelSource = readFileSync(panelPath, 'utf8')
+  const waveformHookSource = readFileSync(waveformHookPath, 'utf8')
+  const pendingDragHookSource = readFileSync(pendingDragHookPath, 'utf8')
+
+  assert.match(panelSource, /useAudioClipWaveform/)
+  assert.match(panelSource, /useAudioPendingSegmentDrag/)
+  assert.doesNotMatch(panelSource, /WaveSurfer\.create|RegionsPlugin\.create|regionMapRef|regionsPluginRef/)
+  assert.doesNotMatch(panelSource, /querySelectorAll<HTMLElement>\('\[data-audio-pending-region-id\]'\)/)
+  assert.doesNotMatch(panelSource, /previewPendingSegmentDrop|getPendingDropTarget|clearPendingDropPreview/)
+  assert.match(waveformHookSource, /WaveSurfer\.create/)
+  assert.match(waveformHookSource, /RegionsPlugin\.create/)
+  assert.match(waveformHookSource, /resolvePendingPlaybackStep/)
+  assert.match(pendingDragHookSource, /querySelectorAll<HTMLElement>\('\[data-audio-pending-region-id\]'\)/)
+  assert.match(pendingDragHookSource, /reorderPendingSegmentsAroundTarget/)
 })
