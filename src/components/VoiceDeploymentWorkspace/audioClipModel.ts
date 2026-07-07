@@ -82,7 +82,10 @@ export function createAudioClipSourceFromSoundEffectRecord(record: SoundEffectRe
   return { sourceKind: 'sound-effect', record }
 }
 
-export function createAudioClipSourceFromImportedFile(fileName: string, audioUrl: string): AudioClipSource {
+export function createAudioClipSourceFromImportedFile(
+  fileName: string,
+  audioUrl: string,
+): { sourceKind: 'imported-audio'; record: ImportedAudioClipRecord } {
   return {
     sourceKind: 'imported-audio',
     record: {
