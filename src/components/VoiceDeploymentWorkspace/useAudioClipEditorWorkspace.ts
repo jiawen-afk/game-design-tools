@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
+  createAudioClipSourceFromImportedFile,
   createDefaultAudioClipName,
   isValidAudioClipRange,
   normalizeAudioClipRange,
@@ -19,12 +20,18 @@ interface UseAudioClipEditorWorkspaceOptions {
 }
 
 const defaultRange: AudioClipRange = { startSeconds: 0, endSeconds: 0 }
+const supportedAudioFilePattern = /\.(aac|flac|m4a|mp3|ogg|opus|wav|webm)$/i
+
+function isImportableAudioFile(file: File) {
+  return file.type.startsWith('audio/') || supportedAudioFilePattern.test(file.name)
+}
 
 export function useAudioClipEditorWorkspace({
   onVoiceClipCreated,
   onSoundEffectClipCreated,
 }: UseAudioClipEditorWorkspaceOptions) {
   const [messageApi, messageContextHolder] = message.useMessage()
+  const importedAudioUrlRef = useRef<string | null>(null)
   const [source, setSource] = useState<AudioClipSource | null>(null)
   const [durationSeconds, setDurationSeconds] = useState(0)
   const [range, setRange] = useState<AudioClipRange>(defaultRange)
@@ -39,13 +46,33 @@ export function useAudioClipEditorWorkspace({
   )
   const canSave = Boolean(source) && isValidAudioClipRange(normalizedRange) && !saving
 
+  const revokeImportedAudioUrl = (exceptUrl = '') => {
+    const currentUrl = importedAudioUrlRef.current
+    if (currentUrl && currentUrl !== exceptUrl) URL.revokeObjectURL(currentUrl)
+    if (currentUrl !== exceptUrl) importedAudioUrlRef.current = null
+  }
+
+  useEffect(() => () => revokeImportedAudioUrl(), [])
+
   const loadSource = (nextSource: AudioClipSource) => {
+    if (nextSource.sourceKind !== 'imported-audio') revokeImportedAudioUrl()
     setSource(nextSource)
     setDurationSeconds(0)
     setRange(defaultRange)
     setCurrentTimeSeconds(0)
     setOutputName(createDefaultAudioClipName(nextSource))
     setError('')
+  }
+
+  const importAudioFile = (file: File) => {
+    if (!isImportableAudioFile(file)) {
+      setError('请选择浏览器支持的音频文件。')
+      return
+    }
+    const audioUrl = URL.createObjectURL(file)
+    revokeImportedAudioUrl(audioUrl)
+    importedAudioUrlRef.current = audioUrl
+    loadSource(createAudioClipSourceFromImportedFile(file.name, audioUrl))
   }
 
   const saveClip = async () => {
@@ -86,6 +113,7 @@ export function useAudioClipEditorWorkspace({
       onRangeChange: (nextRange: AudioClipRange) => setRange(normalizeAudioClipRange(nextRange, durationSeconds)),
       onCurrentTimeChange: setCurrentTimeSeconds,
       onOutputNameChange: setOutputName,
+      onImportAudioFile: importAudioFile,
       onSaveClip: () => void saveClip(),
     },
   }

@@ -27,3 +27,17 @@ test('voice history records can open clip editing', () => {
   assert.match(voiceRecordListSource, /剪辑片段/)
   assert.match(voiceRecordListSource, /ScissorOutlined/)
 })
+
+test('audio editor can import local audio files directly', () => {
+  const panelSource = read('src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx')
+  const hookSource = read('src/components/VoiceDeploymentWorkspace/useAudioClipEditorWorkspace.ts')
+  const cssSource = read('src/components/VoiceDeploymentWorkspace/voiceDeployment.audioEditor.css')
+
+  assert.match(panelSource, /Upload\.Dragger/)
+  assert.match(panelSource, /拖入音频文件/)
+  assert.match(panelSource, /onImportAudioFile/)
+  assert.match(hookSource, /createAudioClipSourceFromImportedFile/)
+  assert.match(hookSource, /URL\.createObjectURL/)
+  assert.match(hookSource, /URL\.revokeObjectURL/)
+  assert.match(cssSource, /audio-import-dropzone/)
+})

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { Alert, Button, Empty, Input, InputNumber, Space, Switch, Tag } from 'antd'
+import { Alert, Button, Input, InputNumber, Space, Switch, Tag, Upload } from 'antd'
 import {
+  InboxOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   SaveOutlined,
@@ -32,6 +33,7 @@ export interface AudioClipEditorPanelProps {
   onRangeChange: (range: AudioClipRange) => void
   onCurrentTimeChange: (seconds: number) => void
   onOutputNameChange: (name: string) => void
+  onImportAudioFile: (file: File) => void
   onSaveClip: () => void
 }
 
@@ -48,6 +50,7 @@ export function AudioClipEditorPanel({
   onRangeChange,
   onCurrentTimeChange,
   onOutputNameChange,
+  onImportAudioFile,
   onSaveClip,
 }: AudioClipEditorPanelProps) {
   const waveformRef = useRef<HTMLDivElement | null>(null)
@@ -120,6 +123,21 @@ export function AudioClipEditorPanel({
     onRangeChange({ ...range, endSeconds: currentTimeSeconds })
   }
 
+  const importUploadProps = {
+    accept: 'audio/*',
+    showUploadList: false,
+    beforeUpload: (file: File) => {
+      onImportAudioFile(file)
+      return false
+    },
+  }
+
+  const sourceKindLabel = source?.sourceKind === 'voice'
+    ? '配音'
+    : source?.sourceKind === 'sound-effect'
+      ? '音效'
+      : '导入音频'
+
   if (!source) {
     return (
       <section className="voice-panel audio-editor-panel" aria-labelledby="audio-editor-title">
@@ -127,7 +145,12 @@ export function AudioClipEditorPanel({
           <ScissorOutlined />
           <h3 id="audio-editor-title">音频编辑</h3>
         </div>
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从生成配音或生成音效的历史记录中选择“剪辑片段”" />
+        <Upload.Dragger {...importUploadProps} className="audio-import-dropzone">
+          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+          <p className="ant-upload-text">拖入音频文件</p>
+          <p className="ant-upload-hint">也可以从生成配音或生成音效的历史记录中选择“剪辑片段”。</p>
+        </Upload.Dragger>
+        {error ? <Alert type="warning" showIcon title={error} /> : null}
       </section>
     )
   }
@@ -140,9 +163,12 @@ export function AudioClipEditorPanel({
       </div>
 
       <div className="audio-editor-source-row">
-        <Tag>{source.sourceKind === 'voice' ? '配音' : '音效'}</Tag>
+        <Tag>{sourceKindLabel}</Tag>
         <strong>{source.record.name}</strong>
         <span>{formatAudioClipTime(durationSeconds)}</span>
+        <Upload {...importUploadProps}>
+          <Button size="small" icon={<InboxOutlined />}>更换音频</Button>
+        </Upload>
       </div>
 
       <div className="audio-waveform" ref={waveformRef} />
