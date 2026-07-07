@@ -3,7 +3,6 @@ import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
-  createAudioClipSourceFromImportedFile,
   createDefaultAudioClipName,
   createImportedAudioClipRecord,
   createSoundEffectClipRecord,
@@ -40,6 +39,7 @@ import {
   collectVoiceRecordToPersonalSpace,
 } from './voicePersonalSpaceCollector'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
+import { useAudioClipImportWorkflow } from './useAudioClipImportWorkflow'
 
 interface UseAudioClipEditorWorkspaceOptions {
   onVoiceClipCreated: (record: VoiceGenerationRecord) => void
@@ -49,11 +49,6 @@ interface UseAudioClipEditorWorkspaceOptions {
 
 const defaultRange: AudioClipRange = { startSeconds: 0, endSeconds: 0 }
 const legacySelectionRegionId = 'legacy-selection'
-const supportedAudioFilePattern = /\.(aac|flac|m4a|mp3|ogg|opus|wav|webm)$/i
-
-function isImportableAudioFile(file: File) {
-  return file.type.startsWith('audio/') || supportedAudioFilePattern.test(file.name)
-}
 
 function createId(prefix: string) {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return `${prefix}-${crypto.randomUUID()}`
@@ -191,16 +186,12 @@ export function useAudioClipEditorWorkspace({
     setError('')
   }
 
-  const importAudioFile = (file: File) => {
-    if (!isImportableAudioFile(file)) {
-      setError('请选择浏览器支持的音频文件。')
-      return
-    }
-    const audioUrl = URL.createObjectURL(file)
-    revokeImportedAudioUrl(audioUrl)
-    importedAudioUrlRef.current = audioUrl
-    loadSource(createAudioClipSourceFromImportedFile(file.name, audioUrl))
-  }
+  const { importAudioFile } = useAudioClipImportWorkflow({
+    importedAudioUrlRef,
+    loadSource,
+    revokeImportedAudioUrl,
+    setError,
+  })
 
   const addRegionAt = (atSeconds: number) => {
     if (!source || durationSeconds <= 0) return

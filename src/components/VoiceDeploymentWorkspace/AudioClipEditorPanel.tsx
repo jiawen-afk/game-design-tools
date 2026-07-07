@@ -1,13 +1,8 @@
 import { type DragEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Alert, Button, Input, InputNumber, Switch, Tag, Upload } from 'antd'
+import { Alert, Button, Input, InputNumber, type UploadProps } from 'antd'
 import {
-  DeleteOutlined,
   DownloadOutlined,
   FolderAddOutlined,
-  InboxOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
-  PlusOutlined,
   SaveOutlined,
   ScissorOutlined,
 } from '@ant-design/icons'
@@ -27,11 +22,15 @@ import {
   type AudioPendingSegment,
   type AudioSegmentRegion,
 } from './audioSegmentModel'
-
-type AudioContextMenuState =
-  | { type: 'waveform'; x: number; y: number; atSeconds: number }
-  | { type: 'region'; x: number; y: number; regionId: string }
-  | null
+import { buildAudioClipEditorViewModel } from './audioClipEditorViewModel'
+import { AudioClipEditorImportSurface } from './AudioClipEditorImportSurface'
+import {
+  AudioClipEditorMenus,
+  type AudioContextMenuState,
+} from './AudioClipEditorMenus'
+import { AudioClipEditorSegments } from './AudioClipEditorSegments'
+import { AudioClipEditorToolbar } from './AudioClipEditorToolbar'
+import { AudioClipEditorTrack } from './AudioClipEditorTrack'
 
 type AudioPendingDropTarget = { regionId: string; placement: AudioPendingDropPlacement } | null
 
@@ -347,7 +346,7 @@ export function AudioClipEditorPanel({
     }
   }, [onSelectRegion, regions, selectedRegionId])
 
-  const importUploadProps = {
+  const importUploadProps: UploadProps = {
     accept: 'audio/*',
     showUploadList: false,
     beforeUpload: (file: File) => {
@@ -356,17 +355,14 @@ export function AudioClipEditorPanel({
     },
   }
 
-  const sourceKindLabel = source?.sourceKind === 'voice'
-    ? '配音'
-    : source?.sourceKind === 'sound-effect'
-      ? '音效'
-      : '导入音频'
-
-  const selectedDuration = Math.max(0, range.endSeconds - range.startSeconds)
-  const pendingDuration = pendingSegments.reduce((sum, segment) => (
-    sum + Math.max(0, segment.endSeconds - segment.startSeconds)
-  ), 0)
-  const visiblePendingSegments = previewPendingSegments ?? pendingSegments
+  const editorViewModel = source
+    ? buildAudioClipEditorViewModel({
+      source,
+      range,
+      pendingSegments,
+      previewPendingSegments,
+    })
+    : null
 
   const getPendingDropTarget = (
     event: DragEvent<HTMLElement>,
@@ -499,20 +495,14 @@ export function AudioClipEditorPanel({
 
   if (!source) {
     return (
-      <section className="voice-panel audio-editor-panel" aria-labelledby="audio-editor-title">
-        <div className="panel-title">
-          <ScissorOutlined />
-          <h3 id="audio-editor-title">音频编辑</h3>
-        </div>
-        <Upload.Dragger {...importUploadProps} className="audio-import-dropzone">
-          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-          <p className="ant-upload-text">拖入音频文件</p>
-          <p className="ant-upload-hint">也可以从生成配音或生成音效的历史记录中选择“剪辑片段”。</p>
-        </Upload.Dragger>
-        {error ? <Alert type="warning" showIcon title={error} /> : null}
-      </section>
+      <AudioClipEditorImportSurface
+        error={error}
+        uploadProps={importUploadProps}
+      />
     )
   }
+
+  if (!editorViewModel) return null
 
   return (
     <section className="voice-panel audio-editor-panel" aria-labelledby="audio-editor-title">
@@ -521,53 +511,36 @@ export function AudioClipEditorPanel({
         <h3 id="audio-editor-title">音频编辑</h3>
       </div>
 
-      <div className="audio-editor-source-row">
-        <Tag>{sourceKindLabel}</Tag>
-        <strong>{source.record.name}</strong>
-        <span>{formatAudioClipTime(durationSeconds)}</span>
-        <Upload {...importUploadProps}>
-          <Button size="small" icon={<InboxOutlined />}>更换音频</Button>
-        </Upload>
-      </div>
+      <AudioClipEditorImportSurface
+        durationSeconds={durationSeconds}
+        source={source}
+        sourceKindLabel={editorViewModel.sourceKindLabel}
+        uploadProps={importUploadProps}
+      />
 
-      <div className="audio-waveform" ref={waveformRef} onContextMenu={handleWaveformContextMenu} />
+      <AudioClipEditorTrack
+        waveformRef={waveformRef}
+        onContextMenu={handleWaveformContextMenu}
+      />
 
-      {contextMenu ? (
-        <div className="audio-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          {contextMenu.type === 'waveform' ? (
-            <Button type="text" size="small" icon={<PlusOutlined />} onClick={addContextRegion}>
-              添加片段区块
-            </Button>
-          ) : (
-            <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={deleteContextRegion}>
-              删除片段区块
-            </Button>
-          )}
-        </div>
-      ) : null}
+      <AudioClipEditorMenus
+        contextMenu={contextMenu}
+        onAddContextRegion={addContextRegion}
+        onDeleteContextRegion={deleteContextRegion}
+      />
 
-      <div className="audio-editor-controls">
-        <Button icon={<PlayCircleOutlined />} onClick={() => {
+      <AudioClipEditorToolbar
+        canAddSelectedRegionToPending={canAddSelectedRegionToPending}
+        selectedRegionId={selectedRegionId}
+        onAddSelectedRegionToPending={onAddSelectedRegionToPending}
+        onPausePlayback={pausePlayback}
+        onPlaySelectedRegion={playSelectedRegion}
+        onToggleSourcePlayback={() => {
           onStopPendingPreviewPlayback()
           stopPendingSequencePlayback()
           void waveSurferRef.current?.playPause()
-        }}>
-          播放源音频
-        </Button>
-        <Button icon={<PauseCircleOutlined />} onClick={pausePlayback}>
-          暂停
-        </Button>
-        <Button icon={<PlayCircleOutlined />} disabled={!selectedRegionId} onClick={playSelectedRegion}>
-          播放选中区块
-        </Button>
-        <Button
-          icon={<PlusOutlined />}
-          disabled={!canAddSelectedRegionToPending}
-          onClick={onAddSelectedRegionToPending}
-        >
-          添加选中区块到待处理
-        </Button>
-      </div>
+        }}
+      />
 
       <div className="audio-editor-time-grid">
         <label>
@@ -598,116 +571,40 @@ export function AudioClipEditorPanel({
         </label>
         <label>
           <span>选中</span>
-          <strong>{formatAudioClipTime(selectedDuration)}</strong>
+          <strong>{formatAudioClipTime(editorViewModel.selectedDuration)}</strong>
         </label>
         <label>
           <span>待处理</span>
-          <strong>{formatAudioClipTime(pendingDuration)}</strong>
+          <strong>{formatAudioClipTime(editorViewModel.pendingDuration)}</strong>
         </label>
       </div>
 
-      <section className="audio-editor-pending-block" aria-labelledby="audio-editor-pending-title">
-        <div className="audio-editor-pending-header">
-          <div className="audio-editor-pending-title">
-            <strong id="audio-editor-pending-title">待处理</strong>
-            <span>{pendingSegments.length} 段 · {formatAudioClipTime(pendingDuration)}</span>
-          </div>
-          <div className="audio-editor-pending-actions">
-            <Button
-              size="small"
-              icon={<PlayCircleOutlined />}
-              disabled={pendingSegments.length === 0}
-              onClick={playPendingSegments}
-            >
-              播放全部
-            </Button>
-            <span className="audio-editor-loop">
-              循环 <Switch size="small" onChange={(checked) => { pendingPlaybackRef.current.loop = checked }} />
-            </span>
-          </div>
-        </div>
-
-        <div
-          className="audio-editor-pending-list"
-          onDragOver={handlePendingListDragOver}
-          onDragLeave={handlePendingListDragLeave}
-          onDrop={handlePendingListDrop}
-        >
-          {pendingSegments.length === 0 ? (
-            <div className="audio-editor-empty-row">暂无待处理片段</div>
-          ) : visiblePendingSegments.map((segment, index) => {
-            const isDropTarget = pendingDropTarget?.regionId === segment.regionId
-            const cardClassName = [
-              'audio-editor-pending-card',
-              draggedPendingRegionId === segment.regionId ? 'is-dragging' : '',
-              isDropTarget ? 'is-drop-target' : '',
-              isDropTarget && pendingDropTarget.placement === 'before' ? 'is-drop-before' : '',
-              isDropTarget && pendingDropTarget.placement === 'after' ? 'is-drop-after' : '',
-            ].filter(Boolean).join(' ')
-            const pendingIndex = pendingSegments.findIndex((item) => item.regionId === segment.regionId)
-
-            return (
-              <div
-                key={segment.regionId}
-                className={cardClassName}
-                data-audio-pending-region-id={segment.regionId}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = 'move'
-                  event.dataTransfer.setData('text/plain', segment.regionId)
-                  draggedPendingRegionIdRef.current = segment.regionId
-                  setDraggedPendingRegionId(segment.regionId)
-                }}
-                onDragEnd={endPendingDrag}
-              >
-                <div className="audio-editor-pending-card-head">
-                  <button
-                    type="button"
-                    className="audio-editor-pending-index"
-                    onClick={() => onSelectRegion(segment.regionId)}
-                  >
-                    {index + 1}
-                  </button>
-                  <strong>{formatAudioClipTime(segment.endSeconds - segment.startSeconds)}</strong>
-                  <Button
-                    size="small"
-                    type="text"
-                    icon={<PlayCircleOutlined />}
-                    onClick={() => {
-                      onStopPendingPreviewPlayback()
-                      stopPendingSequencePlayback()
-                      playPendingAt(pendingIndex)
-                    }}
-                  >
-                    播放
-                  </Button>
-                  <Button
-                    size="small"
-                    type="text"
-                    icon={<DeleteOutlined />}
-                    onClick={() => onRemovePendingSegment(segment.regionId)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="audio-editor-pending-time"
-                  onClick={() => onSelectRegion(segment.regionId)}
-                >
-                  {formatAudioClipTime(segment.startSeconds)} - {formatAudioClipTime(segment.endSeconds)}
-                </button>
-                <div className="audio-editor-pending-waveform" aria-hidden="true">
-                  {Array.from({ length: 18 }, (_, barIndex) => (
-                    <span
-                      key={barIndex}
-                      style={{ height: `${30 + (((barIndex + 3) * (index + 5) * 13) % 58)}%` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
+      <AudioClipEditorSegments
+        draggedPendingRegionId={draggedPendingRegionId}
+        pendingDropTarget={pendingDropTarget}
+        pendingDuration={editorViewModel.pendingDuration}
+        pendingSegments={pendingSegments}
+        visiblePendingSegments={editorViewModel.visiblePendingSegments}
+        onDragEnd={endPendingDrag}
+        onDragLeave={handlePendingListDragLeave}
+        onDragOver={handlePendingListDragOver}
+        onDragStart={(regionId, event) => {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('text/plain', regionId)
+          draggedPendingRegionIdRef.current = regionId
+          setDraggedPendingRegionId(regionId)
+        }}
+        onDrop={handlePendingListDrop}
+        onLoopChange={(checked) => { pendingPlaybackRef.current.loop = checked }}
+        onPlayAll={playPendingSegments}
+        onPlayPendingSegment={(index) => {
+          onStopPendingPreviewPlayback()
+          stopPendingSequencePlayback()
+          playPendingAt(index)
+        }}
+        onRemovePendingSegment={onRemovePendingSegment}
+        onSelectRegion={onSelectRegion}
+      />
 
       <div className="audio-editor-save-row">
         <Input

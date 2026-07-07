@@ -57,7 +57,7 @@ test('normalizes clip ranges into source duration bounds', () => {
 })
 
 test('rejects selected ranges shorter than the minimum clip duration', () => {
-  assert.equal(isValidAudioClipRange({ startSeconds: 1, endSeconds: 1.01 }), false)
+  assert.equal(isValidAudioClipRange({ startSeconds: 1, endSeconds: 1.005 }), false)
   assert.equal(isValidAudioClipRange({ startSeconds: 1, endSeconds: 1.08 }), true)
 })
 

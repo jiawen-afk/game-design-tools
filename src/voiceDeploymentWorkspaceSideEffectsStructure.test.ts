@@ -86,3 +86,56 @@ test('voice deployment workspace delegates shell orchestration to a focused hook
     assert.match(workspaceHookSource, new RegExp(orchestrationToken))
   }
 })
+
+test('audio clip editor delegates import surface, menus, toolbar, track, and pending segments', () => {
+  const panelPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorPanel.tsx'
+  const importWorkflowPath = 'src/components/VoiceDeploymentWorkspace/useAudioClipImportWorkflow.ts'
+  const viewModelPath = 'src/components/VoiceDeploymentWorkspace/audioClipEditorViewModel.ts'
+  const importSurfacePath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorImportSurface.tsx'
+  const toolbarPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorToolbar.tsx'
+  const trackPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorTrack.tsx'
+  const segmentsPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorSegments.tsx'
+  const menusPath = 'src/components/VoiceDeploymentWorkspace/AudioClipEditorMenus.tsx'
+
+  for (const path of [
+    importWorkflowPath,
+    viewModelPath,
+    importSurfacePath,
+    toolbarPath,
+    trackPath,
+    segmentsPath,
+    menusPath,
+  ]) {
+    assert.ok(existsSync(path), `${path} should exist`)
+  }
+
+  const panelSource = readFileSync(panelPath, 'utf8')
+  const workspaceHookSource = readFileSync('src/components/VoiceDeploymentWorkspace/useAudioClipEditorWorkspace.ts', 'utf8')
+  const importWorkflowSource = readFileSync(importWorkflowPath, 'utf8')
+  const viewModelSource = readFileSync(viewModelPath, 'utf8')
+  const importSurfaceSource = readFileSync(importSurfacePath, 'utf8')
+  const toolbarSource = readFileSync(toolbarPath, 'utf8')
+  const trackSource = readFileSync(trackPath, 'utf8')
+  const segmentsSource = readFileSync(segmentsPath, 'utf8')
+  const menusSource = readFileSync(menusPath, 'utf8')
+
+  assert.match(panelSource, /AudioClipEditorImportSurface/)
+  assert.match(panelSource, /AudioClipEditorToolbar/)
+  assert.match(panelSource, /AudioClipEditorTrack/)
+  assert.match(panelSource, /AudioClipEditorSegments/)
+  assert.match(panelSource, /AudioClipEditorMenus/)
+  assert.match(panelSource, /buildAudioClipEditorViewModel/)
+  assert.match(workspaceHookSource, /useAudioClipImportWorkflow/)
+  assert.doesNotMatch(panelSource, /supportedAudioFilePattern|createAudioClipSourceFromImportedFile/)
+  assert.doesNotMatch(panelSource, /Upload\.Dragger/)
+  assert.doesNotMatch(panelSource, /audio-editor-pending-card-head/)
+  assert.doesNotMatch(panelSource, /audio-context-menu/)
+  assert.match(importWorkflowSource, /supportedAudioFilePattern/)
+  assert.match(importWorkflowSource, /createAudioClipSourceFromImportedFile/)
+  assert.match(viewModelSource, /sourceKindLabel/)
+  assert.match(importSurfaceSource, /Upload\.Dragger/)
+  assert.match(toolbarSource, /audio-editor-controls/)
+  assert.match(trackSource, /audio-waveform/)
+  assert.match(segmentsSource, /audio-editor-pending-card-head/)
+  assert.match(menusSource, /audio-context-menu/)
+})
