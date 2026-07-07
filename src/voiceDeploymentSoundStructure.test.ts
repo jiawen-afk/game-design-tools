@@ -200,3 +200,16 @@ test('sound project-space audio assets use stored project resource playback', ()
   assert.match(librarySource, /\{\.\.\.projectResourceReadOptions\}/)
   assert.doesNotMatch(librarySource, /const audioSource = asset\.resourcePaths\[0\]/)
 })
+
+test('voice workspace exposes an audio editor tab and sound records can open clip editing', () => {
+  const indexSource = read(files.index)
+  const tabsSource = read(files.tabs)
+  const librarySource = read(files.library)
+
+  assert.match(indexSource, /useAudioClipEditorWorkspace/)
+  assert.match(indexSource, /AudioClipEditorPanel/)
+  assert.match(tabsSource, /音频编辑/)
+  assert.match(tabsSource, /activeKey/)
+  assert.match(librarySource, /剪辑片段/)
+  assert.match(librarySource, /onClip/)
+})

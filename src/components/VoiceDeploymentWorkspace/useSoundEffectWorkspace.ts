@@ -110,6 +110,9 @@ export function useSoundEffectWorkspace() {
     generation,
     records: recordLibrary.records,
     lastGeneratedId: recordLibrary.lastGeneratedId,
+    audioClipActions: {
+      addSoundEffectClipRecord: recordLibrary.addRecord,
+    },
     setupPanelProps: {
       stableAudioModels,
       selectedModel: setup.selectedModel,

@@ -17,6 +17,7 @@ interface VoiceLibraryPanelProps {
   projectResourceReadOptions: VoiceProjectResourceReadOptions
   onLoad: (record: VoiceGenerationRecord) => void
   onClone: (record: VoiceGenerationRecord) => void
+  onClip: (record: VoiceGenerationRecord) => void
   onDelete: (id: string) => void
   onClearHistory: () => void
   onRename: (id: string, name: string) => void
@@ -36,6 +37,7 @@ export function VoiceLibraryPanel({
   projectResourceReadOptions,
   onLoad,
   onClone,
+  onClip,
   onDelete,
   onClearHistory,
   onRename,
@@ -73,6 +75,7 @@ export function VoiceLibraryPanel({
                   lastGeneratedId={lastGeneratedId}
                   onLoad={onLoad}
                   onClone={onClone}
+                  onClip={onClip}
                   onDelete={onDelete}
                   onRename={onRename}
                   onCollect={onCollect}

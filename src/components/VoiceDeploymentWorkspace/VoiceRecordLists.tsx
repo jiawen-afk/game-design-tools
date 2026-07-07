@@ -1,5 +1,5 @@
 import { Button, Dropdown, Empty, Input, Space, Tag } from 'antd'
-import { DeleteOutlined, DownOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownOutlined, ScissorOutlined } from '@ant-design/icons'
 
 import type { CharacterProfile, PersonalSpaceAsset, StoryboardGroup } from '../PersonalSpaceWorkspace/personalSpaceModel'
 import type { VoiceGenerationRecord } from './voiceDeploymentModel'
@@ -13,6 +13,7 @@ interface VoiceRecordListProps {
   lastGeneratedId: string | null
   onLoad: (record: VoiceGenerationRecord) => void
   onClone: (record: VoiceGenerationRecord) => void
+  onClip: (record: VoiceGenerationRecord) => void
   onDelete: (id: string) => void
   onRename: (id: string, name: string) => void
   onCollect: (record: VoiceGenerationRecord) => void
@@ -26,6 +27,7 @@ export function VoiceRecordList({
   lastGeneratedId,
   onLoad,
   onClone,
+  onClip,
   onDelete,
   onRename,
   onCollect,
@@ -63,6 +65,7 @@ export function VoiceRecordList({
             <div className="record-actions">
               <Button size="small" onClick={() => onLoad(record)}>载入参数</Button>
               <Button size="small" disabled={!record.audioPath} onClick={() => onClone(record)}>克隆音频</Button>
+              <Button size="small" icon={<ScissorOutlined />} onClick={() => onClip(record)}>剪辑片段</Button>
               <Space.Compact className="record-collect-action">
                 <Button
                   size="small"

@@ -18,3 +18,12 @@ test('audio clip editor uses wavesurfer regions and focused editor styling', () 
   assert.match(panelSource, /设为结束/)
   assert.match(cssHub, /voiceDeployment\.audioEditor\.css/)
 })
+
+test('voice history records can open clip editing', () => {
+  const voiceLibrarySource = read('src/components/VoiceDeploymentWorkspace/VoiceLibraryPanel.tsx')
+  const voiceRecordListSource = read('src/components/VoiceDeploymentWorkspace/VoiceRecordLists.tsx')
+
+  assert.match(voiceLibrarySource, /onClip/)
+  assert.match(voiceRecordListSource, /剪辑片段/)
+  assert.match(voiceRecordListSource, /ScissorOutlined/)
+})

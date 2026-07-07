@@ -6,6 +6,7 @@ import {
   EditOutlined,
   LinkOutlined,
   SaveOutlined,
+  ScissorOutlined,
   SoundOutlined,
 } from '@ant-design/icons'
 
@@ -23,6 +24,7 @@ interface SoundEffectLibraryPanelProps {
   collectingRecordId: string
   collectError: string
   onLoad: (record: SoundEffectRecord) => void
+  onClip: (record: SoundEffectRecord) => void
   onRenameRecord: (recordId: string, name: string) => void
   onDeleteRecord: (recordId: string) => void
   onClearRecords: () => void
@@ -87,6 +89,7 @@ export function SoundEffectLibraryPanel({
   collectingRecordId,
   collectError,
   onLoad,
+  onClip,
   onRenameRecord,
   onDeleteRecord,
   onClearRecords,
@@ -178,6 +181,9 @@ export function SoundEffectLibraryPanel({
                           <div className="record-actions">
                             <Button size="small" onClick={() => onLoad(record)}>
                               载入参数
+                            </Button>
+                            <Button size="small" icon={<ScissorOutlined />} onClick={() => onClip(record)}>
+                              剪辑片段
                             </Button>
                             <Button
                               size="small"

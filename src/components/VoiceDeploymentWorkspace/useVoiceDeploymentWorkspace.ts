@@ -109,6 +109,9 @@ export function useVoiceDeploymentWorkspace() {
       onRunDesktopSetup: () => void setup.runDesktopSetup(),
       onQueryDesktopDependencyStatus: () => void setup.queryDesktopDependencyStatus(),
     },
+    audioClipActions: {
+      addVoiceClipRecord: recordLibrary.addRecord,
+    },
     libraryPanelProps: {
       records: recordLibrary.records,
       lastGeneratedId: recordLibrary.lastGeneratedId,
