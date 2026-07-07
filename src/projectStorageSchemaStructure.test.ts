@@ -4,6 +4,11 @@ import { existsSync, readFileSync } from 'node:fs'
 
 test('project schema SQL has one shared source for electron and renderer wrappers', () => {
   const sharedSchemaModulePath = 'src/components/ProjectStorage/projectSchemaShared.cjs'
+  const sharedSchemaGroupModulePaths = [
+    'src/components/ProjectStorage/projectSchemaCoreShared.cjs',
+    'src/components/ProjectStorage/projectSchemaAssetShared.cjs',
+    'src/components/ProjectStorage/projectSchemaDocumentShared.cjs',
+  ]
   const rendererSchemaModulePaths = [
     'src/components/ProjectStorage/projectSchema.ts',
     'src/components/ProjectStorage/projectSchemaAsset.ts',
@@ -19,14 +24,25 @@ test('project schema SQL has one shared source for electron and renderer wrapper
   ]
 
   assert.ok(existsSync(sharedSchemaModulePath), `${sharedSchemaModulePath} should exist`)
+  for (const path of sharedSchemaGroupModulePaths) {
+    assert.ok(existsSync(path), `${path} should exist`)
+  }
   const sharedSource = readFileSync(sharedSchemaModulePath, 'utf8')
+  const sharedGroupSources = sharedSchemaGroupModulePaths
+    .map((path) => readFileSync(path, 'utf8'))
+    .join('\n')
   assert.match(sharedSource, /function createProjectSchemaSql\b/)
-  assert.match(sharedSource, /function createProjectAssetSchemaSql\b/)
-  assert.match(sharedSource, /function createProjectCoreSchemaSql\b/)
-  assert.match(sharedSource, /function createProjectLifecycleSchemaSql\b/)
-  assert.match(sharedSource, /function createProjectDocumentSchemaSql\b/)
-  assert.match(sharedSource, /CREATE TABLE IF NOT EXISTS assets/)
-  assert.match(sharedSource, /CREATE TABLE IF NOT EXISTS document_collections/)
+  assert.match(sharedSource, /projectSchemaCoreShared\.cjs/)
+  assert.match(sharedSource, /projectSchemaAssetShared\.cjs/)
+  assert.match(sharedSource, /projectSchemaDocumentShared\.cjs/)
+  assert.doesNotMatch(sharedSource, /CREATE TABLE IF NOT EXISTS assets/)
+  assert.doesNotMatch(sharedSource, /CREATE TABLE IF NOT EXISTS document_collections/)
+  assert.match(sharedGroupSources, /function createProjectAssetSchemaSql\b/)
+  assert.match(sharedGroupSources, /function createProjectCoreSchemaSql\b/)
+  assert.match(sharedGroupSources, /function createProjectLifecycleSchemaSql\b/)
+  assert.match(sharedGroupSources, /function createProjectDocumentSchemaSql\b/)
+  assert.match(sharedGroupSources, /CREATE TABLE IF NOT EXISTS assets/)
+  assert.match(sharedGroupSources, /CREATE TABLE IF NOT EXISTS document_collections/)
 
   for (const path of rendererSchemaModulePaths) {
     const source = readFileSync(path, 'utf8')
