@@ -6,14 +6,43 @@ test('layout workspace delegates batch frame layout presets to the model', () =>
   const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutWorkspace.ts', 'utf8')
   const actionHookSource = readFileSync('src/components/MultiFrameSpriteWorkspace/useLayoutFrameActions.ts', 'utf8')
   const modelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/layoutModel.ts', 'utf8')
+  const presetModelSource = existsSync('src/components/MultiFrameSpriteWorkspace/layoutPresetModel.ts')
+    ? readFileSync('src/components/MultiFrameSpriteWorkspace/layoutPresetModel.ts', 'utf8')
+    : modelSource
 
   assert.match(source, /useLayoutFrameActions/)
   assert.doesNotMatch(source, /applyLayoutPresetToFrames/)
   assert.match(actionHookSource, /applyLayoutPresetToFrames/)
-  assert.match(modelSource, /export function applyLayoutPresetToFrames/)
+  assert.match(`${modelSource}\n${presetModelSource}`, /applyLayoutPresetToFrames/)
   assert.doesNotMatch(source, /const applyAllSize = /)
   assert.doesNotMatch(source, /Math\.max\(\.\.\.frames\.map\(\(f\) => f\.layout\.width\)\)/)
   assert.doesNotMatch(source, /item\.matteWidth \/ Math\.max\(1, item\.matteHeight\)/)
+})
+
+test('layout model delegates interaction preview and preset rules to focused modules', () => {
+  const facadePath = 'src/components/MultiFrameSpriteWorkspace/layoutModel.ts'
+  const interactionPath = 'src/components/MultiFrameSpriteWorkspace/layoutInteractionModel.ts'
+  const previewPath = 'src/components/MultiFrameSpriteWorkspace/layoutPreviewModel.ts'
+  const presetPath = 'src/components/MultiFrameSpriteWorkspace/layoutPresetModel.ts'
+
+  for (const path of [interactionPath, previewPath, presetPath]) {
+    assert.ok(existsSync(path), `${path} should exist`)
+  }
+
+  const facadeSource = readFileSync(facadePath, 'utf8')
+  const interactionSource = readFileSync(interactionPath, 'utf8')
+  const previewSource = readFileSync(previewPath, 'utf8')
+  const presetSource = readFileSync(presetPath, 'utf8')
+
+  assert.match(facadeSource, /from '\.\/layoutInteractionModel'/)
+  assert.match(facadeSource, /from '\.\/layoutPreviewModel'/)
+  assert.match(facadeSource, /from '\.\/layoutPresetModel'/)
+  assert.doesNotMatch(facadeSource, /function\s+(computeHandleResize|getLayoutFrameSilhouettePreviewLayers|applyLayoutPresetToFrames)\b/)
+  assert.match(interactionSource, /export function computeHandleResize/)
+  assert.match(interactionSource, /export function computePointerCanvasDelta/)
+  assert.match(previewSource, /export function getLayoutFrameSilhouettePreviewLayers/)
+  assert.match(presetSource, /export function applyLayoutPresetToFrames/)
+  assert.match(presetSource, /export function applyCanvasRatioToFrameLayouts/)
 })
 
 test('layout workspace delegates canvas ratio apply feedback to a focused hook', () => {
@@ -119,8 +148,11 @@ test('active layout frame preview renders public stroke and outline styles witho
   const stageSource = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasStage.tsx', 'utf8')
   const layerSource = readFileSync('src/components/MultiFrameSpriteWorkspace/CanvasActiveFrameLayer.tsx', 'utf8')
   const modelSource = readFileSync('src/components/MultiFrameSpriteWorkspace/layoutModel.ts', 'utf8')
+  const previewModelSource = existsSync('src/components/MultiFrameSpriteWorkspace/layoutPreviewModel.ts')
+    ? readFileSync('src/components/MultiFrameSpriteWorkspace/layoutPreviewModel.ts', 'utf8')
+    : modelSource
 
-  assert.match(modelSource, /export function getLayoutFrameSilhouettePreviewLayers/)
+  assert.match(`${modelSource}\n${previewModelSource}`, /getLayoutFrameSilhouettePreviewLayers/)
   assert.match(stageSource, /composeStyle=\{layout\.composeStyle\}/)
   assert.match(layerSource, /composeStyle/)
   assert.match(layerSource, /getLayoutFrameSilhouettePreviewLayers\(composeStyle\)/)

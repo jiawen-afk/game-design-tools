@@ -68,6 +68,30 @@ test('image processing workspace delegates export save workflow to a focused hoo
   assert.match(exportHookSource, /message\.error\(`导出失败：/)
 })
 
+test('image processing export workflow delegates batch preparation and upscale preview encoding', () => {
+  const exportHookPath = 'src/components/ImageProcessingWorkspace/useImageExportWorkflow.ts'
+  const batchWorkflowPath = 'src/components/ImageProcessingWorkspace/imageBatchExportWorkflow.ts'
+
+  assert.ok(existsSync(batchWorkflowPath), 'image batch export workflow helper should exist')
+  const exportHookSource = readFileSync(exportHookPath, 'utf8')
+  const batchWorkflowSource = readFileSync(batchWorkflowPath, 'utf8')
+
+  assert.match(exportHookSource, /from '\.\/imageBatchExportWorkflow'/)
+  assert.match(exportHookSource, /prepareImageBatchExport/)
+  assert.match(exportHookSource, /createImageBatchUpscalePreview/)
+  assert.match(exportHookSource, /encodeImageUpscalePreview/)
+  assert.match(exportHookSource, /revokeBatchUpscalePreview/)
+  assert.doesNotMatch(exportHookSource, /applyImageMatte/)
+  assert.doesNotMatch(exportHookSource, /blobFromDesktopBinaryData/)
+  assert.doesNotMatch(exportHookSource, /interface PreparedBatchExport/)
+  assert.match(batchWorkflowSource, /export async function prepareImageBatchExport/)
+  assert.match(batchWorkflowSource, /export async function createImageBatchUpscalePreview/)
+  assert.match(batchWorkflowSource, /export async function encodeImageUpscalePreview/)
+  assert.match(batchWorkflowSource, /export function revokeBatchUpscalePreview/)
+  assert.match(batchWorkflowSource, /applyImageMatte/)
+  assert.match(batchWorkflowSource, /blobFromDesktopBinaryData/)
+})
+
 test('image processing workspace delegates export settings state to a focused hook', () => {
   const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
   const settingsHookPath = 'src/components/ImageProcessingWorkspace/useImageExportSettingsWorkspace.ts'
