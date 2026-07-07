@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const files = {
   index: 'src/components/VoiceDeploymentWorkspace/index.tsx',
@@ -10,10 +10,26 @@ const files = {
   library: 'src/components/VoiceDeploymentWorkspace/SoundEffectLibraryPanel.tsx',
   cssHub: 'src/components/VoiceDeploymentWorkspace/voiceDeploymentWorkspace.css',
   soundCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.css',
+  soundSetupActions: 'src/components/VoiceDeploymentWorkspace/SoundEffectSetupActions.tsx',
+  soundSetupStatus: 'src/components/VoiceDeploymentWorkspace/SoundEffectSetupStatus.tsx',
+  soundModelInstall: 'src/components/VoiceDeploymentWorkspace/SoundEffectModelInstallPanel.tsx',
+  soundSetupCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.setup.css',
+  soundStudioCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.studio.css',
+  soundLibraryCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.library.css',
+  soundResponsiveCss: 'src/components/VoiceDeploymentWorkspace/voiceDeployment.sound.responsive.css',
 }
 
 function read(path: string) {
   return readFileSync(path, 'utf8')
+}
+
+function readSoundCssModules() {
+  return [
+    files.soundSetupCss,
+    files.soundStudioCss,
+    files.soundLibraryCss,
+    files.soundResponsiveCss,
+  ].filter((path) => existsSync(path)).map(read).join('\n')
 }
 
 test('voice deployment workspace renders voice and sound effect tabs through focused components', () => {
@@ -26,13 +42,19 @@ test('voice deployment workspace renders voice and sound effect tabs through foc
 })
 
 test('sound effect panels expose model install generation and collection controls', () => {
-  assert.match(read(files.setup), /small-sfx/)
-  assert.match(read(files.setup), /small-music/)
-  assert.match(read(files.setup), /medium/)
-  assert.match(read(files.setup), /安装依赖/)
-  assert.match(read(files.setup), /安装模型/)
-  assert.match(read(files.setup), /未安装模型/)
-  assert.match(read(files.setup), /启动服务/)
+  const setupSurfaceSource = [
+    files.setup,
+    files.soundSetupActions,
+    files.soundModelInstall,
+  ].filter((path) => existsSync(path)).map(read).join('\n')
+
+  assert.match(setupSurfaceSource, /small-sfx/)
+  assert.match(setupSurfaceSource, /small-music/)
+  assert.match(setupSurfaceSource, /medium/)
+  assert.match(setupSurfaceSource, /安装依赖/)
+  assert.match(setupSurfaceSource, /安装模型/)
+  assert.match(setupSurfaceSource, /未安装模型/)
+  assert.match(setupSurfaceSource, /启动服务/)
   assert.match(read(files.generator), /提示词/)
   assert.match(read(files.generator), /模型/)
   assert.match(read(files.generator), /Select/)
@@ -46,7 +68,7 @@ test('sound effect CSS stays in a focused module imported by the workspace CSS h
 })
 
 test('sound effect mobile layout prevents long controls from forcing horizontal overflow', () => {
-  const css = read(files.soundCss)
+  const css = readSoundCssModules()
 
   assert.match(css, /@media \(max-width: 900px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
   assert.match(css, /\.sound-setup-panel \.ant-segmented[\s\S]*max-width: 100%/)
@@ -106,16 +128,18 @@ test('sound effect workspace keeps the generation model aligned with the setup s
 
 test('sound effect setup collapses installed dependency controls and exposes missing model install', () => {
   const setupSource = read(files.setup)
-  const soundCss = read(files.soundCss)
+  const modelInstallSource = existsSync(files.soundModelInstall) ? read(files.soundModelInstall) : ''
+  const actionsSource = existsSync(files.soundSetupActions) ? read(files.soundSetupActions) : ''
+  const soundCss = existsSync(files.soundSetupCss) ? read(files.soundSetupCss) : read(files.soundCss)
   const workspaceSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
   const setupHookSource = read('src/components/VoiceDeploymentWorkspace/useStableAudioSetup.ts')
 
   assert.match(setupSource, /dependenciesReady/)
-  assert.match(setupSource, /missingModelOptions/)
-  assert.match(setupSource, /compact-service-controls/)
+  assert.match(modelInstallSource, /missingModelOptions/)
+  assert.match(actionsSource, /compact-service-controls/)
   assert.match(setupSource, /sound-compact-service-toolbar/)
   assert.match(setupSource, /sound-service-address/)
-  assert.match(setupSource, /sound-model-status-inline/)
+  assert.match(modelInstallSource, /sound-model-status-inline/)
   assert.match(soundCss, /\.sound-compact-service-toolbar[\s\S]*grid-template-columns: minmax\(220px, auto\) minmax\(140px, 0\.45fr\) minmax\(240px, 0\.65fr\) auto/)
   assert.match(workspaceSource, /installState/)
   assert.match(workspaceSource, /availableGenerationModels/)
@@ -125,7 +149,7 @@ test('sound effect setup collapses installed dependency controls and exposes mis
 
 test('sound effect setup uses a compact grid for service path source and model facts', () => {
   const setupSource = read(files.setup)
-  const soundCss = read(files.soundCss)
+  const soundCss = existsSync(files.soundSetupCss) ? read(files.soundSetupCss) : read(files.soundCss)
 
   assert.match(setupSource, /sound-setup-grid/)
   assert.match(setupSource, /sound-service-compact-row/)
@@ -142,7 +166,7 @@ test('sound effect setup uses a compact grid for service path source and model f
 
 test('sound effect setup places install service controls in the title row and swaps model path after model selector', () => {
   const setupSource = read(files.setup)
-  const soundCss = read(files.soundCss)
+  const soundCss = readSoundCssModules() || read(files.soundCss)
 
   assert.match(setupSource, /sound-setup-title-row/)
   assert.match(setupSource, /sound-setup-title-actions/)
@@ -157,9 +181,57 @@ test('sound effect setup places install service controls in the title row and sw
   assert.match(soundCss, /@media \(max-width: 1180px\)[\s\S]*\.sound-setup-title-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/)
 })
 
+test('sound effect setup delegates service actions status and model installation to focused components', () => {
+  for (const path of [files.soundSetupActions, files.soundSetupStatus, files.soundModelInstall]) {
+    assert.ok(existsSync(path), `${path} should exist`)
+  }
+
+  const setupSource = read(files.setup)
+  const actionsSource = read(files.soundSetupActions)
+  const statusSource = read(files.soundSetupStatus)
+  const modelInstallSource = read(files.soundModelInstall)
+
+  assert.match(setupSource, /SoundEffectSetupActions/)
+  assert.match(setupSource, /SoundEffectSetupStatus/)
+  assert.match(setupSource, /SoundEffectModelInstallPanel/)
+  assert.doesNotMatch(setupSource, /renderCommandDescription|commandAlert/)
+  assert.doesNotMatch(setupSource, /sound-model-install-row/)
+  assert.doesNotMatch(setupSource, /compact-service-controls/)
+  assert.match(actionsSource, /检测服务/)
+  assert.match(actionsSource, /安装依赖/)
+  assert.match(actionsSource, /启动服务/)
+  assert.match(statusSource, /renderCommandDescription/)
+  assert.match(statusSource, /commandAlert/)
+  assert.match(modelInstallSource, /sound-model-install-row/)
+  assert.match(modelInstallSource, /安装模型/)
+})
+
+test('sound effect CSS is split into setup studio library and responsive modules', () => {
+  for (const path of [files.soundSetupCss, files.soundStudioCss, files.soundLibraryCss, files.soundResponsiveCss]) {
+    assert.ok(existsSync(path), `${path} should exist`)
+  }
+
+  const soundCss = read(files.soundCss)
+  const setupCss = read(files.soundSetupCss)
+  const studioCss = read(files.soundStudioCss)
+  const libraryCss = read(files.soundLibraryCss)
+  const responsiveCss = read(files.soundResponsiveCss)
+
+  assert.equal((soundCss.match(/@import/g) ?? []).length, 4)
+  assert.doesNotMatch(soundCss, /^\s*(?:\.|@media\b)/m)
+  assert.match(soundCss, /@import '\.\/voiceDeployment\.sound\.setup\.css'/)
+  assert.match(soundCss, /@import '\.\/voiceDeployment\.sound\.studio\.css'/)
+  assert.match(soundCss, /@import '\.\/voiceDeployment\.sound\.library\.css'/)
+  assert.match(soundCss, /@import '\.\/voiceDeployment\.sound\.responsive\.css'/)
+  assert.match(setupCss, /\.sound-setup-grid/)
+  assert.match(studioCss, /\.sound-studio/)
+  assert.match(libraryCss, /\.sound-record-list/)
+  assert.match(responsiveCss, /@media \(max-width: 900px\)/)
+})
+
 test('sound effect records edit names through an explicit local draft confirmation flow', () => {
   const librarySource = read(files.library)
-  const soundCss = read(files.soundCss)
+  const soundCss = existsSync(files.soundLibraryCss) ? read(files.soundLibraryCss) : read(files.soundCss)
 
   assert.match(librarySource, /editingRecordId/)
   assert.match(librarySource, /recordNameDraft/)
@@ -176,7 +248,7 @@ test('sound effect records edit names through an explicit local draft confirmati
 test('sound effect setup can open the Stable Audio model folder from the model path field', () => {
   const setupSource = read(files.setup)
   const workspaceSource = read('src/components/VoiceDeploymentWorkspace/useSoundEffectWorkspace.ts')
-  const soundCss = read(files.soundCss)
+  const soundCss = existsSync(files.soundSetupCss) ? read(files.soundSetupCss) : read(files.soundCss)
 
   assert.match(setupSource, /FolderOpenOutlined/)
   assert.match(setupSource, /onOpenModelPath/)

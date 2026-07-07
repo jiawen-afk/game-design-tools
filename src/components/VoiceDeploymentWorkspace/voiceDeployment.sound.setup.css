@@ -1,0 +1,270 @@
+.sound-setup-panel,
+.sound-setup-panel .ant-segmented {
+  min-width: 0;
+}
+
+.sound-setup-panel .ant-segmented {
+  max-width: 100%;
+}
+
+.sound-setup-panel .ant-segmented-group {
+  min-width: 0;
+  width: 100%;
+}
+
+.sound-setup-panel .ant-segmented-item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sound-setup-panel .ant-segmented-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-setup-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(520px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.sound-setup-title-main,
+.sound-setup-title-actions,
+.sound-setup-title-actions-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.sound-setup-title-main {
+  gap: 10px;
+}
+
+.sound-setup-title-actions {
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sound-setup-title-actions-label {
+  flex: 0 0 auto;
+  gap: 6px;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sound-setup-title-actions .desktop-boost-actions {
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sound-setup-title-actions .ant-btn {
+  height: 32px;
+  padding-inline: 10px;
+}
+
+.sound-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(280px, 1.05fr) minmax(180px, 0.7fr);
+  gap: 8px 10px;
+  align-items: end;
+}
+
+.sound-setup-field {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.sound-service-compact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 126px auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.sound-service-compact-row code {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel-strong);
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.sound-port-input,
+.sound-model-path-field .ant-input {
+  width: 100%;
+}
+
+.sound-port-input .ant-input,
+.sound-model-path-field .ant-input {
+  height: 32px;
+}
+
+.sound-model-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.sound-model-path-row .ant-btn {
+  height: 32px;
+}
+
+.sound-download-source-field .ant-segmented,
+.sound-model-select-field .ant-segmented {
+  width: 100%;
+}
+
+.sound-compact-service {
+  display: grid;
+  gap: 6px;
+}
+
+.voice-panel.sound-setup-panel-compact {
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.sound-setup-panel-compact .panel-title {
+  gap: 8px;
+}
+
+.sound-setup-panel-compact .panel-title h3 {
+  font-size: 1rem;
+}
+
+.sound-compact-service-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, auto) minmax(140px, 0.45fr) minmax(240px, 0.65fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sound-service-address {
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sound-service-address code {
+  flex: 0 1 auto;
+  min-width: 90px;
+  max-width: 240px;
+  overflow-x: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel-strong);
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.compact-service-controls,
+.sound-model-install-row,
+.sound-model-status-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sound-compact-service-toolbar .model-select-label {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.compact-service-controls {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.compact-service-controls .ant-btn,
+.sound-model-install-row .ant-btn {
+  height: 32px;
+  padding-inline: 10px;
+}
+
+.sound-model-status-line {
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.sound-model-status-inline {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.sound-model-status-inline > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sound-install-model-select {
+  min-width: 160px;
+  flex: 1 1 160px;
+}
+
+.sound-model-install-row {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.sound-model-detail-grid {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: minmax(56px, 0.48fr) minmax(96px, 0.85fr) minmax(56px, 0.48fr) minmax(160px, 1.45fr) minmax(88px, 0.72fr);
+  align-self: stretch;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid color-mix(in oklch, var(--color-line) 84%, white);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--color-panel-strong) 42%, white);
+}
+
+.sound-model-detail-grid div {
+  min-width: 0;
+  padding: 6px 8px;
+  border-left: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+}
+
+.sound-model-detail-grid div:first-child {
+  border-left: 0;
+}
+
+.sound-model-detail-grid dt {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  line-height: 1.1;
+}
+
+.sound-model-detail-grid dd {
+  margin: 2px 0 0;
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.sound-setup-hint {
+  grid-column: 1 / -1;
+  margin-top: -2px;
+}

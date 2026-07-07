@@ -1,0 +1,21 @@
+.sound-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sound-record-list {
+  max-height: calc(100vh - 230px);
+}
+
+.sound-record-name-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.sound-record-name-row .ant-btn {
+  height: 32px;
+}

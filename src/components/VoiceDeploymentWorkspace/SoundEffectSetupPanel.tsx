@@ -1,15 +1,9 @@
-import { Alert, Button, Input, Segmented, Select, Tag } from 'antd'
+import { Button, Input, Segmented, Tag } from 'antd'
 import {
   CheckCircleOutlined,
   FolderOpenOutlined,
-  LoginOutlined,
   LoadingOutlined,
-  PlayCircleOutlined,
-  PoweroffOutlined,
-  ReloadOutlined,
-  SearchOutlined,
   SoundOutlined,
-  ThunderboltOutlined,
 } from '@ant-design/icons'
 
 import type { DesktopCommandResult, DesktopStableAudioSetupResult } from '../../desktopApi'
@@ -22,8 +16,12 @@ import type {
   StableAudioModelId,
   StableAudioModelMeta,
 } from './soundEffectModel'
-
-type StableAudioServiceAction = 'start' | 'stop' | 'restart' | 'status'
+import {
+  SoundEffectSetupActions,
+  type StableAudioServiceAction,
+} from './SoundEffectSetupActions'
+import { SoundEffectSetupStatus } from './SoundEffectSetupStatus'
+import { SoundEffectModelInstallPanel } from './SoundEffectModelInstallPanel'
 
 interface SoundEffectSetupPanelProps {
   stableAudioModels: StableAudioModelMeta[]
@@ -64,41 +62,6 @@ interface SoundEffectSetupPanelProps {
   onControlDesktopService: (action: StableAudioServiceAction) => void
 }
 
-const sourceOptions = downloadSources.map((source) => ({
-  label: source.label,
-  value: source.id,
-}))
-
-function renderCommandDescription(output: string) {
-  if (!output) return '没有返回详细信息。'
-  const parts = output.split(/(https?:\/\/[^\s]+)/g)
-  return (
-    <span style={{ whiteSpace: 'pre-wrap' }}>
-      {parts.map((part, index) => (
-        /^https?:\/\//.test(part)
-          ? (
-              <a key={`${part}:${index}`} href={part} target="_blank" rel="noreferrer">
-                {part}
-              </a>
-            )
-          : <span key={`${part}:${index}`}>{part}</span>
-      ))}
-    </span>
-  )
-}
-
-function commandAlert(result: DesktopCommandResult | null, successTitle: string, warningTitle: string) {
-  if (!result) return null
-  return (
-    <Alert
-      type={result.ok ? 'success' : 'warning'}
-      showIcon
-      title={result.ok ? successTitle : warningTitle}
-      description={renderCommandDescription(result.output)}
-    />
-  )
-}
-
 export function SoundEffectSetupPanel({
   stableAudioModels,
   selectedModel,
@@ -137,19 +100,14 @@ export function SoundEffectSetupPanel({
   onStartDesktopService,
   onControlDesktopService,
 }: SoundEffectSetupPanelProps) {
+  const sourceOptions = downloadSources.map((source) => ({
+    label: source.label,
+    value: source.id,
+  }))
   const modelOptions = stableAudioModels.map((model) => ({
     label: `${model.label} · ${model.id}`,
     value: model.id,
   }))
-  const installedModels = stableAudioModels.filter((model) => installedModelIds.includes(model.id))
-  const missingModels = stableAudioModels.filter((model) => missingModelIds.includes(model.id))
-  const missingModelOptions = missingModels.map((model) => ({
-    label: `${model.label} · ${model.id}`,
-    value: model.id,
-  }))
-  const installTarget = missingModelIds.includes(selectedModel)
-    ? selectedModel
-    : missingModels[0]?.id
   const connectionTag = {
     idle: <Tag>未检测</Tag>,
     checking: <Tag icon={<LoadingOutlined />} color="blue">检测中</Tag>,
@@ -157,63 +115,6 @@ export function SoundEffectSetupPanel({
     disconnected: <Tag color="error">未连接</Tag>,
   }[connectionStatus]
   const selectedDownloadSource = downloadSources.find((source) => source.id === downloadSource)
-  const setupActionButtons = (
-    <>
-      <Button icon={<SearchOutlined />} onClick={onRunCheck} disabled={connectionStatus === 'checking'}>
-        检测服务
-      </Button>
-      <Button
-        icon={<SearchOutlined />}
-        loading={desktopDependencyStatusBusy}
-        disabled={!desktopRuntime || desktopDependencyStatusBusy}
-        onClick={onQueryDesktopDependencyStatus}
-      >
-        检测依赖和模型
-      </Button>
-      <Button
-        type="primary"
-        icon={<ThunderboltOutlined />}
-        loading={desktopSetupBusy}
-        disabled={!desktopRuntime || desktopSetupBusy}
-        onClick={() => onRunDesktopSetup()}
-      >
-        安装依赖
-      </Button>
-      <Button
-        icon={<LoginOutlined />}
-        loading={desktopHfLoginBusy}
-        disabled={!desktopRuntime || desktopHfLoginBusy}
-        onClick={onRunDesktopHfLogin}
-      >
-        登录 HuggingFace
-      </Button>
-      <Button
-        icon={<PlayCircleOutlined />}
-        loading={desktopServiceBusy}
-        disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
-        onClick={onStartDesktopService}
-      >
-        启动服务
-      </Button>
-      <Button
-        icon={<ReloadOutlined />}
-        loading={desktopServiceBusy}
-        disabled={!desktopRuntime || desktopServiceBusy}
-        onClick={() => onControlDesktopService('restart')}
-      >
-        重启服务
-      </Button>
-      <Button
-        danger
-        icon={<PoweroffOutlined />}
-        loading={desktopServiceBusy}
-        disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
-        onClick={() => onControlDesktopService('stop')}
-      >
-        停止服务
-      </Button>
-    </>
-  )
 
   return (
     <section
@@ -228,13 +129,22 @@ export function SoundEffectSetupPanel({
         </div>
         {!dependenciesReady ? (
           <div className="sound-setup-title-actions" aria-label="Stable Audio 3 服务控制">
-            <span className="sound-setup-title-actions-label">
-              <ThunderboltOutlined />
-              <span>安装与服务</span>
-            </span>
-            <div className="desktop-boost-actions">
-              {setupActionButtons}
-            </div>
+            <SoundEffectSetupActions
+              connected={connected}
+              connectionStatus={connectionStatus}
+              desktopDependencyStatusBusy={desktopDependencyStatusBusy}
+              desktopHfLoginBusy={desktopHfLoginBusy}
+              desktopRuntime={desktopRuntime}
+              desktopServiceBusy={desktopServiceBusy}
+              desktopSetupBusy={desktopSetupBusy}
+              variant="title"
+              onControlDesktopService={onControlDesktopService}
+              onQueryDesktopDependencyStatus={onQueryDesktopDependencyStatus}
+              onRunCheck={onRunCheck}
+              onRunDesktopHfLogin={onRunDesktopHfLogin}
+              onRunDesktopSetup={onRunDesktopSetup}
+              onStartDesktopService={onStartDesktopService}
+            />
           </div>
         ) : null}
       </div>
@@ -247,61 +157,32 @@ export function SoundEffectSetupPanel({
               <code>{serviceUrl}</code>
               {connectionTag}
             </div>
-            <div className="sound-model-status-line sound-model-status-inline">
-              <span className="model-select-label">已安装模型</span>
-              <span>{installedModels.map((model) => model.id).join('、') || '无'}</span>
-            </div>
-            <div className="sound-model-install-row">
-              <span className="model-select-label">未安装模型</span>
-              {missingModels.length > 0 ? (
-                <>
-                  <Select
-                    value={installTarget}
-                    options={missingModelOptions}
-                    onChange={(value) => onModelChange(value)}
-                    className="sound-install-model-select"
-                  />
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    loading={desktopSetupBusy}
-                    disabled={!desktopRuntime || desktopSetupBusy || !installTarget}
-                    onClick={() => installTarget ? onRunDesktopSetup(installTarget) : undefined}
-                  >
-                    安装模型
-                  </Button>
-                </>
-              ) : (
-                <Tag color="success">无</Tag>
-              )}
-            </div>
-            <div className="compact-service-controls">
-              <Button
-                icon={<PlayCircleOutlined />}
-                loading={desktopServiceBusy}
-                disabled={!desktopRuntime || desktopServiceBusy || connected || connectionStatus === 'checking'}
-                onClick={onStartDesktopService}
-              >
-                启动服务
-              </Button>
-              <Button
-                icon={<ReloadOutlined />}
-                loading={desktopServiceBusy}
-                disabled={!desktopRuntime || desktopServiceBusy}
-                onClick={() => onControlDesktopService('restart')}
-              >
-                重启服务
-              </Button>
-              <Button
-                danger
-                icon={<PoweroffOutlined />}
-                loading={desktopServiceBusy}
-                disabled={!desktopRuntime || desktopServiceBusy || !connected || connectionStatus === 'checking'}
-                onClick={() => onControlDesktopService('stop')}
-              >
-                停止服务
-              </Button>
-            </div>
+            <SoundEffectModelInstallPanel
+              desktopRuntime={desktopRuntime}
+              desktopSetupBusy={desktopSetupBusy}
+              installedModelIds={installedModelIds}
+              missingModelIds={missingModelIds}
+              selectedModel={selectedModel}
+              stableAudioModels={stableAudioModels}
+              onModelChange={onModelChange}
+              onRunDesktopSetup={onRunDesktopSetup}
+            />
+            <SoundEffectSetupActions
+              connected={connected}
+              connectionStatus={connectionStatus}
+              desktopDependencyStatusBusy={desktopDependencyStatusBusy}
+              desktopHfLoginBusy={desktopHfLoginBusy}
+              desktopRuntime={desktopRuntime}
+              desktopServiceBusy={desktopServiceBusy}
+              desktopSetupBusy={desktopSetupBusy}
+              variant="compact"
+              onControlDesktopService={onControlDesktopService}
+              onQueryDesktopDependencyStatus={onQueryDesktopDependencyStatus}
+              onRunCheck={onRunCheck}
+              onRunDesktopHfLogin={onRunDesktopHfLogin}
+              onRunDesktopSetup={onRunDesktopSetup}
+              onStartDesktopService={onStartDesktopService}
+            />
           </div>
         </div>
       ) : (
@@ -394,23 +275,18 @@ export function SoundEffectSetupPanel({
         </>
       )}
 
-      {!desktopRuntime ? (
-        <Alert type="warning" showIcon title="当前是 Web 运行环境" description="安装、检测模型和服务控制需要从 Windows 桌面应用启动。" />
-      ) : null}
-      {desktopSetupResult ? (
-        <Alert type="success" showIcon title="安装终端已打开" description={`脚本路径：${desktopSetupResult.scriptPath}`} />
-      ) : null}
-      {desktopSetupError ? (
-        <Alert type="error" showIcon title="安装依赖启动失败" description={desktopSetupError} />
-      ) : null}
-      {desktopHfLoginResult ? (
-        <Alert type="success" showIcon title="HuggingFace 登录终端已打开" description={`脚本路径：${desktopHfLoginResult.scriptPath}`} />
-      ) : null}
-      {desktopHfLoginError ? (
-        <Alert type="error" showIcon title="HuggingFace 登录终端启动失败" description={desktopHfLoginError} />
-      ) : null}
-      {!dependenciesReady ? commandAlert(desktopDependencyStatusResult, '依赖和模型检测完成', '依赖或模型尚未就绪') : null}
-      {commandAlert(desktopServiceResult, desktopServiceBusy ? '服务启动中' : connected ? '服务已就绪' : '服务命令已执行', '服务未就绪')}
+      <SoundEffectSetupStatus
+        connected={connected}
+        dependenciesReady={dependenciesReady}
+        desktopDependencyStatusResult={desktopDependencyStatusResult}
+        desktopHfLoginError={desktopHfLoginError}
+        desktopHfLoginResult={desktopHfLoginResult}
+        desktopRuntime={desktopRuntime}
+        desktopServiceBusy={desktopServiceBusy}
+        desktopServiceResult={desktopServiceResult}
+        desktopSetupError={desktopSetupError}
+        desktopSetupResult={desktopSetupResult}
+      />
     </section>
   )
 }

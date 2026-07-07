@@ -1,0 +1,78 @@
+@media (max-width: 1180px) {
+  .sound-setup-title-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sound-setup-title-actions,
+  .sound-setup-title-actions .desktop-boost-actions {
+    justify-content: flex-start;
+  }
+
+  .sound-setup-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.85fr);
+  }
+
+  .sound-model-detail-grid {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .sound-studio,
+  .sound-setup-grid,
+  .sound-compact-service-toolbar,
+  .sound-model-meta,
+  .sound-model-detail-grid,
+  .sound-param-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sound-model-detail-grid {
+    grid-column: auto;
+  }
+
+  .sound-model-detail-grid div {
+    border-top: 1px solid color-mix(in oklch, var(--color-line) 72%, white);
+    border-left: 0;
+  }
+
+  .sound-model-detail-grid div:first-child {
+    border-top: 0;
+  }
+
+  .compact-service-controls {
+    justify-content: flex-start;
+  }
+
+  .sound-record-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .sound-link-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sound-setup-panel .ant-segmented-item-label {
+    padding-inline: 6px;
+    font-size: 0.82rem;
+  }
+
+  .sound-service-address,
+  .sound-service-compact-row,
+  .sound-setup-title-actions,
+  .sound-model-install-row,
+  .sound-model-status-inline,
+  .compact-service-controls {
+    flex-wrap: wrap;
+  }
+
+  .sound-service-compact-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sound-install-model-select {
+    min-width: 100%;
+  }
+}
