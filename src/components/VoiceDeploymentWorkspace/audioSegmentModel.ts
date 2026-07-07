@@ -48,6 +48,37 @@ function sortedRegions(regions: AudioSegmentRegion[]) {
   ))
 }
 
+function availableGaps(regions: AudioSegmentRegion[], durationSeconds: number): AudioClipRange[] {
+  const duration = Math.max(0, cleanNumber(durationSeconds))
+  let gapStart = 0
+  const gaps: AudioClipRange[] = []
+
+  for (const region of sortedRegions(regions)) {
+    const normalized = normalizeRange(region, duration)
+    if (normalized.startSeconds > gapStart) {
+      gaps.push({ startSeconds: gapStart, endSeconds: normalized.startSeconds })
+    }
+    gapStart = Math.max(gapStart, normalized.endSeconds)
+  }
+
+  if (gapStart < duration) {
+    gaps.push({ startSeconds: gapStart, endSeconds: duration })
+  }
+
+  return gaps.filter(isValidRange)
+}
+
+function selectGapForTime(gaps: AudioClipRange[], atSeconds: number) {
+  const containingGap = gaps.find((gap) => atSeconds >= gap.startSeconds && atSeconds <= gap.endSeconds)
+  if (containingGap) return containingGap
+  const nextGap = gaps.find((gap) => gap.startSeconds >= atSeconds)
+  if (nextGap) return nextGap
+  for (let index = gaps.length - 1; index >= 0; index -= 1) {
+    if (gaps[index].endSeconds <= atSeconds) return gaps[index]
+  }
+  return null
+}
+
 export function createAudioSegmentRegion({
   id,
   atSeconds,
@@ -56,24 +87,14 @@ export function createAudioSegmentRegion({
 }: CreateAudioSegmentRegionInput): AudioSegmentRegion | null {
   const duration = Math.max(0, cleanNumber(durationSeconds))
   const at = Math.max(0, Math.min(duration, cleanNumber(atSeconds)))
-  const regions = sortedRegions(existingRegions)
-  let gapStart = 0
-  let gapEnd = duration
+  const gap = selectGapForTime(availableGaps(existingRegions, duration), at)
+  if (!gap) return null
 
-  for (const region of regions) {
-    if (at >= gapStart && at <= region.startSeconds) {
-      gapEnd = region.startSeconds
-      break
-    }
-    gapStart = Math.max(gapStart, region.endSeconds)
-  }
-
-  if (at < gapStart || at > gapEnd || gapEnd - gapStart < minAudioClipDurationSeconds) {
-    return null
-  }
-
-  const startSeconds = roundSeconds(Math.min(Math.max(at, gapStart), gapEnd - minAudioClipDurationSeconds))
-  const endSeconds = roundSeconds(Math.min(startSeconds + defaultSegmentDurationSeconds, gapEnd))
+  const startSeconds = roundSeconds(Math.min(
+    Math.max(at, gap.startSeconds),
+    gap.endSeconds - minAudioClipDurationSeconds,
+  ))
+  const endSeconds = roundSeconds(Math.min(startSeconds + defaultSegmentDurationSeconds, gap.endSeconds))
   if (!isValidRange({ startSeconds, endSeconds })) return null
   return { id, startSeconds, endSeconds }
 }

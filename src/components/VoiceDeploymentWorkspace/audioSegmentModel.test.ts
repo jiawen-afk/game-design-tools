@@ -40,6 +40,21 @@ test('clamps a new segment so it does not overlap the next region', () => {
   })
 })
 
+test('creates the next available segment when the click is inside an existing region', () => {
+  const region = createAudioSegmentRegion({
+    id: 'segment-3',
+    atSeconds: 2,
+    durationSeconds: 8,
+    existingRegions: [{ id: 'existing', startSeconds: 1, endSeconds: 4 }],
+  })
+
+  deepEqual(region, {
+    id: 'segment-3',
+    startSeconds: 4,
+    endSeconds: 7,
+  })
+})
+
 test('moves a segment only inside its non-overlapping neighbors', () => {
   const regions = updateAudioSegmentRegion([
     { id: 'a', startSeconds: 0, endSeconds: 1 },
