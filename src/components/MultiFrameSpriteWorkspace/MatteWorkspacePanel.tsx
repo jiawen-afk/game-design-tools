@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import { Button, Card, Modal, Segmented, Space, Typography, Upload } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
-import { DeleteOutlined, DownloadOutlined, StarOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  DownloadOutlined,
+  LeftOutlined,
+  RightOutlined,
+  StarOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
 
 import { MatteAiSetupPanel } from './MatteAiSetupPanel'
 import { MatteFrameCard, type MatteFrameCardProps } from './MatteFrameCard'
-import { buildMatteFrameGroups } from './model'
+import { buildMatteFrameGroups, resolveMatteGroupFrameSelection } from './model'
 import type { MatteMode } from './aiMattingService'
 import type { FrameItem } from './types'
 import type { MattePipelineViewModel } from './useMattePipeline'
@@ -87,6 +94,12 @@ export function MatteWorkspacePanel({
 }: MatteWorkspacePanelProps) {
   const groups = buildMatteFrameGroups(frames)
   const [batchUploadOpen, setBatchUploadOpen] = useState(false)
+  const [selectedFrameIndexByGroup, setSelectedFrameIndexByGroup] = useState<Record<string, number>>({})
+
+  const selectGroupFrame = (groupId: string, nextIndex: number, nextFrameId?: string) => {
+    setSelectedFrameIndexByGroup((current) => ({ ...current, [groupId]: nextIndex }))
+    if (nextFrameId) onActivate(nextFrameId)
+  }
 
   return (
     <>
@@ -130,52 +143,79 @@ export function MatteWorkspacePanel({
         {groups.length > 0 ? (
           <Space direction="vertical" size={12} style={{ width: '100%', marginTop: 16 }}>
             <Text type="secondary">
-              每个任务组仅显示第 1 帧用于调试去背参数。确认后只会应用到该任务组内的图片帧。
+              每个任务组默认显示第 1 帧，可切换帧调试去背参数。确认后只会应用到该任务组内的图片帧。
             </Text>
-            {groups.map((group) => (
-              <div key={group.id} style={{ maxWidth: 620 }}>
-                <MatteFrameCard
-                  key={group.firstFrame.id}
-                  item={group.firstFrame}
-                  title={(
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span>{group.name} · 第 1 帧</span>
-                      <Space size={6} wrap>
-                        <Text type="secondary">共 {group.frameCount} 帧</Text>
-                        <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
-                          导出组图片
-                        </Button>
-                        <Button
-                          size="small"
-                          icon={<StarOutlined />}
-                          disabled={!personalSpaceCollectEnabled}
-                          title={personalSpaceCollectDisabledReason}
-                          onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
-                        >
-                          收藏到项目空间
-                        </Button>
-                      </Space>
-                    </div>
-                  )}
-                  index={0}
-                  frameCount={group.frameCount}
-                  active={activeFrameId === group.firstFrame.id}
-                  onActivate={onActivate}
-                  onRemove={() => onRemoveGroup(group.id)}
-                  onSampleColor={onSampleColor}
-                  onPreview={onPreview}
-                  onMatteParamChange={onMatteParamChange}
-                  onApplyToFollowing={onConfirmApplyToAll}
-                  onCustomSpillPickerColor={onCustomSpillPickerColor}
-                  onCustomSpillColor={onCustomSpillColor}
-                  matteMode={matteMode}
-                  applyButtonLabel="应用到组所有帧"
-                  applyButtonLoading={applyingGroupId === group.id}
-                  applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0 || (matteMode === 'ai' && !aiMatting.connected)}
-                  applyButtonTitle={matteMode === 'ai' && !aiMatting.connected ? '请先启动 BiRefNet 服务' : undefined}
-                />
-              </div>
-            ))}
+            {groups.map((group) => {
+              const selection = resolveMatteGroupFrameSelection(group, selectedFrameIndexByGroup[group.id])
+              const previousFrame = group.frames[selection.index - 1]
+              const nextFrame = group.frames[selection.index + 1]
+              return (
+                <div key={group.id} style={{ maxWidth: 620 }}>
+                  <MatteFrameCard
+                    key={selection.frame.id}
+                    item={selection.frame}
+                    title={(
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{group.name} · 第 {selection.frameNumber} 帧</span>
+                        <Space size={6} wrap>
+                          <Text type="secondary">共 {group.frameCount} 帧</Text>
+                          <Button
+                            size="small"
+                            icon={<LeftOutlined />}
+                            disabled={!selection.canPrevious}
+                            title="上一帧"
+                            aria-label="上一帧"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              selectGroupFrame(group.id, selection.index - 1, previousFrame?.id)
+                            }}
+                          />
+                          <Button
+                            size="small"
+                            icon={<RightOutlined />}
+                            disabled={!selection.canNext}
+                            title="下一帧"
+                            aria-label="下一帧"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              selectGroupFrame(group.id, selection.index + 1, nextFrame?.id)
+                            }}
+                          />
+                          <Button size="small" icon={<DownloadOutlined />} onClick={() => onExportMatteGroup(group.id)}>
+                            导出组图片
+                          </Button>
+                          <Button
+                            size="small"
+                            icon={<StarOutlined />}
+                            disabled={!personalSpaceCollectEnabled}
+                            title={personalSpaceCollectDisabledReason}
+                            onClick={() => onImportMatteGroupToPersonalSpace(group.id)}
+                          >
+                            收藏到项目空间
+                          </Button>
+                        </Space>
+                      </div>
+                    )}
+                    index={selection.index}
+                    frameCount={group.frameCount}
+                    active={activeFrameId === selection.frame.id}
+                    onActivate={onActivate}
+                    onRemove={() => onRemoveGroup(group.id)}
+                    onSampleColor={onSampleColor}
+                    onPreview={onPreview}
+                    onMatteParamChange={onMatteParamChange}
+                    onApplyToFollowing={onConfirmApplyToAll}
+                    onCustomSpillPickerColor={onCustomSpillPickerColor}
+                    onCustomSpillColor={onCustomSpillColor}
+                    matteMode={matteMode}
+                    applyButtonLabel="应用到组所有帧"
+                    applyButtonLoading={applyingGroupId === group.id}
+                    applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0 || (matteMode === 'ai' && !aiMatting.connected)}
+                    applyButtonTitle={matteMode === 'ai' && !aiMatting.connected ? '请先启动 BiRefNet 服务' : undefined}
+                  />
+                </div>
+              )
+            })}
           </Space>
         ) : (
           <Text type="secondary">请先在流程 1 上传单个素材并添加到这里，或从标题栏批量添加图片。</Text>

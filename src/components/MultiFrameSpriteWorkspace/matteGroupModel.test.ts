@@ -6,6 +6,7 @@ import {
   buildMatteFrameGroups,
   getInitialMatteFrameIds,
   getNextMatteGroupName,
+  resolveMatteGroupFrameSelection,
   removeMatteFrameGroup,
 } from './model'
 
@@ -44,6 +45,22 @@ test('matte workspace shows the first frame of each import group', () => {
   assert.deepEqual(groups.map((group) => group.name), ['1-视频处理', '2-精灵图处理'])
   assert.deepEqual(groups.map((group) => group.firstFrame.id), ['a', 'c'])
   assert.deepEqual(groups.map((group) => group.frameCount), [2, 2])
+})
+
+test('matte workspace can select a preview frame within each import group', () => {
+  const frames = [
+    { id: 'a', matteGroupId: 'g1', matteGroupName: '1-精灵图处理' },
+    { id: 'b', matteGroupId: 'g1', matteGroupName: '1-精灵图处理' },
+    { id: 'c', matteGroupId: 'g1', matteGroupName: '1-精灵图处理' },
+  ]
+  const [group] = buildMatteFrameGroups(frames)
+
+  assert.equal(resolveMatteGroupFrameSelection(group!, 1).frame.id, 'b')
+  assert.equal(resolveMatteGroupFrameSelection(group!, 1).frameNumber, 2)
+  assert.equal(resolveMatteGroupFrameSelection(group!, 1).canPrevious, true)
+  assert.equal(resolveMatteGroupFrameSelection(group!, 1).canNext, true)
+  assert.equal(resolveMatteGroupFrameSelection(group!, 99).frame.id, 'a')
+  assert.equal(resolveMatteGroupFrameSelection(group!, -1).frame.id, 'a')
 })
 
 test('matte group removal deletes every frame in the import group', () => {

@@ -18,10 +18,12 @@ export {
   getInitialMatteFrameIds,
   getNextMatteGroupName,
   removeMatteFrameGroup,
+  resolveMatteGroupFrameSelection,
 } from './matteGroupModel'
 export type {
   InitialMatteFrameInput,
   MatteFrameGroup,
+  MatteGroupFrameSelection,
   MatteGroupFrameState,
   MatteImportGroupKind,
 } from './matteGroupModel'

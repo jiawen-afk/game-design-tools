@@ -14,6 +14,14 @@ export interface MatteFrameGroup<T extends MatteGroupFrameState> {
   frames: T[]
 }
 
+export interface MatteGroupFrameSelection<T extends MatteGroupFrameState> {
+  frame: T
+  index: number
+  frameNumber: number
+  canPrevious: boolean
+  canNext: boolean
+}
+
 export interface InitialMatteFrameInput {
   existingFrameCount: number
   createdIds: string[]
@@ -65,6 +73,22 @@ export function buildMatteFrameGroups<T extends MatteGroupFrameState>(frames: T[
     group.frameCount = group.frames.length
   })
   return groups
+}
+
+export function resolveMatteGroupFrameSelection<T extends MatteGroupFrameState>(
+  group: MatteFrameGroup<T>,
+  selectedIndex: number | undefined
+): MatteGroupFrameSelection<T> {
+  const index = Number.isInteger(selectedIndex) && selectedIndex! >= 0 && selectedIndex! < group.frames.length
+    ? selectedIndex!
+    : 0
+  return {
+    frame: group.frames[index] ?? group.firstFrame,
+    index,
+    frameNumber: index + 1,
+    canPrevious: index > 0,
+    canNext: index < group.frames.length - 1,
+  }
 }
 
 export function removeMatteFrameGroup<T extends MatteGroupFrameState>(frames: T[], groupId: string): T[] {
