@@ -78,3 +78,18 @@ test('Windows desktop package uses Electron with x64 installer and portable targ
   assert.deepEqual(pkg.build.win.target.map((target: { target: string }) => target.target), ['nsis', 'portable', 'zip'])
   assert.match(pkg.build.artifactName, /\$\{arch\}/)
 })
+
+test('Windows desktop package includes CommonJS sources required by Electron runtime modules', () => {
+  const pkg = JSON.parse(packageJsonSource())
+  const packagedFiles = pkg.build.files.join('\n')
+  const electronSchemaSources = [
+    'electron/projectLocalSchema.cjs',
+    'electron/projectRemoteSchema.cjs',
+    'electron/projectSchemaAsset.cjs',
+    'electron/projectSchemaCore.cjs',
+    'electron/projectSchemaDocument.cjs',
+  ].map((path) => readFileSync(path, 'utf8')).join('\n')
+
+  assert.match(electronSchemaSources, /require\('\.\.\/src\/components\/ProjectStorage\/projectSchemaShared\.cjs'\)/)
+  assert.match(packagedFiles, /src\/components\/ProjectStorage\/projectSchema\*Shared\.cjs/)
+})
