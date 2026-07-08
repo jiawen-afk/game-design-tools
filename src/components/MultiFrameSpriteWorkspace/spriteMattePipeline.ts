@@ -1,5 +1,5 @@
 import { canvasToBlob, loadImage } from './browserImagePipeline'
-import { computeChromaKeyAlpha, resolveSpillColor } from './matteModel'
+import { composeChromaKeyOutputAlpha, computeChromaKeyAlpha, resolveSpillColor } from './matteModel'
 import type { MatteParams } from './types'
 
 export const DEFAULT_MATTE: MatteParams = {
@@ -71,9 +71,11 @@ export async function chromaKey(sourceUrl: string, matte: MatteParams): Promise<
     const dg = g - kg
     const db = b - kb
     const dist = Math.sqrt(dr * dr + dg * dg + db * db)
-    const alpha = computeChromaKeyAlpha(dist, matte.tolerance, matte.smoothness)
+    const sourceAlpha = data.data[i + 3]! / 255
+    const keyAlpha = computeChromaKeyAlpha(dist, matte.tolerance, matte.smoothness)
+    const outputAlpha = composeChromaKeyOutputAlpha(sourceAlpha, keyAlpha)
 
-    if (spillStr > 0 && alpha > 0) {
+    if (spillStr > 0 && outputAlpha > 0) {
       const baseMask = Math.max(0, dist - matte.tolerance)
       const spillVal = Math.pow(Math.min(1, baseMask / Math.max(1, spillStr * 120)), 1.5)
       const gray = r * 0.2126 + g * 0.7152 + b * 0.0722
@@ -96,7 +98,7 @@ export async function chromaKey(sourceUrl: string, matte: MatteParams): Promise<
       data.data[i + 1] = Math.round(Math.max(0, Math.min(255, gg)))
       data.data[i + 2] = Math.round(Math.max(0, Math.min(255, bb)))
     }
-    data.data[i + 3] = Math.round(alpha * 255)
+    data.data[i + 3] = Math.round(outputAlpha * 255)
   }
 
   ctx.putImageData(data, 0, 0)

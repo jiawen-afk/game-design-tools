@@ -1,6 +1,7 @@
 export {
   MATTE_PARAM_MAX,
   coerceMatteDefaults,
+  composeChromaKeyOutputAlpha,
   computeChromaKeyAlpha,
   getSpillColorHex,
   normalizeHexColor,

@@ -92,6 +92,10 @@ export function computeChromaKeyAlpha(distance: number, tolerance: number, smoot
   return 1
 }
 
+export function composeChromaKeyOutputAlpha(sourceAlpha: number, keyAlpha: number): number {
+  return Math.min(1, Math.max(0, sourceAlpha)) * Math.min(1, Math.max(0, keyAlpha))
+}
+
 export function getSpillColorHex(
   mode: SpillColorMode,
   customHex?: string,

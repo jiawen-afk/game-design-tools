@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { computeFrameSamplePoint } from './matteColorSampler'
 import {
   coerceMatteDefaults,
+  composeChromaKeyOutputAlpha,
   computeChromaKeyAlpha,
   getSpillColorHex,
   normalizeHexColor,
@@ -79,6 +80,14 @@ test('chroma key alpha matches FrameRonin tolerance and feather semantics', () =
   assert.equal(computeChromaKeyAlpha(79, 80, 5), 0)
   assert.equal(computeChromaKeyAlpha(82.5, 80, 5), 0.5)
   assert.equal(computeChromaKeyAlpha(86, 80, 5), 1)
+})
+
+test('chroma key output alpha preserves transparent source pixels', () => {
+  assert.equal(composeChromaKeyOutputAlpha(0, 1), 0)
+  assert.equal(composeChromaKeyOutputAlpha(0.5, 1), 0.5)
+  assert.equal(composeChromaKeyOutputAlpha(1, 0.25), 0.25)
+  assert.equal(composeChromaKeyOutputAlpha(1.5, 1.5), 1)
+  assert.equal(composeChromaKeyOutputAlpha(-1, 1), 0)
 })
 
 test('hex colors normalize picker values without falling back to green', () => {

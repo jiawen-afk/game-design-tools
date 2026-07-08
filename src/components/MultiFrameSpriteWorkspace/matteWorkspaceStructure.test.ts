@@ -59,3 +59,11 @@ test('matte pipeline delegates frame key color picking to a focused hook', () =>
   assert.match(colorPickerSource, /sampleFrameKeyColor/)
   assert.match(colorPickerSource, /message\.error\(`取色失败：/)
 })
+
+test('chroma key matte keeps uploaded transparent pixels transparent', () => {
+  const mattePipeline = readFileSync('src/components/MultiFrameSpriteWorkspace/spriteMattePipeline.ts', 'utf8')
+
+  assert.match(mattePipeline, /sourceAlpha/)
+  assert.match(mattePipeline, /composeChromaKeyOutputAlpha\(sourceAlpha,\s*keyAlpha\)/)
+  assert.doesNotMatch(mattePipeline, /data\.data\[i \+ 3\] = Math\.round\(alpha \* 255\)/)
+})

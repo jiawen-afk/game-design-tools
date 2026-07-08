@@ -55,6 +55,7 @@ export {
   applyMatteParamsToFollowingFrames,
   buildMatteFrameGroups,
   buildMatteProcessingProgress,
+  composeChromaKeyOutputAlpha,
   computeChromaKeyAlpha,
   coerceMatteDefaults,
   dequeueNextInactiveFrameId,
