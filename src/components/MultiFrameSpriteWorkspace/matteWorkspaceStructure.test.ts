@@ -72,3 +72,55 @@ test('chroma key matte keeps uploaded transparent pixels transparent', () => {
   assert.match(mattePipeline, /composeChromaKeyOutputAlpha\(sourceAlpha,\s*keyAlpha\)/)
   assert.doesNotMatch(mattePipeline, /data\.data\[i \+ 3\] = Math\.round\(alpha \* 255\)/)
 })
+
+test('additive black-to-alpha canvas work stays in a focused pipeline', () => {
+  const pipelinePath = 'src/components/MultiFrameSpriteWorkspace/spriteAdditiveBlendPipeline.ts'
+  const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+
+  assert.ok(existsSync(pipelinePath), `${pipelinePath} should exist`)
+  const pipeline = readFileSync(pipelinePath, 'utf8')
+
+  assert.match(pipeline, /applyAdditiveBlendToImage/)
+  assert.match(pipeline, /computeAdditiveBlackToAlphaPixel/)
+  assert.match(pipeline, /getImageData/)
+  assert.match(pipeline, /canvasToBlob/)
+  assert.doesNotMatch(mattePanel, /getImageData/)
+  assert.doesNotMatch(mattePanel, /computeAdditiveBlackToAlphaPixel/)
+  assert.doesNotMatch(mattePanel, /canvasToBlob/)
+})
+
+test('matte pipeline delegates additive post-processing workflow to a focused hook', () => {
+  const matteHook = readFileSync('src/components/MultiFrameSpriteWorkspace/useMattePipeline.ts', 'utf8')
+  const additiveHookPath = 'src/components/MultiFrameSpriteWorkspace/useAdditiveBlendWorkspace.ts'
+
+  assert.ok(existsSync(additiveHookPath), `${additiveHookPath} should exist`)
+  const additiveHook = readFileSync(additiveHookPath, 'utf8')
+
+  assert.match(matteHook, /from '\.\/useAdditiveBlendWorkspace'/)
+  assert.match(matteHook, /useAdditiveBlendWorkspace\(/)
+  assert.match(matteHook, /additiveBlend/)
+  assert.match(additiveHook, /export function useAdditiveBlendWorkspace/)
+  assert.match(additiveHook, /applyAdditiveBlendToImage/)
+  assert.match(additiveHook, /matteRevision:\s*cur\.matteRevision \+ 1/)
+  assert.doesNotMatch(matteHook, /applyAdditiveBlendToImage/)
+})
+
+test('flow 2 renders additive black-to-alpha controls through a focused panel', () => {
+  const mattePanel = readFileSync('src/components/MultiFrameSpriteWorkspace/MatteWorkspacePanel.tsx', 'utf8')
+  const workspaceEntry = readFileSync('src/components/MultiFrameSpriteWorkspace/index.tsx', 'utf8')
+  const additivePanelPath = 'src/components/MultiFrameSpriteWorkspace/AdditiveBlendPanel.tsx'
+
+  assert.ok(existsSync(additivePanelPath), `${additivePanelPath} should exist`)
+  const additivePanel = readFileSync(additivePanelPath, 'utf8')
+
+  assert.match(mattePanel, /from '\.\/AdditiveBlendPanel'/)
+  assert.match(mattePanel, /<AdditiveBlendPanel/)
+  assert.match(mattePanel, /additiveBlend=/)
+  assert.match(workspaceEntry, /additiveBlend=\{workspace\.matte\.additiveBlend\}/)
+  assert.match(additivePanel, /加色去黑/)
+  assert.match(additivePanel, /当前帧/)
+  assert.match(additivePanel, /本组全部帧/)
+  assert.match(additivePanel, /自定义选择/)
+  assert.match(additivePanel, /选择当前帧之后/)
+  assert.match(additivePanel, /应用加色去黑/)
+})

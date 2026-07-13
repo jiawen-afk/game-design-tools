@@ -10,6 +10,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons'
 
+import { AdditiveBlendPanel } from './AdditiveBlendPanel'
 import { MatteAiSetupPanel } from './MatteAiSetupPanel'
 import { MatteFrameCard, type MatteFrameCardProps } from './MatteFrameCard'
 import { buildMatteFrameGroups, resolveMatteGroupFrameSelection } from './model'
@@ -57,6 +58,7 @@ export interface MatteWorkspacePanelProps {
   onCustomSpillPickerColor: MatteFrameCardProps['onCustomSpillPickerColor']
   onCustomSpillColor: MatteFrameCardProps['onCustomSpillColor']
   applyingGroupId: string | null
+  additiveBlend: MattePipelineViewModel['additiveBlend']
 }
 
 export function MatteWorkspacePanel({
@@ -91,6 +93,7 @@ export function MatteWorkspacePanel({
   onCustomSpillPickerColor,
   onCustomSpillColor,
   applyingGroupId,
+  additiveBlend,
 }: MatteWorkspacePanelProps) {
   const groups = buildMatteFrameGroups(frames)
   const [batchUploadOpen, setBatchUploadOpen] = useState(false)
@@ -212,6 +215,12 @@ export function MatteWorkspacePanel({
                     applyButtonLoading={applyingGroupId === group.id}
                     applyButtonDisabled={Boolean(applyingGroupId) || group.frameCount === 0 || (matteMode === 'ai' && !aiMatting.connected)}
                     applyButtonTitle={matteMode === 'ai' && !aiMatting.connected ? '请先启动 BiRefNet 服务' : undefined}
+                  />
+                  <AdditiveBlendPanel
+                    group={group}
+                    currentFrame={selection.frame}
+                    currentFrameNumber={selection.frameNumber}
+                    additiveBlend={additiveBlend}
                   />
                 </div>
               )

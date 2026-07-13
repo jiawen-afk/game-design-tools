@@ -55,6 +55,7 @@ export default function MultiFrameSpriteWorkspace() {
         onCustomSpillPickerColor={workspace.matte.setCustomSpillPickerColor}
         onCustomSpillColor={workspace.matte.setCustomSpillColor}
         applyingGroupId={workspace.matte.bulkMatteGroupId}
+        additiveBlend={workspace.matte.additiveBlend}
       />
 
       <LayoutWorkspacePanel

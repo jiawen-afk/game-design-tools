@@ -14,6 +14,7 @@ import {
 } from './matteModel'
 import { createMatteGroupActions } from './matteGroupActions'
 import type { ComposeStyle, FrameItem, MatteParams } from './types'
+import { useAdditiveBlendWorkspace } from './useAdditiveBlendWorkspace'
 import { useAiMattingSetup } from './useAiMattingSetup'
 import { useMatteComposeQueue } from './useMatteComposeQueue'
 import { useMatteColorPicker } from './useMatteColorPicker'
@@ -51,6 +52,7 @@ export function useMattePipeline({
 }: UseMattePipelineParams) {
   const matteDefaultsWorkspace = useMatteDefaultsWorkspace()
   const aiMatting = useAiMattingSetup()
+  const additiveBlend = useAdditiveBlendWorkspace({ framesRef, setFrames })
   const [matteMode, setMatteModeState] = useState<MatteMode>('chroma')
   const [bulkMatteGroupId, setBulkMatteGroupId] = useState<string | null>(null)
   const { clearComposeQueue } = useMatteComposeQueue({
@@ -225,5 +227,6 @@ export function useMattePipeline({
     exportMatteGroup,
     importMatteGroupToPersonalSpace,
     sampleColor,
+    additiveBlend,
   }
 }

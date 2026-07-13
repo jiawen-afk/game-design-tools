@@ -1,3 +1,15 @@
+export {
+  computeAdditiveBlackToAlphaPixel,
+  parseFrameRangeSelection,
+  resolveAdditiveTargetFrameIds,
+  type AdditiveFrameRangeParseResult,
+  type AdditivePixelInput,
+  type AdditivePixelOutput,
+  type AdditiveTargetFrameInput,
+  type AdditiveTargetFrameMode,
+  type AdditiveTargetFrameResult,
+  type AdditiveTargetFrameState,
+} from './additiveBlendModel'
 export { clampUniformCrop, computeUniformCropSize, type UniformCrop } from './cropModel'
 export {
   applyComposedFrameUrl,
