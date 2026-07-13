@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import {
-  createBatchPreviewSignature,
+  createImageProcessingBatchSettingsSignature,
   deriveBatchExportArchiveName,
-  deriveBatchExportFileNames,
+  deriveBatchExportFileNamesBySettings,
   getImageExportEncodingInfo,
+  resolveImageExportBackgroundColor,
   resolveImageExportTarget,
   type CropBox,
   type ImageExportEncodingSettings,
@@ -27,8 +28,7 @@ import {
 } from './imageBatchExportWorkflow'
 import type { ImageUpscalePreview } from './useImageUpscaleWorkflow'
 import type { ImageProcessingBatchItem } from './useImageSourceWorkspace'
-import type { UpscaleOptions, UpscaleRuntimeStatus } from './imageUpscaleModel'
-import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
+import type { UpscaleRuntimeStatus } from './imageUpscaleModel'
 
 interface UseImageExportWorkflowOptions {
   activeImageSource: ImageSourceLike | null
@@ -40,15 +40,18 @@ interface UseImageExportWorkflowOptions {
   exportEncoding: ImageExportEncodingSettings
   exportName: string
   exportSize: RectSize
-  exportScale: number
-  matte: MatteParams
-  matteEnabled: boolean
   upscaleEnabled: boolean
-  upscaleOptions: UpscaleOptions
   upscaleRuntimeStatus: UpscaleRuntimeStatus | null
   upscalePreview: ImageUpscalePreview | null
   setUpscaleCompareEnabled: Dispatch<SetStateAction<boolean>>
 }
+
+interface BatchUpscalePreviewEntry {
+  preview: ImageUpscalePreview
+  signature: string
+}
+
+type BatchUpscalePreviewMap = Record<string, BatchUpscalePreviewEntry>
 
 export function useImageExportWorkflow({
   activeImageSource,
@@ -60,108 +63,107 @@ export function useImageExportWorkflow({
   exportEncoding,
   exportName,
   exportSize,
-  exportScale,
-  matte,
-  matteEnabled,
   upscaleEnabled,
-  upscaleOptions,
   upscaleRuntimeStatus,
   upscalePreview,
   setUpscaleCompareEnabled,
 }: UseImageExportWorkflowOptions) {
   const [exporting, setExporting] = useState(false)
   const [batchApplying, setBatchApplying] = useState(false)
-  const [batchUpscalePreviews, setBatchUpscalePreviews] = useState<Record<string, ImageUpscalePreview>>({})
-  const [batchPreviewSignature, setBatchPreviewSignature] = useState<string | null>(null)
+  const [batchUpscalePreviews, setBatchUpscalePreviews] = useState<BatchUpscalePreviewMap>({})
   const batchUpscalePreviewsRef = useRef(batchUpscalePreviews)
+  const batchImagesRef = useRef(batchImages)
+  const batchApplyOperationIdRef = useRef(0)
+  const pendingBatchUpscalePreviewsRef = useRef<BatchUpscalePreviewMap>({})
   batchUpscalePreviewsRef.current = batchUpscalePreviews
+  batchImagesRef.current = batchImages
+
+  const cancelPendingBatchPreviews = useCallback(() => {
+    batchApplyOperationIdRef.current += 1
+    for (const entry of Object.values(pendingBatchUpscalePreviewsRef.current)) {
+      revokeBatchUpscalePreview(entry.preview)
+    }
+    pendingBatchUpscalePreviewsRef.current = {}
+    setBatchApplying(false)
+  }, [])
 
   const clearBatchUpscalePreviews = useCallback(() => {
-    setBatchUpscalePreviews((previous) => {
-      if (Object.keys(previous).length === 0) return previous
-      for (const preview of Object.values(previous)) {
-        revokeBatchUpscalePreview(preview)
-      }
-      return {}
-    })
-    setBatchPreviewSignature(null)
+    cancelPendingBatchPreviews()
+    for (const entry of Object.values(batchUpscalePreviewsRef.current)) {
+      revokeBatchUpscalePreview(entry.preview)
+    }
+    batchUpscalePreviewsRef.current = {}
+    setBatchUpscalePreviews({})
     setUpscaleCompareEnabled(false)
-  }, [setUpscaleCompareEnabled])
+  }, [cancelPendingBatchPreviews, setUpscaleCompareEnabled])
 
   useEffect(() => {
     return () => {
-      for (const preview of Object.values(batchUpscalePreviewsRef.current)) {
-        revokeBatchUpscalePreview(preview)
+      batchApplyOperationIdRef.current += 1
+      for (const entry of Object.values(batchUpscalePreviewsRef.current)) {
+        revokeBatchUpscalePreview(entry.preview)
       }
+      for (const entry of Object.values(pendingBatchUpscalePreviewsRef.current)) {
+        revokeBatchUpscalePreview(entry.preview)
+      }
+      pendingBatchUpscalePreviewsRef.current = {}
     }
   }, [])
 
-  const currentBatchPreviewSignature = useMemo(() => createBatchPreviewSignature({
-    crop,
-    sourceSize: activeImageSource,
-    exportFormat,
-    exportBackgroundColor,
-    exportScale,
-    matte,
-    matteEnabled,
-    upscaleOptions,
-  }), [
-    activeImageSource?.height,
-    activeImageSource?.width,
-    crop,
-    exportBackgroundColor,
-    exportFormat,
-    exportScale,
-    matte,
-    matteEnabled,
-    upscaleOptions,
-  ])
-
   useEffect(() => {
-    if (!batchPreviewSignature) return
-    if (batchPreviewSignature === currentBatchPreviewSignature) return
-    clearBatchUpscalePreviews()
-  }, [batchPreviewSignature, clearBatchUpscalePreviews, currentBatchPreviewSignature])
+    setBatchUpscalePreviews((previous) => {
+      let changed = false
+      const next = { ...previous }
+      const itemById = new Map(batchImages.map((item) => [item.id, item]))
+      for (const [id, entry] of Object.entries(previous)) {
+        const item = itemById.get(id)
+        const signature = item
+          ? createImageProcessingBatchSettingsSignature(item.settings, item.draft)
+          : null
+        if (signature === entry.signature) continue
+        revokeBatchUpscalePreview(entry.preview)
+        delete next[id]
+        changed = true
+      }
+      if (changed) batchUpscalePreviewsRef.current = next
+      return changed ? next : previous
+    })
+  }, [batchImages])
 
-  const activeBatchUpscalePreview = upscaleEnabled && activeBatchImageId ? batchUpscalePreviews[activeBatchImageId] ?? null : null
+  const activeBatchItem = activeBatchImageId
+    ? batchImages.find((item) => item.id === activeBatchImageId) ?? null
+    : null
+  const activeBatchEntry = activeBatchItem ? batchUpscalePreviews[activeBatchItem.id] : null
+  const activeBatchUpscalePreview = activeBatchItem?.settings.upscaleEnabled
+    && activeBatchEntry?.signature === createImageProcessingBatchSettingsSignature(activeBatchItem.settings, activeBatchItem.draft)
+    ? activeBatchEntry.preview
+    : null
 
   const prepareBatchExport = useCallback((item: ImageProcessingBatchItem) => {
-    return prepareImageBatchExport({
-      activeImageSource,
-      crop,
-      exportScale,
-      item,
-      matte,
-      matteEnabled,
-    })
-  }, [activeImageSource, crop, exportScale, matte, matteEnabled])
+    return prepareImageBatchExport({ item })
+  }, [])
 
   const createUpscalePreviewForItem = useCallback(async (item: ImageProcessingBatchItem): Promise<ImageUpscalePreview> => {
     return createImageBatchUpscalePreview({
-      exportBackgroundColor,
-      exportFormat,
       item,
       prepareBatchExport,
-      upscaleOptions,
       upscaleRuntimeStatus,
     })
-  }, [exportBackgroundColor, exportFormat, prepareBatchExport, upscaleOptions, upscaleRuntimeStatus])
+  }, [prepareBatchExport, upscaleRuntimeStatus])
 
   const encodeUpscalePreview = useCallback(async (
     preview: ImageUpscalePreview,
     fileName: string,
-    renderFormat: ImageExportFormat,
+    item: ImageProcessingBatchItem,
     desktopApi: ReturnType<typeof getDesktopApi>,
   ) => {
     return encodeImageUpscalePreview({
       desktopApi,
-      exportBackgroundColor,
-      exportEncoding,
       fileName,
+      item,
       preview,
-      renderFormat,
     })
-  }, [exportBackgroundColor, exportEncoding])
+  }, [])
 
   const exportImage = useCallback(async () => {
     const exportTarget = resolveImageExportTarget(activeImageSource, crop, upscaleEnabled, upscalePreview)
@@ -182,66 +184,104 @@ export function useImageExportWorkflow({
     }
   }, [activeImageSource, crop, exportBackgroundColor, exportEncoding, exportFormat, exportName, exportSize, upscaleEnabled, upscalePreview])
 
-  const applyAllPreviews = useCallback(async () => {
-    if (!activeImageSource || !crop || batchImages.length === 0) return
+  const applyAllPreviews = useCallback(async (items: ImageProcessingBatchItem[] = batchImages) => {
+    if (items.length === 0) return
+    cancelPendingBatchPreviews()
+    const operationId = batchApplyOperationIdRef.current + 1
+    batchApplyOperationIdRef.current = operationId
+    batchImagesRef.current = items
     setBatchApplying(true)
-    const nextPreviews: Record<string, ImageUpscalePreview> = {}
+    const nextPreviews: BatchUpscalePreviewMap = {}
+    pendingBatchUpscalePreviewsRef.current = nextPreviews
+    let committed = false
     try {
-      if (!upscaleEnabled) {
-        message.success(`已将参数应用到 ${batchImages.length} 张图片`)
+      const upscaleTargets = items.filter((item) => item.settings.upscaleEnabled)
+      if (upscaleTargets.length === 0) {
+        clearBatchUpscalePreviews()
+        message.success(`已将参数应用到 ${items.length} 张图片`)
         return
       }
-      for (const item of batchImages) {
-        nextPreviews[item.id] = await createUpscalePreviewForItem(item)
-      }
-      setBatchUpscalePreviews((previous) => {
-        for (const preview of Object.values(previous)) {
+      for (const item of upscaleTargets) {
+        const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
+        const preview = await createUpscalePreviewForItem(item)
+        const latestItem = batchImagesRef.current.find((candidate) => candidate.id === item.id)
+        const latestSignature = latestItem
+          ? createImageProcessingBatchSettingsSignature(latestItem.settings, latestItem.draft)
+          : null
+        if (operationId !== batchApplyOperationIdRef.current || latestSignature !== signature) {
           revokeBatchUpscalePreview(preview)
+          return
         }
-        return nextPreviews
-      })
-      setBatchPreviewSignature(currentBatchPreviewSignature)
-      setUpscaleCompareEnabled(true)
-      message.success(`已生成 ${batchImages.length} 张高清化预览`)
-    } catch (error) {
-      for (const preview of Object.values(nextPreviews)) {
-        revokeBatchUpscalePreview(preview)
+        nextPreviews[item.id] = {
+          preview,
+          signature,
+        }
       }
-      message.error(`全部应用预览失败：${String(error)}`)
+      if (operationId !== batchApplyOperationIdRef.current) return
+      for (const entry of Object.values(batchUpscalePreviewsRef.current)) {
+        revokeBatchUpscalePreview(entry.preview)
+      }
+      batchUpscalePreviewsRef.current = nextPreviews
+      setBatchUpscalePreviews(nextPreviews)
+      pendingBatchUpscalePreviewsRef.current = {}
+      committed = true
+      setUpscaleCompareEnabled(true)
+      message.success(`已生成 ${upscaleTargets.length} 张高清化预览`)
+    } catch (error) {
+      if (operationId === batchApplyOperationIdRef.current) {
+        message.error(`全部应用预览失败：${String(error)}`)
+      }
     } finally {
-      setBatchApplying(false)
+      if (!committed) {
+        for (const entry of Object.values(nextPreviews)) {
+          revokeBatchUpscalePreview(entry.preview)
+        }
+      }
+      if (pendingBatchUpscalePreviewsRef.current === nextPreviews) {
+        pendingBatchUpscalePreviewsRef.current = {}
+      }
+      if (operationId === batchApplyOperationIdRef.current) {
+        setBatchApplying(false)
+      }
     }
-  }, [activeImageSource, batchImages, createUpscalePreviewForItem, crop, currentBatchPreviewSignature, setUpscaleCompareEnabled, upscaleEnabled])
+  }, [batchImages, cancelPendingBatchPreviews, clearBatchUpscalePreviews, createUpscalePreviewForItem, setUpscaleCompareEnabled])
 
-  const exportAllImages = useCallback(async () => {
-    if (!activeImageSource || !crop) return
-    if (batchImages.length === 0) {
+  const exportAllImages = useCallback(async (items: ImageProcessingBatchItem[] = batchImages) => {
+    if (items.length === 0) {
       await exportImage()
       return
     }
-    const targets = batchImages
+    const targets = items
     setExporting(true)
     const generatedPreviews: ImageUpscalePreview[] = []
     try {
       const desktopApi = getDesktopApi()
-      const encodingInfo = getImageExportEncodingInfo(exportEncoding)
-      const renderFormat = encodingInfo.requiresDesktopEncoding ? 'png' : exportFormat
-      const fileNames = deriveBatchExportFileNames(targets.map((item) => item.draft.sourceName), exportEncoding)
+      const fileNames = deriveBatchExportFileNamesBySettings(targets.map((item) => ({
+        sourceName: item.draft.sourceName,
+        exportEncoding: item.settings.exportEncoding,
+      })))
       const encodedFiles = []
       for (const [index, item] of targets.entries()) {
-        const batchPreview = item.id === activeBatchImageId
-          ? upscalePreview ?? batchUpscalePreviewsRef.current[item.id]
-          : batchUpscalePreviewsRef.current[item.id]
-        if (upscaleEnabled) {
+        const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
+        const storedEntry = batchUpscalePreviewsRef.current[item.id]
+        const storedPreview = storedEntry?.signature === signature ? storedEntry.preview : null
+        const batchPreview = item.id === activeBatchImageId ? upscalePreview ?? storedPreview : storedPreview
+        if (item.settings.upscaleEnabled) {
           const preview = batchPreview ?? await createUpscalePreviewForItem(item)
           if (!batchPreview) generatedPreviews.push(preview)
-          encodedFiles.push(await encodeUpscalePreview(preview, fileNames[index]!, renderFormat, desktopApi))
+          encodedFiles.push(await encodeUpscalePreview(preview, fileNames[index]!, item, desktopApi))
           continue
         }
         const prepared = await prepareBatchExport(item)
         try {
-          const blob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, renderFormat, prepared.outputSize, exportBackgroundColor)
-          encodedFiles.push(await encodeImageExportBlob(fileNames[index]!, blob, exportEncoding, desktopApi))
+          const encodingInfo = getImageExportEncodingInfo(item.settings.exportEncoding)
+          const renderFormat = encodingInfo.requiresDesktopEncoding ? 'png' : encodingInfo.extension
+          const backgroundColor = resolveImageExportBackgroundColor(
+            item.settings.exportBackground,
+            item.settings.exportEncoding,
+          )
+          const blob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, renderFormat, prepared.outputSize, backgroundColor)
+          encodedFiles.push(await encodeImageExportBlob(fileNames[index]!, blob, item.settings.exportEncoding, desktopApi))
         } finally {
           prepared.cleanup()
         }
@@ -272,18 +312,11 @@ export function useImageExportWorkflow({
     }
   }, [
     activeBatchImageId,
-    activeImageSource,
     batchImages,
-    crop,
     createUpscalePreviewForItem,
     encodeUpscalePreview,
-    exportBackgroundColor,
-    exportEncoding,
-    exportFormat,
     exportImage,
-    exportName,
     prepareBatchExport,
-    upscaleEnabled,
     upscalePreview,
   ])
 

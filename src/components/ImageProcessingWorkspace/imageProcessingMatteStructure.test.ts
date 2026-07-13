@@ -56,3 +56,57 @@ test('image processing workspace delegates source key color picking to a focused
   assert.match(keyColorHookSource, /message\.success\(`已取色：rgb/)
   assert.match(keyColorHookSource, /message\.error\(`取色失败：/)
 })
+
+test('image processing matte exposes the shared BiRefNet AI matting controls', () => {
+  const workspaceSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const panelSource = readFileSync('src/components/ImageProcessingWorkspace/ImageMattePanel.tsx', 'utf8')
+  const stageSource = readFileSync('src/components/ImageProcessingWorkspace/ImageCropResultStage.tsx', 'utf8')
+
+  assert.match(workspaceSource, /from '\.\.\/MultiFrameSpriteWorkspace\/useAiMattingSetup'/)
+  assert.match(workspaceSource, /useAiMattingSetup\(\)/)
+  assert.match(workspaceSource, /const \[matteMode, setMatteMode\]/)
+  assert.match(workspaceSource, /matteMode,/)
+  assert.match(workspaceSource, /aiMatting,/)
+  assert.match(panelSource, /from '\.\.\/MultiFrameSpriteWorkspace\/MatteAiSetupPanel'/)
+  assert.match(panelSource, /<Segmented/)
+  assert.match(panelSource, /色键抠图/)
+  assert.match(panelSource, /AI抠图/)
+  assert.match(panelSource, /<MatteAiSetupPanel/)
+  assert.match(stageSource, /workspace\.matteMode === 'chroma'/)
+})
+
+test('image processing matte workflow selects chroma key or BiRefNet processing', () => {
+  const hookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageMatteProcessing.ts', 'utf8')
+  const pipelineSource = readFileSync('src/components/ImageProcessingWorkspace/imageProcessingPipeline.ts', 'utf8')
+
+  assert.match(hookSource, /matteMode/)
+  assert.match(hookSource, /aiMattingConnected/)
+  assert.match(hookSource, /mode:\s*matteMode/)
+  assert.match(hookSource, /inputName:\s*draft\.sourceName/)
+  assert.match(pipelineSource, /removeImageBackground/)
+  assert.match(pipelineSource, /options\.mode === 'ai'/)
+  assert.match(pipelineSource, /removeImageBackground\(sourceUrl/)
+  assert.match(pipelineSource, /chromaKey\(sourceUrl, matte\)/)
+})
+
+test('image processing batch export uses the selected matte mode', () => {
+  const workspaceSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const batchSettingsSource = readFileSync('src/components/ImageProcessingWorkspace/useImageBatchSettingsWorkspace.ts', 'utf8')
+  const exportHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageExportWorkflow.ts', 'utf8')
+  const batchSource = readFileSync('src/components/ImageProcessingWorkspace/imageBatchExportWorkflow.ts', 'utf8')
+
+  assert.match(workspaceSource, /useImageBatchSettingsWorkspace\(\{[\s\S]*matteMode,/)
+  assert.match(batchSettingsSource, /matteMode,/)
+  assert.match(exportHookSource, /item\.settings/)
+  assert.match(batchSource, /settings\.matteMode/)
+  assert.match(batchSource, /mode:\s*settings\.matteMode/)
+  assert.match(batchSource, /inputName:\s*item\.draft\.sourceName/)
+})
+
+test('image processing AI status output cannot widen the left control column', () => {
+  const matteStyles = readFileSync('src/components/ImageProcessingWorkspace/imageProcessing.matte.css', 'utf8')
+
+  assert.match(matteStyles, /\.ai-matting-setup \.ant-alert-content[\s\S]*min-width:\s*0/)
+  assert.match(matteStyles, /\.ai-matting-setup \.ant-alert-description[\s\S]*overflow-wrap:\s*anywhere/)
+  assert.match(matteStyles, /\.ai-matting-setup \.ant-space[\s\S]*max-width:\s*100%/)
+})

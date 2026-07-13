@@ -5,6 +5,7 @@ import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   getExportSizeAfterScaleChange,
+  normalizeExportScale,
   resolveExportBaseSize,
   shouldInvalidateUpscalePreview,
   type CropBox,
@@ -58,7 +59,9 @@ export function useImageUpscaleWorkflow({
   const [upscaleOptions, setUpscaleOptions] = useState<UpscaleOptions>(defaultUpscaleOptions)
   const [upscaleProcessing, setUpscaleProcessing] = useState(false)
   const [upscalePreview, setUpscalePreview] = useState<ImageUpscalePreview | null>(null)
+  const [upscaleOutputScale, setUpscaleOutputScale] = useState(1)
   const exportScaleSnapshotRef = useRef<number | null>(null)
+  const upscaleOperationIdRef = useRef(0)
   const upscalePreviewInputsRef = useRef<{
     crop: CropBox | null
     exportBackgroundColor: string | null
@@ -83,22 +86,33 @@ export function useImageUpscaleWorkflow({
     () => getExportSizeAfterScaleChange(exportBaseSize, exportScale),
     [exportBaseSize, exportScale]
   )
+  const exportScaleForSettings = exportScaleSnapshotRef.current ?? exportScale
+  const upscaleOutputScaleForSettings = upscalePreview ? exportScale : upscaleOutputScale
 
   const clearUpscalePreview = useCallback(() => {
+    upscaleOperationIdRef.current += 1
+    setUpscaleProcessing(false)
     setUpscalePreview((previous) => {
       revokeImageObjectUrl(previous?.url)
       return null
     })
-    setExportScale(exportScaleSnapshotRef.current ?? 1)
+    if (exportScaleSnapshotRef.current !== null) {
+      setExportScale(exportScaleSnapshotRef.current)
+    }
     exportScaleSnapshotRef.current = null
     upscalePreviewInputsRef.current = null
   }, [setExportScale])
 
   useEffect(() => {
     return () => {
+      upscaleOperationIdRef.current += 1
       revokeImageObjectUrl(upscalePreview?.url)
     }
   }, [upscalePreview])
+
+  useEffect(() => {
+    if (upscalePreview) setUpscaleOutputScale(normalizeExportScale(exportScale))
+  }, [exportScale, upscalePreview])
 
   useEffect(() => {
     if (!upscalePreview) return
@@ -128,6 +142,13 @@ export function useImageUpscaleWorkflow({
     if (!enabled) clearUpscalePreview()
   }, [clearUpscalePreview])
 
+  const restoreUpscaleSettings = useCallback((enabled: boolean, options: UpscaleOptions, outputScale = 1) => {
+    clearUpscalePreview()
+    setUpscaleEnabled(enabled)
+    setUpscaleOptions(normalizeUpscaleOptions(options))
+    setUpscaleOutputScale(normalizeExportScale(outputScale))
+  }, [clearUpscalePreview])
+
   const runUpscalePreview = useCallback(async () => {
     if (!activeImageSource || !crop || !cropPreview) return
     const api = getDesktopApi()
@@ -139,18 +160,25 @@ export function useImageUpscaleWorkflow({
       message.warning('请先安装高清化运行包。')
       return
     }
+    const operationId = upscaleOperationIdRef.current + 1
+    upscaleOperationIdRef.current = operationId
+    const requestedOutputScale = upscaleOutputScale
     setUpscaleProcessing(true)
     try {
       const blob = await exportProcessedImage(activeImageSource.url, crop, exportFormat, exportSize, exportBackgroundColor)
+      if (operationId !== upscaleOperationIdRef.current) return
+      const data = await blob.arrayBuffer()
+      if (operationId !== upscaleOperationIdRef.current) return
       if (exportScaleSnapshotRef.current === null) {
         exportScaleSnapshotRef.current = exportScale
       }
       const result = await api.upscaleImage({
         inputName: exportName,
         outputFormat: exportFormat,
-        data: await blob.arrayBuffer(),
+        data,
         options: upscaleOptions,
       })
+      if (operationId !== upscaleOperationIdRef.current) return
       const upscaledBlob = blobFromDesktopBinaryData(result.data, blob.type)
       const url = URL.createObjectURL(upscaledBlob)
       setUpscalePreview((previous) => {
@@ -170,15 +198,19 @@ export function useImageUpscaleWorkflow({
         processedUrl: activeImageSource.url,
         upscaleOptions,
       }
-      setExportScale(1)
+      setExportScale(requestedOutputScale)
       onPreviewGenerated?.()
       message.success('高清化预览已生成')
     } catch (error) {
-      message.error(`高清化失败：${String(error)}`)
+      if (operationId === upscaleOperationIdRef.current) {
+        message.error(`高清化失败：${String(error)}`)
+      }
     } finally {
-      setUpscaleProcessing(false)
+      if (operationId === upscaleOperationIdRef.current) {
+        setUpscaleProcessing(false)
+      }
     }
-  }, [activeImageSource, crop, cropPreview, exportBackgroundColor, exportFormat, exportName, exportScale, exportSize, onPreviewGenerated, setExportScale, upscaleOptions, upscaleRuntimeStatus])
+  }, [activeImageSource, crop, cropPreview, exportBackgroundColor, exportFormat, exportName, exportScale, exportSize, onPreviewGenerated, setExportScale, upscaleOptions, upscaleOutputScale, upscaleRuntimeStatus])
 
   return {
     upscaleEnabled,
@@ -187,6 +219,8 @@ export function useImageUpscaleWorkflow({
     updateUpscaleOptions,
     exportBaseSize,
     exportSize,
+    exportScaleForSettings,
+    upscaleOutputScaleForSettings,
     upscaleRuntimeStatus,
     upscaleInstallProgress,
     upscaleInstalling,
@@ -197,5 +231,6 @@ export function useImageUpscaleWorkflow({
     runUpscalePreview,
     clearUpscalePreview,
     resetUpscale,
+    restoreUpscaleSettings,
   }
 }

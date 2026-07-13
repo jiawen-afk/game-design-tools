@@ -26,6 +26,12 @@ interface UseImageExportSettingsWorkspaceOptions {
   sourceName: string
 }
 
+interface RestoredImageExportSettings {
+  exportEncoding: ImageExportEncodingSettings
+  exportBackground: ImageExportBackgroundSettings
+  exportScale: number
+}
+
 export function useImageExportSettingsWorkspace({
   crop,
   sourceName,
@@ -92,6 +98,13 @@ export function useImageExportSettingsWorkspace({
     setExportScaleState(getExportScaleAfterDimensionChange(exportBaseSize, dimension, value))
   }, [])
 
+  const restoreExportSettings = useCallback((settings: RestoredImageExportSettings) => {
+    const encoding = normalizeImageExportEncoding(settings.exportEncoding)
+    setExportEncodingState(encoding)
+    setExportBackgroundState(normalizeImageExportBackground(settings.exportBackground, encoding))
+    setExportScaleState(normalizeExportScale(settings.exportScale))
+  }, [])
+
   return {
     cropAspectRatio,
     exportEncoding,
@@ -107,5 +120,6 @@ export function useImageExportSettingsWorkspace({
     exportScale,
     setExportScale,
     updateExportDimension,
+    restoreExportSettings,
   }
 }

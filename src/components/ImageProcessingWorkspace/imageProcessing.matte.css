@@ -1,0 +1,31 @@
+.image-processing-workspace .ai-matting-setup {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8cabc;
+  border-radius: var(--radius-control);
+  background: #fbfaf7;
+}
+
+.image-processing-workspace .ai-matting-setup,
+.image-processing-workspace .ai-matting-setup > *,
+.image-processing-workspace .ai-matting-setup .ant-alert,
+.image-processing-workspace .ai-matting-setup .ant-alert-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.image-processing-workspace .ai-matting-setup .ant-space {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.image-processing-workspace .ai-matting-setup .ant-alert-description {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.image-processing-workspace .ai-matting-progress {
+  width: 100%;
+}

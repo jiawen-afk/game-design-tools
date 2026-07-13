@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import {
+  defaultImageProcessingMatte,
   getCropBoxAfterAspectRatioChange,
   resolveMatteImageSource,
   MIN_IMAGE_CROP_SIZE,
@@ -12,31 +13,29 @@ import type { LoadedImageDraft } from './imageProcessingPipeline'
 import { useImageCropPreview } from './useImageCropPreview'
 import { useImageExportSettingsWorkspace } from './useImageExportSettingsWorkspace'
 import { useImageExportWorkflow } from './useImageExportWorkflow'
+import { useImageBatchSettingsWorkspace } from './useImageBatchSettingsWorkspace'
 import { useImageKeyColorPicker } from './useImageKeyColorPicker'
 import { useImageMatteProcessing } from './useImageMatteProcessing'
 import { useImagePreviewTransform } from './useImagePreviewTransform'
-import { useImageSourceWorkspace } from './useImageSourceWorkspace'
+import { useImageSourceWorkspace, type ImageProcessingBatchItem } from './useImageSourceWorkspace'
 import { useImageUpscaleWorkflow } from './useImageUpscaleWorkflow'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
-
-const DEFAULT_MATTE: MatteParams = {
-  keyColor: [0, 255, 0],
-  tolerance: 5,
-  smoothness: 5,
-  spill: 0,
-  spillColorMode: 'key',
-  customSpillHex: '#00ff00',
-  erosion: 5,
-}
+import { useAiMattingSetup } from '../MultiFrameSpriteWorkspace/useAiMattingSetup'
+import type { MatteMode } from '../MultiFrameSpriteWorkspace/aiMattingService'
 
 export type ImageProcessingWorkspaceViewModel = ReturnType<typeof useImageProcessingWorkspace>
 
 export function useImageProcessingWorkspace() {
   const [draft, setDraft] = useState<LoadedImageDraft | null>(null)
-  const [batchImages, setBatchImages] = useState<ReturnType<typeof useImageSourceWorkspace>['batchImages']>([])
+  const [batchImages, setBatchImages] = useState<ImageProcessingBatchItem[]>([])
   const [activeBatchImageId, setActiveBatchImageId] = useState<string | null>(null)
-  const [matte, setMatte] = useState<MatteParams>(DEFAULT_MATTE)
+  const [matte, setMatte] = useState<MatteParams>(() => ({
+    ...defaultImageProcessingMatte,
+    keyColor: [...defaultImageProcessingMatte.keyColor] as [number, number, number],
+  }))
   const [matteEnabled, setMatteEnabled] = useState(true)
+  const [matteMode, setMatteMode] = useState<MatteMode>('chroma')
+  const aiMatting = useAiMattingSetup()
   const [crop, setCrop] = useState<CropBox | null>(null)
   const [cropMode, setCropMode] = useState(false)
   const [upscaleCompareEnabled, setUpscaleCompareEnabled] = useState(false)
@@ -58,6 +57,8 @@ export function useImageProcessingWorkspace() {
     draft,
     matte,
     matteEnabled,
+    matteMode,
+    aiMattingConnected: aiMatting.connected,
     setCrop,
   })
   const activeImageSource = useMemo(
@@ -101,6 +102,7 @@ export function useImageProcessingWorkspace() {
     exportScale,
     setExportScale,
     updateExportDimension: updateExportDimensionForBaseSize,
+    restoreExportSettings,
   } = useImageExportSettingsWorkspace({
     crop,
     sourceName: draft?.sourceName ?? '',
@@ -122,6 +124,9 @@ export function useImageProcessingWorkspace() {
     resetUpscale,
     exportBaseSize,
     exportSize,
+    exportScaleForSettings,
+    upscaleOutputScaleForSettings,
+    restoreUpscaleSettings,
   } = useImageUpscaleWorkflow({
     activeImageSource,
     crop,
@@ -134,11 +139,39 @@ export function useImageProcessingWorkspace() {
     onPreviewGenerated: () => setUpscaleCompareEnabled(true),
   })
   const {
+    applyActiveSettingsToAll,
+    persistActiveSettings,
+    restoreBatchSettings,
+    synchronizeActiveSettings,
+  } = useImageBatchSettingsWorkspace({
+    activeBatchImageId,
+    batchImages,
+    crop,
+    draft,
+    exportBackground,
+    exportEncoding,
+    exportScale: exportScaleForSettings,
+    matte,
+    matteEnabled,
+    matteMode,
+    restoreExportSettings,
+    restoreUpscaleSettings,
+    setBatchImages,
+    setCrop,
+    setMatte,
+    setMatteEnabled,
+    setMatteMode,
+    setUpscaleCompareEnabled,
+    upscaleEnabled,
+    upscaleOptions,
+    upscaleOutputScale: upscaleOutputScaleForSettings,
+  })
+  const {
     exporting,
     batchApplying,
     batchUpscalePreview,
-    applyAllPreviews,
-    exportAllImages,
+    applyAllPreviews: applyBatchPreviewsToAll,
+    exportAllImages: exportBatchImages,
   } = useImageExportWorkflow({
     activeImageSource,
     activeBatchImageId,
@@ -149,15 +182,18 @@ export function useImageProcessingWorkspace() {
     exportEncoding,
     exportName,
     exportSize,
-    exportScale,
-    matte,
-    matteEnabled,
     upscaleEnabled,
-    upscaleOptions,
     upscaleRuntimeStatus,
     upscalePreview,
     setUpscaleCompareEnabled,
   })
+  const applyAllPreviews = async () => {
+    const synchronizedItems = applyActiveSettingsToAll()
+    await applyBatchPreviewsToAll(synchronizedItems)
+  }
+  const exportAllImages = async () => {
+    await exportBatchImages(synchronizeActiveSettings())
+  }
   const setUpscaleEnabled = (enabled: boolean) => {
     updateUpscaleEnabled(enabled)
     if (!enabled) setUpscaleCompareEnabled(false)
@@ -181,12 +217,13 @@ export function useImageProcessingWorkspace() {
     resetUpscale,
     clearUpscalePreview,
     setUpscaleCompareEnabled,
-    crop,
     setCrop,
     setCropDraftRect,
     setCropDrag,
     setExportScale,
     setMatteEnabled,
+    persistActiveSettings,
+    restoreBatchSettings,
   })
 
   const updateMatte = <K extends keyof MatteParams>(key: K, value: MatteParams[K]) => {
@@ -207,6 +244,9 @@ export function useImageProcessingWorkspace() {
     matte,
     matteEnabled,
     setMatteEnabled,
+    matteMode,
+    setMatteMode,
+    aiMatting,
     processed,
     activeImageSource,
     crop,

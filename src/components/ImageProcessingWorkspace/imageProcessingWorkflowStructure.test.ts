@@ -19,10 +19,28 @@ test('image processing workspace delegates source image lifecycle to a focused h
   assert.match(sourceHookSource, /createImageDraft/)
   assert.match(sourceHookSource, /isSupportedImageFile/)
   assert.match(sourceHookSource, /revokeLoadedImageDraftUrl/)
-  assert.match(sourceHookSource, /createFullImageCrop/)
+  assert.match(sourceHookSource, /createDefaultImageProcessingBatchSettings/)
   assert.match(sourceHookSource, /clearProcessed\(\)/)
   assert.match(sourceHookSource, /clearCropPreview\(\)/)
   assert.match(sourceHookSource, /resetUpscale\(false\)/)
+})
+
+test('image processing batch items own independent settings through a focused workspace hook', () => {
+  const workspaceSource = readFileSync('src/components/ImageProcessingWorkspace/useImageProcessingWorkspace.ts', 'utf8')
+  const sourceHookSource = readFileSync('src/components/ImageProcessingWorkspace/useImageSourceWorkspace.ts', 'utf8')
+  const batchSettingsHookPath = 'src/components/ImageProcessingWorkspace/useImageBatchSettingsWorkspace.ts'
+
+  assert.ok(existsSync(batchSettingsHookPath), 'per-image batch settings hook should exist')
+  const batchSettingsHookSource = readFileSync(batchSettingsHookPath, 'utf8')
+
+  assert.match(sourceHookSource, /settings: ImageProcessingBatchSettings/)
+  assert.match(sourceHookSource, /createDefaultImageProcessingBatchSettings/)
+  assert.match(workspaceSource, /from '\.\/useImageBatchSettingsWorkspace'/)
+  assert.match(workspaceSource, /useImageBatchSettingsWorkspace\(/)
+  assert.match(batchSettingsHookSource, /mapImageProcessingBatchSettingsToSize/)
+  assert.match(batchSettingsHookSource, /persistActiveSettings/)
+  assert.match(batchSettingsHookSource, /restoreBatchSettings/)
+  assert.match(batchSettingsHookSource, /applyActiveSettingsToAll/)
 })
 
 test('image processing export target selection stays in the model', () => {
@@ -90,6 +108,7 @@ test('image processing export workflow delegates batch preparation and upscale p
   assert.match(batchWorkflowSource, /export function revokeBatchUpscalePreview/)
   assert.match(batchWorkflowSource, /applyImageMatte/)
   assert.match(batchWorkflowSource, /blobFromDesktopBinaryData/)
+  assert.match(batchWorkflowSource, /item\.settings\.upscaleOutputScale/)
 })
 
 test('image processing workspace delegates export settings state to a focused hook', () => {

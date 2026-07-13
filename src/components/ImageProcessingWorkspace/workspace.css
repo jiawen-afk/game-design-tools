@@ -1,6 +1,7 @@
 @import './imageProcessing.base.css';
 @import './imageProcessing.upload.css';
 @import './imageProcessing.controls.css';
+@import './imageProcessing.matte.css';
 @import './imageProcessing.preview.css';
 @import './imageProcessing.upscale.css';
 @import './imageProcessing.cropOverlay.css';

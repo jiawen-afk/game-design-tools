@@ -91,6 +91,7 @@ export const imageProcessingStyleModulePaths = [
   'src/components/ImageProcessingWorkspace/imageProcessing.base.css',
   'src/components/ImageProcessingWorkspace/imageProcessing.upload.css',
   'src/components/ImageProcessingWorkspace/imageProcessing.controls.css',
+  'src/components/ImageProcessingWorkspace/imageProcessing.matte.css',
   'src/components/ImageProcessingWorkspace/imageProcessing.preview.css',
   'src/components/ImageProcessingWorkspace/imageProcessing.upscale.css',
   'src/components/ImageProcessingWorkspace/imageProcessing.cropOverlay.css',

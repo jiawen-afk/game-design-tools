@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } fr
 import { message } from 'antd'
 
 import {
-  createFullImageCrop,
+  createDefaultImageProcessingBatchSettings,
   isSupportedImageFile,
-  mapCropBoxToImageSize,
   type CropBox,
+  type ImageProcessingBatchSettings,
 } from './imageProcessingModel'
 import {
   createImageDraft,
@@ -16,6 +16,7 @@ import {
 export interface ImageProcessingBatchItem {
   id: string
   draft: LoadedImageDraft
+  settings: ImageProcessingBatchSettings
 }
 
 interface UseImageSourceWorkspaceOptions {
@@ -31,12 +32,13 @@ interface UseImageSourceWorkspaceOptions {
   resetUpscale: (enabled?: boolean) => void
   clearUpscalePreview: () => void
   setUpscaleCompareEnabled: Dispatch<SetStateAction<boolean>>
-  crop: CropBox | null
   setCrop: Dispatch<SetStateAction<CropBox | null>>
   setCropDraftRect: (value: null) => void
   setCropDrag: (value: null) => void
   setExportScale: Dispatch<SetStateAction<number>>
   setMatteEnabled: Dispatch<SetStateAction<boolean>>
+  persistActiveSettings: () => void
+  restoreBatchSettings: (settings: ImageProcessingBatchSettings) => void
 }
 
 export function useImageSourceWorkspace({
@@ -52,12 +54,13 @@ export function useImageSourceWorkspace({
   resetUpscale,
   clearUpscalePreview,
   setUpscaleCompareEnabled,
-  crop,
   setCrop,
   setCropDraftRect,
   setCropDrag,
   setExportScale,
   setMatteEnabled,
+  persistActiveSettings,
+  restoreBatchSettings,
 }: UseImageSourceWorkspaceOptions) {
   const batchImagesRef = useRef(batchImages)
   batchImagesRef.current = batchImages
@@ -105,6 +108,7 @@ export function useImageSourceWorkspace({
         created.push({
           id: `${Date.now()}-${created.length}-${draftItem.sourceName}`,
           draft: draftItem,
+          settings: createDefaultImageProcessingBatchSettings(draftItem),
         })
       } catch (error) {
         message.error(`图片读取失败：${String(error)}`)
@@ -122,12 +126,11 @@ export function useImageSourceWorkspace({
     setBatchImages((current) => [...current, ...nextItems])
     if (!draft || !activeBatchImageId) {
       const first = nextItems[0]!
+      clearActiveProcessingState(true)
       setDraft(first.draft)
       setActiveBatchImageId(first.id)
-      setCrop(createFullImageCrop(first.draft.width, first.draft.height))
-      setMatteEnabled(true)
       setExportScale(1)
-      clearActiveProcessingState(true)
+      restoreBatchSettings(first.settings)
     }
     message.success(nextItems.length === 1 ? '图片已载入' : `已载入 ${nextItems.length} 张图片`)
   }
@@ -138,21 +141,19 @@ export function useImageSourceWorkspace({
     if (id === activeBatchImageId) return
     const target = batchImagesRef.current.find((item) => item.id === id)
     if (!target) return
-    const previousDraft = draft
+    persistActiveSettings()
+    clearActiveProcessingState(false)
     setDraft(target.draft)
     setActiveBatchImageId(id)
-    setCrop((currentCrop) => {
-      if (currentCrop && previousDraft) {
-        return mapCropBoxToImageSize(
-          currentCrop,
-          { width: previousDraft.width, height: previousDraft.height },
-          { width: target.draft.width, height: target.draft.height },
-        )
-      }
-      return createFullImageCrop(target.draft.width, target.draft.height)
-    })
-    clearActiveProcessingState(false)
-  }, [activeBatchImageId, clearActiveProcessingState, draft, setActiveBatchImageId, setCrop, setDraft])
+    restoreBatchSettings(target.settings)
+  }, [
+    activeBatchImageId,
+    clearActiveProcessingState,
+    persistActiveSettings,
+    restoreBatchSettings,
+    setActiveBatchImageId,
+    setDraft,
+  ])
 
   const resetWorkspace = useCallback(() => {
     for (const item of batchImagesRef.current) {

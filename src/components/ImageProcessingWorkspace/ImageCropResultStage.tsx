@@ -68,7 +68,13 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
             unCheckedChildren={<EyeOutlined />}
             onChange={workspace.setCropMode}
           />
-          <Text type="secondary">{workspace.cropMode ? '裁剪模式' : workspace.matteEnabled ? '取色模式' : '原图预览'}</Text>
+          <Text type="secondary">
+            {workspace.cropMode
+              ? '裁剪模式'
+              : !workspace.matteEnabled
+                ? '原图预览'
+                : workspace.matteMode === 'chroma' ? '取色模式' : 'AI 抠图预览'}
+          </Text>
           {workspace.activeUpscalePreview ? (
             <Space size={6}>
               <Text type="secondary">高清化对比</Text>
@@ -156,7 +162,7 @@ export function ImageCropResultStage({ workspace }: ImageCropResultStageProps) {
                 onStartDrag={startCropDrag}
               />
             ) : null}
-            {!workspace.cropMode && workspace.matteEnabled ? (
+            {!workspace.cropMode && workspace.matteEnabled && workspace.matteMode === 'chroma' ? (
               <button
                 type="button"
                 className="image-preview-pick-layer"

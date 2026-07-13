@@ -9,11 +9,14 @@ import {
   type ProcessedImageDraft,
 } from './imageProcessingPipeline'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
+import type { MatteMode } from '../MultiFrameSpriteWorkspace/aiMattingService'
 
 export interface UseImageMatteProcessingOptions {
   draft: LoadedImageDraft | null
   matte: MatteParams
   matteEnabled: boolean
+  matteMode: MatteMode
+  aiMattingConnected: boolean
   setCrop: Dispatch<SetStateAction<CropBox | null>>
 }
 
@@ -21,6 +24,8 @@ export function useImageMatteProcessing({
   draft,
   matte,
   matteEnabled,
+  matteMode,
+  aiMattingConnected,
   setCrop,
 }: UseImageMatteProcessingOptions) {
   const [processed, setProcessed] = useState<ProcessedImageDraft | null>(null)
@@ -52,9 +57,17 @@ export function useImageMatteProcessing({
       setCrop((current) => current ?? createFullImageCrop(draft.width, draft.height))
       return
     }
+    if (matteMode === 'ai' && !aiMattingConnected) {
+      clearProcessed()
+      setProcessing(false)
+      return
+    }
     let alive = true
     setProcessing(true)
-    void applyImageMatte(draft.sourceUrl, matte)
+    void applyImageMatte(draft.sourceUrl, matte, {
+      mode: matteMode,
+      inputName: draft.sourceName,
+    })
       .then((result) => {
         if (!alive) {
           revokeProcessedImageDraftUrl(result)
@@ -73,7 +86,7 @@ export function useImageMatteProcessing({
     return () => {
       alive = false
     }
-  }, [clearProcessed, draft, matte, matteEnabled, setCrop])
+  }, [aiMattingConnected, clearProcessed, draft, matte, matteEnabled, matteMode, setCrop])
 
   return {
     processed,

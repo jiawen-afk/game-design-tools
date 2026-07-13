@@ -3,10 +3,9 @@ import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
 import {
   getExportSizeAfterScaleChange,
   mapCropBoxToImageSize,
+  getImageExportEncodingInfo,
+  resolveImageExportBackgroundColor,
   type CropBox,
-  type ImageExportEncodingSettings,
-  type ImageExportFormat,
-  type ImageSourceLike,
 } from './imageProcessingModel'
 import {
   applyImageMatte,
@@ -16,10 +15,9 @@ import {
   revokeProcessedImageDraftUrl,
   type ProcessedImageDraft,
 } from './imageProcessingPipeline'
-import type { UpscaleOptions, UpscaleRuntimeStatus } from './imageUpscaleModel'
+import type { UpscaleRuntimeStatus } from './imageUpscaleModel'
 import type { ImageUpscalePreview } from './useImageUpscaleWorkflow'
 import type { ImageProcessingBatchItem } from './useImageSourceWorkspace'
-import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 
 export interface PreparedImageBatchExport {
   sourceUrl: string
@@ -29,30 +27,20 @@ export interface PreparedImageBatchExport {
 }
 
 interface PrepareImageBatchExportInput {
-  activeImageSource: ImageSourceLike | null
-  crop: CropBox | null
-  exportScale: number
   item: ImageProcessingBatchItem
-  matte: MatteParams
-  matteEnabled: boolean
 }
 
 interface CreateImageBatchUpscalePreviewInput {
-  exportBackgroundColor: string | null
-  exportFormat: ImageExportFormat
   item: ImageProcessingBatchItem
   prepareBatchExport: (item: ImageProcessingBatchItem) => Promise<PreparedImageBatchExport>
-  upscaleOptions: UpscaleOptions
   upscaleRuntimeStatus: UpscaleRuntimeStatus | null
 }
 
 interface EncodeImageUpscalePreviewInput {
   desktopApi: ReturnType<typeof getDesktopApi>
-  exportBackgroundColor: string | null
-  exportEncoding: ImageExportEncodingSettings
   fileName: string
+  item: ImageProcessingBatchItem
   preview: ImageUpscalePreview
-  renderFormat: ImageExportFormat
 }
 
 export function revokeBatchUpscalePreview(preview: ImageUpscalePreview | null | undefined) {
@@ -61,34 +49,29 @@ export function revokeBatchUpscalePreview(preview: ImageUpscalePreview | null | 
 }
 
 export async function prepareImageBatchExport({
-  activeImageSource,
-  crop,
-  exportScale,
   item,
-  matte,
-  matteEnabled,
 }: PrepareImageBatchExportInput): Promise<PreparedImageBatchExport> {
-  if (!activeImageSource || !crop) throw new Error('请先上传图片并设置裁剪范围。')
+  const { settings } = item
   let processed: ProcessedImageDraft | null = null
   const draftSource = { url: item.draft.sourceUrl, width: item.draft.width, height: item.draft.height }
-  const source = matteEnabled
-    ? (processed = await applyImageMatte(item.draft.sourceUrl, matte))
+  const source = settings.matteEnabled
+    ? (processed = await applyImageMatte(item.draft.sourceUrl, settings.matte, {
+        mode: settings.matteMode,
+        inputName: item.draft.sourceName,
+      }))
     : draftSource
-  const mappedCrop = mapCropBoxToImageSize(crop, activeImageSource, source)
+  const mappedCrop = mapCropBoxToImageSize(settings.crop, draftSource, source)
   return {
     sourceUrl: source.url,
     crop: mappedCrop,
-    outputSize: getExportSizeAfterScaleChange(mappedCrop, exportScale),
+    outputSize: getExportSizeAfterScaleChange(mappedCrop, settings.exportScale),
     cleanup: () => revokeProcessedImageDraftUrl(processed),
   }
 }
 
 export async function createImageBatchUpscalePreview({
-  exportBackgroundColor,
-  exportFormat,
   item,
   prepareBatchExport,
-  upscaleOptions,
   upscaleRuntimeStatus,
 }: CreateImageBatchUpscalePreviewInput): Promise<ImageUpscalePreview> {
   const api = getDesktopApi()
@@ -96,6 +79,12 @@ export async function createImageBatchUpscalePreview({
   if (!upscaleRuntimeStatus?.installed) throw new Error('请先安装高清化运行包。')
 
   const prepared = await prepareBatchExport(item)
+  const exportFormat = getImageExportEncodingInfo(item.settings.exportEncoding).extension
+  const exportBackgroundColor = resolveImageExportBackgroundColor(
+    item.settings.exportBackground,
+    item.settings.exportEncoding,
+  )
+  const upscaleOptions = item.settings.upscaleOptions
   try {
     const originalBlob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, exportFormat, prepared.outputSize, exportBackgroundColor)
     let originalUrl: string | null = null
@@ -129,13 +118,19 @@ export async function createImageBatchUpscalePreview({
 
 export async function encodeImageUpscalePreview({
   desktopApi,
-  exportBackgroundColor,
-  exportEncoding,
   fileName,
+  item,
   preview,
-  renderFormat,
 }: EncodeImageUpscalePreviewInput) {
+  const exportEncoding = item.settings.exportEncoding
+  const encodingInfo = getImageExportEncodingInfo(exportEncoding)
+  const renderFormat = encodingInfo.requiresDesktopEncoding ? 'png' : encodingInfo.extension
+  const exportBackgroundColor = resolveImageExportBackgroundColor(
+    item.settings.exportBackground,
+    exportEncoding,
+  )
   const fullCrop = { x: 0, y: 0, width: preview.width, height: preview.height }
-  const blob = await exportProcessedImage(preview.url, fullCrop, renderFormat, { width: preview.width, height: preview.height }, exportBackgroundColor)
+  const outputSize = getExportSizeAfterScaleChange(fullCrop, item.settings.upscaleOutputScale)
+  const blob = await exportProcessedImage(preview.url, fullCrop, renderFormat, outputSize, exportBackgroundColor)
   return encodeImageExportBlob(fileName, blob, exportEncoding, desktopApi)
 }

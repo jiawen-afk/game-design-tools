@@ -1,4 +1,8 @@
 import { chromaKey, loadImage } from '../MultiFrameSpriteWorkspace/imagePipeline'
+import {
+  removeImageBackground,
+  type MatteMode,
+} from '../MultiFrameSpriteWorkspace/aiMattingService'
 import type { MatteParams } from '../MultiFrameSpriteWorkspace/types'
 import {
   getExportFormatInfo,
@@ -71,7 +75,19 @@ export async function createImageDraft(file: File): Promise<LoadedImageDraft> {
   }
 }
 
-export async function applyImageMatte(sourceUrl: string, matte: MatteParams): Promise<ProcessedImageDraft> {
+export interface ApplyImageMatteOptions {
+  mode?: MatteMode
+  inputName?: string
+}
+
+export async function applyImageMatte(
+  sourceUrl: string,
+  matte: MatteParams,
+  options: ApplyImageMatteOptions = {}
+): Promise<ProcessedImageDraft> {
+  if (options.mode === 'ai') {
+    return removeImageBackground(sourceUrl, { inputName: options.inputName })
+  }
   return chromaKey(sourceUrl, matte)
 }
 
