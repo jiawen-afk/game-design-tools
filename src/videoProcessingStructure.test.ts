@@ -67,6 +67,7 @@ test('video workspace composes focused panels and a registered exit guard', () =
     assert.ok(existsSync(`${base}/${file}`), `${base}/${file} should exist`)
   }
   const indexSource = readFileSync(`${base}/index.tsx`, 'utf8')
+  const workspaceSource = readFileSync(`${base}/useVideoProcessingWorkspace.ts`, 'utf8')
   const appSource = readFileSync('src/App.tsx', 'utf8')
   const guardPath = 'src/WorkspaceExitGuardContext.tsx'
   assert.ok(existsSync(guardPath), `${guardPath} should exist`)
@@ -77,6 +78,8 @@ test('video workspace composes focused panels and a registered exit guard', () =
   assert.match(indexSource, /VideoProcessingPreviewPanel/)
   assert.match(indexSource, /VideoProcessingQueuePanel/)
   assert.match(indexSource, /useVideoProcessingWorkspace/)
+  assert.match(workspaceSource, /previewRequestIdRef/)
+  assert.match(workspaceSource, /requestId !== previewRequestIdRef\.current/)
   assert.doesNotMatch(indexSource, /getDesktopApi|ipcRenderer|spawn\(/)
   assert.match(guardSource, /useWorkspaceExitGuard/)
   assert.match(appSource, /WorkspaceExitGuardContext\.Provider/)

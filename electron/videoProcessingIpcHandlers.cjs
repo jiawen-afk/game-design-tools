@@ -74,11 +74,74 @@ function upscaleScale(percent) {
   return 4
 }
 
+function normalizeEvenDimension(value) {
+  const rounded = Math.max(2, Math.round(Number(value)))
+  return rounded % 2 === 0 ? rounded : rounded + 1
+}
+
+function normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirectories) {
+  if (!options || typeof options !== 'object') throw new Error('视频任务参数无效。')
+  const inputPath = path.resolve(String(options.inputPath || ''))
+  const outputDirectory = path.resolve(String(options.outputDirectory || ''))
+  if (!selectedOutputDirectories?.has(outputDirectory)) {
+    throw new Error('输出目录必须通过选择器确认。')
+  }
+  if (!nativeProbe || nativeProbe.path !== inputPath || nativeProbe.durationSeconds <= 0
+    || nativeProbe.width < 2 || nativeProbe.height < 2 || nativeProbe.averageFps <= 0) {
+    throw new Error('源视频探测结果无效，请重新导入。')
+  }
+  const settings = options.settings || {}
+  const percent = Number(settings.percent)
+  if (!Number.isFinite(percent) || percent < 25 || percent > 400) {
+    throw new Error('分辨率比例必须在 25% 到 400% 之间。')
+  }
+  const expectedWidth = normalizeEvenDimension(nativeProbe.width * percent / 100)
+  const expectedHeight = normalizeEvenDimension(nativeProbe.height * percent / 100)
+  if (Number(settings.width) !== expectedWidth || Number(settings.height) !== expectedHeight) {
+    throw new Error('目标尺寸与源视频及分辨率比例不一致，请重新导入或调整。')
+  }
+  const targetFps = Number(settings.targetFps)
+  if (!Number.isFinite(targetFps) || targetFps < 1) throw new Error('目标帧率必须大于或等于 1。')
+  if (targetFps > nativeProbe.averageFps) throw new Error('目标帧率不能高于源视频帧率。')
+  if (!['quality', 'target-size'].includes(settings.qualityMode)) throw new Error('视频压缩模式无效。')
+  if (!['high', 'balanced', 'extreme'].includes(settings.qualityPreset)) throw new Error('Theora 质量预设无效。')
+  if (settings.qualityMode === 'target-size' && (!Number.isFinite(Number(settings.targetMb)) || Number(settings.targetMb) <= 0)) {
+    throw new Error('请输入大于 0 的目标文件大小。')
+  }
+  if (!['vorbis', 'mute'].includes(settings.audioMode) || ![64, 96, 128, 160].includes(Number(settings.audioKbps))) {
+    throw new Error('音频设置无效。')
+  }
+  if (!String(settings.upscaylModel || '').trim() || !String(settings.gpuId || '').trim()
+    || !['balanced', 'low-memory', 'throughput'].includes(settings.threadProfile)
+    || !Number.isFinite(Number(settings.tileSize)) || Number(settings.tileSize) < 32) {
+    throw new Error('Upscayl GPU 高级设置无效。')
+  }
+  return {
+    ...options,
+    inputPath,
+    outputDirectory,
+    probe: nativeProbe,
+    settings: {
+      ...settings,
+      percent,
+      width: expectedWidth,
+      height: expectedHeight,
+      targetFps,
+      audioKbps: Number(settings.audioKbps),
+      tileSize: Math.round(Number(settings.tileSize)),
+      ttaMode: settings.ttaMode === true,
+    },
+  }
+}
+
 function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMain, runCommandOutput }) {
+  const selectedOutputDirectories = new Set()
   const manager = createVideoProcessingJobManager({
     app,
     emitProgress: (progress) => sendToWindows(BrowserWindow, 'video-processing:progress', progress),
   })
+  let previewRunning = false
+  let jobStarting = false
 
   ipcMain.handle('video-processing:choose-files', async () => {
     const result = await dialog.showOpenDialog({
@@ -103,6 +166,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
     })
     if (result.canceled || result.filePaths.length === 0) return null
     const selectedPath = path.resolve(result.filePaths[0])
+    selectedOutputDirectories.add(selectedPath)
     return { name: path.basename(selectedPath), path: selectedPath }
   })
 
@@ -120,6 +184,12 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
   ))
 
   ipcMain.handle('video-processing:preview', async (_event, options = {}) => {
+    if (previewRunning || jobStarting || manager.isRunning()) {
+      throw new Error('已有视频预览或处理任务正在使用 FFmpeg/Upscayl，请稍后重试。')
+    }
+    previewRunning = true
+    let directory = ''
+    try {
     const inputPath = assertVideoInputPath(options.inputPath)
     const runtime = await getVideoRuntimeStatus(app)
     if (!runtime.installed) throw new Error('请先安装视频处理运行包。')
@@ -128,7 +198,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
     const targetWidth = Math.max(2, Math.round(Number(settings.width || probe.width)))
     const targetHeight = Math.max(2, Math.round(Number(settings.height || probe.height)))
     const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    const directory = path.join(previewTempDir(app), stamp)
+    directory = path.join(previewTempDir(app), stamp)
     const sourcePath = path.join(directory, 'source.png')
     const processedPath = path.join(directory, 'processed.png')
     await fsp.mkdir(directory, { recursive: true })
@@ -176,10 +246,28 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
         outputPath: processedPath,
       }), {}, '缩放预览生成失败。')
     }
-    return { sourcePath, processedPath, width: targetWidth, height: targetHeight }
+      return { sourcePath, processedPath, width: targetWidth, height: targetHeight }
+    } catch (error) {
+      if (directory) await fsp.rm(directory, { recursive: true, force: true })
+      throw error
+    } finally {
+      previewRunning = false
+    }
   })
 
-  ipcMain.handle('video-processing:start', async (_event, options = {}) => manager.start(options))
+  ipcMain.handle('video-processing:start', async (_event, options = {}) => {
+    if (previewRunning || jobStarting || manager.isRunning()) {
+      throw new Error('已有视频预览或处理任务正在运行。')
+    }
+    jobStarting = true
+    try {
+      const inputPath = assertVideoInputPath(options.inputPath)
+      const nativeProbe = await probeVideoPath(app, runCommandOutput, inputPath)
+      return await manager.start(normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirectories))
+    } finally {
+      jobStarting = false
+    }
+  })
   ipcMain.handle('video-processing:cancel', async (_event, jobId) => manager.cancel(jobId))
 
   async function cleanupAbandonedTempDirs() {
@@ -200,6 +288,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
 
 module.exports = {
   assertVideoInputPath,
+  normalizeVideoStartOptions,
   parseJsonOutput,
   probeVideoPath,
   registerVideoProcessingIpcHandlers,

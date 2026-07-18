@@ -1,8 +1,11 @@
 import {
+  deriveResizeFromPercent,
+  validateVideoProcessingSettings,
   videoJobReducer,
   type VideoJobAction,
   type VideoProcessingJob,
   type VideoProcessingSettings,
+  type VideoRuntimeAvailability,
 } from './videoProcessingModel'
 
 const activePhases = new Set<VideoProcessingJob['phase']>([
@@ -31,9 +34,31 @@ export function applySettingsToQueuedJobs(
 ) {
   return jobs.map((job) => (
     job.phase === 'queued'
-      ? videoJobReducer(job, { type: 'replace-settings', settings })
+      ? videoJobReducer(job, {
+          type: 'replace-settings',
+          settings: {
+            ...settings,
+            ...deriveResizeFromPercent(job.input.width, job.input.height, settings.percent),
+            targetFps: Math.min(settings.targetFps, job.input.averageFps),
+            audioMode: job.input.hasAudio ? settings.audioMode : 'mute',
+          },
+        })
       : job
   ))
+}
+
+export function getVideoQueueValidationFailures(
+  jobs: VideoProcessingJob[],
+  runtime: VideoRuntimeAvailability,
+) {
+  return jobs
+    .filter((job) => job.phase === 'queued')
+    .map((job) => ({
+      jobId: job.id,
+      name: job.input.name,
+      errors: validateVideoProcessingSettings(job.input, job.settings, runtime),
+    }))
+    .filter((failure) => failure.errors.length > 0)
 }
 
 export function updateVideoQueueJob(

@@ -203,6 +203,12 @@ export function toVideoFileUrl(filePath: string) {
   return encoded
 }
 
+export function getVideoParentDirectory(filePath: string) {
+  const value = String(filePath || '')
+  const separatorIndex = Math.max(value.lastIndexOf('\\'), value.lastIndexOf('/'))
+  return separatorIndex > 0 ? value.slice(0, separatorIndex) : value
+}
+
 export function defaultVideoProcessingSettings(probe: VideoMediaProbe): VideoProcessingSettings {
   const resize = deriveResizeFromPercent(probe.width, probe.height, 100)
   return {

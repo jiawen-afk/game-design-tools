@@ -150,6 +150,31 @@ test('conventional job encodes, verifies, moves output, and cleans temp files', 
   assert.equal(fs.existsSync(resolveVideoProcessingTempRoot(fakeApp(root))), false)
 }))
 
+test('conventional job preflights temporary and destination disk space', () => withTempManager(async (root) => {
+  let processCalls = 0
+  const dependencies = managerDependencies(root, {
+    getFreeDiskBytes: async (targetPath) => targetPath.endsWith('output') ? Number.MAX_SAFE_INTEGER : 0,
+    runProcess: async () => {
+      processCalls += 1
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  await assert.rejects(() => manager.start(job(root)), /临时磁盘空间不足/)
+  assert.equal(processCalls, 0)
+}))
+
+test('job rejects an output volume without enough free space', () => withTempManager(async (root) => {
+  const outputDirectory = path.join(root, 'output')
+  const dependencies = managerDependencies(root, {
+    getFreeDiskBytes: async (targetPath) => targetPath === outputDirectory ? 0 : Number.MAX_SAFE_INTEGER,
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  await assert.rejects(() => manager.start(job(root)), /输出磁盘空间不足/)
+}))
+
 test('cancel aborts the active task and removes its temporary directory', () => withTempManager(async (root) => {
   let observedSignal = null
   const dependencies = managerDependencies(root, {
@@ -166,6 +191,24 @@ test('cancel aborts the active task and removes its temporary directory', () => 
   await assert.rejects(pending, /任务已取消/)
   assert.equal(observedSignal.aborted, true)
   assert.equal(fs.existsSync(resolveVideoProcessingTempRoot(fakeApp(root))), false)
+}))
+
+test('job manager reports whether a native job is active', () => withTempManager(async (root) => {
+  let observedSignal = null
+  const dependencies = managerDependencies(root, {
+    runProcess: ({ signal }) => new Promise((_resolve, reject) => {
+      observedSignal = signal
+      signal.addEventListener('abort', () => reject(new Error('native process aborted')), { once: true })
+    }),
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+  assert.equal(manager.isRunning(), false)
+  const pending = manager.start(job(root))
+  while (!observedSignal) await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(manager.isRunning(), true)
+  await manager.cancel('job-1')
+  await assert.rejects(pending, /任务已取消/)
+  assert.equal(manager.isRunning(), false)
 }))
 
 test('AI job decodes and upscales frames serially before encoding', () => withTempManager(async (root) => {
@@ -222,6 +265,26 @@ test('target-size job retries once when the first output exceeds the size ceilin
 
   assert.equal(passTwoCount, 2)
   assert.equal(result.outputSize, 900_000)
+}))
+
+test('target-size job rejects a retry that still exceeds the size ceiling', () => withTempManager(async (root) => {
+  const dependencies = managerDependencies(root, {
+    runProcess: async ({ args }) => {
+      const outputPath = args.at(-1)
+      if (args.includes('-pass') && args[args.indexOf('-pass') + 1] === '2') {
+        await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+        await fsp.writeFile(outputPath, Buffer.alloc(1_100_000))
+      }
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  await assert.rejects(() => manager.start(job(root, {
+    outputName: 'intro_50pct_target-1mb.ogv',
+    settings: settings({ qualityMode: 'target-size', targetMb: 1 }),
+  })), /重试后仍超过目标大小/)
+  assert.equal(fs.existsSync(path.join(root, 'output', 'intro_50pct_target-1mb.ogv')), false)
 }))
 
 test('quality presets map to the approved Theora q:v values', () => withTempManager(async (root) => {

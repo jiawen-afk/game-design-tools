@@ -9,6 +9,7 @@ import {
   deriveResizeFromPercent,
   deriveResizeFromWidth,
   getUpscaleScaleForPercent,
+  getVideoParentDirectory,
   normalizeEvenDimension,
   resolveCollisionFreeOutputName,
   toVideoFileUrl,
@@ -119,6 +120,11 @@ test('converts Windows and UNC media paths to encoded local file URLs', () => {
     toVideoFileUrl('\\\\media-server\\shared folder\\intro.mp4'),
     'file://media-server/shared%20folder/intro.mp4',
   )
+})
+
+test('resolves each completed output parent directory independently', () => {
+  assert.equal(getVideoParentDirectory('D:\\exports\\boss\\intro.ogv'), 'D:\\exports\\boss')
+  assert.equal(getVideoParentDirectory('\\\\server\\share\\intro.ogv'), '\\\\server\\share')
 })
 
 test('defaults preserve source FPS and audio while using balanced quality', () => {

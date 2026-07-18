@@ -1,5 +1,5 @@
-import { LockOutlined } from '@ant-design/icons'
-import { Alert, Collapse, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
+import { CopyOutlined, LockOutlined } from '@ant-design/icons'
+import { Alert, Button, Collapse, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 
 import {
   getUpscaleScaleForPercent,
@@ -29,6 +29,7 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
 
   const { input, settings } = job
   const disabled = !workspace.selectedEditable
+  const queuedCount = workspace.jobs.filter((item) => item.phase === 'queued').length
   const upscaleScale = getUpscaleScaleForPercent(settings.percent)
   const models = workspace.upscaleRuntimeStatus?.models?.length
     ? workspace.upscaleRuntimeStatus.models
@@ -41,7 +42,17 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
           <h2 id="video-settings-title">处理参数</h2>
           <span>{input.width} × {input.height}，{input.averageFps.toFixed(2)} FPS</span>
         </div>
-        {disabled && <Tooltip title="仅等待中的任务可以修改参数"><LockOutlined /></Tooltip>}
+        <div className="video-settings-heading-actions">
+          <Button
+            size="small"
+            icon={<CopyOutlined />}
+            disabled={disabled || queuedCount < 2}
+            onClick={workspace.applySelectedSettingsToAll}
+          >
+            应用到全部待处理
+          </Button>
+          {disabled && <Tooltip title="仅等待中的任务可以修改参数"><LockOutlined /></Tooltip>}
+        </div>
       </div>
 
       <section className="video-settings-section" aria-labelledby="video-resize-title">

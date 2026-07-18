@@ -21,6 +21,12 @@
   gap: 2px;
 }
 
+.video-settings-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .video-panel-heading h2,
 .video-settings-section h3 {
   margin: 0;

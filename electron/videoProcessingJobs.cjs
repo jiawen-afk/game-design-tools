@@ -45,6 +45,17 @@ function estimateAiTemporaryBytes(input) {
   return Math.ceil(framesBytes + outputAllowance + ONE_GIB)
 }
 
+function estimateOutputBytes(options) {
+  const targetBytes = Number(options?.settings?.targetMb) > 0
+    ? Number(options.settings.targetMb) * 1024 * 1024
+    : 0
+  return Math.ceil(Math.max(
+    MIN_OUTPUT_ALLOWANCE,
+    targetBytes * 1.05,
+    Math.max(0, Number(options?.probe?.size || 0)) * 0.1,
+  ))
+}
+
 function getUpscaleScale(percent) {
   const value = Number(percent)
   if (value <= 100) return null
@@ -285,21 +296,6 @@ function createVideoProcessingJobManager(inputDependencies) {
     if (!upscaleStatus?.installed) throw new Error('超过 100% 的任务必须安装 Upscayl GPU 运行包。')
     const upscalePaths = dependencies.resolveUpscaylRuntimePaths(dependencies.app)
     const scale = getUpscaleScale(options.settings.percent)
-    const frameCount = Math.ceil(options.probe.durationSeconds * options.settings.targetFps)
-    const requiredBytes = estimateAiTemporaryBytes({
-      frameCount,
-      sourceWidth: options.probe.width,
-      sourceHeight: options.probe.height,
-      upscaleWidth: options.probe.width * scale,
-      upscaleHeight: options.probe.height * scale,
-      sourceSize: options.probe.size,
-      targetMb: options.settings.targetMb,
-    })
-    const freeBytes = await dependencies.getFreeDiskBytes(path.dirname(job.tempDir))
-    if (freeBytes < requiredBytes) {
-      throw new Error(`临时磁盘空间不足，需要约 ${Math.ceil(requiredBytes / ONE_GIB)} GB。`)
-    }
-
     const sourcePattern = path.join(job.tempDir, 'source-%08d.png')
     emit(job.id, 'decoding', 0, '正在提取视频帧。')
     await executeProcess(job, runtime.ffmpegPath, buildDecodeFramesArgs({
@@ -359,6 +355,42 @@ function createVideoProcessingJobManager(inputDependencies) {
     const adjustedBitrate = Math.max(128, Math.floor(bitrateKbps * targetBytes / actualBytes * 0.98))
     await fsp.rm(temporaryOutputPath, { force: true })
     await encodeOutput(job, runtime, videoInput, temporaryOutputPath, adjustedBitrate)
+    const retryBytes = (await fsp.stat(temporaryOutputPath)).size
+    if (retryBytes > targetBytes * 1.02) {
+      throw new Error('目标大小编码重试后仍超过目标大小 2%，未发布输出。')
+    }
+  }
+
+  async function preflightStorage(job, scale) {
+    const { options } = job
+    const outputBytes = estimateOutputBytes(options)
+    const temporaryBytes = scale
+      ? estimateAiTemporaryBytes({
+          frameCount: Math.ceil(options.probe.durationSeconds * options.settings.targetFps),
+          sourceWidth: options.probe.width,
+          sourceHeight: options.probe.height,
+          upscaleWidth: options.probe.width * scale,
+          upscaleHeight: options.probe.height * scale,
+          sourceSize: options.probe.size,
+          targetMb: options.settings.targetMb,
+        })
+      : outputBytes
+    const temporaryFreeBytes = await dependencies.getFreeDiskBytes(job.tempDir)
+    if (temporaryFreeBytes < temporaryBytes) {
+      throw new Error(`临时磁盘空间不足，需要约 ${Math.ceil(temporaryBytes / ONE_GIB)} GB。`)
+    }
+    const outputFreeBytes = await dependencies.getFreeDiskBytes(options.outputDirectory)
+    if (outputFreeBytes < outputBytes) {
+      throw new Error(`输出磁盘空间不足，需要至少 ${Math.ceil(outputBytes / 1024 / 1024)} MB。`)
+    }
+    const writeProbePath = path.join(options.outputDirectory, `.gdt-video-write-${job.id}.tmp`)
+    try {
+      await fsp.writeFile(writeProbePath, '')
+    } catch (error) {
+      throw new Error(`输出目录不可写：${error.message}`)
+    } finally {
+      await fsp.rm(writeProbePath, { force: true })
+    }
   }
 
   async function start(options) {
@@ -381,6 +413,7 @@ function createVideoProcessingJobManager(inputDependencies) {
       await fsp.mkdir(options.outputDirectory, { recursive: true })
       const temporaryOutputPath = path.join(tempDir, 'output.ogv')
       const scale = getUpscaleScale(options.settings.percent)
+      await preflightStorage(job, scale)
       let initialBitrate = null
       if (scale) {
         initialBitrate = await runAiPipeline(job, runtime, temporaryOutputPath)
@@ -440,7 +473,7 @@ function createVideoProcessingJobManager(inputDependencies) {
   async function shutdown() {
     for (const job of activeJobs.values()) job.controller.abort()
     await Promise.all([...activeJobs.values()].map(async (job) => {
-      for (let attempt = 0; attempt < 100 && activeJobs.has(job.id); attempt += 1) {
+      while (activeJobs.has(job.id)) {
         await new Promise((resolve) => setTimeout(resolve, 20))
       }
     }))
@@ -464,12 +497,19 @@ function createVideoProcessingJobManager(inputDependencies) {
     await removeEmptyDirectory(tempRoot)
   }
 
-  return { cancel, cleanupAbandonedTempDirs, shutdown, start }
+  return {
+    cancel,
+    cleanupAbandonedTempDirs,
+    isRunning: () => Boolean(runningJobId),
+    shutdown,
+    start,
+  }
 }
 
 module.exports = {
   createVideoProcessingJobManager,
   estimateAiTemporaryBytes,
+  estimateOutputBytes,
   killProcessTree,
   resolveCollisionFreeOutputPath,
   resolveVideoProcessingTempRoot,

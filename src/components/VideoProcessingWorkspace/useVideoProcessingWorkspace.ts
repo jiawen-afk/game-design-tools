@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { message, Modal } from 'antd'
 
 import { useWorkspaceExitGuard } from '../../WorkspaceExitGuardContext'
@@ -6,6 +6,7 @@ import {
   deriveResizeFromHeight,
   deriveResizeFromPercent,
   deriveResizeFromWidth,
+  getVideoParentDirectory,
   toVideoFileUrl,
   validateVideoProcessingSettings,
   type VideoProcessingSettings,
@@ -30,6 +31,7 @@ export function useVideoProcessingWorkspace() {
   const [preview, setPreview] = useState<VideoFramePreviewState | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
+  const previewRequestIdRef = useRef(0)
 
   const selectedJob = queue.selectedJob
   const selectedEditable = selectedJob?.phase === 'queued'
@@ -41,13 +43,16 @@ export function useVideoProcessingWorkspace() {
     : [], [ffmpegInstalled, selectedJob, upscaylInstalled])
 
   useEffect(() => {
+    previewRequestIdRef.current += 1
     setPreview(null)
     setPreviewError('')
+    setPreviewLoading(false)
     setPreviewTimestamp(0)
   }, [selectedJob?.id])
 
   const updateSettings = useCallback((patch: Partial<VideoProcessingSettings>) => {
     if (!selectedJob || !selectedEditable) return
+    previewRequestIdRef.current += 1
     queue.updateSelectedSettings({ ...selectedJob.settings, ...patch })
     setPreview(null)
     setPreviewError('')
@@ -70,6 +75,8 @@ export function useVideoProcessingWorkspace() {
 
   const generatePreview = useCallback(async () => {
     if (!selectedJob || validationErrors.length > 0) return
+    const requestId = previewRequestIdRef.current + 1
+    previewRequestIdRef.current = requestId
     setPreviewLoading(true)
     setPreviewError('')
     try {
@@ -78,6 +85,7 @@ export function useVideoProcessingWorkspace() {
         timestampSeconds: previewTimestamp,
         settings: selectedJob.settings,
       })
+      if (requestId !== previewRequestIdRef.current) return
       setPreview({
         sourceUrl: toVideoFileUrl(result.sourcePath),
         processedUrl: toVideoFileUrl(result.processedPath),
@@ -85,18 +93,28 @@ export function useVideoProcessingWorkspace() {
         height: result.height,
       })
     } catch (error) {
+      if (requestId !== previewRequestIdRef.current) return
       const text = error instanceof Error ? error.message : String(error)
       setPreviewError(text)
       message.error(`生成预览失败：${text}`)
     } finally {
-      setPreviewLoading(false)
+      if (requestId === previewRequestIdRef.current) setPreviewLoading(false)
     }
   }, [previewTimestamp, selectedJob, validationErrors.length])
 
-  const openOutputDirectory = useCallback(async () => {
-    if (!queue.outputDirectory) return
+  const updatePreviewTimestamp = useCallback((value: number) => {
+    previewRequestIdRef.current += 1
+    setPreviewTimestamp(value)
+    setPreview(null)
+    setPreviewError('')
+    setPreviewLoading(false)
+  }, [])
+
+  const openOutputDirectory = useCallback(async (outputPath?: string) => {
+    const targetPath = outputPath ? getVideoParentDirectory(outputPath) : queue.outputDirectory?.path
+    if (!targetPath) return
     try {
-      await videoProcessingService.openPath(queue.outputDirectory.path)
+      await videoProcessingService.openPath(targetPath)
     } catch (error) {
       message.error(`打开输出目录失败：${String(error)}`)
     }
@@ -132,7 +150,7 @@ export function useVideoProcessingWorkspace() {
     previewLoading,
     previewTimestamp,
     selectedEditable,
-    setPreviewTimestamp,
+    setPreviewTimestamp: updatePreviewTimestamp,
     setResizeHeight,
     setResizePercent,
     setResizeWidth,

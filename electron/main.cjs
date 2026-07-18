@@ -33,6 +33,9 @@ const {
 const {
   registerVideoProcessingIpcHandlers,
 } = require('./videoProcessingIpcHandlers.cjs')
+const {
+  registerAwaitedVideoProcessingShutdown,
+} = require('./videoProcessingShutdown.cjs')
 
 function resolveAppPath(...parts) {
   return path.join(app.getAppPath(), ...parts)
@@ -113,10 +116,6 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  void videoProcessing.shutdown()
-})
-
 ipcMain.handle('file:save', async (_event, fileName, data) => {
   const safeName = path.basename(String(fileName || 'export.bin'))
   const result = await dialog.showSaveDialog({
@@ -143,6 +142,7 @@ const videoProcessing = registerVideoProcessingIpcHandlers({
   ipcMain,
   runCommandOutput,
 })
+registerAwaitedVideoProcessingShutdown(app, videoProcessing)
 
 ipcMain.handle('shell:open-path', async (_event, targetPath) => {
   const error = await shell.openPath(normalizePath(targetPath))

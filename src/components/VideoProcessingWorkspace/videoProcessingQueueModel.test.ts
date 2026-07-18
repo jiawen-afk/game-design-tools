@@ -5,6 +5,7 @@ import {
   applySettingsToQueuedJobs,
   createRetryVideoJob,
   getNextQueuedVideoJob,
+  getVideoQueueValidationFailures,
   hasPendingOrActiveVideoJobs,
   updateVideoQueueJob,
 } from './videoProcessingQueueModel'
@@ -62,6 +63,32 @@ test('applies settings only to queued jobs', () => {
   assert.equal(result[0].settings.percent, 50)
   assert.equal(result[1], running)
   assert.equal(result[2], completed)
+})
+
+test('applied settings preserve each queued source aspect, FPS, and audio capability', () => {
+  const source = videoJob('source', 'queued')
+  const other = videoJob('other', 'queued')
+  other.input = { ...other.input, width: 1280, height: 720, averageFps: 24, hasAudio: false }
+  source.settings = { ...source.settings, percent: 50, width: 320, height: 180, targetFps: 30, audioMode: 'vorbis' }
+
+  const result = applySettingsToQueuedJobs([source, other], source.settings)
+
+  assert.equal(result[1].settings.width, 640)
+  assert.equal(result[1].settings.height, 360)
+  assert.equal(result[1].settings.targetFps, 24)
+  assert.equal(result[1].settings.audioMode, 'mute')
+})
+
+test('collects queued validation failures before queue start', () => {
+  const queued = videoJob('queued', 'queued')
+  const completed = videoJob('completed', 'completed')
+  const failures = getVideoQueueValidationFailures([queued, completed], {
+    ffmpegInstalled: false,
+    upscaylInstalled: false,
+  })
+
+  assert.deepEqual(failures.map((failure) => failure.jobId), ['queued'])
+  assert.match(failures[0].errors.join('\n'), /安装视频处理运行包/)
 })
 
 test('updates only the matching queue job through the reducer', () => {

@@ -14,6 +14,7 @@ import {
   applySettingsToQueuedJobs,
   createRetryVideoJob,
   getNextQueuedVideoJob,
+  getVideoQueueValidationFailures,
   hasPendingOrActiveVideoJobs,
   updateVideoQueueJob,
 } from './videoProcessingQueueModel'
@@ -75,6 +76,10 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
     [jobs, selectedJobId],
   )
   const hasPendingWork = hasPendingOrActiveVideoJobs(jobs)
+  const queueValidationFailures = useMemo(() => getVideoQueueValidationFailures(jobs, {
+    ffmpegInstalled,
+    upscaylInstalled,
+  }), [ffmpegInstalled, jobs, upscaylInstalled])
 
   useEffect(() => {
     try {
@@ -177,12 +182,18 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
   }, [activeJobId, jobs, outputDirectory, paused, runJob])
 
   const startAll = useCallback(async () => {
+    if (queueValidationFailures.length > 0) {
+      const first = queueValidationFailures[0]
+      setSelectedJobId(first.jobId)
+      message.error(`${first.name}：${first.errors[0]}`)
+      return false
+    }
     let directory = outputDirectory
     if (!directory) directory = await chooseOutputDirectory()
     if (!directory) return false
     setPaused(false)
     return true
-  }, [chooseOutputDirectory, outputDirectory])
+  }, [chooseOutputDirectory, outputDirectory, queueValidationFailures])
 
   const cancelActive = useCallback(async () => {
     if (!activeJobId) return false
@@ -235,6 +246,7 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
     jobs,
     outputDirectory,
     paused,
+    queueValidationFailures,
     removeJob,
     retryJob,
     selectedJob,

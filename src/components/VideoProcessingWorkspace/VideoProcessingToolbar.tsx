@@ -13,6 +13,7 @@ export function VideoProcessingToolbar({ workspace }: { workspace: VideoProcessi
   const ffmpegProgress = workspace.videoRuntimeProgress
   const upscaylProgress = workspace.upscaleInstallProgress
   const queuedCount = workspace.jobs.filter((job) => job.phase === 'queued').length
+  const startBlocked = queuedCount === 0 || workspace.queueValidationFailures.length > 0
 
   return (
     <header className="video-processing-toolbar">
@@ -73,7 +74,7 @@ export function VideoProcessingToolbar({ workspace }: { workspace: VideoProcessi
           <Button
             type="primary"
             icon={<PlayCircleOutlined />}
-            disabled={queuedCount === 0}
+            disabled={startBlocked}
             onClick={() => void workspace.startAll()}
           >
             处理队列（{queuedCount}）

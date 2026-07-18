@@ -120,7 +120,7 @@ export function VideoProcessingQueuePanel({ workspace }: { workspace: VideoProce
           )}
           {job.phase === 'completed' && workspace.outputDirectory && (
             <Tooltip title={job.outputPath}>
-              <Button size="small" icon={<FolderOpenOutlined />} onClick={() => void workspace.openOutputDirectory()}>
+              <Button size="small" icon={<FolderOpenOutlined />} onClick={() => void workspace.openOutputDirectory(job.outputPath)}>
                 目录
               </Button>
             </Tooltip>
