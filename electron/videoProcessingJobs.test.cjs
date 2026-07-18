@@ -264,11 +264,13 @@ test('shutdown waits until active job temporary directory cleanup finishes', () 
   }
 }))
 
-test('AI job decodes and upscales frames serially before encoding', () => withTempManager(async (root) => {
+test('AI job keeps the GPU model loaded by upscaling the frame directory in one process', () => withTempManager(async (root) => {
   const calls = []
+  const progress = []
   const dependencies = managerDependencies(root, {
     probeFile: async () => rawOutputProbe(960, 540),
-    runProcess: async ({ command, args }) => {
+    emitProgress: (event) => progress.push(event),
+    runProcess: async ({ command, args, onOutput }) => {
       calls.push({ command, args })
       const outputPath = args.at(-1)
       if (outputPath.includes('source-%08d.png')) {
@@ -277,8 +279,17 @@ test('AI job decodes and upscales frames serially before encoding', () => withTe
         await fsp.writeFile(path.join(directory, 'source-00000001.png'), 'one')
         await fsp.writeFile(path.join(directory, 'source-00000002.png'), 'two')
       } else if (command.endsWith('upscayl-bin.exe')) {
+        const input = args[args.indexOf('-i') + 1]
         const target = args[args.indexOf('-o') + 1]
-        await fsp.writeFile(target, 'upscaled')
+        if (path.extname(target)) {
+          await fsp.writeFile(target, 'upscaled')
+        } else {
+          await fsp.mkdir(target, { recursive: true })
+          for (const name of await fsp.readdir(input)) {
+            await fsp.writeFile(path.join(target, name), 'upscaled')
+            onOutput?.('Upscayled Successfully!\n')
+          }
+        }
       } else if (outputPath.endsWith('.ogv')) {
         await fsp.writeFile(outputPath, 'output')
       }
@@ -289,10 +300,15 @@ test('AI job decodes and upscales frames serially before encoding', () => withTe
 
   await manager.start(job(root, {
     outputName: 'intro_150pct_balanced.ogv',
-    settings: settings({ percent: 150, width: 960, height: 540 }),
+    settings: settings({ percent: 150, width: 960, height: 540, threadProfile: 'throughput' }),
   }))
 
-  assert.equal(calls.filter((call) => call.command.endsWith('upscayl-bin.exe')).length, 2)
+  const upscaleCalls = calls.filter((call) => call.command.endsWith('upscayl-bin.exe'))
+  assert.equal(upscaleCalls.length, 1)
+  assert.equal(path.basename(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-i') + 1]), 'source-frames')
+  assert.equal(path.basename(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-o') + 1]), 'upscaled-frames')
+  assert.equal(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-j') + 1], '2:2:2')
+  assert.ok(progress.some((event) => event.phase === 'upscaling' && event.completed === 2 && event.total === 2))
   assert.equal(calls.at(-1).args.includes('D:\\media\\intro.mp4'), true)
 }))
 

@@ -204,6 +204,10 @@ function createVideoProcessingJobManager(inputDependencies) {
       cwd: options.cwd,
       signal: job.controller.signal,
       onOutput: (text) => {
+        if (typeof options.onOutput === 'function') {
+          options.onOutput(text)
+          return
+        }
         bufferedProgress += text
         const progress = parseFfmpegProgress(bufferedProgress, options.durationSeconds || 0)
         if (progress.percent > 0 || progress.done) {
@@ -297,17 +301,30 @@ function createVideoProcessingJobManager(inputDependencies) {
       .map((entry) => path.join(sourceDir, entry))
   }
 
+  function resolveAiFramePaths(tempDir) {
+    const sourceDir = path.join(tempDir, 'source-frames')
+    const upscaledDir = path.join(tempDir, 'upscaled-frames')
+    return {
+      sourceDir,
+      sourcePattern: path.join(sourceDir, 'source-%08d.png'),
+      upscaledDir,
+      upscaledPattern: path.join(upscaledDir, 'source-%08d.png'),
+    }
+  }
+
   async function runAiPipeline(job, runtime, temporaryOutputPath) {
     const { options } = job
     const upscaleStatus = await dependencies.getUpscaylRuntimeStatus(dependencies.app)
     if (!upscaleStatus?.installed) throw new Error('超过 100% 的任务必须安装 Upscayl GPU 运行包。')
     const upscalePaths = dependencies.resolveUpscaylRuntimePaths(dependencies.app)
     const scale = getUpscaleScale(options.settings.percent)
-    const sourcePattern = path.join(job.tempDir, 'source-%08d.png')
+    const framePaths = resolveAiFramePaths(job.tempDir)
+    await fsp.mkdir(framePaths.sourceDir, { recursive: true })
+    await fsp.mkdir(framePaths.upscaledDir, { recursive: true })
     emit(job.id, 'decoding', 0, '正在提取视频帧。')
     await executeProcess(job, runtime.ffmpegPath, buildDecodeFramesArgs({
       inputPath: options.inputPath,
-      outputPattern: sourcePattern,
+      outputPattern: framePaths.sourcePattern,
       fps: options.settings.targetFps,
     }), {
       phase: 'decoding',
@@ -315,41 +332,59 @@ function createVideoProcessingJobManager(inputDependencies) {
       message: '正在提取视频帧。',
       failureMessage: '视频帧提取失败。',
     })
-    const sourceFrames = await collectSourceFrames(job.tempDir)
+    const sourceFrames = await collectSourceFrames(framePaths.sourceDir)
     if (sourceFrames.length === 0) throw new Error('视频帧提取完成，但没有生成可处理帧。')
 
-    for (let index = 0; index < sourceFrames.length; index += 1) {
-      if (job.controller.signal.aborted) throw new Error('任务已取消。')
-      const sourceFrame = sourceFrames[index]
-      const number = path.basename(sourceFrame).match(/(\d{8})/)?.[1]
-      const outputFrame = path.join(job.tempDir, `upscaled-${number}.png`)
-      emit(job.id, 'upscaling', index / sourceFrames.length * 100, `正在 GPU 超分：${index + 1}/${sourceFrames.length}`, index, sourceFrames.length)
-      const args = buildUpscaylArgs({
-        inputPath: sourceFrame,
-        outputPath: outputFrame,
-        modelsPath: upscalePaths.modelsDir,
-        format: 'png',
-        options: {
-          model: options.settings.upscaylModel,
-          scale,
-          tileSize: options.settings.tileSize,
-          ttaMode: options.settings.ttaMode,
-          gpuId: options.settings.gpuId,
-          threadProfile: options.settings.threadProfile,
-        },
-      })
-      await executeProcess(job, upscalePaths.execPath, args, {
-        cwd: upscalePaths.binDir,
-        phase: 'upscaling',
-        message: `正在 GPU 超分：${index + 1}/${sourceFrames.length}`,
-        failureMessage: `第 ${index + 1} 帧 Upscayl 处理失败。`,
-      })
-      if (!fs.existsSync(outputFrame)) throw new Error(`第 ${index + 1} 帧 Upscayl 未生成输出。`)
-      emit(job.id, 'upscaling', (index + 1) / sourceFrames.length * 100, `已完成 GPU 超分：${index + 1}/${sourceFrames.length}`, index + 1, sourceFrames.length)
+    emit(job.id, 'upscaling', 0, `正在批量 GPU 超分：0/${sourceFrames.length}`, 0, sourceFrames.length)
+    const args = buildUpscaylArgs({
+      inputPath: framePaths.sourceDir,
+      outputPath: framePaths.upscaledDir,
+      modelsPath: upscalePaths.modelsDir,
+      format: 'png',
+      options: {
+        model: options.settings.upscaylModel,
+        scale,
+        tileSize: options.settings.tileSize,
+        ttaMode: options.settings.ttaMode,
+        gpuId: options.settings.gpuId,
+        threadProfile: options.settings.threadProfile,
+      },
+    })
+    let batchOutput = ''
+    let completedFrames = 0
+    await executeProcess(job, upscalePaths.execPath, args, {
+      cwd: upscalePaths.binDir,
+      phase: 'upscaling',
+      message: '正在批量 GPU 超分。',
+      failureMessage: 'Upscayl 批量 GPU 超分失败。',
+      onOutput: (text) => {
+        batchOutput += text
+        const nextCompleted = Math.min(
+          sourceFrames.length,
+          (batchOutput.match(/Upscayled Successfully!/g) || []).length,
+        )
+        if (nextCompleted <= completedFrames) return
+        completedFrames = nextCompleted
+        emit(
+          job.id,
+          'upscaling',
+          completedFrames / sourceFrames.length * 100,
+          `正在批量 GPU 超分：${completedFrames}/${sourceFrames.length}`,
+          completedFrames,
+          sourceFrames.length,
+        )
+      },
+    })
+    const upscaledFrames = await collectSourceFrames(framePaths.upscaledDir)
+    if (upscaledFrames.length !== sourceFrames.length) {
+      throw new Error(`Upscayl 批量输出不完整：应有 ${sourceFrames.length} 帧，实际 ${upscaledFrames.length} 帧。`)
+    }
+    if (completedFrames < sourceFrames.length) {
+      emit(job.id, 'upscaling', 100, `已完成批量 GPU 超分：${sourceFrames.length}/${sourceFrames.length}`, sourceFrames.length, sourceFrames.length)
     }
 
     return encodeOutput(job, runtime, {
-      framePattern: path.join(job.tempDir, 'upscaled-%08d.png'),
+      framePattern: framePaths.upscaledPattern,
       audioInputPath: options.inputPath,
     }, temporaryOutputPath)
   }
@@ -430,7 +465,7 @@ function createVideoProcessingJobManager(inputDependencies) {
       if (!fs.existsSync(temporaryOutputPath)) throw new Error('视频编码完成，但没有生成 OGV 输出。')
 
       const videoInput = scale
-        ? { framePattern: path.join(tempDir, 'upscaled-%08d.png'), audioInputPath: options.inputPath }
+        ? { framePattern: resolveAiFramePaths(tempDir).upscaledPattern, audioInputPath: options.inputPath }
         : { inputPath: options.inputPath }
       if (options.settings.qualityMode === 'target-size') {
         await retryTargetSizeIfNeeded(job, runtime, videoInput, temporaryOutputPath, initialBitrate)
