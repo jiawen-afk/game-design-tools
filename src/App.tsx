@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Button } from 'antd'
 import {
   AppstoreOutlined,
@@ -20,6 +20,10 @@ import {
   type ActiveSurface,
 } from './appNavigation'
 import { useCurrentProjectSpaceLabel } from './useCurrentProjectSpaceLabel'
+import {
+  WorkspaceExitGuardContext,
+  type WorkspaceExitGuard,
+} from './WorkspaceExitGuardContext'
 
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
@@ -31,32 +35,43 @@ const DocumentWorkspace = lazy(() => import('./components/DocumentWorkspace'))
 export default function App() {
   const [activeSurface, setActiveSurface] = useState<ActiveSurface | null>(null)
   const [workspaceRetryKey, setWorkspaceRetryKey] = useState(0)
+  const [workspaceExitGuard, setWorkspaceExitGuard] = useState<WorkspaceExitGuard | null>(null)
   const activeToolMeta = tools.find((tool) => tool.id === activeSurface)
   const currentProjectSpaceLabel = useCurrentProjectSpaceLabel(activeSurface)
+
+  const registerWorkspaceExitGuard = useCallback((guard: WorkspaceExitGuard | null) => {
+    setWorkspaceExitGuard(() => guard)
+  }, [])
+
+  const requestActiveSurface = useCallback(async (nextSurface: ActiveSurface | null) => {
+    if (nextSurface === activeSurface) return
+    if (workspaceExitGuard && !await workspaceExitGuard()) return
+    setActiveSurface(nextSurface)
+  }, [activeSurface, workspaceExitGuard])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableShortcutTarget(event.target)) return
       if (event.key === 'Escape' && activeSurface !== null) {
         event.preventDefault()
-        setActiveSurface(null)
+        void requestActiveSurface(null)
         return
       }
       if (activeSurface !== null || event.altKey || event.ctrlKey || event.metaKey) return
       if (event.key === personalSpaceShortcut) {
         event.preventDefault()
-        setActiveSurface('personal-space')
+        void requestActiveSurface('personal-space')
         return
       }
       const matchingTool = tools.find((tool) => event.key === tool.shortcut)
       if (!matchingTool) return
       event.preventDefault()
-      setActiveSurface(matchingTool.id)
+      void requestActiveSurface(matchingTool.id)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeSurface])
+  }, [activeSurface, requestActiveSurface])
 
   if (activeSurface !== null) {
       const activeWorkspace = activeSurface === 'multi-frame-sprite'
@@ -82,9 +97,10 @@ export default function App() {
         : '工作台'
 
     return (
+      <WorkspaceExitGuardContext.Provider value={registerWorkspaceExitGuard}>
       <div className="app-shell">
         <header className="topbar">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => setActiveSurface(null)}>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => void requestActiveSurface(null)}>
             返回工具列表
           </Button>
           <div className="topbar-title">
@@ -96,7 +112,7 @@ export default function App() {
             </div>
           </div>
           {activeSurface !== 'personal-space' && (
-            <Button className="topbar-space" icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
+            <Button className="topbar-space" icon={<UserOutlined />} onClick={() => void requestActiveSurface('personal-space')}>
               项目空间
             </Button>
           )}
@@ -104,7 +120,7 @@ export default function App() {
         <main className="tool-surface">
           <AppWorkspaceErrorBoundary
             key={`${activeSurface}:${workspaceRetryKey}`}
-            onBack={() => setActiveSurface(null)}
+            onBack={() => void requestActiveSurface(null)}
             onRetry={() => setWorkspaceRetryKey((current) => current + 1)}
           >
             <Suspense fallback={<WorkspaceLoadingFallback />}>
@@ -114,6 +130,7 @@ export default function App() {
         </main>
         <SiteFooter />
       </div>
+      </WorkspaceExitGuardContext.Provider>
     )
   }
 
@@ -139,7 +156,7 @@ export default function App() {
             <kbd>{personalSpaceShortcut}</kbd>
             <span>项目空间</span>
           </div>
-          <Button icon={<UserOutlined />} onClick={() => setActiveSurface('personal-space')}>
+          <Button icon={<UserOutlined />} onClick={() => void requestActiveSurface('personal-space')}>
             打开项目空间
           </Button>
         </div>
@@ -186,14 +203,14 @@ export default function App() {
                     : tool.id === 'video-processing'
                       ? <VideoCameraOutlined />
                       : undefined}
-                onClick={() => setActiveSurface(tool.id)}
+                onClick={() => void requestActiveSurface(tool.id)}
               >
                 打开工具
               </Button>
             </article>
           ))}
         </section>
-        <DocumentHomeKnowledgeSection onOpen={() => setActiveSurface('document-knowledge')} />
+        <DocumentHomeKnowledgeSection onOpen={() => void requestActiveSurface('document-knowledge')} />
       </main>
 
       <SiteFooter />

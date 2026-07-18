@@ -191,6 +191,18 @@ export function resolveCollisionFreeOutputName(fileName: string, existingNames: 
   throw new Error('无法生成不重复的输出文件名。')
 }
 
+export function toVideoFileUrl(filePath: string) {
+  const normalized = String(filePath || '').replace(/\\/g, '/')
+  const encoded = normalized
+    .split('/')
+    .map((part, index) => index === 0 && /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part))
+    .join('/')
+  if (/^[A-Za-z]:\//.test(normalized)) return `file:///${encoded}`
+  if (normalized.startsWith('//')) return `file:${encoded}`
+  if (normalized.startsWith('/')) return `file://${encoded}`
+  return encoded
+}
+
 export function defaultVideoProcessingSettings(probe: VideoMediaProbe): VideoProcessingSettings {
   const resize = deriveResizeFromPercent(probe.width, probe.height, 100)
   return {

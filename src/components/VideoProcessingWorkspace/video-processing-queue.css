@@ -1,0 +1,79 @@
+.video-queue-panel {
+  overflow: hidden;
+}
+
+.video-queue-heading,
+.video-queue-summary,
+.video-queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-queue-heading,
+.video-queue-summary {
+  justify-content: space-between;
+}
+
+.video-queue-file {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-queue-file:hover,
+.video-queue-file:focus-visible,
+.video-queue-file.is-selected {
+  border-color: color-mix(in oklch, var(--color-brand) 48%, var(--color-line));
+  background: color-mix(in oklch, var(--color-brand) 7%, var(--color-panel));
+  outline: none;
+}
+
+.video-queue-file strong,
+.video-queue-file span,
+.video-queue-settings strong,
+.video-queue-settings span,
+.video-queue-progress > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-queue-file span,
+.video-queue-settings span,
+.video-queue-progress > span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.video-queue-settings,
+.video-queue-progress {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.video-queue-progress > span.is-error {
+  color: oklch(0.45 0.18 25);
+}
+
+.video-queue-panel .ant-table-row.video-queue-row-selected > .ant-table-cell {
+  background: color-mix(in oklch, var(--color-brand) 5%, var(--color-panel));
+}
+
+.video-queue-panel .ant-empty {
+  margin-block: 28px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .video-queue-file {
+    transition: border-color 160ms ease-out, background-color 160ms ease-out;
+  }
+}

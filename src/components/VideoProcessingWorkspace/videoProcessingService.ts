@@ -15,7 +15,7 @@ function requireVideoDesktopApi() {
 export const videoProcessingService = {
   chooseVideoFiles: () => requireVideoDesktopApi().chooseVideoFiles(),
   chooseVideoOutputDirectory: () => requireVideoDesktopApi().chooseVideoOutputDirectory(),
-  queryVideoRuntimeStatus: () => requireVideoDesktopApi().queryVideoRuntimeStatus(),
+  queryVideoRuntimeStatus: async () => requireVideoDesktopApi().queryVideoRuntimeStatus(),
   installVideoRuntime: () => requireVideoDesktopApi().installVideoRuntime(),
   probeVideoFile: (filePath: string) => requireVideoDesktopApi().probeVideoFile(filePath),
   createVideoFramePreview: (options: DesktopVideoFramePreviewOptions) => (

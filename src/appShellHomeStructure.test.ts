@@ -192,6 +192,6 @@ test('app shell keeps workspace loading visible and recovers from workspace rend
   assert.match(boundarySource, /重新加载工作台/)
   assert.match(boundarySource, /返回工具列表/)
   assert.match(boundarySource, /className="workspace-loading"/)
-  assert.match(source, /<AppWorkspaceErrorBoundary[\s\S]*onBack=\{\(\) => setActiveSurface\(null\)\}/)
+  assert.match(source, /<AppWorkspaceErrorBoundary[\s\S]*onBack=\{\(\) => void requestActiveSurface\(null\)\}/)
   assert.match(source, /<Suspense fallback=\{<WorkspaceLoadingFallback \/>\}/)
 })

@@ -11,6 +11,7 @@ import {
   getUpscaleScaleForPercent,
   normalizeEvenDimension,
   resolveCollisionFreeOutputName,
+  toVideoFileUrl,
   validateVideoProcessingSettings,
   videoJobReducer,
   type VideoMediaProbe,
@@ -106,6 +107,17 @@ test('builds safe descriptive OGV names and collision suffixes', () => {
       'intro_50pct_balanced-2.ogv',
     ])),
     'intro_50pct_balanced-3.ogv',
+  )
+})
+
+test('converts Windows and UNC media paths to encoded local file URLs', () => {
+  assert.equal(
+    toVideoFileUrl('D:\\游戏 视频\\片头#1.mp4'),
+    'file:///D:/%E6%B8%B8%E6%88%8F%20%E8%A7%86%E9%A2%91/%E7%89%87%E5%A4%B4%231.mp4',
+  )
+  assert.equal(
+    toVideoFileUrl('\\\\media-server\\shared folder\\intro.mp4'),
+    'file://media-server/shared%20folder/intro.mp4',
   )
 })
 

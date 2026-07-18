@@ -1,12 +1,21 @@
-import { Typography } from 'antd'
+import './video-processing-workspace.css'
 
-const { Paragraph, Title } = Typography
+import { VideoProcessingPreviewPanel } from './VideoProcessingPreviewPanel'
+import { VideoProcessingQueuePanel } from './VideoProcessingQueuePanel'
+import { VideoProcessingSettingsPanel } from './VideoProcessingSettingsPanel'
+import { VideoProcessingToolbar } from './VideoProcessingToolbar'
+import { useVideoProcessingWorkspace } from './useVideoProcessingWorkspace'
 
 export default function VideoProcessingWorkspace() {
+  const workspace = useVideoProcessingWorkspace()
   return (
-    <section aria-labelledby="video-processing-title">
-      <Title id="video-processing-title" level={2}>视频处理工作台</Title>
-      <Paragraph>批量调整视频分辨率、执行 GPU 超分，并导出 Godot 4.6 可用的 OGV 视频。</Paragraph>
+    <section className="video-processing-workspace" aria-label="视频处理工作台">
+      <VideoProcessingToolbar workspace={workspace} />
+      <div className="video-processing-main">
+        <VideoProcessingSettingsPanel workspace={workspace} />
+        <VideoProcessingPreviewPanel workspace={workspace} />
+      </div>
+      <VideoProcessingQueuePanel workspace={workspace} />
     </section>
   )
 }

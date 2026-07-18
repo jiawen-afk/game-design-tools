@@ -1,0 +1,104 @@
+.video-processing-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(520px, 1fr) auto;
+  gap: 12px;
+  min-height: calc(100vh - 156px);
+}
+
+.video-processing-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(360px, auto) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+}
+
+.video-processing-heading {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.video-processing-heading strong {
+  font-size: 1rem;
+}
+
+.video-processing-heading span,
+.video-panel-heading span,
+.video-queue-summary span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-processing-runtime-strip,
+.video-processing-toolbar-actions,
+.video-runtime-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-processing-runtime-strip {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.video-runtime-item .ant-progress {
+  width: 70px;
+}
+
+.video-processing-toolbar-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.video-processing-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+@media (max-width: 1180px) {
+  .video-processing-toolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .video-processing-runtime-strip {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .video-processing-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .video-processing-workspace {
+    grid-template-rows: auto auto auto;
+  }
+
+  .video-processing-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .video-processing-runtime-strip,
+  .video-processing-toolbar-actions {
+    grid-column: auto;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .video-processing-toolbar-actions .ant-btn {
+    flex: 1 1 180px;
+  }
+}
