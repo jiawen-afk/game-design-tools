@@ -77,3 +77,11 @@ test('sprite playback layout caps the frame playlist at three columns', () => {
   assert.doesNotMatch(css, /\.playback-frame-list\s*{[^}]*grid-auto-flow:\s*column/s)
   assert.match(css, /\.playback-preview-pair\s*{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(\d+px,\s*1fr\)\)/s)
 })
+
+test('sprite batch upscale uses one grouped desktop request instead of one process per frame', () => {
+  const source = readFileSync('src/components/MultiFrameSpriteWorkspace/useSpriteUpscaleWorkspace.ts', 'utf8')
+
+  assert.match(source, /executeUpscaleBatchCandidates/)
+  assert.match(source, /const batchResults = await executeUpscaleBatchCandidates/)
+  assert.doesNotMatch(source, /api\.upscaleImage\(/)
+})

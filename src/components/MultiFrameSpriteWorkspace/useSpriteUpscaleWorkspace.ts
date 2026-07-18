@@ -3,6 +3,7 @@ import { message } from 'antd'
 
 import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
+import { executeUpscaleBatchCandidates } from '../../desktopUpscaleBatchClient'
 import { revokeImageObjectUrl } from '../ImageProcessingWorkspace/imageProcessingPipeline'
 import { useUpscaleRuntime } from '../ImageProcessingWorkspace/useUpscaleRuntime'
 import { composeFrame } from './imagePipeline'
@@ -134,20 +135,35 @@ export function useSpriteUpscaleWorkspace({
     setBatchProgress({ total: targets.length, completed: 0, activeName: targets[0]?.sourceName ?? '' })
 
     try {
+      const candidates = []
       for (let index = 0; index < targets.length; index += 1) {
         const frame = targets[index]!
-        if (!frame.matteUrl || !frame.composedUrl) continue
+        if (!frame.matteUrl || !frame.composedUrl) {
+          throw new Error(`${frame.sourceName} 缺少可高清化的处理结果`)
+        }
         setBatchProgress({ total: targets.length, completed: index, activeName: frame.sourceName })
         const inputUrl = batchMode === 'input' ? frame.matteUrl : frame.composedUrl
         const response = await fetch(inputUrl)
         if (!response.ok) throw new Error(`${frame.sourceName} 读取失败`)
         const blob = await response.blob()
-        const result = await api.upscaleImage({
+        candidates.push({
+          value: {
+            frame,
+            matteUrl: frame.matteUrl,
+            composedUrl: frame.composedUrl,
+          },
           inputName: frame.sourceName,
-          outputFormat: 'png',
+          outputFormat: 'png' as const,
           data: await blob.arrayBuffer(),
           options: upscaleOptions,
         })
+      }
+      setBatchProgress({ total: targets.length, completed: 0, activeName: 'GPU 批量处理' })
+      const batchResults = await executeUpscaleBatchCandidates(api, candidates)
+      for (let index = 0; index < batchResults.length; index += 1) {
+        const { value: source, result } = batchResults[index]!
+        const { frame, matteUrl, composedUrl } = source
+        setBatchProgress({ total: targets.length, completed: index, activeName: frame.sourceName })
         const upscaledBlob = blobFromDesktopBinaryData(result.data, 'image/png')
         const upscaledUrl = URL.createObjectURL(upscaledBlob)
         let upscaledSourceUrl: string | undefined
@@ -165,9 +181,9 @@ export function useSpriteUpscaleWorkspace({
           frameId: frame.id,
           mode: batchMode,
           scale: upscaleOptions.scale,
-          sourceMatteUrl: frame.matteUrl,
+          sourceMatteUrl: matteUrl,
           matteRevision: frame.matteRevision,
-          sourceComposedUrl: frame.composedUrl,
+          sourceComposedUrl: composedUrl,
           composedRevision: frame.composedRevision,
           upscaledSourceUrl,
           url: finalUrl,
