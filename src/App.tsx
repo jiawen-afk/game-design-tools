@@ -6,6 +6,7 @@ import {
   AudioOutlined,
   PictureOutlined,
   UserOutlined,
+  VideoCameraOutlined,
 } from '@ant-design/icons'
 
 import { SiteFooter } from './components/SiteFooter'
@@ -23,6 +24,7 @@ import { useCurrentProjectSpaceLabel } from './useCurrentProjectSpaceLabel'
 const MultiFrameSpriteWorkspace = lazy(() => import('./components/MultiFrameSpriteWorkspace'))
 const ImageProcessingWorkspace = lazy(() => import('./components/ImageProcessingWorkspace'))
 const VoiceDeploymentWorkspace = lazy(() => import('./components/VoiceDeploymentWorkspace'))
+const VideoProcessingWorkspace = lazy(() => import('./components/VideoProcessingWorkspace'))
 const PersonalSpaceWorkspace = lazy(() => import('./components/PersonalSpaceWorkspace'))
 const DocumentWorkspace = lazy(() => import('./components/DocumentWorkspace'))
 
@@ -61,7 +63,9 @@ export default function App() {
         ? <MultiFrameSpriteWorkspace />
         : activeSurface === 'image-processing'
           ? <ImageProcessingWorkspace />
-          : activeSurface === 'voice-deployment'
+          : activeSurface === 'video-processing'
+            ? <VideoProcessingWorkspace />
+            : activeSurface === 'voice-deployment'
             ? <VoiceDeploymentWorkspace />
             : activeSurface === 'document-knowledge'
               ? <DocumentWorkspace />
@@ -130,6 +134,8 @@ export default function App() {
             <span>图片</span>
             <kbd>3</kbd>
             <span>配音</span>
+            <kbd>4</kbd>
+            <span>视频</span>
             <kbd>{personalSpaceShortcut}</kbd>
             <span>项目空间</span>
           </div>
@@ -173,7 +179,13 @@ export default function App() {
               </div>
               <Button
                 type="primary"
-                icon={tool.id === 'voice-deployment' ? <AudioOutlined /> : tool.id === 'image-processing' ? <PictureOutlined /> : undefined}
+                icon={tool.id === 'voice-deployment'
+                  ? <AudioOutlined />
+                  : tool.id === 'image-processing'
+                    ? <PictureOutlined />
+                    : tool.id === 'video-processing'
+                      ? <VideoCameraOutlined />
+                      : undefined}
                 onClick={() => setActiveSurface(tool.id)}
               >
                 打开工具

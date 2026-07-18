@@ -1,4 +1,4 @@
-export type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment'
+export type ToolId = 'multi-frame-sprite' | 'image-processing' | 'voice-deployment' | 'video-processing'
 export type ActiveSurface = ToolId | 'personal-space' | 'document-knowledge'
 
 export interface AppTool {
@@ -11,7 +11,7 @@ export interface AppTool {
   shortcut: string
 }
 
-export const personalSpaceShortcut = '4'
+export const personalSpaceShortcut = '5'
 
 export const tools: AppTool[] = [
   {
@@ -41,11 +41,21 @@ export const tools: AppTool[] = [
     output: 'WAV 音频（Gradio generate 接口）',
     shortcut: '3',
   },
+  {
+    id: 'video-processing',
+    name: '视频处理工作台',
+    summary: '批量缩放、GPU 超分和压缩视频，导出 Godot 原生播放格式。',
+    details: '支持百分比或目标分辨率、三档质量、目标文件大小、帧率和音频设置。',
+    input: 'MP4、MOV、MKV、WebM、AVI、OGV 等常见视频',
+    output: 'Godot 4.6 可用的 OGV 视频',
+    shortcut: '4',
+  },
 ]
 
 export function getToolCategoryLabel(toolId: ToolId) {
   if (toolId === 'multi-frame-sprite') return '素材整理'
   if (toolId === 'image-processing') return '图片编辑'
+  if (toolId === 'video-processing') return '视频处理'
   return '本地部署'
 }
 

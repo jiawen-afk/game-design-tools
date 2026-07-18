@@ -9,6 +9,7 @@ import type { DesktopProjectRepositoryApi } from './desktopProjectRepositoryApi'
 import type { DesktopStableAudioRuntimeApi } from './desktopStableAudioRuntimeApi'
 import type { DesktopSystemApi } from './desktopSystemApi'
 import type { DesktopUpscaleApi } from './desktopUpscaleApi'
+import type { DesktopVideoProcessingApi } from './desktopVideoProcessingApi'
 import type { DesktopVoiceRuntimeApi } from './desktopVoiceRuntimeApi'
 
 export type {
@@ -76,6 +77,18 @@ export type {
   DesktopUpscaleRuntimeStatus,
 } from './desktopUpscaleApi'
 export type {
+  DesktopVideoDirectoryInfo,
+  DesktopVideoFileInfo,
+  DesktopVideoFramePreviewOptions,
+  DesktopVideoFramePreviewResult,
+  DesktopVideoProcessingApi,
+  DesktopVideoProcessingJobOptions,
+  DesktopVideoProcessingProgress,
+  DesktopVideoProcessingResult,
+  DesktopVideoRuntimeInstallProgress,
+  DesktopVideoRuntimeStatus,
+} from './desktopVideoProcessingApi'
+export type {
   DesktopVoiceRuntimeApi,
   DesktopVoxcpmSetupOptions,
   DesktopVoxcpmSetupResult,
@@ -93,7 +106,8 @@ export interface GameDesignToolsDesktopApi extends
   DesktopProjectProfileApi,
   DesktopProjectRepositoryApi,
   DesktopProjectObjectApi,
-  DesktopAudioEditApi {}
+  DesktopAudioEditApi,
+  DesktopVideoProcessingApi {}
 
 declare global {
   interface Window {
