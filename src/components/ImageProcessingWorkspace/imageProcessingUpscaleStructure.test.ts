@@ -152,3 +152,15 @@ test('upscale runtime controls are shared by image and sprite workspaces', () =>
   assert.match(runtimeHookSource, /api\.installUpscaleRuntime\(\)/)
   assert.match(runtimeHookSource, /onUpscaleInstallProgress/)
 })
+
+test('image batch upscale uses grouped desktop batches instead of one process per image', () => {
+  const batchWorkflowSource = readFileSync('src/components/ImageProcessingWorkspace/imageBatchExportWorkflow.ts', 'utf8')
+  const exportWorkflowSource = readFileSync('src/components/ImageProcessingWorkspace/useImageExportWorkflow.ts', 'utf8')
+
+  assert.match(batchWorkflowSource, /executeUpscaleBatchCandidates/)
+  assert.match(batchWorkflowSource, /export async function createImageBatchUpscalePreviews/)
+  assert.doesNotMatch(batchWorkflowSource, /api\.upscaleImage\(/)
+  assert.match(exportWorkflowSource, /createImageBatchUpscalePreviews/)
+  assert.doesNotMatch(exportWorkflowSource, /createUpscalePreviewForItem/)
+  assert.doesNotMatch(exportWorkflowSource, /\bcreateImageBatchUpscalePreview\b/)
+})

@@ -21,7 +21,7 @@ import {
   saveImageExportBlob,
 } from './imageProcessingPipeline'
 import {
-  createImageBatchUpscalePreview,
+  createImageBatchUpscalePreviews,
   encodeImageUpscalePreview,
   prepareImageBatchExport,
   revokeBatchUpscalePreview,
@@ -143,9 +143,9 @@ export function useImageExportWorkflow({
     return prepareImageBatchExport({ item })
   }, [])
 
-  const createUpscalePreviewForItem = useCallback(async (item: ImageProcessingBatchItem): Promise<ImageUpscalePreview> => {
-    return createImageBatchUpscalePreview({
-      item,
+  const createUpscalePreviewsForItems = useCallback(async (items: ImageProcessingBatchItem[]) => {
+    return createImageBatchUpscalePreviews({
+      items,
       prepareBatchExport,
       upscaleRuntimeStatus,
     })
@@ -201,23 +201,23 @@ export function useImageExportWorkflow({
         message.success(`已将参数应用到 ${items.length} 张图片`)
         return
       }
-      for (const item of upscaleTargets) {
+      const generated = await createUpscalePreviewsForItems(upscaleTargets)
+      for (const { item, preview } of generated) {
         const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
-        const preview = await createUpscalePreviewForItem(item)
-        const latestItem = batchImagesRef.current.find((candidate) => candidate.id === item.id)
-        const latestSignature = latestItem
-          ? createImageProcessingBatchSettingsSignature(latestItem.settings, latestItem.draft)
-          : null
-        if (operationId !== batchApplyOperationIdRef.current || latestSignature !== signature) {
-          revokeBatchUpscalePreview(preview)
-          return
-        }
         nextPreviews[item.id] = {
           preview,
           signature,
         }
       }
-      if (operationId !== batchApplyOperationIdRef.current) return
+      const staleResult = generated.some(({ item }) => {
+        const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
+        const latestItem = batchImagesRef.current.find((candidate) => candidate.id === item.id)
+        const latestSignature = latestItem
+          ? createImageProcessingBatchSettingsSignature(latestItem.settings, latestItem.draft)
+          : null
+        return latestSignature !== signature
+      })
+      if (operationId !== batchApplyOperationIdRef.current || staleResult) return
       for (const entry of Object.values(batchUpscalePreviewsRef.current)) {
         revokeBatchUpscalePreview(entry.preview)
       }
@@ -244,7 +244,7 @@ export function useImageExportWorkflow({
         setBatchApplying(false)
       }
     }
-  }, [batchImages, cancelPendingBatchPreviews, clearBatchUpscalePreviews, createUpscalePreviewForItem, setUpscaleCompareEnabled])
+  }, [batchImages, cancelPendingBatchPreviews, clearBatchUpscalePreviews, createUpscalePreviewsForItems, setUpscaleCompareEnabled])
 
   const exportAllImages = useCallback(async (items: ImageProcessingBatchItem[] = batchImages) => {
     if (items.length === 0) {
@@ -260,6 +260,17 @@ export function useImageExportWorkflow({
         sourceName: item.draft.sourceName,
         exportEncoding: item.settings.exportEncoding,
       })))
+      const missingUpscaleItems = targets.filter((item) => {
+        if (!item.settings.upscaleEnabled) return false
+        const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
+        const storedEntry = batchUpscalePreviewsRef.current[item.id]
+        const storedPreview = storedEntry?.signature === signature ? storedEntry.preview : null
+        const existingPreview = item.id === activeBatchImageId ? upscalePreview ?? storedPreview : storedPreview
+        return !existingPreview
+      })
+      const generatedEntries = await createUpscalePreviewsForItems(missingUpscaleItems)
+      const generatedPreviewById = new Map(generatedEntries.map(({ item, preview }) => [item.id, preview]))
+      generatedPreviews.push(...generatedEntries.map(({ preview }) => preview))
       const encodedFiles = []
       for (const [index, item] of targets.entries()) {
         const signature = createImageProcessingBatchSettingsSignature(item.settings, item.draft)
@@ -267,8 +278,8 @@ export function useImageExportWorkflow({
         const storedPreview = storedEntry?.signature === signature ? storedEntry.preview : null
         const batchPreview = item.id === activeBatchImageId ? upscalePreview ?? storedPreview : storedPreview
         if (item.settings.upscaleEnabled) {
-          const preview = batchPreview ?? await createUpscalePreviewForItem(item)
-          if (!batchPreview) generatedPreviews.push(preview)
+          const preview = batchPreview ?? generatedPreviewById.get(item.id)
+          if (!preview) throw new Error(`${item.draft.sourceName} 缺少高清化结果。`)
           encodedFiles.push(await encodeUpscalePreview(preview, fileNames[index]!, item, desktopApi))
           continue
         }
@@ -313,7 +324,7 @@ export function useImageExportWorkflow({
   }, [
     activeBatchImageId,
     batchImages,
-    createUpscalePreviewForItem,
+    createUpscalePreviewsForItems,
     encodeUpscalePreview,
     exportImage,
     prepareBatchExport,

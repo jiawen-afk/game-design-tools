@@ -1,5 +1,6 @@
 import { getDesktopApi } from '../../desktopApi'
 import { blobFromDesktopBinaryData } from '../../desktopBinaryData'
+import { executeUpscaleBatchCandidates } from '../../desktopUpscaleBatchClient'
 import {
   getExportSizeAfterScaleChange,
   mapCropBoxToImageSize,
@@ -30,10 +31,15 @@ interface PrepareImageBatchExportInput {
   item: ImageProcessingBatchItem
 }
 
-interface CreateImageBatchUpscalePreviewInput {
-  item: ImageProcessingBatchItem
+interface CreateImageBatchUpscalePreviewsInput {
+  items: ImageProcessingBatchItem[]
   prepareBatchExport: (item: ImageProcessingBatchItem) => Promise<PreparedImageBatchExport>
   upscaleRuntimeStatus: UpscaleRuntimeStatus | null
+}
+
+export interface ImageBatchUpscalePreviewResult {
+  item: ImageProcessingBatchItem
+  preview: ImageUpscalePreview
 }
 
 interface EncodeImageUpscalePreviewInput {
@@ -69,50 +75,86 @@ export async function prepareImageBatchExport({
   }
 }
 
-export async function createImageBatchUpscalePreview({
-  item,
+export async function createImageBatchUpscalePreviews({
+  items,
   prepareBatchExport,
   upscaleRuntimeStatus,
-}: CreateImageBatchUpscalePreviewInput): Promise<ImageUpscalePreview> {
+}: CreateImageBatchUpscalePreviewsInput): Promise<ImageBatchUpscalePreviewResult[]> {
   const api = getDesktopApi()
   if (!api) throw new Error('当前不是桌面运行环境，无法执行高清化。')
   if (!upscaleRuntimeStatus?.installed) throw new Error('请先安装高清化运行包。')
+  if (items.length === 0) return []
 
-  const prepared = await prepareBatchExport(item)
-  const exportFormat = getImageExportEncodingInfo(item.settings.exportEncoding).extension
-  const exportBackgroundColor = resolveImageExportBackgroundColor(
-    item.settings.exportBackground,
-    item.settings.exportEncoding,
-  )
-  const upscaleOptions = item.settings.upscaleOptions
+  const preparedEntries: Array<{
+    item: ImageProcessingBatchItem
+    prepared: PreparedImageBatchExport
+    originalBlob: Blob
+  }> = []
+  const completed: ImageBatchUpscalePreviewResult[] = []
   try {
-    const originalBlob = await exportProcessedImage(prepared.sourceUrl, prepared.crop, exportFormat, prepared.outputSize, exportBackgroundColor)
-    let originalUrl: string | null = null
-    let upscaledUrl: string | null = null
-    try {
-      originalUrl = URL.createObjectURL(originalBlob)
-      const result = await api.upscaleImage({
-        inputName: item.draft.sourceName,
-        outputFormat: exportFormat,
-        data: await originalBlob.arrayBuffer(),
-        options: upscaleOptions,
-      })
-      const upscaledBlob = blobFromDesktopBinaryData(result.data, originalBlob.type)
-      upscaledUrl = URL.createObjectURL(upscaledBlob)
-      return {
-        originalUrl,
-        url: upscaledUrl,
-        blob: upscaledBlob,
-        width: prepared.outputSize.width * upscaleOptions.scale,
-        height: prepared.outputSize.height * upscaleOptions.scale,
+    for (const item of items) {
+      const prepared = await prepareBatchExport(item)
+      const exportFormat = getImageExportEncodingInfo(item.settings.exportEncoding).extension
+      const exportBackgroundColor = resolveImageExportBackgroundColor(
+        item.settings.exportBackground,
+        item.settings.exportEncoding,
+      )
+      try {
+        const originalBlob = await exportProcessedImage(
+          prepared.sourceUrl,
+          prepared.crop,
+          exportFormat,
+          prepared.outputSize,
+          exportBackgroundColor,
+        )
+        preparedEntries.push({ item, prepared, originalBlob })
+      } catch (error) {
+        prepared.cleanup()
+        throw error
       }
-    } catch (error) {
-      revokeImageObjectUrl(originalUrl)
-      revokeImageObjectUrl(upscaledUrl)
-      throw error
     }
+
+    const results = await executeUpscaleBatchCandidates(api, await Promise.all(preparedEntries.map(async (entry) => ({
+      value: entry,
+      inputName: entry.item.draft.sourceName,
+      outputFormat: getImageExportEncodingInfo(entry.item.settings.exportEncoding).extension,
+      data: await entry.originalBlob.arrayBuffer(),
+      options: entry.item.settings.upscaleOptions,
+    }))))
+
+    for (const { value: entry, result } of results) {
+      let originalUrl: string | null = null
+      let upscaledUrl: string | null = null
+      try {
+        originalUrl = URL.createObjectURL(entry.originalBlob)
+        const upscaledBlob = blobFromDesktopBinaryData(result.data, entry.originalBlob.type)
+        upscaledUrl = URL.createObjectURL(upscaledBlob)
+        completed.push({
+          item: entry.item,
+          preview: {
+            originalUrl,
+            url: upscaledUrl,
+            blob: upscaledBlob,
+            width: entry.prepared.outputSize.width * entry.item.settings.upscaleOptions.scale,
+            height: entry.prepared.outputSize.height * entry.item.settings.upscaleOptions.scale,
+          },
+        })
+      } catch (error) {
+        revokeImageObjectUrl(originalUrl)
+        revokeImageObjectUrl(upscaledUrl)
+        throw error
+      }
+    }
+    return completed
+  } catch (error) {
+    for (const entry of completed) {
+      revokeBatchUpscalePreview(entry.preview)
+    }
+    throw error
   } finally {
-    prepared.cleanup()
+    for (const entry of preparedEntries) {
+      entry.prepared.cleanup()
+    }
   }
 }
 
