@@ -136,6 +136,83 @@ function buildUpscaylArgs({ inputPath, outputPath, modelsPath, format, options }
   return args
 }
 
+function normalizeUpscaylFormat(format) {
+  const normalized = String(format || '').toLowerCase()
+  if (normalized === 'jpeg') return 'jpg'
+  if (normalized === 'png' || normalized === 'webp' || normalized === 'jpg') return normalized
+  throw new Error(`不支持的高清化输出格式：${format || '空'}`)
+}
+
+function validateUpscaylBatchItems(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('批量高清化至少需要一张图片。')
+  }
+  const ids = new Set()
+  for (const item of items) {
+    const id = String(item?.id || '').trim()
+    if (!id) throw new Error('批量图片 ID 不能为空。')
+    if (ids.has(id)) throw new Error(`重复的批量图片 ID：${id}`)
+    ids.add(id)
+  }
+}
+
+function getUpscaylBatchFileStem(index) {
+  return `item-${String(index).padStart(6, '0')}`
+}
+
+async function executeUpscaylBatch({
+  items,
+  outputFormat,
+  options,
+  paths,
+  tempRoot,
+  runCommandOutput,
+}) {
+  validateUpscaylBatchItems(items)
+  const format = normalizeUpscaylFormat(outputFormat)
+  await fsp.mkdir(tempRoot, { recursive: true })
+  const batchRoot = await fsp.mkdtemp(path.join(tempRoot, 'upscayl-batch-'))
+  const inputDir = path.join(batchRoot, 'input')
+  const outputDir = path.join(batchRoot, 'output')
+  await Promise.all([
+    fsp.mkdir(inputDir, { recursive: true }),
+    fsp.mkdir(outputDir, { recursive: true }),
+  ])
+
+  try {
+    await Promise.all(items.map((item, index) => (
+      fsp.writeFile(path.join(inputDir, `${getUpscaylBatchFileStem(index)}.png`), Buffer.from(item.data))
+    )))
+    const args = buildUpscaylArgs({
+      inputPath: inputDir,
+      outputPath: outputDir,
+      modelsPath: paths.modelsDir,
+      format,
+      options: options || {},
+    })
+    const result = await runCommandOutput(paths.execPath, args, { cwd: paths.binDir })
+    if (!result.ok) throw new Error(result.output || '批量高清化处理失败。')
+
+    const outputs = []
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index]
+      const outputPath = path.join(outputDir, `${getUpscaylBatchFileStem(index)}.${format}`)
+      if (!fs.existsSync(outputPath)) {
+        throw new Error(`批量高清化缺少输出：${item.id}`)
+      }
+      const inputName = String(item.inputName || 'image')
+      outputs.push({
+        id: String(item.id),
+        name: `${path.basename(inputName, path.extname(inputName))}-upscaled.${format}`,
+        data: await fsp.readFile(outputPath),
+      })
+    }
+    return outputs
+  } finally {
+    await fsp.rm(batchRoot, { recursive: true, force: true })
+  }
+}
+
 function registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput }) {
   ipcMain.handle('upscayl:status', async () => getUpscaylRuntimeStatus(app))
 
@@ -220,11 +297,34 @@ function registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput }) {
       data,
     }
   })
+
+  ipcMain.handle('upscayl:upscale-batch', async (_event, request = {}) => {
+    const status = await getUpscaylRuntimeStatus(app)
+    if (!status.installed) {
+      throw new Error('尚未安装 Upscayl 运行包。')
+    }
+    const paths = resolveUpscaylRuntimePaths(app)
+    const tempRoot = path.join(
+      process.env.LOCALAPPDATA || app.getPath('temp'),
+      'GameDesignTools',
+      'Temp',
+      'ImageProcessing',
+    )
+    return executeUpscaylBatch({
+      items: request.items,
+      outputFormat: request.outputFormat,
+      options: request.options || {},
+      paths,
+      tempRoot,
+      runCommandOutput,
+    })
+  })
 }
 
 module.exports = {
   buildUpscaylArgs,
   downloadFileWithRetry,
+  executeUpscaylBatch,
   getUpscaylRuntimeStatus,
   registerUpscaylIpcHandlers,
   resolveUpscaylRuntimePaths,
