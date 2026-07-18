@@ -1,0 +1,19 @@
+; Minimal Godot 4.6 smoke project for generated OGV files.
+; Run: godot --headless --path test-fixtures/godot-video-smoke --script res://video_smoke.gd --quit-after 120 -- res://sample.ogv
+
+config_version=5
+
+[application]
+
+config/name="Game Design Tools OGV Smoke"
+run/main_loop_type="res://video_smoke.gd"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=360
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

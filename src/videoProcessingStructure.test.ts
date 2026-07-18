@@ -98,3 +98,21 @@ test('video desktop promise methods reject asynchronously in browser preview', a
   })
   await assert.rejects(pending!, /当前不是桌面运行环境/)
 })
+
+test('Godot 4.6 smoke fixture and video workflow documentation stay available', () => {
+  const projectPath = 'test-fixtures/godot-video-smoke/project.godot'
+  const scriptPath = 'test-fixtures/godot-video-smoke/video_smoke.gd'
+  assert.ok(existsSync(projectPath), `${projectPath} should exist`)
+  assert.ok(existsSync(scriptPath), `${scriptPath} should exist`)
+
+  const projectSource = readFileSync(projectPath, 'utf8')
+  const scriptSource = readFileSync(scriptPath, 'utf8')
+  const readmeSource = readFileSync('README.md', 'utf8')
+  assert.match(projectSource, /config_version=5/)
+  assert.match(scriptSource, /VideoStreamTheora/)
+  assert.match(scriptSource, /VideoStreamPlayer/)
+  assert.match(readmeSource, /Video Processing Workbench/)
+  assert.match(readmeSource, /Godot 4\.6/)
+  assert.match(readmeSource, /Upscayl GPU/)
+  assert.match(readmeSource, /\.ogv/)
+})

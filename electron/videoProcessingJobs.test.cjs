@@ -224,6 +224,60 @@ test('target-size job retries once when the first output exceeds the size ceilin
   assert.equal(result.outputSize, 900_000)
 }))
 
+test('quality presets map to the approved Theora q:v values', () => withTempManager(async (root) => {
+  const observedQuality = new Map()
+  const dependencies = managerDependencies(root, {
+    runProcess: async ({ args }) => {
+      const outputPath = args.at(-1)
+      if (outputPath.endsWith('.ogv')) {
+        const qualityIndex = args.indexOf('-q:v')
+        observedQuality.set(path.basename(outputPath), Number(args[qualityIndex + 1]))
+        await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+        await fsp.writeFile(outputPath, 'output')
+      }
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  for (const [preset, expected] of [['high', 8], ['balanced', 6], ['extreme', 4]]) {
+    await manager.start(job(root, {
+      jobId: `quality-${preset}`,
+      outputName: `intro_${preset}.ogv`,
+      settings: settings({ qualityPreset: preset }),
+    }))
+    assert.equal([...observedQuality.values()].at(-1), expected)
+  }
+}))
+
+test('no-audio source is muted and reduced FPS reaches the encoder', () => withTempManager(async (root) => {
+  let encodeArgs = null
+  const dependencies = managerDependencies(root, {
+    probeFile: async () => rawOutputProbe(320, 180, '12/1', true),
+    runProcess: async ({ args }) => {
+      const outputPath = args.at(-1)
+      if (outputPath.endsWith('.ogv')) {
+        encodeArgs = args
+        await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+        await fsp.writeFile(outputPath, 'output')
+      }
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  await manager.start(job(root, {
+    jobId: 'muted-reduced-fps',
+    outputName: 'intro_12fps_muted.ogv',
+    probe: sourceProbe({ averageFps: 30, hasAudio: false, audioCodec: '', audioChannels: 0, audioSampleRate: 0 }),
+    settings: settings({ targetFps: 12, audioMode: 'vorbis' }),
+  }))
+
+  assert.ok(encodeArgs.includes('-an'))
+  assert.ok(encodeArgs.includes('scale=320:180:flags=lanczos,fps=12'))
+  assert.equal(encodeArgs.includes('libvorbis'), false)
+}))
+
 test('verification failure does not publish an invalid output', () => withTempManager(async (root) => {
   const dependencies = managerDependencies(root, {
     probeFile: async () => ({
