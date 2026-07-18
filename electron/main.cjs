@@ -33,6 +33,7 @@ const {
 const {
   registerVideoProcessingIpcHandlers,
 } = require('./videoProcessingIpcHandlers.cjs')
+const { runCommandOutput } = require('./processCommandRunner.cjs')
 const {
   registerAwaitedVideoProcessingShutdown,
 } = require('./videoProcessingShutdown.cjs')
@@ -53,17 +54,6 @@ function resolveDeploymentScript(fileName) {
 
 function normalizePath(value) {
   return path.resolve(String(value || ''))
-}
-
-function runCommandOutput(command, args, options = {}) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { windowsHide: true, ...options })
-    let output = ''
-    child.stdout?.on('data', (chunk) => { output += chunk.toString('utf8') })
-    child.stderr?.on('data', (chunk) => { output += chunk.toString('utf8') })
-    child.on('error', (error) => resolve({ ok: false, output: error.message }))
-    child.on('close', (code) => resolve({ ok: code === 0, output: output.trim() }))
-  })
 }
 
 function getInitialWindowBounds() {
