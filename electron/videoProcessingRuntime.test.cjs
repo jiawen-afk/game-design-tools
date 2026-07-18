@@ -6,6 +6,7 @@ const os = require('node:os')
 const path = require('node:path')
 
 const {
+  VIDEO_RUNTIME_DOWNLOAD_URLS,
   VIDEO_RUNTIME_MANIFEST,
   getVideoRuntimeStatus,
   installVideoRuntime,
@@ -42,6 +43,8 @@ test('pins the approved LGPL shared FFmpeg build', () => {
     'fcbf0f5c58fec3e516e35ba26d81bc6cbaea09dde76bffd151fa93c0316b0b50',
   )
   assert.match(VIDEO_RUNTIME_MANIFEST.url, /win64-lgpl-shared/)
+  assert.match(VIDEO_RUNTIME_DOWNLOAD_URLS[0], /^https:\/\/gh-proxy\.com\//)
+  assert.ok(VIDEO_RUNTIME_DOWNLOAD_URLS.includes(VIDEO_RUNTIME_MANIFEST.url))
 })
 
 test('resolves the video runtime under local app data', () => withTempRuntime(async (root) => {
@@ -122,4 +125,42 @@ test('verified staged install replaces the runtime and reports progress', () => 
   assert.equal(status.version, VIDEO_RUNTIME_MANIFEST.version)
   assert.equal(await fsp.readFile(status.ffmpegPath, 'utf8'), 'new-ffmpeg')
   assert.deepEqual(phases, ['downloading', 'downloading', 'verifying', 'extracting', 'verifying', 'done'])
+}))
+
+test('runtime install retries ECONNRESET across fallback download sources', () => withTempRuntime(async (root) => {
+  const app = fakeApp(root)
+  const attemptedUrls = []
+  let attempt = 0
+  const status = await installVideoRuntime(app, {
+    retryDelay: async () => {},
+    downloadFile: async (url, targetPath, onProgress) => {
+      attempt += 1
+      attemptedUrls.push(url)
+      await fsp.mkdir(path.dirname(targetPath), { recursive: true })
+      await fsp.appendFile(targetPath, `partial-${attempt}`)
+      if (attempt < 3) {
+        const error = new Error('read ECONNRESET')
+        error.code = 'ECONNRESET'
+        throw error
+      }
+      await fsp.writeFile(targetPath, 'complete archive')
+      onProgress?.({ completed: 16, total: 16 })
+    },
+    hashFile: async (archivePath) => {
+      assert.equal(await fsp.readFile(archivePath, 'utf8'), 'complete archive')
+      return VIDEO_RUNTIME_MANIFEST.sha256
+    },
+    extractZip: async (_archivePath, stagingDir) => {
+      const runtimeRoot = path.join(stagingDir, 'ffmpeg-build')
+      await fsp.mkdir(path.join(runtimeRoot, 'bin'), { recursive: true })
+      await fsp.writeFile(path.join(runtimeRoot, 'bin', 'ffmpeg.exe'), 'new-ffmpeg')
+      await fsp.writeFile(path.join(runtimeRoot, 'bin', 'ffprobe.exe'), 'new-ffprobe')
+    },
+    runCommandOutput: async () => ({ ok: true, output: 'ok' }),
+  })
+
+  assert.equal(status.installed, true)
+  assert.equal(attempt, 3)
+  assert.equal(new Set(attemptedUrls).size, 3)
+  assert.ok(attemptedUrls.some((url) => url === VIDEO_RUNTIME_MANIFEST.url))
 }))

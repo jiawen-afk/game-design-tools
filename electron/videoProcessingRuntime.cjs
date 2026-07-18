@@ -15,6 +15,12 @@ const VIDEO_RUNTIME_MANIFEST = Object.freeze({
   sha256: 'fcbf0f5c58fec3e516e35ba26d81bc6cbaea09dde76bffd151fa93c0316b0b50',
 })
 
+const VIDEO_RUNTIME_DOWNLOAD_URLS = Object.freeze([
+  `https://gh-proxy.com/${VIDEO_RUNTIME_MANIFEST.url}`,
+  `https://gh.llkk.cc/${VIDEO_RUNTIME_MANIFEST.url}`,
+  VIDEO_RUNTIME_MANIFEST.url,
+])
+
 function resolveVideoRuntimePaths(app) {
   const localAppData = process.env.LOCALAPPDATA || app.getPath('userData')
   const parentDir = path.join(localAppData, 'GameDesignTools')
@@ -126,7 +132,7 @@ async function extractZip(archivePath, targetDir) {
 
 function downloadFile(url, targetPath, onProgress, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers: { 'User-Agent': 'Game-Design-Tools' } }, (response) => {
+    const request = https.get(url, { headers: { 'User-Agent': 'Game-Design-Tools' } }, async (response) => {
       const statusCode = Number(response.statusCode || 0)
       if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
         response.resume()
@@ -145,18 +151,54 @@ function downloadFile(url, targetPath, onProgress, redirectsLeft = 5) {
       }
       const total = Number(response.headers['content-length'] || 0)
       let completed = 0
-      const output = fs.createWriteStream(targetPath)
       response.on('data', (chunk) => {
         completed += chunk.length
         onProgress?.({ completed, total })
       })
-      output.on('error', reject)
-      response.on('error', reject)
-      output.on('finish', () => output.close(resolve))
-      response.pipe(output)
+      try {
+        await pipeline(response, fs.createWriteStream(targetPath))
+        resolve()
+      } catch (error) {
+        reject(error)
+      }
     })
     request.on('error', reject)
+    request.setTimeout(60000, () => {
+      request.destroy(new Error(`视频处理运行包下载超时：${url}`))
+    })
   })
+}
+
+async function downloadRuntimeArchive(options) {
+  const urls = Array.isArray(options.urls) && options.urls.length > 0
+    ? options.urls.map(String)
+    : [...VIDEO_RUNTIME_DOWNLOAD_URLS]
+  const maxAttempts = Math.max(urls.length, Number(options.maxAttempts) || urls.length * 2)
+  const wait = options.retryDelay || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
+  let lastError = null
+
+  for (let index = 0; index < maxAttempts; index += 1) {
+    const url = urls[index % urls.length]
+    await fsp.rm(options.targetPath, { force: true }).catch(() => {})
+    options.onAttempt?.({
+      attempt: index + 1,
+      maxAttempts,
+      source: index % urls.length + 1,
+      sourceCount: urls.length,
+      url,
+    })
+    try {
+      await options.downloadFile(url, options.targetPath, options.onProgress)
+      return url
+    } catch (error) {
+      lastError = error
+      await fsp.rm(options.targetPath, { force: true }).catch(() => {})
+      if (index < maxAttempts - 1) await wait(Math.min(2000, 400 * (index + 1)))
+    }
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError || '未知网络错误')
+  throw new Error(`视频处理运行包下载失败（已尝试 ${maxAttempts} 次）：${detail}`)
 }
 
 async function hashFile(filePath) {
@@ -224,9 +266,23 @@ async function installVideoRuntime(app, options = {}) {
   await fsp.rm(paths.downloadPath, { force: true })
 
   try {
-    emitInstallProgress(onProgress, 'downloading', 0, 0, '正在下载视频处理运行包。')
-    await download(VIDEO_RUNTIME_MANIFEST.url, paths.downloadPath, ({ completed, total }) => {
+    await downloadRuntimeArchive({
+      urls: options.downloadUrls || VIDEO_RUNTIME_DOWNLOAD_URLS,
+      targetPath: paths.downloadPath,
+      downloadFile: download,
+      retryDelay: options.retryDelay,
+      onAttempt: ({ attempt, maxAttempts, source, sourceCount }) => {
+        emitInstallProgress(
+          onProgress,
+          'downloading',
+          0,
+          0,
+          `正在下载视频处理运行包（线路 ${source}/${sourceCount}，尝试 ${attempt}/${maxAttempts}）。`,
+        )
+      },
+      onProgress: ({ completed, total }) => {
       emitInstallProgress(onProgress, 'downloading', completed, total, '正在下载视频处理运行包。')
+      },
     })
 
     emitInstallProgress(onProgress, 'verifying', 0, 0, '正在校验运行包。')
@@ -274,8 +330,10 @@ async function installVideoRuntime(app, options = {}) {
 }
 
 module.exports = {
+  VIDEO_RUNTIME_DOWNLOAD_URLS,
   VIDEO_RUNTIME_MANIFEST,
   downloadFile,
+  downloadRuntimeArchive,
   extractZip,
   getVideoRuntimeStatus,
   hashFile,
