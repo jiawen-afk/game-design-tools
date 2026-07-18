@@ -34,12 +34,15 @@ export function useVideoProcessingWorkspace() {
   const previewRequestIdRef = useRef(0)
 
   const cancelPreview = useCallback(async () => {
-    previewRequestIdRef.current += 1
-    setPreviewLoading(false)
+    const requestId = previewRequestIdRef.current + 1
+    previewRequestIdRef.current = requestId
+    setPreviewLoading(true)
     try {
       return await videoProcessingService.cancelVideoProcessingJob('__preview__')
     } catch {
       return false
+    } finally {
+      if (previewRequestIdRef.current === requestId) setPreviewLoading(false)
     }
   }, [])
 

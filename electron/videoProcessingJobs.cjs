@@ -463,10 +463,13 @@ function createVideoProcessingJobManager(inputDependencies) {
       emit(id, 'failed', 0, error instanceof Error ? error.message : String(error))
       throw error
     } finally {
-      activeJobs.delete(id)
-      if (runningJobId === id) runningJobId = null
-      await fsp.rm(tempDir, { recursive: true, force: true })
-      await removeEmptyDirectory(tempRoot)
+      try {
+        await fsp.rm(tempDir, { recursive: true, force: true })
+        await removeEmptyDirectory(tempRoot)
+      } finally {
+        activeJobs.delete(id)
+        if (runningJobId === id) runningJobId = null
+      }
     }
   }
 

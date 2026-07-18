@@ -165,9 +165,23 @@ function normalizeVideoPreviewOptions(options, nativeProbe) {
 function createVideoPreviewLifecycle() {
   let controller = null
   let activePromise = null
+  let retainedCleanup = null
 
   function isRunning() {
     return controller !== null
+  }
+
+  async function releaseRetained() {
+    if (!retainedCleanup) return false
+    const cleanup = retainedCleanup
+    retainedCleanup = null
+    await cleanup()
+    return true
+  }
+
+  function retain(cleanup) {
+    if (typeof cleanup !== 'function') throw new Error('视频预览清理函数无效。')
+    retainedCleanup = cleanup
   }
 
   function run(task) {
@@ -175,7 +189,11 @@ function createVideoPreviewLifecycle() {
     const currentController = new AbortController()
     controller = currentController
     const trackedPromise = Promise.resolve()
-      .then(() => task(currentController.signal))
+      .then(async () => {
+        await releaseRetained()
+        if (currentController.signal.aborted) throw new Error('视频预览已取消。')
+        return task(currentController.signal)
+      })
       .finally(() => {
         if (controller === currentController) controller = null
         if (activePromise === trackedPromise) activePromise = null
@@ -184,18 +202,21 @@ function createVideoPreviewLifecycle() {
     return trackedPromise
   }
 
-  function cancel() {
-    if (!controller) return false
-    controller.abort()
-    return true
+  async function cancel() {
+    const wasRunning = Boolean(controller)
+    const hadRetained = Boolean(retainedCleanup)
+    const promise = activePromise
+    controller?.abort()
+    try { await promise } catch {}
+    const released = await releaseRetained()
+    return wasRunning || hadRetained || released
   }
 
   async function shutdown() {
-    controller?.abort()
-    try { await activePromise } catch {}
+    await cancel()
   }
 
-  return { cancel, isRunning, run, shutdown }
+  return { cancel, isRunning, retain, run, shutdown }
 }
 
 function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMain, runCommandOutput }) {
@@ -311,6 +332,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
             outputPath: processedPath,
           }), { signal }, '缩放预览生成失败。')
         }
+        previewLifecycle.retain(() => fsp.rm(directory, { recursive: true, force: true }))
         return { sourcePath, processedPath, width: targetWidth, height: targetHeight }
       } catch (error) {
         if (directory) await fsp.rm(directory, { recursive: true, force: true })

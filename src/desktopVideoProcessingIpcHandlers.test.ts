@@ -191,16 +191,32 @@ test('preview lifecycle aborts cancellation and shutdown waits for cleanup', asy
   await started
 
   assert.equal(lifecycle.isRunning(), true)
-  assert.equal(lifecycle.cancel(), true)
+  let cancellationFinished = false
+  const cancellation = Promise.resolve(lifecycle.cancel()).then((result: boolean) => {
+    cancellationFinished = true
+    return result
+  })
   assert.equal((activeSignal as unknown as AbortSignal).aborted, true)
-  let shutdownFinished = false
-  const shutdown = lifecycle.shutdown().then(() => { shutdownFinished = true })
   await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(shutdownFinished, false)
+  assert.equal(cancellationFinished, false)
 
   releasePreview()
   assert.equal(await preview, 'finished')
+  assert.equal(await cancellation, true)
+
+  let retainedPreviewDisposed = false
+  await lifecycle.run(async () => {
+    lifecycle.retain(async () => { retainedPreviewDisposed = true })
+  })
+  assert.equal(retainedPreviewDisposed, false)
+  assert.equal(await lifecycle.cancel(), true)
+  assert.equal(retainedPreviewDisposed, true)
+
+  let shutdownFinished = false
+  const shutdown = lifecycle.shutdown().then(() => { shutdownFinished = true })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(shutdownFinished, true)
   await shutdown
   assert.equal(lifecycle.isRunning(), false)
-  assert.equal(lifecycle.cancel(), false)
+  assert.equal(await lifecycle.cancel(), false)
 })

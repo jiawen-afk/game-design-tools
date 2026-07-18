@@ -220,6 +220,50 @@ test('job manager reports whether a native job is active', () => withTempManager
   assert.equal(manager.isRunning(), false)
 }))
 
+test('shutdown waits until active job temporary directory cleanup finishes', () => withTempManager(async (root) => {
+  let observedSignal = null
+  let releaseCleanup
+  let markCleanupStarted
+  const cleanupStarted = new Promise((resolve) => { markCleanupStarted = resolve })
+  const originalRm = fsp.rm
+  const tempRoot = resolveVideoProcessingTempRoot(fakeApp(root))
+  fsp.rm = async (targetPath, options) => {
+    const target = String(targetPath)
+    if (target.startsWith(`${tempRoot}${path.sep}`) && options?.recursive) {
+      markCleanupStarted()
+      await new Promise((resolve) => { releaseCleanup = resolve })
+    }
+    return originalRm(targetPath, options)
+  }
+  let pending
+  try {
+    const manager = createVideoProcessingJobManager(managerDependencies(root, {
+      runProcess: ({ signal }) => new Promise((_resolve, reject) => {
+        observedSignal = signal
+        signal.addEventListener('abort', () => reject(new Error('native process aborted')), { once: true })
+      }),
+    }))
+    pending = manager.start(job(root))
+    const pendingRejection = assert.rejects(pending, /任务已取消/)
+    while (!observedSignal) await new Promise((resolve) => setImmediate(resolve))
+
+    const shutdown = manager.shutdown()
+    await cleanupStarted
+    const state = await Promise.race([
+      shutdown.then(() => 'finished'),
+      new Promise((resolve) => setTimeout(() => resolve('waiting'), 50)),
+    ])
+    assert.equal(state, 'waiting')
+    releaseCleanup()
+    await shutdown
+    await pendingRejection
+  } finally {
+    releaseCleanup?.()
+    if (pending) await pending.catch(() => {})
+    fsp.rm = originalRm
+  }
+}))
+
 test('AI job decodes and upscales frames serially before encoding', () => withTempManager(async (root) => {
   const calls = []
   const dependencies = managerDependencies(root, {
