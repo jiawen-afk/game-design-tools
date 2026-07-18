@@ -38,7 +38,9 @@ test('image processing export panel exposes apply-all preview and batch export c
   assert.match(exportWorkflowSource, /pendingBatchUpscalePreviewsRef/)
   assert.match(exportWorkflowSource, /operationId !== batchApplyOperationIdRef\.current/)
   assert.match(exportWorkflowSource, /createImageProcessingBatchSettingsSignature/)
-  assert.match(exportWorkflowSource, /const preview = batchPreview \?\? await createUpscalePreviewForItem\(item\)/)
+  assert.match(exportWorkflowSource, /const generatedEntries = await createUpscalePreviewsForItems\(missingUpscaleItems\)/)
+  assert.match(exportWorkflowSource, /const preview = batchPreview \?\? generatedPreviewById\.get\(item\.id\)/)
+  assert.doesNotMatch(exportWorkflowSource, /createUpscalePreviewForItem/)
 })
 
 test('image processing result stage lets users leave upscale comparison after preview generation', () => {
