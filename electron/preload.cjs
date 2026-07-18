@@ -43,6 +43,7 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   queryUpscaleStatus: () => invoke('upscayl:status'),
   installUpscaleRuntime: (options) => invoke('upscayl:install', options),
   upscaleImage: (options) => invoke('upscayl:upscale', options),
+  upscaleImageBatch: (options) => invoke('upscayl:upscale-batch', options),
   onUpscaleInstallProgress: (listener) => on('upscayl:install-progress', listener),
   encodeImage: (options) => invoke('image-encoding:encode', options),
   chooseVideoFiles: () => invoke('video-processing:choose-files'),

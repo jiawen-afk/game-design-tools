@@ -69,11 +69,15 @@ export type {
 } from './desktopSystemApi'
 export type {
   DesktopUpscaleApi,
+  DesktopUpscaleBatchItem,
+  DesktopUpscaleImageBatchOptions,
+  DesktopUpscaleImageBatchResult,
   DesktopUpscaleImageOptions,
   DesktopUpscaleImageResult,
   DesktopUpscaleInstallOptions,
   DesktopUpscaleInstallProgress,
   DesktopUpscaleOptions,
+  DesktopUpscaleOutputFormat,
   DesktopUpscaleRuntimeStatus,
 } from './desktopUpscaleApi'
 export type {

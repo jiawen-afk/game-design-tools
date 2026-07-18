@@ -39,9 +39,30 @@ export interface DesktopUpscaleImageResult {
   data: ArrayBuffer | Uint8Array
 }
 
+export type DesktopUpscaleOutputFormat = 'png' | 'webp' | 'jpg' | 'jpeg'
+
+export interface DesktopUpscaleBatchItem {
+  id: string
+  inputName: string
+  data: ArrayBuffer
+}
+
+export interface DesktopUpscaleImageBatchOptions {
+  items: DesktopUpscaleBatchItem[]
+  outputFormat: DesktopUpscaleOutputFormat
+  options: DesktopUpscaleOptions
+}
+
+export interface DesktopUpscaleImageBatchResult {
+  id: string
+  name: string
+  data: ArrayBuffer | Uint8Array
+}
+
 export interface DesktopUpscaleApi {
   queryUpscaleStatus(): Promise<DesktopUpscaleRuntimeStatus>
   installUpscaleRuntime(options?: DesktopUpscaleInstallOptions): Promise<DesktopUpscaleRuntimeStatus>
   upscaleImage(options: DesktopUpscaleImageOptions): Promise<DesktopUpscaleImageResult>
+  upscaleImageBatch(options: DesktopUpscaleImageBatchOptions): Promise<DesktopUpscaleImageBatchResult[]>
   onUpscaleInstallProgress(listener: (progress: DesktopUpscaleInstallProgress) => void): () => void
 }
