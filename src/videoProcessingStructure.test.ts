@@ -28,3 +28,23 @@ test('video workspace entry stays composition-only', () => {
   assert.match(source, /视频处理工作台/)
   assert.doesNotMatch(source, /ipcRenderer|child_process|spawn\(|ffmpeg|ffprobe/)
 })
+
+test('video renderer orchestration stays behind service and focused hooks', () => {
+  const base = 'src/components/VideoProcessingWorkspace'
+  const servicePath = `${base}/videoProcessingService.ts`
+  const runtimePath = `${base}/useVideoProcessingRuntime.ts`
+  const queuePath = `${base}/useVideoProcessingQueue.ts`
+  for (const filePath of [servicePath, runtimePath, queuePath]) {
+    assert.ok(existsSync(filePath), `${filePath} should exist`)
+  }
+  const serviceSource = readFileSync(servicePath, 'utf8')
+  const runtimeSource = readFileSync(runtimePath, 'utf8')
+  const queueSource = readFileSync(queuePath, 'utf8')
+
+  assert.match(serviceSource, /getDesktopApi/)
+  assert.match(runtimeSource, /useUpscaleRuntime/)
+  assert.match(runtimeSource, /onVideoRuntimeInstallProgress/)
+  assert.match(queueSource, /videoProcessingQueueModel/)
+  assert.match(queueSource, /onVideoProcessingProgress/)
+  assert.doesNotMatch([runtimeSource, queueSource].join('\n'), /ipcRenderer|child_process|spawn\(/)
+})
