@@ -31,6 +31,33 @@ function validateVideoJobId(value) {
   return id
 }
 
+function validateMatchingFrameNames(sourceFrames, outputFrames) {
+  const sourceNames = sourceFrames.map((filePath) => path.basename(filePath)).sort()
+  const outputNames = outputFrames.map((filePath) => path.basename(filePath)).sort()
+  const matches = sourceNames.length === outputNames.length
+    && sourceNames.every((name, index) => name === outputNames[index])
+  if (!matches) {
+    throw new Error(`Upscayl 批量输出帧不匹配：输入 ${sourceNames.length} 帧，输出 ${outputNames.length} 帧。`)
+  }
+}
+
+function createUpscaylSuccessCounter(onCompleted) {
+  const marker = 'Upscayled Successfully!'
+  let carry = ''
+  let completed = 0
+  return (text) => {
+    let buffer = carry + String(text || '')
+    let markerIndex = buffer.indexOf(marker)
+    while (markerIndex >= 0) {
+      completed += 1
+      onCompleted(completed)
+      buffer = buffer.slice(markerIndex + marker.length)
+      markerIndex = buffer.indexOf(marker)
+    }
+    carry = buffer.slice(-(marker.length - 1))
+  }
+}
+
 function resolveVideoProcessingTempRoot(app) {
   const localAppData = process.env.LOCALAPPDATA || app.getPath('temp')
   return path.join(localAppData, 'GameDesignTools', 'Temp', 'VideoProcessing')
@@ -114,7 +141,7 @@ function killProcessTree(pid) {
   })
 }
 
-function runNativeProcess({ command, args, cwd, signal, onOutput }) {
+function runNativeProcess({ command, args, cwd, signal, onOutput, maxOutputChars }) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
@@ -122,10 +149,14 @@ function runNativeProcess({ command, args, cwd, signal, onOutput }) {
       detached: process.platform !== 'win32',
     })
     let output = ''
+    const outputLimit = Number.isFinite(Number(maxOutputChars))
+      ? Math.max(0, Math.round(Number(maxOutputChars)))
+      : Number.POSITIVE_INFINITY
     let settled = false
     const collect = (chunk) => {
       const text = chunk.toString('utf8')
       output += text
+      if (output.length > outputLimit) output = output.slice(-outputLimit)
       onOutput?.(text)
     }
     child.stdout?.on('data', collect)
@@ -203,6 +234,7 @@ function createVideoProcessingJobManager(inputDependencies) {
       args,
       cwd: options.cwd,
       signal: job.controller.signal,
+      maxOutputChars: options.maxOutputChars,
       onOutput: (text) => {
         if (typeof options.onOutput === 'function') {
           options.onOutput(text)
@@ -350,35 +382,30 @@ function createVideoProcessingJobManager(inputDependencies) {
         threadProfile: options.settings.threadProfile,
       },
     })
-    let batchOutput = ''
     let completedFrames = 0
+    const consumeUpscaylOutput = createUpscaylSuccessCounter((count) => {
+      const nextCompleted = Math.min(sourceFrames.length, count)
+      if (nextCompleted <= completedFrames) return
+      completedFrames = nextCompleted
+      emit(
+        job.id,
+        'upscaling',
+        completedFrames / sourceFrames.length * 100,
+        `正在批量 GPU 超分：${completedFrames}/${sourceFrames.length}`,
+        completedFrames,
+        sourceFrames.length,
+      )
+    })
     await executeProcess(job, upscalePaths.execPath, args, {
       cwd: upscalePaths.binDir,
       phase: 'upscaling',
       message: '正在批量 GPU 超分。',
       failureMessage: 'Upscayl 批量 GPU 超分失败。',
-      onOutput: (text) => {
-        batchOutput += text
-        const nextCompleted = Math.min(
-          sourceFrames.length,
-          (batchOutput.match(/Upscayled Successfully!/g) || []).length,
-        )
-        if (nextCompleted <= completedFrames) return
-        completedFrames = nextCompleted
-        emit(
-          job.id,
-          'upscaling',
-          completedFrames / sourceFrames.length * 100,
-          `正在批量 GPU 超分：${completedFrames}/${sourceFrames.length}`,
-          completedFrames,
-          sourceFrames.length,
-        )
-      },
+      maxOutputChars: 65_536,
+      onOutput: consumeUpscaylOutput,
     })
     const upscaledFrames = await collectSourceFrames(framePaths.upscaledDir)
-    if (upscaledFrames.length !== sourceFrames.length) {
-      throw new Error(`Upscayl 批量输出不完整：应有 ${sourceFrames.length} 帧，实际 ${upscaledFrames.length} 帧。`)
-    }
+    validateMatchingFrameNames(sourceFrames, upscaledFrames)
     if (completedFrames < sourceFrames.length) {
       emit(job.id, 'upscaling', 100, `已完成批量 GPU 超分：${sourceFrames.length}/${sourceFrames.length}`, sourceFrames.length, sourceFrames.length)
     }
@@ -552,6 +579,7 @@ function createVideoProcessingJobManager(inputDependencies) {
 }
 
 module.exports = {
+  createUpscaylSuccessCounter,
   createVideoProcessingJobManager,
   estimateAiTemporaryBytes,
   estimateOutputBytes,
@@ -559,5 +587,6 @@ module.exports = {
   resolveCollisionFreeOutputPath,
   resolveVideoProcessingTempRoot,
   runNativeProcess,
+  validateMatchingFrameNames,
   validateVideoJobId,
 }

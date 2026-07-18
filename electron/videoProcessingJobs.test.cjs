@@ -6,9 +6,11 @@ const os = require('node:os')
 const path = require('node:path')
 
 const {
+  createUpscaylSuccessCounter,
   createVideoProcessingJobManager,
   estimateAiTemporaryBytes,
   resolveVideoProcessingTempRoot,
+  validateMatchingFrameNames,
 } = require('./videoProcessingJobs.cjs')
 
 function fakeApp(root) {
@@ -122,13 +124,33 @@ test('estimates AI temporary storage conservatively', () => {
   }), 1_343_277_280)
 })
 
+test('batch upscale requires the exact same numbered frame names', () => {
+  assert.doesNotThrow(() => validateMatchingFrameNames(
+    ['D:\\source\\source-00000001.png', 'D:\\source\\source-00000002.png'],
+    ['D:\\output\\source-00000001.png', 'D:\\output\\source-00000002.png'],
+  ))
+  assert.throws(() => validateMatchingFrameNames(
+    ['D:\\source\\source-00000001.png', 'D:\\source\\source-00000002.png'],
+    ['D:\\output\\source-00000001.png', 'D:\\output\\source-00000003.png'],
+  ), /批量输出帧不匹配/)
+})
+
+test('batch upscale progress counts split success markers incrementally', () => {
+  const completed = []
+  const consume = createUpscaylSuccessCounter((count) => completed.push(count))
+  consume(`${'diagnostic '.repeat(20_000)}Upscayled Succ`)
+  consume('essfully!\nUpscayled Successfully!\n')
+  assert.deepEqual(completed, [1, 2])
+})
+
 test('conventional job encodes, verifies, moves output, and cleans temp files', () => withTempManager(async (root) => {
   const phases = []
   const calls = []
   const dependencies = managerDependencies(root, {
     emitProgress: (progress) => phases.push(progress.phase),
-    runProcess: async ({ command, args, onOutput }) => {
-      calls.push({ command, args })
+    runProcess: async (request) => {
+      const { command, args, onOutput } = request
+      calls.push(request)
       onOutput?.('out_time_us=2000000\nprogress=end\n')
       const outputPath = args.at(-1)
       if (outputPath.endsWith('.ogv')) {
@@ -270,8 +292,9 @@ test('AI job keeps the GPU model loaded by upscaling the frame directory in one 
   const dependencies = managerDependencies(root, {
     probeFile: async () => rawOutputProbe(960, 540),
     emitProgress: (event) => progress.push(event),
-    runProcess: async ({ command, args, onOutput }) => {
-      calls.push({ command, args })
+    runProcess: async (request) => {
+      const { command, args, onOutput } = request
+      calls.push(request)
       const outputPath = args.at(-1)
       if (outputPath.includes('source-%08d.png')) {
         const directory = path.dirname(outputPath)
@@ -308,6 +331,7 @@ test('AI job keeps the GPU model loaded by upscaling the frame directory in one 
   assert.equal(path.basename(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-i') + 1]), 'source-frames')
   assert.equal(path.basename(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-o') + 1]), 'upscaled-frames')
   assert.equal(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-j') + 1], '2:2:2')
+  assert.equal(upscaleCalls[0].maxOutputChars, 65_536)
   assert.ok(progress.some((event) => event.phase === 'upscaling' && event.completed === 2 && event.total === 2))
   assert.equal(calls.at(-1).args.includes('D:\\media\\intro.mp4'), true)
 }))
