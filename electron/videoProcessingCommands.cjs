@@ -162,9 +162,18 @@ function verifyGodotOgvProbe(payload, expected) {
   if (Number(video.width) !== Number(expected.width) || Number(video.height) !== Number(expected.height)) {
     throw new Error('输出分辨率与目标分辨率不一致。')
   }
-  const fps = parseRational(video.avg_frame_rate) || parseRational(video.r_frame_rate)
-  if (Math.abs(fps - Number(expected.fps)) > 0.02) {
-    throw new Error('输出帧率与目标帧率不一致。')
+  const declaredFps = parseRational(video.r_frame_rate)
+  const averageFps = parseRational(video.avg_frame_rate)
+  const usingDeclaredFps = declaredFps > 0
+  const fps = usingDeclaredFps ? declaredFps : averageFps
+  const targetFps = Number(expected.fps)
+  if (!fps || Math.abs(fps - targetFps) > 0.02) {
+    const metric = usingDeclaredFps ? '声明帧率' : '平均帧率兜底'
+    throw new Error(
+      `输出帧率与目标帧率不一致：目标=${targetFps}，` +
+      `声明=${declaredFps || 0} (${String(video.r_frame_rate || '缺失')})，` +
+      `平均=${averageFps || 0} (${String(video.avg_frame_rate || '缺失')})，判定=${metric}。`,
+    )
   }
 
   const audioStreams = streams.filter((stream) => stream?.codec_type === 'audio')

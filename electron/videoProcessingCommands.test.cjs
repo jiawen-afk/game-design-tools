@@ -153,6 +153,74 @@ test('Godot verifier accepts exact Ogg Theora Vorbis output', () => {
   assert.equal(result.audioCodec, 'vorbis')
 })
 
+test('Godot verifier uses declared CFR when statistical average drifts', () => {
+  const cases = [
+    { target: 29.94, declared: '1497/50', average: '359/12' },
+    { target: 30.067, declared: '30067/1000', average: '30/1' },
+  ]
+  for (const item of cases) {
+    const result = verifyGodotOgvProbe({
+      format: { format_name: 'ogg' },
+      streams: [{
+        codec_type: 'video',
+        codec_name: 'theora',
+        pix_fmt: 'yuv420p',
+        width: 1280,
+        height: 720,
+        r_frame_rate: item.declared,
+        avg_frame_rate: item.average,
+      }],
+    }, { width: 1280, height: 720, fps: item.target, muted: true })
+    assert.equal(result.fps, item.target)
+  }
+})
+
+test('Godot verifier rejects a wrong declared CFR even when average matches', () => {
+  assert.throws(() => verifyGodotOgvProbe({
+    format: { format_name: 'ogg' },
+    streams: [{
+      codec_type: 'video',
+      codec_name: 'theora',
+      pix_fmt: 'yuv420p',
+      width: 1280,
+      height: 720,
+      r_frame_rate: '25/1',
+      avg_frame_rate: '30/1',
+    }],
+  }, { width: 1280, height: 720, fps: 30, muted: true }), /目标=30.*声明=25.*平均=30.*判定=声明帧率/)
+})
+
+test('Godot verifier falls back to average FPS when declared rate is unavailable', () => {
+  const result = verifyGodotOgvProbe({
+    format: { format_name: 'ogg' },
+    streams: [{
+      codec_type: 'video',
+      codec_name: 'theora',
+      pix_fmt: 'yuv420p',
+      width: 1280,
+      height: 720,
+      r_frame_rate: '0/0',
+      avg_frame_rate: '30067/1000',
+    }],
+  }, { width: 1280, height: 720, fps: 30.067, muted: true })
+  assert.equal(result.fps, 30.067)
+})
+
+test('Godot verifier reports both raw rates when neither is available', () => {
+  assert.throws(() => verifyGodotOgvProbe({
+    format: { format_name: 'ogg' },
+    streams: [{
+      codec_type: 'video',
+      codec_name: 'theora',
+      pix_fmt: 'yuv420p',
+      width: 1280,
+      height: 720,
+      r_frame_rate: '0/0',
+      avg_frame_rate: 'N/A',
+    }],
+  }, { width: 1280, height: 720, fps: 30, muted: true }), /目标=30.*声明=0 \(0\/0\).*平均=0 \(N\/A\).*判定=平均帧率兜底/)
+})
+
 test('Godot verifier rejects wrong codecs and unexpected audio', () => {
   assert.throws(() => verifyGodotOgvProbe({
     format: { format_name: 'ogg' },
