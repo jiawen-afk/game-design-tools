@@ -36,3 +36,27 @@ test('preload maps video operations to focused IPC channels', () => {
   assert.match(preloadSource, /onVideoRuntimeInstallProgress: \(listener\) => on\('video-processing:runtime-progress', listener\)/)
   assert.match(preloadSource, /onVideoProcessingProgress: \(listener\) => on\('video-processing:progress', listener\)/)
 })
+
+test('electron main delegates video processing IPC to a focused module', () => {
+  const handlerPath = 'electron/videoProcessingIpcHandlers.cjs'
+  assert.ok(existsSync(handlerPath), `${handlerPath} should exist`)
+  const handlerSource = readFileSync(handlerPath, 'utf8')
+  const mainSource = readFileSync('electron/main.cjs', 'utf8')
+
+  assert.match(mainSource, /registerVideoProcessingIpcHandlers/)
+  assert.doesNotMatch(mainSource, /video-processing:choose-files/)
+  assert.doesNotMatch(mainSource, /video-processing:start/)
+  assert.doesNotMatch(mainSource, /buildTheoraEncodeArgs/)
+  assert.match(handlerSource, /videoProcessingRuntime\.cjs/)
+  assert.match(handlerSource, /videoProcessingCommands\.cjs/)
+  assert.match(handlerSource, /videoProcessingJobs\.cjs/)
+  assert.match(handlerSource, /video-processing:choose-files/)
+  assert.match(handlerSource, /video-processing:choose-output-directory/)
+  assert.match(handlerSource, /video-processing:runtime-status/)
+  assert.match(handlerSource, /video-processing:install-runtime/)
+  assert.match(handlerSource, /video-processing:probe/)
+  assert.match(handlerSource, /video-processing:preview/)
+  assert.match(handlerSource, /video-processing:start/)
+  assert.match(handlerSource, /video-processing:cancel/)
+  assert.doesNotMatch(handlerSource, /Buffer\.from\(options\.data/)
+})

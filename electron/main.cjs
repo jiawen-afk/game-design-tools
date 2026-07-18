@@ -30,6 +30,9 @@ const {
 const {
   registerStableAudioIpcHandlers,
 } = require('./stableAudioIpcHandlers.cjs')
+const {
+  registerVideoProcessingIpcHandlers,
+} = require('./videoProcessingIpcHandlers.cjs')
 
 function resolveAppPath(...parts) {
   return path.join(app.getAppPath(), ...parts)
@@ -95,6 +98,7 @@ const { checkForAppUpdates } = registerAppUpdateIpcHandlers({
 
 app.whenReady().then(() => {
   createWindow()
+  void videoProcessing.cleanupAbandonedTempDirs().catch(() => {})
   if (app.isPackaged) {
     setTimeout(() => {
       void checkForAppUpdates({ silent: true }).catch(() => {})
@@ -107,6 +111,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  void videoProcessing.shutdown()
 })
 
 ipcMain.handle('file:save', async (_event, fileName, data) => {
@@ -128,6 +136,13 @@ registerUpscaylIpcHandlers({ app, ipcMain, runCommandOutput })
 registerBirefnetIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
 registerVoxcpmIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
 registerStableAudioIpcHandlers({ ipcMain, resolveDeploymentScript, runCommandOutput })
+const videoProcessing = registerVideoProcessingIpcHandlers({
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  runCommandOutput,
+})
 
 ipcMain.handle('shell:open-path', async (_event, targetPath) => {
   const error = await shell.openPath(normalizePath(targetPath))
