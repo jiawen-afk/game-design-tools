@@ -228,4 +228,6 @@ module.exports = {
   getUpscaylRuntimeStatus,
   registerUpscaylIpcHandlers,
   resolveUpscaylRuntimePaths,
+  upscaylGpuIds,
+  upscaylModels,
 }

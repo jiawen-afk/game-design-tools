@@ -33,6 +33,21 @@ export function useVideoProcessingWorkspace() {
   const [previewError, setPreviewError] = useState('')
   const previewRequestIdRef = useRef(0)
 
+  const cancelPreview = useCallback(async () => {
+    previewRequestIdRef.current += 1
+    setPreviewLoading(false)
+    try {
+      return await videoProcessingService.cancelVideoProcessingJob('__preview__')
+    } catch {
+      return false
+    }
+  }, [])
+
+  useEffect(() => () => {
+    previewRequestIdRef.current += 1
+    void videoProcessingService.cancelVideoProcessingJob('__preview__').catch(() => {})
+  }, [])
+
   const selectedJob = queue.selectedJob
   const selectedEditable = selectedJob?.phase === 'queued'
   const validationErrors = useMemo(() => selectedJob
@@ -43,20 +58,19 @@ export function useVideoProcessingWorkspace() {
     : [], [ffmpegInstalled, selectedJob, upscaylInstalled])
 
   useEffect(() => {
-    previewRequestIdRef.current += 1
+    void cancelPreview()
     setPreview(null)
     setPreviewError('')
-    setPreviewLoading(false)
     setPreviewTimestamp(0)
-  }, [selectedJob?.id])
+  }, [cancelPreview, selectedJob?.id])
 
   const updateSettings = useCallback((patch: Partial<VideoProcessingSettings>) => {
     if (!selectedJob || !selectedEditable) return
-    previewRequestIdRef.current += 1
+    void cancelPreview()
     queue.updateSelectedSettings({ ...selectedJob.settings, ...patch })
     setPreview(null)
     setPreviewError('')
-  }, [queue.updateSelectedSettings, selectedEditable, selectedJob])
+  }, [cancelPreview, queue.updateSelectedSettings, selectedEditable, selectedJob])
 
   const setResizePercent = useCallback((percent: number) => {
     if (!selectedJob) return
@@ -74,7 +88,7 @@ export function useVideoProcessingWorkspace() {
   }, [selectedJob, updateSettings])
 
   const generatePreview = useCallback(async () => {
-    if (!selectedJob || validationErrors.length > 0) return
+    if (!selectedJob || validationErrors.length > 0 || queue.activeJobId || previewLoading) return
     const requestId = previewRequestIdRef.current + 1
     previewRequestIdRef.current = requestId
     setPreviewLoading(true)
@@ -100,15 +114,19 @@ export function useVideoProcessingWorkspace() {
     } finally {
       if (requestId === previewRequestIdRef.current) setPreviewLoading(false)
     }
-  }, [previewTimestamp, selectedJob, validationErrors.length])
+  }, [previewLoading, previewTimestamp, queue.activeJobId, selectedJob, validationErrors.length])
 
   const updatePreviewTimestamp = useCallback((value: number) => {
-    previewRequestIdRef.current += 1
+    void cancelPreview()
     setPreviewTimestamp(value)
     setPreview(null)
     setPreviewError('')
-    setPreviewLoading(false)
-  }, [])
+  }, [cancelPreview])
+
+  const startAll = useCallback(async () => {
+    if (previewLoading) return false
+    return queue.startAll()
+  }, [previewLoading, queue.startAll])
 
   const openOutputDirectory = useCallback(async (outputPath?: string) => {
     const targetPath = outputPath ? getVideoParentDirectory(outputPath) : queue.outputDirectory?.path
@@ -123,11 +141,12 @@ export function useVideoProcessingWorkspace() {
   const confirmLeave = useCallback(() => new Promise<boolean>((resolve) => {
     Modal.confirm({
       title: '离开视频处理工作台？',
-      content: '离开后将取消正在处理的任务，并移除尚未开始的任务。已完成和失败记录不会影响输出文件。',
+      content: '离开后将取消正在生成的预览和处理任务，并移除尚未开始的任务。已完成和失败记录不会影响输出文件。',
       okText: '取消任务并离开',
       cancelText: '继续处理',
       okButtonProps: { danger: true },
       async onOk() {
+        await cancelPreview()
         await queue.cancelAndClearQueue()
         resolve(true)
       },
@@ -135,9 +154,9 @@ export function useVideoProcessingWorkspace() {
         resolve(false)
       },
     })
-  }), [queue.cancelAndClearQueue])
+  }), [cancelPreview, queue.cancelAndClearQueue])
 
-  useWorkspaceExitGuard(queue.hasPendingWork ? confirmLeave : null)
+  useWorkspaceExitGuard(queue.hasPendingWork || previewLoading ? confirmLeave : null)
 
   return {
     ...runtime,
@@ -150,6 +169,7 @@ export function useVideoProcessingWorkspace() {
     previewLoading,
     previewTimestamp,
     selectedEditable,
+    startAll,
     setPreviewTimestamp: updatePreviewTimestamp,
     setResizeHeight,
     setResizePercent,

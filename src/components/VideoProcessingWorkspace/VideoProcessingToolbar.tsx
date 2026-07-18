@@ -13,7 +13,7 @@ export function VideoProcessingToolbar({ workspace }: { workspace: VideoProcessi
   const ffmpegProgress = workspace.videoRuntimeProgress
   const upscaylProgress = workspace.upscaleInstallProgress
   const queuedCount = workspace.jobs.filter((job) => job.phase === 'queued').length
-  const startBlocked = queuedCount === 0 || workspace.queueValidationFailures.length > 0
+  const startBlocked = queuedCount === 0 || workspace.queueValidationFailures.length > 0 || workspace.previewLoading
 
   return (
     <header className="video-processing-toolbar">

@@ -86,6 +86,19 @@ test('video workspace composes focused panels and a registered exit guard', () =
   assert.match(appSource, /requestActiveSurface/)
 })
 
+test('video preview participates in renderer cancellation and queue exclusion', () => {
+  const base = 'src/components/VideoProcessingWorkspace'
+  const workspaceSource = readFileSync(`${base}/useVideoProcessingWorkspace.ts`, 'utf8')
+  const toolbarSource = readFileSync(`${base}/VideoProcessingToolbar.tsx`, 'utf8')
+  const previewSource = readFileSync(`${base}/VideoProcessingPreviewPanel.tsx`, 'utf8')
+
+  assert.match(workspaceSource, /cancelVideoProcessingJob\('__preview__'\)/)
+  assert.match(workspaceSource, /queue\.hasPendingWork \|\| previewLoading/)
+  assert.match(workspaceSource, /if \(previewLoading\) return false/)
+  assert.match(toolbarSource, /workspace\.previewLoading/)
+  assert.match(previewSource, /workspace\.activeJobId/)
+})
+
 test('video workspace styles stay split by layout, panels, and queue', () => {
   const source = readFileSync('src/components/VideoProcessingWorkspace/video-processing-workspace.css', 'utf8')
   assert.match(source, /video-processing-layout\.css/)

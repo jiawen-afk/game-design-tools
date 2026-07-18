@@ -48,7 +48,7 @@ export function VideoProcessingPreviewPanel({ workspace }: { workspace: VideoPro
             type="primary"
             icon={<EyeOutlined />}
             loading={workspace.previewLoading}
-            disabled={workspace.validationErrors.length > 0}
+            disabled={workspace.validationErrors.length > 0 || Boolean(workspace.activeJobId)}
             onClick={() => void workspace.generatePreview()}
           >
             生成单帧对比

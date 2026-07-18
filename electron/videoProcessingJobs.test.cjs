@@ -150,6 +150,15 @@ test('conventional job encodes, verifies, moves output, and cleans temp files', 
   assert.equal(fs.existsSync(resolveVideoProcessingTempRoot(fakeApp(root))), false)
 }))
 
+test('rejects unsafe renderer job ids before creating filesystem paths', () => withTempManager(async (root) => {
+  const manager = createVideoProcessingJobManager(managerDependencies(root))
+  await assert.rejects(
+    () => manager.start(job(root, { jobId: 'x\\..\\..\\victim' })),
+    /jobId 无效/,
+  )
+  assert.equal(fs.existsSync(path.join(root, 'victim')), false)
+}))
+
 test('conventional job preflights temporary and destination disk space', () => withTempManager(async (root) => {
   let processCalls = 0
   const dependencies = managerDependencies(root, {

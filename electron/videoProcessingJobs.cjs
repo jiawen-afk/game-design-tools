@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const path = require('node:path')
+const { randomUUID } = require('node:crypto')
 const { spawn } = require('node:child_process')
 
 const {
@@ -23,6 +24,12 @@ const {
 const ONE_GIB = 1024 * 1024 * 1024
 const MIN_OUTPUT_ALLOWANCE = 256 * 1024 * 1024
 const THEORA_QUALITY = { high: 8, balanced: 6, extreme: 4 }
+
+function validateVideoJobId(value) {
+  const id = String(value || '').trim()
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('视频任务 jobId 无效。')
+  return id
+}
 
 function resolveVideoProcessingTempRoot(app) {
   const localAppData = process.env.LOCALAPPDATA || app.getPath('temp')
@@ -383,7 +390,7 @@ function createVideoProcessingJobManager(inputDependencies) {
     if (outputFreeBytes < outputBytes) {
       throw new Error(`输出磁盘空间不足，需要至少 ${Math.ceil(outputBytes / 1024 / 1024)} MB。`)
     }
-    const writeProbePath = path.join(options.outputDirectory, `.gdt-video-write-${job.id}.tmp`)
+    const writeProbePath = path.join(options.outputDirectory, `.gdt-video-write-${job.internalId}.tmp`)
     try {
       await fsp.writeFile(writeProbePath, '')
     } catch (error) {
@@ -395,12 +402,12 @@ function createVideoProcessingJobManager(inputDependencies) {
 
   async function start(options) {
     if (runningJobId) throw new Error(`已有视频任务正在运行：${runningJobId}`)
-    const id = String(options?.jobId || '').trim()
-    if (!id) throw new Error('视频任务缺少 jobId。')
+    const id = validateVideoJobId(options?.jobId)
+    const internalId = randomUUID()
     const tempRoot = resolveVideoProcessingTempRoot(dependencies.app)
-    const tempDir = path.join(tempRoot, id.replace(/[^a-zA-Z0-9_-]/g, '_'))
+    const tempDir = path.join(tempRoot, internalId)
     const controller = new AbortController()
-    const job = { id, options, tempDir, controller }
+    const job = { id, internalId, options, tempDir, controller }
     runningJobId = id
     activeJobs.set(id, job)
     const startedAt = Date.now()
@@ -438,7 +445,7 @@ function createVideoProcessingJobManager(inputDependencies) {
         muted: options.settings.audioMode === 'mute' || !options.probe.hasAudio,
       })
       const finalPath = await resolveCollisionFreeOutputPath(options.outputDirectory, options.outputName)
-      await moveFileAtomically(temporaryOutputPath, finalPath, id)
+      await moveFileAtomically(temporaryOutputPath, finalPath, internalId)
       const outputStat = await fsp.stat(finalPath)
       emit(id, 'completed', 100, '处理完成。')
       return {
@@ -514,4 +521,5 @@ module.exports = {
   resolveCollisionFreeOutputPath,
   resolveVideoProcessingTempRoot,
   runNativeProcess,
+  validateVideoJobId,
 }

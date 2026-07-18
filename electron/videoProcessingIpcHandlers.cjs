@@ -9,6 +9,7 @@ const {
 } = require('./videoProcessingCommands.cjs')
 const {
   createVideoProcessingJobManager,
+  validateVideoJobId,
 } = require('./videoProcessingJobs.cjs')
 const {
   getVideoRuntimeStatus,
@@ -18,6 +19,8 @@ const {
   buildUpscaylArgs,
   getUpscaylRuntimeStatus,
   resolveUpscaylRuntimePaths,
+  upscaylGpuIds,
+  upscaylModels,
 } = require('./upscaylIpcHandlers.cjs')
 
 const videoExtensions = new Set(['.mp4', '.mov', '.mkv', '.webm', '.avi', '.ogv', '.ogg', '.m4v', '.mpeg', '.mpg'])
@@ -50,11 +53,11 @@ function sendToWindows(BrowserWindow, channel, payload) {
   }
 }
 
-async function probeVideoPath(app, runCommandOutput, filePath) {
+async function probeVideoPath(app, runCommandOutput, filePath, signal) {
   const inputPath = assertVideoInputPath(filePath)
   const runtime = await getVideoRuntimeStatus(app)
   if (!runtime.installed) throw new Error('请先安装视频处理运行包。')
-  const result = await runCommandOutput(runtime.ffprobePath, buildProbeArgs(inputPath))
+  const result = await runCommandOutput(runtime.ffprobePath, buildProbeArgs(inputPath), { signal })
   return mapProbeResult(parseJsonOutput(result, '视频探测失败'), inputPath)
 }
 
@@ -79,18 +82,12 @@ function normalizeEvenDimension(value) {
   return rounded % 2 === 0 ? rounded : rounded + 1
 }
 
-function normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirectories) {
-  if (!options || typeof options !== 'object') throw new Error('视频任务参数无效。')
-  const inputPath = path.resolve(String(options.inputPath || ''))
-  const outputDirectory = path.resolve(String(options.outputDirectory || ''))
-  if (!selectedOutputDirectories?.has(outputDirectory)) {
-    throw new Error('输出目录必须通过选择器确认。')
-  }
-  if (!nativeProbe || nativeProbe.path !== inputPath || nativeProbe.durationSeconds <= 0
+function normalizeVideoSettings(settings, nativeProbe) {
+  if (!nativeProbe || nativeProbe.durationSeconds <= 0
     || nativeProbe.width < 2 || nativeProbe.height < 2 || nativeProbe.averageFps <= 0) {
     throw new Error('源视频探测结果无效，请重新导入。')
   }
-  const settings = options.settings || {}
+  if (!settings || typeof settings !== 'object') throw new Error('视频处理设置无效。')
   const percent = Number(settings.percent)
   if (!Number.isFinite(percent) || percent < 25 || percent > 400) {
     throw new Error('分辨率比例必须在 25% 到 400% 之间。')
@@ -111,27 +108,94 @@ function normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirector
   if (!['vorbis', 'mute'].includes(settings.audioMode) || ![64, 96, 128, 160].includes(Number(settings.audioKbps))) {
     throw new Error('音频设置无效。')
   }
-  if (!String(settings.upscaylModel || '').trim() || !String(settings.gpuId || '').trim()
+  if (!upscaylModels.includes(String(settings.upscaylModel))
+    || !upscaylGpuIds.includes(String(settings.gpuId))
     || !['balanced', 'low-memory', 'throughput'].includes(settings.threadProfile)
     || !Number.isFinite(Number(settings.tileSize)) || Number(settings.tileSize) < 32) {
     throw new Error('Upscayl GPU 高级设置无效。')
   }
   return {
+    ...settings,
+    percent,
+    width: expectedWidth,
+    height: expectedHeight,
+    targetMb: settings.targetMb === null ? null : Number(settings.targetMb),
+    targetFps,
+    audioKbps: Number(settings.audioKbps),
+    tileSize: Math.round(Number(settings.tileSize)),
+    ttaMode: settings.ttaMode === true,
+  }
+}
+
+function normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirectories) {
+  if (!options || typeof options !== 'object') throw new Error('视频任务参数无效。')
+  const jobId = validateVideoJobId(options.jobId)
+  const inputPath = path.resolve(String(options.inputPath || ''))
+  const outputDirectory = path.resolve(String(options.outputDirectory || ''))
+  if (!selectedOutputDirectories?.has(outputDirectory)) {
+    throw new Error('输出目录必须通过选择器确认。')
+  }
+  if (nativeProbe?.path !== inputPath) throw new Error('源视频探测结果无效，请重新导入。')
+  return {
     ...options,
+    jobId,
     inputPath,
     outputDirectory,
     probe: nativeProbe,
-    settings: {
-      ...settings,
-      percent,
-      width: expectedWidth,
-      height: expectedHeight,
-      targetFps,
-      audioKbps: Number(settings.audioKbps),
-      tileSize: Math.round(Number(settings.tileSize)),
-      ttaMode: settings.ttaMode === true,
-    },
+    settings: normalizeVideoSettings(options.settings, nativeProbe),
   }
+}
+
+function normalizeVideoPreviewOptions(options, nativeProbe) {
+  if (!options || typeof options !== 'object') throw new Error('视频预览参数无效。')
+  const inputPath = path.resolve(String(options.inputPath || ''))
+  if (nativeProbe?.path !== inputPath) throw new Error('源视频探测结果无效，请重新导入。')
+  const timestamp = Number(options.timestampSeconds)
+  return {
+    ...options,
+    inputPath,
+    timestampSeconds: Math.min(
+      Number(nativeProbe.durationSeconds),
+      Math.max(0, Number.isFinite(timestamp) ? timestamp : 0),
+    ),
+    settings: normalizeVideoSettings(options.settings, nativeProbe),
+  }
+}
+
+function createVideoPreviewLifecycle() {
+  let controller = null
+  let activePromise = null
+
+  function isRunning() {
+    return controller !== null
+  }
+
+  function run(task) {
+    if (controller) throw new Error('已有视频预览正在运行。')
+    const currentController = new AbortController()
+    controller = currentController
+    const trackedPromise = Promise.resolve()
+      .then(() => task(currentController.signal))
+      .finally(() => {
+        if (controller === currentController) controller = null
+        if (activePromise === trackedPromise) activePromise = null
+      })
+    activePromise = trackedPromise
+    return trackedPromise
+  }
+
+  function cancel() {
+    if (!controller) return false
+    controller.abort()
+    return true
+  }
+
+  async function shutdown() {
+    controller?.abort()
+    try { await activePromise } catch {}
+  }
+
+  return { cancel, isRunning, run, shutdown }
 }
 
 function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMain, runCommandOutput }) {
@@ -140,7 +204,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
     app,
     emitProgress: (progress) => sendToWindows(BrowserWindow, 'video-processing:progress', progress),
   })
-  let previewRunning = false
+  const previewLifecycle = createVideoPreviewLifecycle()
   let jobStarting = false
 
   ipcMain.handle('video-processing:choose-files', async () => {
@@ -184,79 +248,79 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
   ))
 
   ipcMain.handle('video-processing:preview', async (_event, options = {}) => {
-    if (previewRunning || jobStarting || manager.isRunning()) {
+    if (previewLifecycle.isRunning() || jobStarting || manager.isRunning()) {
       throw new Error('已有视频预览或处理任务正在使用 FFmpeg/Upscayl，请稍后重试。')
     }
-    previewRunning = true
-    let directory = ''
-    try {
-    const inputPath = assertVideoInputPath(options.inputPath)
-    const runtime = await getVideoRuntimeStatus(app)
-    if (!runtime.installed) throw new Error('请先安装视频处理运行包。')
-    const probe = await probeVideoPath(app, runCommandOutput, inputPath)
-    const settings = options.settings || {}
-    const targetWidth = Math.max(2, Math.round(Number(settings.width || probe.width)))
-    const targetHeight = Math.max(2, Math.round(Number(settings.height || probe.height)))
-    const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-    directory = path.join(previewTempDir(app), stamp)
-    const sourcePath = path.join(directory, 'source.png')
-    const processedPath = path.join(directory, 'processed.png')
-    await fsp.mkdir(directory, { recursive: true })
-    await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
-      inputPath,
-      timestampSeconds: Math.max(0, Number(options.timestampSeconds || 0)),
-      width: probe.width,
-      height: probe.height,
-      outputPath: sourcePath,
-    }), {}, '源视频帧提取失败。')
+    return previewLifecycle.run(async (signal) => {
+      let directory = ''
+      try {
+        const inputPath = assertVideoInputPath(options.inputPath)
+        const runtime = await getVideoRuntimeStatus(app)
+        if (!runtime.installed) throw new Error('请先安装视频处理运行包。')
+        const probe = await probeVideoPath(app, runCommandOutput, inputPath, signal)
+        const normalized = normalizeVideoPreviewOptions(options, probe)
+        const settings = normalized.settings
+        const targetWidth = settings.width
+        const targetHeight = settings.height
+        const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+        directory = path.join(previewTempDir(app), stamp)
+        const sourcePath = path.join(directory, 'source.png')
+        const processedPath = path.join(directory, 'processed.png')
+        await fsp.mkdir(directory, { recursive: true })
+        await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
+          inputPath,
+          timestampSeconds: normalized.timestampSeconds,
+          width: probe.width,
+          height: probe.height,
+          outputPath: sourcePath,
+        }), { signal }, '源视频帧提取失败。')
 
-    const scale = upscaleScale(Number(settings.percent || 100))
-    if (scale) {
-      const upscaylStatus = await getUpscaylRuntimeStatus(app)
-      if (!upscaylStatus.installed) throw new Error('超过 100% 的预览必须安装 Upscayl GPU 运行包。')
-      const upscaylPaths = resolveUpscaylRuntimePaths(app)
-      const upscaledPath = path.join(directory, 'upscaled.png')
-      await runCheckedCommand(runCommandOutput, upscaylPaths.execPath, buildUpscaylArgs({
-        inputPath: sourcePath,
-        outputPath: upscaledPath,
-        modelsPath: upscaylPaths.modelsDir,
-        format: 'png',
-        options: {
-          model: settings.upscaylModel,
-          scale,
-          tileSize: settings.tileSize,
-          ttaMode: settings.ttaMode,
-          gpuId: settings.gpuId,
-          threadProfile: settings.threadProfile,
-        },
-      }), { cwd: upscaylPaths.binDir }, 'AI 单帧预览生成失败。')
-      await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
-        inputPath: upscaledPath,
-        timestampSeconds: 0,
-        width: targetWidth,
-        height: targetHeight,
-        outputPath: processedPath,
-      }), {}, 'AI 预览精确缩放失败。')
-    } else {
-      await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
-        inputPath,
-        timestampSeconds: Math.max(0, Number(options.timestampSeconds || 0)),
-        width: targetWidth,
-        height: targetHeight,
-        outputPath: processedPath,
-      }), {}, '缩放预览生成失败。')
-    }
-      return { sourcePath, processedPath, width: targetWidth, height: targetHeight }
-    } catch (error) {
-      if (directory) await fsp.rm(directory, { recursive: true, force: true })
-      throw error
-    } finally {
-      previewRunning = false
-    }
+        const scale = upscaleScale(Number(settings.percent || 100))
+        if (scale) {
+          const upscaylStatus = await getUpscaylRuntimeStatus(app)
+          if (!upscaylStatus.installed) throw new Error('超过 100% 的预览必须安装 Upscayl GPU 运行包。')
+          const upscaylPaths = resolveUpscaylRuntimePaths(app)
+          const upscaledPath = path.join(directory, 'upscaled.png')
+          await runCheckedCommand(runCommandOutput, upscaylPaths.execPath, buildUpscaylArgs({
+            inputPath: sourcePath,
+            outputPath: upscaledPath,
+            modelsPath: upscaylPaths.modelsDir,
+            format: 'png',
+            options: {
+              model: settings.upscaylModel,
+              scale,
+              tileSize: settings.tileSize,
+              ttaMode: settings.ttaMode,
+              gpuId: settings.gpuId,
+              threadProfile: settings.threadProfile,
+            },
+          }), { cwd: upscaylPaths.binDir, signal }, 'AI 单帧预览生成失败。')
+          await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
+            inputPath: upscaledPath,
+            timestampSeconds: 0,
+            width: targetWidth,
+            height: targetHeight,
+            outputPath: processedPath,
+          }), { signal }, 'AI 预览精确缩放失败。')
+        } else {
+          await runCheckedCommand(runCommandOutput, runtime.ffmpegPath, buildPreviewArgs({
+            inputPath,
+            timestampSeconds: normalized.timestampSeconds,
+            width: targetWidth,
+            height: targetHeight,
+            outputPath: processedPath,
+          }), { signal }, '缩放预览生成失败。')
+        }
+        return { sourcePath, processedPath, width: targetWidth, height: targetHeight }
+      } catch (error) {
+        if (directory) await fsp.rm(directory, { recursive: true, force: true })
+        throw error
+      }
+    })
   })
 
   ipcMain.handle('video-processing:start', async (_event, options = {}) => {
-    if (previewRunning || jobStarting || manager.isRunning()) {
+    if (previewLifecycle.isRunning() || jobStarting || manager.isRunning()) {
       throw new Error('已有视频预览或处理任务正在运行。')
     }
     jobStarting = true
@@ -268,7 +332,9 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
       jobStarting = false
     }
   })
-  ipcMain.handle('video-processing:cancel', async (_event, jobId) => manager.cancel(jobId))
+  ipcMain.handle('video-processing:cancel', async (_event, jobId) => (
+    String(jobId) === '__preview__' ? previewLifecycle.cancel() : manager.cancel(jobId)
+  ))
 
   async function cleanupAbandonedTempDirs() {
     await manager.cleanupAbandonedTempDirs()
@@ -283,11 +349,17 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
     }
   }
 
-  return { cleanupAbandonedTempDirs, shutdown: manager.shutdown }
+  async function shutdown() {
+    await Promise.all([previewLifecycle.shutdown(), manager.shutdown()])
+  }
+
+  return { cleanupAbandonedTempDirs, shutdown }
 }
 
 module.exports = {
   assertVideoInputPath,
+  createVideoPreviewLifecycle,
+  normalizeVideoPreviewOptions,
   normalizeVideoStartOptions,
   parseJsonOutput,
   probeVideoPath,

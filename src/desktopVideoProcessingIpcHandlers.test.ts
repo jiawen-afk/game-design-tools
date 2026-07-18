@@ -61,7 +61,8 @@ test('electron main delegates video processing IPC to a focused module', () => {
   assert.match(handlerSource, /video-processing:preview/)
   assert.match(handlerSource, /video-processing:start/)
   assert.match(handlerSource, /video-processing:cancel/)
-  assert.match(handlerSource, /let previewRunning = false/)
+  assert.match(handlerSource, /const previewLifecycle = createVideoPreviewLifecycle\(\)/)
+  assert.match(handlerSource, /String\(jobId\) === '__preview__'/)
   assert.match(handlerSource, /manager\.isRunning\(\)/)
   assert.match(handlerSource, /await fsp\.rm\(directory, \{ recursive: true, force: true \}\)/)
   assert.doesNotMatch(handlerSource, /Buffer\.from\(options\.data/)
@@ -132,4 +133,74 @@ test('native start options use a fresh probe and reject unselected output paths'
     () => normalizeVideoStartOptions({ ...options, settings: { ...options.settings, targetFps: 60 } }, nativeProbe, new Set([outputDirectory])),
     /目标帧率不能高于源视频/,
   )
+  assert.throws(
+    () => normalizeVideoStartOptions({ ...options, jobId: 'x\\..\\..\\victim' }, nativeProbe, new Set([outputDirectory])),
+    /jobId 无效/,
+  )
+})
+
+test('native preview options enforce settings bounds and clamp timestamp', () => {
+  const { normalizeVideoPreviewOptions } = require('../electron/videoProcessingIpcHandlers.cjs')
+  const probe = {
+    path: 'D:\\media\\intro.mp4', name: 'intro.mp4', size: 1000,
+    durationSeconds: 10, width: 1920, height: 1080, averageFps: 30,
+    videoCodec: 'h264', pixelFormat: 'yuv420p', hasAudio: true,
+    audioCodec: 'aac', audioChannels: 2, audioSampleRate: 48000,
+  }
+  const settings = {
+    percent: 200, width: 3840, height: 2160, qualityMode: 'quality', qualityPreset: 'balanced',
+    targetMb: null, targetFps: 24, audioMode: 'vorbis', audioKbps: 96,
+    upscaylModel: 'upscayl-standard-4x', gpuId: 'auto', tileSize: 128,
+    ttaMode: false, threadProfile: 'balanced',
+  }
+
+  const normalized = normalizeVideoPreviewOptions({
+    inputPath: probe.path,
+    timestampSeconds: 999,
+    settings,
+  }, probe)
+  assert.equal(normalized.timestampSeconds, 10)
+  assert.equal(normalized.settings.width, 3840)
+  assert.throws(
+    () => normalizeVideoPreviewOptions({ inputPath: probe.path, timestampSeconds: 0, settings: { ...settings, percent: 500 } }, probe),
+    /25% 到 400%/,
+  )
+  assert.throws(
+    () => normalizeVideoPreviewOptions({ inputPath: probe.path, timestampSeconds: 0, settings: { ...settings, gpuId: '-1' } }, probe),
+    /Upscayl GPU 高级设置无效/,
+  )
+  assert.throws(
+    () => normalizeVideoPreviewOptions({ inputPath: probe.path, timestampSeconds: 0, settings: { ...settings, upscaylModel: '..\\fake' } }, probe),
+    /Upscayl GPU 高级设置无效/,
+  )
+})
+
+test('preview lifecycle aborts cancellation and shutdown waits for cleanup', async () => {
+  const { createVideoPreviewLifecycle } = require('../electron/videoProcessingIpcHandlers.cjs')
+  const lifecycle = createVideoPreviewLifecycle()
+  let activeSignal: AbortSignal | null = null
+  let releasePreview!: () => void
+  let markStarted!: () => void
+  const started = new Promise<void>((resolve) => { markStarted = resolve })
+  const preview = lifecycle.run(async (signal: AbortSignal) => {
+    activeSignal = signal
+    markStarted()
+    await new Promise<void>((resolve) => { releasePreview = resolve })
+    return 'finished'
+  })
+  await started
+
+  assert.equal(lifecycle.isRunning(), true)
+  assert.equal(lifecycle.cancel(), true)
+  assert.equal((activeSignal as unknown as AbortSignal).aborted, true)
+  let shutdownFinished = false
+  const shutdown = lifecycle.shutdown().then(() => { shutdownFinished = true })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(shutdownFinished, false)
+
+  releasePreview()
+  assert.equal(await preview, 'finished')
+  await shutdown
+  assert.equal(lifecycle.isRunning(), false)
+  assert.equal(lifecycle.cancel(), false)
 })
