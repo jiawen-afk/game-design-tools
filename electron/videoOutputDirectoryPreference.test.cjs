@@ -31,6 +31,24 @@ async function createFixture() {
   }
 }
 
+test('video output directory session starts one restoration when created', async (t) => {
+  const fixture = await createFixture()
+  t.after(fixture.cleanup)
+  let getPathCalls = 0
+  const app = {
+    getPath(name) {
+      getPathCalls += 1
+      return fixture.app.getPath(name)
+    },
+  }
+
+  const session = createVideoOutputDirectorySession(app)
+  assert.equal(getPathCalls, 1)
+  assert.equal(await session.restore(), null)
+  assert.equal(await session.restore(), null)
+  assert.equal(getPathCalls, 1)
+})
+
 test('video output directory session remembers and restores a selected directory', async (t) => {
   const fixture = await createFixture()
   t.after(fixture.cleanup)

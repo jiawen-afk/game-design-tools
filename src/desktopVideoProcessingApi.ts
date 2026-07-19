@@ -74,6 +74,7 @@ export interface DesktopVideoProcessingResult {
 export interface DesktopVideoProcessingApi {
   chooseVideoFiles(): Promise<DesktopVideoFileInfo[]>
   chooseVideoOutputDirectory(): Promise<DesktopVideoDirectoryInfo | null>
+  getVideoOutputDirectory(): Promise<DesktopVideoDirectoryInfo | null>
   queryVideoRuntimeStatus(): Promise<DesktopVideoRuntimeStatus>
   installVideoRuntime(): Promise<DesktopVideoRuntimeStatus>
   probeVideoFile(filePath: string): Promise<VideoMediaProbe>

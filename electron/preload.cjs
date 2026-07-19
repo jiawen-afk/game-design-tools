@@ -48,6 +48,7 @@ electron.contextBridge.exposeInMainWorld('gameDesignToolsDesktop', {
   encodeImage: (options) => invoke('image-encoding:encode', options),
   chooseVideoFiles: () => invoke('video-processing:choose-files'),
   chooseVideoOutputDirectory: () => invoke('video-processing:choose-output-directory'),
+  getVideoOutputDirectory: () => invoke('video-processing:get-output-directory'),
   queryVideoRuntimeStatus: () => invoke('video-processing:runtime-status'),
   installVideoRuntime: () => invoke('video-processing:install-runtime'),
   probeVideoFile: (filePath) => invoke('video-processing:probe', filePath),

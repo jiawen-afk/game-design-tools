@@ -11,6 +11,7 @@ const {
   createVideoProcessingJobManager,
   validateVideoJobId,
 } = require('./videoProcessingJobs.cjs')
+const { createVideoOutputDirectorySession } = require('./videoOutputDirectoryPreference.cjs')
 const {
   getVideoRuntimeStatus,
   installVideoRuntime,
@@ -220,7 +221,7 @@ function createVideoPreviewLifecycle() {
 }
 
 function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMain, runCommandOutput }) {
-  const selectedOutputDirectories = new Set()
+  const outputDirectorySession = createVideoOutputDirectorySession(app)
   const manager = createVideoProcessingJobManager({
     app,
     emitProgress: (progress) => sendToWindows(BrowserWindow, 'video-processing:progress', progress),
@@ -245,15 +246,18 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
   })
 
   ipcMain.handle('video-processing:choose-output-directory', async () => {
+    const rememberedDirectory = await outputDirectorySession.restore()
     const result = await dialog.showOpenDialog({
       title: '选择 OGV 输出目录',
+      defaultPath: rememberedDirectory?.path,
       properties: ['openDirectory', 'createDirectory'],
     })
     if (result.canceled || result.filePaths.length === 0) return null
     const selectedPath = path.resolve(result.filePaths[0])
-    selectedOutputDirectories.add(selectedPath)
-    return { name: path.basename(selectedPath), path: selectedPath }
+    return outputDirectorySession.remember(selectedPath)
   })
+
+  ipcMain.handle('video-processing:get-output-directory', async () => outputDirectorySession.restore())
 
   ipcMain.handle('video-processing:runtime-status', async () => getVideoRuntimeStatus(app))
 
@@ -347,9 +351,14 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
     }
     jobStarting = true
     try {
+      await outputDirectorySession.restore()
       const inputPath = assertVideoInputPath(options.inputPath)
       const nativeProbe = await probeVideoPath(app, runCommandOutput, inputPath)
-      return await manager.start(normalizeVideoStartOptions(options, nativeProbe, selectedOutputDirectories))
+      return await manager.start(normalizeVideoStartOptions(
+        options,
+        nativeProbe,
+        outputDirectorySession.selectedOutputDirectories,
+      ))
     } finally {
       jobStarting = false
     }

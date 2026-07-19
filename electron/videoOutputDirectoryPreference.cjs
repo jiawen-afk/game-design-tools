@@ -64,22 +64,20 @@ async function saveVideoOutputDirectoryPreference(app, directoryPath) {
 function createVideoOutputDirectorySession(app) {
   const selectedOutputDirectories = new Set()
   let currentDirectory = null
-  let restorationPromise = null
+  const restorationPromise = loadVideoOutputDirectoryPreference(app).then((directory) => {
+    if (directory) {
+      currentDirectory = directory
+      selectedOutputDirectories.add(directory.path)
+    }
+  })
 
   async function restore() {
-    if (!restorationPromise) {
-      restorationPromise = loadVideoOutputDirectoryPreference(app).then((directory) => {
-        if (directory) {
-          currentDirectory = directory
-          selectedOutputDirectories.add(directory.path)
-        }
-      })
-    }
     await restorationPromise
     return currentDirectory
   }
 
   async function remember(directoryPath) {
+    await restorationPromise
     const directory = await saveVideoOutputDirectoryPreference(app, directoryPath)
     currentDirectory = directory
     selectedOutputDirectories.add(directory.path)
