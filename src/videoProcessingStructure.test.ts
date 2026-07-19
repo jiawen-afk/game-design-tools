@@ -50,6 +50,22 @@ test('video renderer orchestration stays behind service and focused hooks', () =
   assert.doesNotMatch([runtimeSource, queueSource].join('\n'), /ipcRenderer|child_process|spawn\(/)
 })
 
+test('video workspace restores only its remembered output directory without renderer persistence', () => {
+  const base = 'src/components/VideoProcessingWorkspace'
+  const serviceSource = readFileSync(`${base}/videoProcessingService.ts`, 'utf8')
+  const queueSource = readFileSync(`${base}/useVideoProcessingQueue.ts`, 'utf8')
+
+  assert.match(serviceSource, /getVideoOutputDirectory: async \(\) => requireVideoDesktopApi\(\)\.getVideoOutputDirectory\(\)/)
+  assert.match(queueSource, /outputDirectorySelectionIdRef/)
+  assert.match(queueSource, /videoProcessingService\.getVideoOutputDirectory\(\)/)
+  assert.match(queueSource, /let mounted = true/)
+  assert.match(queueSource, /mounted && directory/)
+  assert.match(queueSource, /selectionId === outputDirectorySelectionIdRef\.current/)
+  assert.match(queueSource, /mounted = false/)
+  assert.match(queueSource, /outputDirectorySelectionIdRef\.current \+= 1/)
+  assert.doesNotMatch([serviceSource, queueSource].join('\n'), /localStorage/)
+})
+
 test('video workspace composes focused panels and a registered exit guard', () => {
   const base = 'src/components/VideoProcessingWorkspace'
   const expectedFiles = [
@@ -107,12 +123,18 @@ test('video workspace styles stay split by layout, panels, and queue', () => {
   assert.doesNotMatch(source, /background-clip:\s*text|repeating-linear-gradient|border-radius:\s*(3[2-9]|[4-9]\d)px/)
 })
 
-test('video desktop promise methods reject asynchronously in browser preview', async () => {
-  let pending: Promise<unknown> | undefined
+test('video desktop startup promise methods reject asynchronously in browser preview', async () => {
+  let runtimeStatus: Promise<unknown> | undefined
   assert.doesNotThrow(() => {
-    pending = videoProcessingService.queryVideoRuntimeStatus()
+    runtimeStatus = videoProcessingService.queryVideoRuntimeStatus()
   })
-  await assert.rejects(pending!, /当前不是桌面运行环境/)
+  await assert.rejects(runtimeStatus!, /当前不是桌面运行环境/)
+
+  let outputDirectory: Promise<unknown> | undefined
+  assert.doesNotThrow(() => {
+    outputDirectory = videoProcessingService.getVideoOutputDirectory()
+  })
+  await assert.rejects(outputDirectory!, /当前不是桌面运行环境/)
 })
 
 test('Godot 4.6 smoke fixture and video workflow documentation stay available', () => {

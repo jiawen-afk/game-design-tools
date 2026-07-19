@@ -70,6 +70,7 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
   const [importing, setImporting] = useState(false)
   const runningRef = useRef<string | null>(null)
   const activeRunPromiseRef = useRef<Promise<void> | null>(null)
+  const outputDirectorySelectionIdRef = useRef(0)
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0] ?? null,
@@ -93,6 +94,21 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
       })
     } catch {
       return undefined
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const selectionId = outputDirectorySelectionIdRef.current
+    videoProcessingService.getVideoOutputDirectory()
+      .then((directory) => {
+        if (mounted && directory && selectionId === outputDirectorySelectionIdRef.current) {
+          setOutputDirectory(directory)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      mounted = false
     }
   }, [])
 
@@ -122,6 +138,7 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
   }, [])
 
   const chooseOutputDirectory = useCallback(async () => {
+    outputDirectorySelectionIdRef.current += 1
     try {
       const directory = await videoProcessingService.chooseVideoOutputDirectory()
       if (directory) setOutputDirectory(directory)
