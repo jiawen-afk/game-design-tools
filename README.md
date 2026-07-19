@@ -37,9 +37,9 @@ The app installs supported runtimes from their workbench setup controls. Upscayl
 
 Download a Windows x64 package from the [GitHub Releases page](https://github.com/jiawen-afk/game-design-tools/releases):
 
-- `Game-Design-Tools-{version}-x64-setup.exe`: installer
-- `Game-Design-Tools-{version}-x64-portable.exe`: portable app
-- `Game-Design-Tools-{version}-x64-win.zip`: zipped desktop app
+- `Game Design Tools-{version}-x64-setup.exe`: installer
+- `Game Design Tools-{version}-x64-portable.exe`: portable app
+- `Game Design Tools-{version}-x64-win.zip`: zipped desktop app
 
 ## First Run
 
