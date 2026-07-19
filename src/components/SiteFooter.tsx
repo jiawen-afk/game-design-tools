@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Modal } from 'antd'
 import { GithubOutlined, MailOutlined, SyncOutlined } from '@ant-design/icons'
 
-import { openSourceSoftware } from '../openSourceSoftware'
+import { openSourceSoftware, openSourceSoftwareCategories } from '../openSourceSoftware'
 import { useAppUpdateStatus } from './useAppUpdateStatus'
 
 export function SiteFooter() {
@@ -49,14 +49,43 @@ export function SiteFooter() {
         open={aboutOpen}
         title="关于"
         footer={null}
+        width={760}
         onCancel={() => setAboutOpen(false)}
       >
+        <p className="open-source-intro">
+          以下列出本应用使用的主要第三方运行时、模型、直接依赖和构建工具；完整 npm 依赖请查阅 package.json 与 package-lock.json。
+        </p>
         <div className="open-source-list">
-          {openSourceSoftware.map((item) => (
-            <a key={item.name} href={item.url} target="_blank" rel="noreferrer">
-              <strong>{item.name}</strong>
-              <span>{item.usage}</span>
-            </a>
+          {openSourceSoftwareCategories.map((category) => (
+            <section className="open-source-category" key={category.id}>
+              <h3>{category.label}</h3>
+              <div className="open-source-category-items">
+                {openSourceSoftware
+                  .filter((item) => item.category === category.id)
+                  .map((item) => (
+                    <article className="open-source-item" key={item.name}>
+                      <a className="open-source-project" href={item.url} target="_blank" rel="noreferrer">
+                        <strong>{item.name}</strong>
+                      </a>
+                      <span>{item.usage}</span>
+                      <span className="open-source-licenses">
+                        许可证：
+                        {item.licenses.map((license, index) => (
+                          <a
+                            className="open-source-license"
+                            href={license.url}
+                            key={`${item.name}-${license.name}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {index > 0 ? `；${license.name}` : license.name}
+                          </a>
+                        ))}
+                      </span>
+                    </article>
+                  ))}
+              </div>
+            </section>
           ))}
         </div>
       </Modal>

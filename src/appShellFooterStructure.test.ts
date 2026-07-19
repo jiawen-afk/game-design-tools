@@ -29,9 +29,57 @@ test('site footer exposes an about dialog with the project open source software 
   assert.match(footerSource, /openSourceSoftware/)
   assert.match(footerSource, /open-source-list/)
   assert.match(softwareSource, /export const openSourceSoftware/)
-  for (const name of ['React', 'React DOM', 'Vite', 'TypeScript', 'Ant Design', 'Ant Design Icons', 'JSZip', 'tsx', 'Electron', 'Electron Builder', 'VoxCPM', 'Gradio']) {
+  assert.match(softwareSource, /export const openSourceSoftwareCategories/)
+  assert.match(softwareSource, /licenses:/)
+  for (const name of [
+    'Upscayl',
+    'NCNN',
+    'FFmpeg',
+    'libwebp',
+    'oxipng',
+    'BiRefNet',
+    'VoxCPM',
+    'Gradio',
+    'Stable Audio 3',
+    'PyTorch',
+    'Hugging Face Hub',
+    'React',
+    'React DOM',
+    'Ant Design',
+    'Ant Design Icons',
+    'Apache ECharts',
+    'WaveSurfer',
+    'JSZip',
+    'Electron Updater',
+    'sql.js',
+    'mysql2',
+    'node-postgres',
+    'Qiniu Node.js SDK',
+    'yauzl',
+    'Vite',
+    'Vite React Plugin',
+    'TypeScript',
+    'tsx',
+    'Electron',
+    'Electron Builder',
+  ]) {
     assert.match(softwareSource, new RegExp(name))
   }
+  for (const license of [
+    'MIT',
+    'Apache-2.0',
+    'BSD-3-Clause',
+    'AGPL-3.0-only',
+    'LGPL-2.1-or-later',
+    'Stability AI Community License',
+    'Gemma Terms of Use',
+  ]) {
+    assert.match(softwareSource, new RegExp(license))
+  }
+  assert.match(footerSource, /open-source-category/)
+  assert.match(footerSource, /open-source-license/)
+  assert.match(footerSource, /license\.url/)
+  assert.match(footerSource, /license\.name/)
   assert.doesNotMatch(softwareSource, /Busuanzi/)
   assert.match(softwareSource, /https:\/\/github\.com\/OpenBMB\/VoxCPM/)
 })
