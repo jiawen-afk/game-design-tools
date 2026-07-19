@@ -125,3 +125,20 @@ test('desktop client exposes version and auto update controls through the footer
   assert.match(footerSource, /downloadPercent\}%/)
   assert.doesNotMatch(appUpdateIpcSource, /正在下载更新 \$\{Math\.round\(percent\)\}%。/)
 })
+
+test('bilingual readmes describe the 0.7.0 runtime and Godot workflows', () => {
+  const englishReadme = readFileSync('README.md', 'utf8')
+  const chineseReadme = readFileSync('README.zh-CN.md', 'utf8')
+
+  for (const source of [englishReadme, chineseReadme]) {
+    assert.match(source, /0\.7\.0/)
+    assert.match(source, /Upscayl/)
+    assert.match(source, /FFmpeg/)
+    assert.match(source, /FFprobe/)
+    assert.match(source, /BiRefNet/)
+    assert.match(source, /VoxCPM/)
+    assert.match(source, /Stable Audio 3/)
+    assert.match(source, /Godot 4\.6/)
+    assert.match(source, /package-lock\.json/)
+  }
+})

@@ -1,78 +1,88 @@
 # Game Design Tools
 
-Game Design Tools is a Windows desktop workbench for game asset production. It combines sprite preparation, image cleanup, local voice generation, and project-scoped asset management in one Electron app.
+Game Design Tools is a Windows desktop workbench for producing and managing game assets. It combines sprite preparation, image cleanup, local voice and sound generation, video conversion, document knowledge, and project-scoped storage in one Electron app.
 
 [中文文档](README.zh-CN.md)
 
 ## Current Version
 
-- Latest published version: `0.5.1`
+- Latest published version: `0.7.0`
 - Windows x64 packages are published through GitHub Releases.
-- The stable auto-update channel is the `windows-x64-latest` release.
+- The stable auto-update channel is the `windows-x64-latest` Release.
 
 ## Highlights
 
-- **Project space**: manage characters, storyboards, shared images, sprite assets, and voice assets by project. The enabled project is the storage target for new assets and metadata.
-- **Local and remote project modes**: local projects use a local SQLite database and local object files. Remote projects require both a remote database and Qiniu Kodo object storage.
-- **Remote database support**: configure and verify PostgreSQL or MySQL connections, initialize project tables, and keep device profile bindings local to each computer.
-- **Remote object storage**: configure and verify Qiniu Kodo profiles. Project objects are stored under project-aware object keys.
-- **Remote asset cache**: remote project lists load metadata and covers from the database. Full images, sprite sheets, sprite indexes, and audio files are downloaded on demand and cached by fingerprint.
-- **Automatic sync with retry**: project changes sync to remote storage automatically. Failed sync tasks stay visible in the bottom-right status panel and can be retried there.
-- **Sprite workbench**: import image batches, sprite sheets, or video clips, remove backgrounds, align frames on a shared canvas, preview playback, sort frames, and export sprite packages. Flow 4 upscale is mutually exclusive: input-image upscale fixes blurry matte sources and then reapplies flow 3 canvas, layout, stroke, and outline parameters; result-image upscale enlarges the composed flow 3 frames and exports the enlarged frame size.
-- **Image processing workbench**: upload a single image, key out backgrounds, crop, preview, optionally upscale with the local Upscayl runtime, and export common image formats.
-- **Video Processing Workbench**: resize by percentage or target dimensions, use Upscayl GPU for enlargement, compress with Theora quality or target-size modes, and export Godot 4.6-compatible `.ogv` files.
-- **Voice workbench**: connect to a local VoxCPM Gradio service, generate WAV voice assets from text, clone from reference audio, manage voice history, and collect generated audio into project space.
-- **Desktop VoxCPM support**: detect Windows hardware, query dependency installation, run dependency setup, and start, stop, or restart the local VoxCPM service from the app.
+- **Project space**: manage characters, storyboards, shared images, sprite sheets, voice assets, sound assets, and documents by project. The enabled project is the storage target for new assets and metadata.
+- **Local and remote projects**: local projects use SQLite and local object files. Remote projects require PostgreSQL or MySQL plus Qiniu Kodo object storage.
+- **On-demand remote assets**: lists load metadata and covers first; full resources are downloaded and cached by fingerprint when opened or played.
+- **Automatic sync and recovery**: project changes sync automatically. Failed tasks remain visible in the status panel and can be retried there.
+- **Sprite workbench**: import images, sprite sheets, or video clips; remove backgrounds with color keying or BiRefNet; align frames; preview animation; batch upscale; and export sprite packages.
+- **Image processing workbench**: batch-manage images, crop, matte with color keying or BiRefNet, preview results, upscale with Upscayl GPU, and export common image formats.
+- **Video processing workbench**: resize by percentage or target dimensions, enlarge with Upscayl GPU super-resolution, compress with Theora quality or target-size modes, and export Godot 4.6-compatible `.ogv` files.
+- **Voice workbench**: install and control a local VoxCPM Gradio service, generate or clone WAV voices, edit clips, manage history, and collect audio into project space.
+- **Sound generation**: install Stable Audio 3 locally and generate sound effects, ambience, short music, and loops with the selected model.
+- **Document knowledge**: import structured knowledge, search records, browse graph relationships, and keep collections inside the active project.
 
-## Target Platform
+## Target Platform and Runtimes
 
-- Windows 10 / Windows 11
-- x64
-- NVIDIA GPU recommended for VoxCPM service acceleration
-- GPU acceleration is used by the local Upscayl runtime for image and sprite upscale processing
-- Python 3.12 is required by the VoxCPM dependency setup flow
+- Windows 10 or Windows 11, x64
+- NVIDIA GPU recommended for VoxCPM, Stable Audio 3, BiRefNet, and Upscayl acceleration
+- Python 3.12 for the local AI service setup flows
+- **Upscayl GPU is required for GPU super-resolution** in the image, sprite, and video workbenches
+- **FFmpeg and FFprobe** are required by the video workbench for probing, decoding, compression, and OGV output
+
+The app installs supported runtimes from their workbench setup controls. Upscayl files are cached under `%LOCALAPPDATA%\GameDesignTools\UpscaylRuntime`; the pinned FFmpeg/FFprobe package is verified and cached under `%LOCALAPPDATA%\GameDesignTools\VideoRuntime`. Reopening the app reuses valid local runtime files instead of downloading them again.
 
 ## Install
 
-Download the Windows x64 package from the [GitHub Releases page](https://github.com/jiawen-afk/game-design-tools/releases), then choose one artifact:
+Download a Windows x64 package from the [GitHub Releases page](https://github.com/jiawen-afk/game-design-tools/releases):
 
-- `Game Design Tools-{version}-x64-setup.exe`: installer with Start Menu and desktop shortcut options
-- `Game Design Tools-{version}-x64-portable.exe`: portable app
-- `Game Design Tools-{version}-x64-win.zip`: zipped desktop app
+- `Game-Design-Tools-{version}-x64-setup.exe`: installer
+- `Game-Design-Tools-{version}-x64-portable.exe`: portable app
+- `Game-Design-Tools-{version}-x64-win.zip`: zipped desktop app
 
 ## First Run
 
 1. Open **Project Space** and authorize a local resource directory.
-2. Use the default local project, or open project management to create a new local or remote project.
+2. Use the default local project, or create a local or remote project in project management.
 3. For a remote project, configure and verify both:
-   - PostgreSQL or MySQL database profile
-   - Qiniu Kodo object storage profile
+   - a PostgreSQL or MySQL database profile;
+   - a Qiniu Kodo object-storage profile.
 4. Initialize the remote database schema before creating or migrating a remote project.
-5. Use the **Enable** switch on a project card to make it the active storage target.
+5. Enable one project to make it the current storage target.
 
-Remote projects are designed for multiple devices. Database and Kodo connection profiles are stored locally per device; project data itself stays shared in the remote database and object storage.
+Remote connection profiles stay local to each device. Shared project rows and objects remain in the configured remote database and object storage.
 
 ## Workspaces
 
-- **Project Space**: role assets, portraits, sprite sheets, voice assets, storyboard groups, shared materials, project settings, and project switching.
-- **Sprite Workbench**: background removal, frame alignment, sprite sheet preview, frame ordering, side-by-side original/upscaled playback, mutually exclusive input-image or result-image batch upscale, and original or upscaled export.
-- **Image Processing Workbench**: single-image cleanup, crop, matte, optional Upscayl upscale flow, and export.
-- **Video Processing Workbench**: serial batch resize, GPU super-resolution, Theora compression, Vorbis or muted audio, and native Godot 4.6 OGV export.
-- **Voice Workbench**: VoxCPM setup, local Gradio service control, voice generation, history, and collection into project assets.
+- **Project Space**: characters, portraits, sprite sheets, voice and sound assets, storyboards, shared materials, settings, remote sync state, and project switching.
+- **Sprite Workbench**: upload and split sources, color-key or BiRefNet matting, shared-canvas alignment, stroke/outline composition, playback, ordering, batch Upscayl preview, and sprite export.
+- **Image Processing Workbench**: per-image settings, crop, color-key or BiRefNet matting, Upscayl GPU processing, preview, and export.
+- **Video Processing Workbench**: serial batch resize, GPU super-resolution, Theora compression, Vorbis or muted audio, frame-rate control, remembered output directory, and native Godot 4.6 OGV export.
+- **Voice Workbench**: VoxCPM setup, local Gradio service control, voice generation and cloning, audio editing, Stable Audio 3 sound generation, history, and project collection.
+- **Document Knowledge Workbench**: project-scoped collection, SHJ graph import, search, category filtering, graph browsing, and node details.
+
+## AI and Media Runtime Setup
+
+- **Upscayl GPU**: install it from the relevant workbench before running upscale jobs. GPU selection, model, tile size, thread profile, and TTA options are available where supported.
+- **BiRefNet**: install dependencies and the `ZhengPeng7/BiRefNet_HR-matting` model from the matting setup panel, then start the local service.
+- **VoxCPM**: select a VoxCPM model, install the local service dependencies, and control the Gradio service from the voice workbench.
+- **Stable Audio 3**: choose a model, accept the model repository terms on Hugging Face when required, install dependencies, and start the local generation service.
+- **FFmpeg/FFprobe**: install the pinned, checksum-verified LGPL shared build from the video toolbar. Installation retries approved mirrors and replaces the runtime atomically after verification.
 
 ## Godot 4.6 Video Workflow
 
-The video workspace always writes an Ogg container with Theora video in `yuv420p` and optional Vorbis audio. It intentionally does not produce H.264, H.265, AV1, VP9, MP4, MKV, or WebM output, because the target is Godot 4.6 native `VideoStreamTheora` playback.
+The video workbench writes an Ogg container with Theora video in `yuv420p` and optional Vorbis audio. It intentionally does not output H.264, H.265, AV1, VP9, MP4, MKV, or WebM because the target is Godot 4.6 native `VideoStreamTheora` playback.
 
-1. Open **Video Processing Workbench** from tool shortcut `4`.
-2. Install the pinned FFmpeg runtime from the toolbar.
-3. Install **Upscayl GPU** before using any enlargement above 100%. Enlargement never falls back silently to conventional scaling.
-4. Import one or more videos and choose the output directory.
-5. Configure the resize percentage or dimensions, compression mode, target FPS, and audio mode.
-6. Start the queue. Tasks run serially and a failed item does not stop later items.
+1. Open **Video Processing Workbench** with tool shortcut `4`.
+2. Install the pinned FFmpeg/FFprobe runtime.
+3. Install **Upscayl GPU** before enabling GPU super-resolution.
+4. Import one or more videos and choose an output directory. The video workbench remembers the most recently authorized directory.
+5. Configure resize percentage or dimensions, compression mode, target FPS, audio mode, and optional advanced Upscayl settings.
+6. Start the queue. Jobs run serially; a failed item does not prevent later items from running.
 7. Add the generated `.ogv` file to a Godot 4.6 project and assign it to `VideoStreamPlayer.stream`.
 
-Theora is less compression-efficient than modern codecs at comparable visual quality. This workflow prioritizes direct Godot 4.6 compatibility and predictable local playback over the smallest possible file.
+Theora is less compression-efficient than modern codecs at comparable visual quality. This workflow prioritizes direct Godot compatibility and predictable local playback. Frame-rate verification uses duration and frame-count tolerances and reports warnings for explainable metadata differences instead of rejecting otherwise playable output.
 
 An optional headless smoke project is included at `test-fixtures/godot-video-smoke`. Copy a generated file to `test-fixtures/godot-video-smoke/sample.ogv`, then run:
 
@@ -86,9 +96,17 @@ The smoke test succeeds only when Godot loads the file as `VideoStreamTheora` an
 
 - Local mode uses a local SQLite project database and local object files.
 - Remote mode requires a remote database plus Qiniu Kodo.
-- Local to remote migration is supported. Remote to local migration is not supported in the first version.
-- Project, character, storyboard, asset, and asset group deletion is hard delete.
-- Remote asset reads go through the project asset manager and cache. List views should not eagerly download full resources.
+- Local-to-remote migration is supported; remote-to-local migration is not.
+- Project, character, storyboard, asset, and asset-group deletion is permanent.
+- Remote full-resource reads go through the project asset manager and fingerprint cache.
+
+## Third-Party Software
+
+The app's **About** dialog lists the major desktop/media runtimes, AI models and services, direct application libraries, and build tools used by this project. Each entry includes its purpose, project page, and applicable license links. The complete npm dependency graph remains available through `package.json`, `package-lock.json`, and the packages' own metadata.
+
+Code licenses and model-weight licenses are not interchangeable. In particular, Stable Audio 3 inference code is MIT licensed, while its model weights use the Stability AI Community License and may include additional Gemma terms. Review the linked terms before downloading or distributing model assets.
+
+The bundled video runtime is a pinned LGPL shared FFmpeg build. Software licenses do not settle every codec patent question: anyone distributing or commercially using H.265/HEVC or other patent-encumbered codecs must evaluate licensing obligations for their own product and jurisdictions. Game Design Tools does not output H.265 in its Godot OGV workflow.
 
 ## Local Development
 
@@ -105,17 +123,9 @@ npm run desktop:dev
 npm run desktop:build:win
 ```
 
-Artifacts are written to:
-
-```text
-../game-design-tools-windows-x64
-```
-
-Local packaging is mainly useful for diagnostics. Public releases should be built by GitHub Actions.
+Artifacts are written to `../game-design-tools-windows-x64`. Local packaging is diagnostic; public releases should be built by GitHub Actions.
 
 ## Release Process
-
-Preferred release flow:
 
 ```powershell
 npm test
@@ -128,30 +138,23 @@ gh workflow run windows-release.yml --repo jiawen-afk/game-design-tools --ref ma
 gh run watch <run-id> --repo jiawen-afk/game-design-tools --exit-status
 ```
 
-After the workflow succeeds, verify:
-
-```powershell
-gh release view vX.Y.Z --repo jiawen-afk/game-design-tools
-gh release view windows-x64-latest --repo jiawen-afk/game-design-tools
-(Invoke-RestMethod "https://github.com/jiawen-afk/game-design-tools/releases/download/windows-x64-latest/latest.yml") -split "`n" | Select-Object -First 12
-```
-
-`latest.yml` must point to the published version.
+After the workflow succeeds, verify the versioned Release, `windows-x64-latest`, and its `latest.yml` updater metadata.
 
 ## Project Structure
 
-- `src/components/MultiFrameSpriteWorkspace`: sprite sheet, video frame, matte, layout, playback, batch upscale preview, and export workflows
-- `src/components/ImageProcessingWorkspace`: single-image cleanup, crop, matte, upscale, and export workflows
-- `src/components/VideoProcessingWorkspace`: batch video resize, Upscayl GPU preview, Theora compression, serial queue, and Godot OGV export workflow
-- `src/components/VoiceDeploymentWorkspace`: VoxCPM setup, service control, voice generation, history, and project collection workflows
-- `src/components/PersonalSpaceWorkspace`: project space UI, project management, characters, storyboards, materials, settings, remote sync status, and project data orchestration
-- `src/components/ProjectStorage`: project database models, local and remote repositories, object storage, migration, asset cache, and project asset manager
-- `electron`: desktop shell, IPC handlers, local SQLite bridge, remote database bridge, Qiniu Kodo bridge, and hardened preload bridge
-- `scripts`: Windows VoxCPM deployment and service scripts
+- `src/components/MultiFrameSpriteWorkspace`: sprite upload, video frames, matte, layout, playback, batch upscale, and export
+- `src/components/ImageProcessingWorkspace`: batch image cleanup, crop, matte, upscale, preview, and export
+- `src/components/VideoProcessingWorkspace`: video resize, GPU super-resolution, compression, serial queue, output-directory persistence, verification, and OGV export
+- `src/components/VoiceDeploymentWorkspace`: VoxCPM, audio editing, Stable Audio 3, history, and project collection
+- `src/components/DocumentWorkspace`: project document collection, graph import, browsing, filtering, search, and node actions
+- `src/components/PersonalSpaceWorkspace`: project space UI, project management, assets, settings, and remote sync state
+- `src/components/ProjectStorage`: local/remote repositories, object storage, migration, asset cache, and document persistence
+- `electron`: desktop shell, IPC handlers, runtimes, local SQLite, remote databases, Qiniu Kodo, and hardened preload bridge
+- `scripts`: Windows deployment/service scripts for VoxCPM, BiRefNet, Stable Audio 3, and image encoders
 
 ## Verification
 
-Before publishing or claiming a change is complete, run:
+Before publishing or claiming completion, run:
 
 ```powershell
 npm test
