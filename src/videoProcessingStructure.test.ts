@@ -83,6 +83,10 @@ test('video queue pauses after a drained batch and selects the first newly impor
   assert.match(queueSource, /let firstImportedJobId: string \| null = null/)
   assert.match(
     queueSource,
+    /const files = await videoProcessingService\.chooseVideoFiles\(\)\s+if \(files\.length > 0\) setPaused\(true\)\s+let firstImportedJobId/,
+  )
+  assert.match(
+    queueSource,
     /if \(!firstImportedJobId\) \{\s+firstImportedJobId = id\s+setSelectedJobId\(id\)\s+\}/,
   )
   assert.doesNotMatch(queueSource, /setSelectedJobId\(\(current\) => current \?\? id\)/)

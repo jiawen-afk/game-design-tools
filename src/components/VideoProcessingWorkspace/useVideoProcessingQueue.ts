@@ -123,6 +123,7 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
     setImporting(true)
     try {
       const files = await videoProcessingService.chooseVideoFiles()
+      if (files.length > 0) setPaused(true)
       let firstImportedJobId: string | null = null
       for (const file of files) {
         const id = createJobId()
