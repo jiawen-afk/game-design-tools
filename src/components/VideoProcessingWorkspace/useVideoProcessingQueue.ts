@@ -16,6 +16,7 @@ import {
   getNextQueuedVideoJob,
   getVideoQueueValidationFailures,
   hasPendingOrActiveVideoJobs,
+  shouldAutoPauseVideoQueue,
   updateVideoQueueJob,
 } from './videoProcessingQueueModel'
 import { videoProcessingService } from './videoProcessingService'
@@ -112,17 +113,27 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
     }
   }, [])
 
+  useEffect(() => {
+    if (shouldAutoPauseVideoQueue(jobs, paused, activeJobId, runningRef.current)) {
+      setPaused(true)
+    }
+  }, [activeJobId, jobs, paused])
+
   const importVideos = useCallback(async () => {
     setImporting(true)
     try {
       const files = await videoProcessingService.chooseVideoFiles()
+      let firstImportedJobId: string | null = null
       for (const file of files) {
         const id = createJobId()
+        if (!firstImportedJobId) {
+          firstImportedJobId = id
+          setSelectedJobId(id)
+        }
         const placeholder = queuedJob(id, fallbackProbe(file))
         placeholder.phase = 'probing'
         placeholder.message = '正在读取视频信息'
         setJobs((current) => [...current, placeholder])
-        setSelectedJobId((current) => current ?? id)
         try {
           const probe = await videoProcessingService.probeVideoFile(file.path)
           setJobs((current) => current.map((job) => job.id === id ? queuedJob(id, probe) : job))

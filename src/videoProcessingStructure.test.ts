@@ -69,6 +69,25 @@ test('video workspace restores only its remembered output directory without rend
   assert.doesNotMatch([serviceSource, queueSource].join('\n'), /localStorage/)
 })
 
+test('video queue pauses after a drained batch and selects the first newly imported job', () => {
+  const queueSource = readFileSync(
+    'src/components/VideoProcessingWorkspace/useVideoProcessingQueue.ts',
+    'utf8',
+  )
+
+  assert.match(queueSource, /shouldAutoPauseVideoQueue/)
+  assert.match(
+    queueSource,
+    /shouldAutoPauseVideoQueue\(jobs, paused, activeJobId, runningRef\.current\)[\s\S]*setPaused\(true\)/,
+  )
+  assert.match(queueSource, /let firstImportedJobId: string \| null = null/)
+  assert.match(
+    queueSource,
+    /if \(!firstImportedJobId\) \{\s+firstImportedJobId = id\s+setSelectedJobId\(id\)\s+\}/,
+  )
+  assert.doesNotMatch(queueSource, /setSelectedJobId\(\(current\) => current \?\? id\)/)
+})
+
 test('video workspace composes focused panels and a registered exit guard', () => {
   const base = 'src/components/VideoProcessingWorkspace'
   const expectedFiles = [
