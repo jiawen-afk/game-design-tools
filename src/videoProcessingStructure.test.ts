@@ -62,7 +62,10 @@ test('video workspace restores only its remembered output directory without rend
   assert.match(queueSource, /mounted && directory/)
   assert.match(queueSource, /selectionId === outputDirectorySelectionIdRef\.current/)
   assert.match(queueSource, /mounted = false/)
-  assert.match(queueSource, /outputDirectorySelectionIdRef\.current \+= 1/)
+  assert.match(
+    queueSource,
+    /const directory = await videoProcessingService\.chooseVideoOutputDirectory\(\)\s+if \(directory\) \{\s+outputDirectorySelectionIdRef\.current \+= 1\s+setOutputDirectory\(directory\)/,
+  )
   assert.doesNotMatch([serviceSource, queueSource].join('\n'), /localStorage/)
 })
 

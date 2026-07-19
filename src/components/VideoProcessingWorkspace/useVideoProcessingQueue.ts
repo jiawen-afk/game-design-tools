@@ -138,10 +138,12 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
   }, [])
 
   const chooseOutputDirectory = useCallback(async () => {
-    outputDirectorySelectionIdRef.current += 1
     try {
       const directory = await videoProcessingService.chooseVideoOutputDirectory()
-      if (directory) setOutputDirectory(directory)
+      if (directory) {
+        outputDirectorySelectionIdRef.current += 1
+        setOutputDirectory(directory)
+      }
       return directory
     } catch (error) {
       message.error(`选择输出目录失败：${String(error)}`)
