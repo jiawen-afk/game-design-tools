@@ -7,6 +7,7 @@ import {
   getNextQueuedVideoJob,
   getVideoQueueValidationFailures,
   hasPendingOrActiveVideoJobs,
+  shouldAutoPauseVideoQueue,
   updateVideoQueueJob,
 } from './videoProcessingQueueModel'
 import {
@@ -119,4 +120,21 @@ test('detects work that must be canceled before leaving the workspace', () => {
   assert.equal(hasPendingOrActiveVideoJobs([videoJob('queued', 'queued')]), true)
   assert.equal(hasPendingOrActiveVideoJobs([videoJob('running', 'encoding')]), true)
   assert.equal(hasPendingOrActiveVideoJobs([videoJob('done', 'completed'), videoJob('failed', 'failed')]), false)
+})
+
+test('auto pauses a running video queue after every job becomes terminal', () => {
+  for (const phase of ['completed', 'failed', 'canceled'] as const) {
+    assert.equal(shouldAutoPauseVideoQueue([videoJob('a', phase)], false, null, null), true)
+  }
+})
+
+test('does not auto pause while video queue work remains active', () => {
+  assert.equal(shouldAutoPauseVideoQueue([videoJob('a', 'queued')], false, null, null), false)
+  assert.equal(shouldAutoPauseVideoQueue([videoJob('a', 'completed')], false, 'a', null), false)
+  assert.equal(shouldAutoPauseVideoQueue([videoJob('a', 'completed')], false, null, 'a'), false)
+})
+
+test('does not auto pause an empty or already paused video queue', () => {
+  assert.equal(shouldAutoPauseVideoQueue([], false, null, null), false)
+  assert.equal(shouldAutoPauseVideoQueue([videoJob('a', 'completed')], true, null, null), false)
 })

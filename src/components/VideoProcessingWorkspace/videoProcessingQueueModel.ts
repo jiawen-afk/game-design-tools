@@ -76,3 +76,16 @@ export function createRetryVideoJob(job: VideoProcessingJob, nextId: string) {
 export function hasPendingOrActiveVideoJobs(jobs: VideoProcessingJob[]) {
   return jobs.some((job) => job.phase === 'queued' || activePhases.has(job.phase))
 }
+
+export function shouldAutoPauseVideoQueue(
+  jobs: VideoProcessingJob[],
+  paused: boolean,
+  activeJobId: string | null,
+  runningJobId: string | null,
+) {
+  return jobs.length > 0
+    && !paused
+    && !activeJobId
+    && !runningJobId
+    && !hasPendingOrActiveVideoJobs(jobs)
+}
