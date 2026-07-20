@@ -322,7 +322,14 @@ function createVideoProcessingJobManager(inputDependencies) {
   }
 
   async function runConventionalPipeline(job, runtime, temporaryOutputPath) {
-    return encodeOutput(job, runtime, { inputPath: job.options.inputPath }, temporaryOutputPath)
+    const videoInput = {
+      inputPath: job.options.inputPath,
+      outputDurationSeconds: job.options.probe.videoDurationSeconds || job.options.probe.durationSeconds,
+    }
+    return {
+      bitrateKbps: await encodeOutput(job, runtime, videoInput, temporaryOutputPath),
+      videoInput,
+    }
   }
 
   async function collectSourceFrames(sourceDir) {
@@ -410,10 +417,15 @@ function createVideoProcessingJobManager(inputDependencies) {
       emit(job.id, 'upscaling', 100, `已完成批量 GPU 超分：${sourceFrames.length}/${sourceFrames.length}`, sourceFrames.length, sourceFrames.length)
     }
 
-    return encodeOutput(job, runtime, {
+    const videoInput = {
       framePattern: framePaths.upscaledPattern,
       audioInputPath: options.inputPath,
-    }, temporaryOutputPath)
+      outputDurationSeconds: sourceFrames.length / options.settings.targetFps,
+    }
+    return {
+      bitrateKbps: await encodeOutput(job, runtime, videoInput, temporaryOutputPath),
+      videoInput,
+    }
   }
 
   async function retryTargetSizeIfNeeded(job, runtime, videoInput, temporaryOutputPath, bitrateKbps) {
@@ -483,19 +495,19 @@ function createVideoProcessingJobManager(inputDependencies) {
       const temporaryOutputPath = path.join(tempDir, 'output.ogv')
       const scale = getUpscaleScale(options.settings.percent)
       await preflightStorage(job, scale)
-      let initialBitrate = null
-      if (scale) {
-        initialBitrate = await runAiPipeline(job, runtime, temporaryOutputPath)
-      } else {
-        initialBitrate = await runConventionalPipeline(job, runtime, temporaryOutputPath)
-      }
+      const pipelineResult = scale
+        ? await runAiPipeline(job, runtime, temporaryOutputPath)
+        : await runConventionalPipeline(job, runtime, temporaryOutputPath)
       if (!fs.existsSync(temporaryOutputPath)) throw new Error('视频编码完成，但没有生成 OGV 输出。')
 
-      const videoInput = scale
-        ? { framePattern: resolveAiFramePaths(tempDir).upscaledPattern, audioInputPath: options.inputPath }
-        : { inputPath: options.inputPath }
       if (options.settings.qualityMode === 'target-size') {
-        await retryTargetSizeIfNeeded(job, runtime, videoInput, temporaryOutputPath, initialBitrate)
+        await retryTargetSizeIfNeeded(
+          job,
+          runtime,
+          pipelineResult.videoInput,
+          temporaryOutputPath,
+          pipelineResult.bitrateKbps,
+        )
       }
 
       emit(id, 'verifying', 0, '正在验证 Godot OGV 输出。')

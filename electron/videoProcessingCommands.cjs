@@ -132,6 +132,10 @@ function buildTheoraEncodeArgs(options) {
   } else {
     args.push('-c:a', 'libvorbis', '-b:a', `${Number(options.audioKbps || 96)}k`, '-ac', '2', '-f', 'ogg')
   }
+  const outputDurationSeconds = Number(options.outputDurationSeconds)
+  if (Number.isFinite(outputDurationSeconds) && outputDurationSeconds > 0) {
+    args.push('-t', formatNumber(outputDurationSeconds))
+  }
   args.push('-progress', 'pipe:1', '-nostats', String(options.outputPath))
   return args
 }

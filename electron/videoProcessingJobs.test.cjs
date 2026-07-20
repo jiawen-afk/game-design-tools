@@ -168,6 +168,11 @@ test('conventional job encodes, verifies, moves output, and cleans temp files', 
   assert.equal(fs.existsSync(result.outputPath), true)
   assert.equal(path.basename(result.outputPath), 'intro_50pct_balanced.ogv')
   assert.equal(calls[0].command, 'D:\\runtime\\ffmpeg.exe')
+  const conventionalEncode = calls.find((call) => call.args.at(-1).endsWith('.ogv'))
+  assert.deepEqual(
+    conventionalEncode.args.slice(conventionalEncode.args.indexOf('-t'), conventionalEncode.args.indexOf('-t') + 2),
+    ['-t', '2'],
+  )
   assert.equal(phases.includes('encoding'), true)
   assert.deepEqual(phases.slice(-2), ['verifying', 'completed'])
   assert.equal(fs.existsSync(resolveVideoProcessingTempRoot(fakeApp(root))), false)
@@ -334,16 +339,23 @@ test('AI job keeps the GPU model loaded by upscaling the frame directory in one 
   assert.equal(upscaleCalls[0].args[upscaleCalls[0].args.indexOf('-j') + 1], '2:2:2')
   assert.equal(upscaleCalls[0].maxOutputChars, 65_536)
   assert.ok(progress.some((event) => event.phase === 'upscaling' && event.completed === 2 && event.total === 2))
-  assert.equal(calls.at(-1).args.includes('D:\\media\\intro.mp4'), true)
+  const aiEncode = calls.find((call) => call.args.at(-1).endsWith('.ogv'))
+  assert.equal(aiEncode.args.includes('D:\\media\\intro.mp4'), true)
+  assert.deepEqual(
+    aiEncode.args.slice(aiEncode.args.indexOf('-t'), aiEncode.args.indexOf('-t') + 2),
+    ['-t', '1'],
+  )
 }))
 
 test('target-size job retries once when the first output exceeds the size ceiling', () => withTempManager(async (root) => {
   let passTwoCount = 0
+  const passTwoArgs = []
   const dependencies = managerDependencies(root, {
     runProcess: async ({ args }) => {
       const outputPath = args.at(-1)
       if (args.includes('-pass') && args[args.indexOf('-pass') + 1] === '2') {
         passTwoCount += 1
+        passTwoArgs.push(args)
         await fsp.mkdir(path.dirname(outputPath), { recursive: true })
         await fsp.writeFile(outputPath, Buffer.alloc(passTwoCount === 1 ? 1_100_000 : 900_000))
       }
@@ -358,6 +370,9 @@ test('target-size job retries once when the first output exceeds the size ceilin
   }))
 
   assert.equal(passTwoCount, 2)
+  for (const args of passTwoArgs) {
+    assert.deepEqual(args.slice(args.indexOf('-t'), args.indexOf('-t') + 2), ['-t', '2'])
+  }
   assert.equal(result.outputSize, 900_000)
 }))
 

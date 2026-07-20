@@ -103,6 +103,7 @@ test('standard OGV encode uses Theora, yuv420p, Lanczos, and Vorbis', () => {
     width: 1280,
     height: 720,
     fps: 30,
+    outputDurationSeconds: 15.016667,
     quality: 6,
     muted: false,
     audioKbps: 96,
@@ -113,6 +114,8 @@ test('standard OGV encode uses Theora, yuv420p, Lanczos, and Vorbis', () => {
   assert.ok(args.includes('scale=1280:720:flags=lanczos,fps=30'))
   assert.ok(args.includes('libvorbis'))
   assert.ok(args.includes('96k'))
+  assert.deepEqual(args.slice(args.indexOf('-t'), args.indexOf('-t') + 2), ['-t', '15.017'])
+  assert.equal(args.includes('-shortest'), false)
   assert.equal(args.at(-1), 'D:\\输出\\intro.ogv')
 })
 
@@ -124,6 +127,7 @@ test('AI frame encode maps frame video and original audio inputs', () => {
     width: 2880,
     height: 1620,
     fps: 24,
+    outputDurationSeconds: 15.016667,
     quality: 8,
     muted: false,
     audioKbps: 128,
@@ -133,6 +137,8 @@ test('AI frame encode maps frame video and original audio inputs', () => {
   ])
   assert.ok(args.includes('0:v:0'))
   assert.ok(args.includes('1:a:0?'))
+  assert.deepEqual(args.slice(args.indexOf('-t'), args.indexOf('-t') + 2), ['-t', '15.017'])
+  assert.equal(args.includes('-shortest'), false)
 })
 
 test('target-size pass one disables audio and writes null output', () => {
@@ -142,6 +148,7 @@ test('target-size pass one disables audio and writes null output', () => {
     width: 1280,
     height: 720,
     fps: 30,
+    outputDurationSeconds: 15.016667,
     videoBitrateKbps: 800,
     pass: 1,
     passlogPath: 'D:\\temp\\theora-pass',
@@ -151,6 +158,7 @@ test('target-size pass one disables audio and writes null output', () => {
   assert.ok(args.includes('800k'))
   assert.ok(args.includes('-an'))
   assert.ok(args.includes('null'))
+  assert.deepEqual(args.slice(args.indexOf('-t'), args.indexOf('-t') + 2), ['-t', '15.017'])
   assert.equal(args.at(-1), 'NUL')
 })
 
