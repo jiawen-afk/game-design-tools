@@ -200,6 +200,31 @@ function verifyGodotOgvProbe(payload, expected) {
   const unsupportedStreams = streams.filter((stream) => !['video', 'audio'].includes(stream?.codec_type))
   if (unsupportedStreams.length > 0) throw new Error('输出包含 Godot 视频不需要的额外媒体流。')
 
+  const declaredVideoDuration = Number(video.duration || 0)
+  const frameCount = Number(video.nb_frames || 0)
+  const videoDurationSeconds = declaredVideoDuration > 0
+    ? declaredVideoDuration
+    : frameCount > 0 && fps > 0
+      ? frameCount / fps
+      : 0
+  const audioDurationSeconds = audioStreams.reduce((maximum, stream) => {
+    const duration = Number(stream.duration || 0)
+    return Number.isFinite(duration) && duration > maximum ? duration : maximum
+  }, 0)
+  const rawContainerDuration = Number(payload?.format?.duration || 0)
+  const containerDurationSeconds = Number.isFinite(rawContainerDuration) && rawContainerDuration > 0
+    ? rawContainerDuration
+    : 0
+  const tailDurationSeconds = Math.max(audioDurationSeconds, containerDurationSeconds) - videoDurationSeconds
+  const tailToleranceSeconds = Math.max(0.05, 1 / fps + 0.01)
+  if (videoDurationSeconds > 0 && tailDurationSeconds > tailToleranceSeconds) {
+    throw new Error(
+      `输出音频或容器尾部超过视频：视频=${roundTo(videoDurationSeconds, 6)} 秒，` +
+      `音频=${roundTo(audioDurationSeconds, 6)} 秒，容器=${roundTo(containerDurationSeconds, 6)} 秒，` +
+      `尾部=${roundTo(tailDurationSeconds, 6)} 秒，允许=${roundTo(tailToleranceSeconds, 6)} 秒。`,
+    )
+  }
+
   return {
     container: 'ogg',
     videoCodec: 'theora',
@@ -208,6 +233,7 @@ function verifyGodotOgvProbe(payload, expected) {
     height: Number(video.height),
     fps,
     audioCodec: audioStreams[0]?.codec_name || '',
+    videoDurationSeconds,
     durationSeconds: Number(payload?.format?.duration || 0),
     size: Number(payload?.format?.size || 0),
   }

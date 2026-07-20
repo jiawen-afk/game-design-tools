@@ -187,6 +187,66 @@ test('Godot verifier accepts exact Ogg Theora Vorbis output', () => {
   assert.equal(result.audioCodec, 'vorbis')
 })
 
+test('Godot verifier rejects the observed Vorbis and container tail beyond the video stream', () => {
+  assert.throws(() => verifyGodotOgvProbe({
+    format: { format_name: 'ogg', duration: '15.069751', size: '11755213' },
+    streams: [
+      {
+        codec_type: 'video',
+        codec_name: 'theora',
+        pix_fmt: 'yuv420p',
+        width: 960,
+        height: 540,
+        r_frame_rate: '30033/1000',
+        avg_frame_rate: '30/1',
+        duration: '15.016815',
+        nb_frames: '451',
+      },
+      { codec_type: 'audio', codec_name: 'vorbis', duration: '15.069751' },
+    ],
+  }, { width: 960, height: 540, fps: 30.033, muted: false }), /音频或容器尾部超过视频/)
+})
+
+test('Godot verifier accepts packet rounding within the trailing duration tolerance', () => {
+  const result = verifyGodotOgvProbe({
+    format: { format_name: 'ogg', duration: '10.04', size: '1000' },
+    streams: [
+      {
+        codec_type: 'video',
+        codec_name: 'theora',
+        pix_fmt: 'yuv420p',
+        width: 1280,
+        height: 720,
+        r_frame_rate: '30/1',
+        avg_frame_rate: '30/1',
+        duration: '10',
+        nb_frames: '300',
+      },
+      { codec_type: 'audio', codec_name: 'vorbis', duration: '10.04' },
+    ],
+  }, { width: 1280, height: 720, fps: 30, muted: false })
+
+  assert.equal(result.videoDurationSeconds, 10)
+})
+
+test('Godot verifier does not infer a trailing tail without reliable video duration metadata', () => {
+  assert.doesNotThrow(() => verifyGodotOgvProbe({
+    format: { format_name: 'ogg', duration: '15.07', size: '1000' },
+    streams: [
+      {
+        codec_type: 'video',
+        codec_name: 'theora',
+        pix_fmt: 'yuv420p',
+        width: 1280,
+        height: 720,
+        r_frame_rate: '30/1',
+        avg_frame_rate: '30/1',
+      },
+      { codec_type: 'audio', codec_name: 'vorbis', duration: '15.07' },
+    ],
+  }, { width: 1280, height: 720, fps: 30, muted: false }))
+})
+
 test('Godot verifier uses declared CFR when statistical average drifts', () => {
   const cases = [
     { target: 29.94, declared: '1497/50', average: '359/12' },
