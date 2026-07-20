@@ -33,11 +33,22 @@ function mapProbeResult(payload, filePath) {
   const audio = streams.find((stream) => stream?.codec_type === 'audio')
   const durationSeconds = Number(payload?.format?.duration || video.duration || 0)
   const averageFps = parseRational(video.avg_frame_rate) || parseRational(video.r_frame_rate)
+  const streamDurationSeconds = Number(video.duration || 0)
+  const frameCount = Number(video.nb_frames || 0)
+  const derivedFrameDuration = frameCount > 0 && averageFps > 0 ? frameCount / averageFps : 0
+  const videoDurationSeconds = streamDurationSeconds > 0
+    ? streamDurationSeconds
+    : derivedFrameDuration > 0
+      ? roundTo(derivedFrameDuration, 6)
+      : durationSeconds
   return {
     path: String(filePath),
     name: path.basename(String(filePath)),
     size: Math.max(0, Number(payload?.format?.size || 0)),
-    durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : 0,
+    durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : 0,
+    videoDurationSeconds: Number.isFinite(videoDurationSeconds) && videoDurationSeconds > 0
+      ? videoDurationSeconds
+      : 0,
     width: Math.max(0, Number(video.width || 0)),
     height: Math.max(0, Number(video.height || 0)),
     averageFps,

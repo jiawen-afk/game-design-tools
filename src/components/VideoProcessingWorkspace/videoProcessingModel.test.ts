@@ -24,6 +24,7 @@ const probe: VideoMediaProbe = {
   name: 'boss-intro.mp4',
   size: 24 * 1024 * 1024,
   durationSeconds: 60,
+  videoDurationSeconds: 60,
   width: 1920,
   height: 1080,
   averageFps: 30,

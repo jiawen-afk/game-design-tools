@@ -36,6 +36,7 @@ function fallbackProbe(file: { name: string; path: string; size: number }): Vide
     name: file.name,
     size: file.size,
     durationSeconds: 0,
+    videoDurationSeconds: 0,
     width: 2,
     height: 2,
     averageFps: 1,

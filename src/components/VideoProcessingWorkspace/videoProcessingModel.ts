@@ -21,6 +21,7 @@ export interface VideoMediaProbe {
   name: string
   size: number
   durationSeconds: number
+  videoDurationSeconds: number
   width: number
   height: number
   averageFps: number

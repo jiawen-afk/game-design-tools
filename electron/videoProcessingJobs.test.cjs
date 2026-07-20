@@ -23,6 +23,7 @@ function sourceProbe(overrides = {}) {
     name: 'intro.mp4',
     size: 10_000_000,
     durationSeconds: 2,
+    videoDurationSeconds: 2,
     width: 640,
     height: 360,
     averageFps: 2,

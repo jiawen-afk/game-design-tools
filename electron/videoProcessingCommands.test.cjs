@@ -30,10 +30,19 @@ test('builds a JSON FFprobe command without shell interpolation', () => {
 
 test('maps the first video and audio streams into renderer metadata', () => {
   const result = mapProbeResult({
-    format: { duration: '12.5', size: '1000000' },
+    format: { duration: '15.070000', size: '1000000' },
     streams: [
-      { codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080, pix_fmt: 'yuv420p', avg_frame_rate: '30000/1001' },
-      { codec_type: 'audio', codec_name: 'aac', channels: 2, sample_rate: '48000' },
+      {
+        codec_type: 'video',
+        codec_name: 'h264',
+        width: 1920,
+        height: 1080,
+        pix_fmt: 'yuv420p',
+        avg_frame_rate: '27060/901',
+        duration: '15.016667',
+        nb_frames: '451',
+      },
+      { codec_type: 'audio', codec_name: 'aac', duration: '15.070000', channels: 2, sample_rate: '44100' },
     ],
   }, 'D:\\视频素材\\intro clip.mp4')
 
@@ -41,17 +50,34 @@ test('maps the first video and audio streams into renderer metadata', () => {
     path: 'D:\\视频素材\\intro clip.mp4',
     name: 'intro clip.mp4',
     size: 1000000,
-    durationSeconds: 12.5,
+    durationSeconds: 15.07,
+    videoDurationSeconds: 15.016667,
     width: 1920,
     height: 1080,
-    averageFps: 29.97,
+    averageFps: 30.033,
     videoCodec: 'h264',
     pixelFormat: 'yuv420p',
     hasAudio: true,
     audioCodec: 'aac',
     audioChannels: 2,
-    audioSampleRate: 48000,
+    audioSampleRate: 44100,
   })
+})
+
+test('derives video duration from frame count when the stream duration is absent', () => {
+  const result = mapProbeResult({
+    format: { duration: '15.07', size: '1' },
+    streams: [{
+      codec_type: 'video',
+      codec_name: 'h264',
+      width: 640,
+      height: 360,
+      avg_frame_rate: '30/1',
+      nb_frames: '451',
+    }],
+  }, 'D:\\media\\fallback.mp4')
+
+  assert.equal(result.videoDurationSeconds, 15.033333)
 })
 
 test('builds frame extraction at target FPS before AI upscaling', () => {
