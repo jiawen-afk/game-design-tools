@@ -6,7 +6,7 @@ Game Design Tools is a Windows desktop workbench for producing and managing game
 
 ## Current Version
 
-- Latest published version: `0.7.0`
+- Latest published version: `0.7.1`
 - Windows x64 packages are published through GitHub Releases.
 - The stable auto-update channel is the `windows-x64-latest` Release.
 

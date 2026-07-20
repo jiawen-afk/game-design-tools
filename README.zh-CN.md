@@ -6,7 +6,7 @@
 
 ## 当前版本
 
-- 最新发布版本：`0.7.0`
+- 最新发布版本：`0.7.1`
 - Windows x64 安装包通过 GitHub Releases 发布。
 - 稳定自动更新通道使用 `windows-x64-latest` Release。
 
