@@ -18,6 +18,10 @@ import {
   type VideoMediaProbe,
   type VideoProcessingJob,
 } from './videoProcessingModel'
+import {
+  VIDEO_OUTPUT_FORMATS,
+  getVideoOutputFormatDefinition,
+} from './videoProcessingOutputFormatModel'
 
 const probe: VideoMediaProbe = {
   path: 'D:\\media\\boss-intro.mp4',
@@ -94,14 +98,18 @@ test('rejects target sizes that leave less than 128 kbps for video', () => {
   }), /目标文件大小过小/)
 })
 
-test('builds safe descriptive OGV names and collision suffixes', () => {
+test('builds safe descriptive output names for every supported format', () => {
   assert.equal(
-    buildVideoOutputName('boss:intro.mp4', 150, { mode: 'quality', preset: 'balanced' }),
+    buildVideoOutputName('boss:intro.mp4', 150, { mode: 'quality', preset: 'balanced' }, 'ogv'),
     'boss_intro_150pct_balanced.ogv',
   )
   assert.equal(
-    buildVideoOutputName('intro.mov', 50, { mode: 'target-size', targetMb: 8.5 }),
-    'intro_50pct_target-8.5mb.ogv',
+    buildVideoOutputName('intro.mov', 50, { mode: 'target-size', targetMb: 8.5 }, 'webm'),
+    'intro_50pct_target-8.5mb.webm',
+  )
+  assert.equal(
+    buildVideoOutputName('intro.mkv', 100, { mode: 'quality', preset: 'high' }, 'mp4'),
+    'intro_100pct_high.mp4',
   )
   assert.equal(
     resolveCollisionFreeOutputName('intro_50pct_balanced.ogv', new Set([
@@ -110,6 +118,23 @@ test('builds safe descriptive OGV names and collision suffixes', () => {
     ])),
     'intro_50pct_balanced-3.ogv',
   )
+})
+
+test('describes OGV, WebM, and MP4 with format-specific codecs and compatibility', () => {
+  assert.deepEqual(VIDEO_OUTPUT_FORMATS.map((item) => item.format), ['ogv', 'webm', 'mp4'])
+  assert.deepEqual(getVideoOutputFormatDefinition('ogv'), {
+    format: 'ogv',
+    extension: 'ogv',
+    label: 'OGV',
+    videoCodec: 'Theora',
+    audioCodec: 'Vorbis',
+    compressionLabel: 'Theora',
+    supportsTwoPassTargetSize: true,
+    compatibility: 'Godot 4.6 原生推荐，可直接用于 VideoStreamPlayer。',
+    patentNotice: '',
+  })
+  assert.equal(getVideoOutputFormatDefinition('webm').audioCodec, 'Opus')
+  assert.match(getVideoOutputFormatDefinition('mp4').patentNotice, /H\.264.*授权/)
 })
 
 test('converts Windows and UNC media paths to encoded local file URLs', () => {
@@ -130,11 +155,12 @@ test('resolves each completed output parent directory independently', () => {
 
 test('defaults preserve source FPS and audio while using balanced quality', () => {
   const settings = defaultVideoProcessingSettings(probe)
+  assert.equal(settings.outputFormat, 'ogv')
   assert.equal(settings.percent, 100)
   assert.equal(settings.width, 1920)
   assert.equal(settings.height, 1080)
   assert.equal(settings.targetFps, 30)
-  assert.equal(settings.audioMode, 'vorbis')
+  assert.equal(settings.audioMode, 'keep')
   assert.equal(settings.audioKbps, 96)
   assert.equal(settings.qualityPreset, 'balanced')
 })

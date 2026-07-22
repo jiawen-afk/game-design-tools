@@ -31,6 +31,7 @@ const standardLicenses = {
   agpl3Only: { name: 'AGPL-3.0-only', url: 'https://spdx.org/licenses/AGPL-3.0-only.html' },
   apache2: { name: 'Apache-2.0', url: 'https://spdx.org/licenses/Apache-2.0.html' },
   bsd3: { name: 'BSD-3-Clause', url: 'https://spdx.org/licenses/BSD-3-Clause.html' },
+  bsd2: { name: 'BSD-2-Clause', url: 'https://spdx.org/licenses/BSD-2-Clause.html' },
   lgpl21OrLater: { name: 'LGPL-2.1-or-later', url: 'https://spdx.org/licenses/LGPL-2.1-or-later.html' },
   mit: { name: 'MIT', url: 'https://spdx.org/licenses/MIT.html' },
 } satisfies Record<string, OpenSourceLicense>
@@ -60,9 +61,30 @@ export const openSourceSoftware: OpenSourceSoftwareItem[] = [
   {
     category: 'desktop-media',
     name: 'FFmpeg / FFprobe',
-    usage: '固定 LGPL shared 构建，用于媒体探测、转码、Theora/Vorbis OGV 输出与压缩',
+    usage: '固定 LGPL shared 构建，用于媒体探测、转码，以及 OGV、WebM 与 MP4 输出',
     url: 'https://github.com/BtbN/FFmpeg-Builds',
     licenses: [standardLicenses.lgpl21OrLater],
+  },
+  {
+    category: 'desktop-media',
+    name: 'libvpx',
+    usage: 'WebM 的 VP9 视频编码',
+    url: 'https://chromium.googlesource.com/webm/libvpx/',
+    licenses: [standardLicenses.bsd3],
+  },
+  {
+    category: 'desktop-media',
+    name: 'Opus',
+    usage: 'WebM 的 Opus 音频编码',
+    url: 'https://opus-codec.org/',
+    licenses: [standardLicenses.bsd3],
+  },
+  {
+    category: 'desktop-media',
+    name: 'OpenH264',
+    usage: 'MP4 的 H.264 视频编码；使用者仍需独立评估适用的专利许可',
+    url: 'https://github.com/cisco/openh264',
+    licenses: [standardLicenses.bsd2],
   },
   {
     category: 'desktop-media',

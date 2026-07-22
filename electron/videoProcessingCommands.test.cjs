@@ -5,10 +5,13 @@ const {
   buildDecodeFramesArgs,
   buildProbeArgs,
   buildTheoraEncodeArgs,
+  buildVideoEncodeArgs,
+  getVideoOutputProfile,
   mapProbeResult,
   parseFfmpegProgress,
   parseRational,
   verifyGodotOgvProbe,
+  verifyVideoOutputProbe,
 } = require('./videoProcessingCommands.cjs')
 
 test('parses FFprobe rational frame rates safely', () => {
@@ -162,6 +165,57 @@ test('target-size pass one disables audio and writes null output', () => {
   assert.equal(args.at(-1), 'NUL')
 })
 
+test('output profiles define OGV, WebM, and MP4 codec contracts', () => {
+  assert.deepEqual(
+    ['ogv', 'webm', 'mp4'].map((format) => {
+      const profile = getVideoOutputProfile(format)
+      return [format, profile.extension, profile.videoCodec, profile.audioCodec]
+    }),
+    [
+      ['ogv', 'ogv', 'theora', 'vorbis'],
+      ['webm', 'webm', 'vp9', 'opus'],
+      ['mp4', 'mp4', 'h264', 'aac'],
+    ],
+  )
+  assert.throws(() => getVideoOutputProfile('avi'), /不支持的视频导出格式/)
+})
+
+test('WebM encode uses VP9 fixed quality and Opus audio', () => {
+  const args = buildVideoEncodeArgs({
+    outputFormat: 'webm',
+    inputPath: 'D:\\media\\intro.mp4',
+    outputPath: 'D:\\out\\intro.webm',
+    width: 1280,
+    height: 720,
+    fps: 30,
+    qualityPreset: 'balanced',
+    muted: false,
+    audioKbps: 96,
+  })
+  assert.ok(args.includes('libvpx-vp9'))
+  assert.deepEqual(args.slice(args.indexOf('-crf'), args.indexOf('-crf') + 2), ['-crf', '32'])
+  assert.ok(args.includes('libopus'))
+  assert.ok(args.includes('webm'))
+})
+
+test('MP4 encode uses OpenH264, AAC, and fast-start metadata', () => {
+  const args = buildVideoEncodeArgs({
+    outputFormat: 'mp4',
+    inputPath: 'D:\\media\\intro.mov',
+    outputPath: 'D:\\out\\intro.mp4',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    qualityPreset: 'high',
+    muted: false,
+    audioKbps: 128,
+  })
+  assert.ok(args.includes('libopenh264'))
+  assert.ok(args.includes('aac'))
+  assert.ok(args.includes('+faststart'))
+  assert.ok(args.includes('mp4'))
+})
+
 test('parses FFmpeg progress into a bounded percentage', () => {
   assert.deepEqual(parseFfmpegProgress('frame=30\nout_time_us=5000000\nprogress=continue\n', 10), {
     completedSeconds: 5,
@@ -185,6 +239,34 @@ test('Godot verifier accepts exact Ogg Theora Vorbis output', () => {
   }, { width: 1280, height: 720, fps: 30, muted: false })
   assert.equal(result.videoCodec, 'theora')
   assert.equal(result.audioCodec, 'vorbis')
+})
+
+test('generic verifier accepts WebM VP9 Opus and MP4 H.264 AAC outputs', () => {
+  const cases = [
+    {
+      outputFormat: 'webm',
+      formatName: 'matroska,webm',
+      videoCodec: 'vp9',
+      audioCodec: 'opus',
+    },
+    {
+      outputFormat: 'mp4',
+      formatName: 'mov,mp4,m4a,3gp,3g2,mj2',
+      videoCodec: 'h264',
+      audioCodec: 'aac',
+    },
+  ]
+  for (const item of cases) {
+    const result = verifyVideoOutputProbe({
+      format: { format_name: item.formatName, duration: '10', size: '1000' },
+      streams: [
+        { codec_type: 'video', codec_name: item.videoCodec, pix_fmt: 'yuv420p', width: 1280, height: 720, r_frame_rate: '30/1', duration: '10' },
+        { codec_type: 'audio', codec_name: item.audioCodec, duration: '10' },
+      ],
+    }, { outputFormat: item.outputFormat, width: 1280, height: 720, fps: 30, muted: false })
+    assert.equal(result.videoCodec, item.videoCodec)
+    assert.equal(result.audioCodec, item.audioCodec)
+  }
 })
 
 test('Godot verifier rejects the observed Vorbis and container tail beyond the video stream', () => {

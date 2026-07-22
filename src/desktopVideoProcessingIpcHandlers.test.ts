@@ -127,8 +127,8 @@ test('native start options use a fresh probe and reject unselected output paths'
     jobId: 'job-1', inputPath: nativeProbe.path, outputDirectory,
     outputName: 'intro.ogv', probe: { ...nativeProbe, width: 2, height: 2 },
     settings: {
-      percent: 50, width: 960, height: 540, qualityMode: 'quality', qualityPreset: 'balanced',
-      targetMb: null, targetFps: 24, audioMode: 'vorbis', audioKbps: 96,
+      outputFormat: 'ogv', percent: 50, width: 960, height: 540, qualityMode: 'quality', qualityPreset: 'balanced',
+      targetMb: null, targetFps: 24, audioMode: 'keep', audioKbps: 96,
       upscaylModel: 'upscayl-standard-4x', gpuId: 'auto', tileSize: 128,
       ttaMode: false, threadProfile: 'balanced',
     },
@@ -149,6 +149,10 @@ test('native start options use a fresh probe and reject unselected output paths'
     () => normalizeVideoStartOptions({ ...options, jobId: 'x\\..\\..\\victim' }, nativeProbe, new Set([outputDirectory])),
     /jobId 无效/,
   )
+  assert.throws(
+    () => normalizeVideoStartOptions({ ...options, settings: { ...options.settings, outputFormat: 'avi' } }, nativeProbe, new Set([outputDirectory])),
+    /不支持的视频导出格式/,
+  )
 })
 
 test('native preview options enforce settings bounds and clamp timestamp', () => {
@@ -160,8 +164,8 @@ test('native preview options enforce settings bounds and clamp timestamp', () =>
     audioCodec: 'aac', audioChannels: 2, audioSampleRate: 48000,
   }
   const settings = {
-    percent: 200, width: 3840, height: 2160, qualityMode: 'quality', qualityPreset: 'balanced',
-    targetMb: null, targetFps: 24, audioMode: 'vorbis', audioKbps: 96,
+    outputFormat: 'ogv', percent: 200, width: 3840, height: 2160, qualityMode: 'quality', qualityPreset: 'balanced',
+    targetMb: null, targetFps: 24, audioMode: 'keep', audioKbps: 96,
     upscaylModel: 'upscayl-standard-4x', gpuId: 'auto', tileSize: 128,
     ttaMode: false, threadProfile: 'balanced',
   }

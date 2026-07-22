@@ -1,6 +1,12 @@
+import {
+  getVideoOutputFormatDefinition,
+  isVideoOutputFormat,
+  type VideoOutputFormat,
+} from './videoProcessingOutputFormatModel'
+
 export type VideoQualityPreset = 'high' | 'balanced' | 'extreme'
 export type VideoQualityMode = 'quality' | 'target-size'
-export type VideoAudioMode = 'vorbis' | 'mute'
+export type VideoAudioMode = 'keep' | 'mute'
 export type VideoAudioBitrate = 64 | 96 | 128 | 160
 export type VideoJobPhase =
   | 'checking'
@@ -34,6 +40,7 @@ export interface VideoMediaProbe {
 }
 
 export interface VideoProcessingSettings {
+  outputFormat: VideoOutputFormat
   percent: number
   width: number
   height: number
@@ -172,13 +179,15 @@ export function buildVideoOutputName(
   sourceName: string,
   percent: number,
   mode: VideoOutputNamingMode,
+  outputFormat: VideoOutputFormat,
 ) {
   const baseName = safeFileNamePart(fileBaseName(sourceName))
   const scaleLabel = `${formatNumber(normalizePercent(percent))}pct`
   const compressionLabel = mode.mode === 'quality'
     ? mode.preset
     : `target-${formatNumber(mode.targetMb)}mb`
-  return `${baseName}_${scaleLabel}_${compressionLabel}.ogv`
+  const extension = getVideoOutputFormatDefinition(outputFormat).extension
+  return `${baseName}_${scaleLabel}_${compressionLabel}.${extension}`
 }
 
 export function resolveCollisionFreeOutputName(fileName: string, existingNames: Set<string>) {
@@ -214,11 +223,12 @@ export function defaultVideoProcessingSettings(probe: VideoMediaProbe): VideoPro
   const resize = deriveResizeFromPercent(probe.width, probe.height, 100)
   return {
     ...resize,
+    outputFormat: 'ogv',
     qualityMode: 'quality',
     qualityPreset: 'balanced',
     targetMb: null,
     targetFps: roundTo(clamp(probe.averageFps, 1, Math.max(1, probe.averageFps)), 3),
-    audioMode: probe.hasAudio ? 'vorbis' : 'mute',
+    audioMode: probe.hasAudio ? 'keep' : 'mute',
     audioKbps: 96,
     upscaylModel: 'upscayl-standard-4x',
     gpuId: 'auto',
@@ -234,6 +244,7 @@ export function validateVideoProcessingSettings(
   runtime: VideoRuntimeAvailability,
 ) {
   const errors: string[] = []
+  if (!isVideoOutputFormat(settings.outputFormat)) errors.push('请选择受支持的视频导出格式。')
   if (!runtime.ffmpegInstalled) errors.push('请先安装视频处理运行包。')
   if (settings.percent > 100 && !runtime.upscaylInstalled) {
     errors.push('超过 100% 的任务必须安装 Upscayl GPU 运行包。')

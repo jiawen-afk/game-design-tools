@@ -71,7 +71,7 @@ test('applied settings preserve each queued source aspect, FPS, and audio capabi
   const source = videoJob('source', 'queued')
   const other = videoJob('other', 'queued')
   other.input = { ...other.input, width: 1280, height: 720, averageFps: 24, hasAudio: false }
-  source.settings = { ...source.settings, percent: 50, width: 320, height: 180, targetFps: 30, audioMode: 'vorbis' }
+  source.settings = { ...source.settings, percent: 50, width: 320, height: 180, targetFps: 30, audioMode: 'keep' }
 
   const result = applySettingsToQueuedJobs([source, other], source.settings)
 

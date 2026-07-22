@@ -184,7 +184,12 @@ export function useVideoProcessingQueue({ ffmpegInstalled, upscaylInstalled }: U
         jobId: job.id,
         inputPath: job.input.path,
         outputDirectory: directory.path,
-        outputName: buildVideoOutputName(job.input.name, job.settings.percent, naming),
+        outputName: buildVideoOutputName(
+          job.input.name,
+          job.settings.percent,
+          naming,
+          job.settings.outputFormat,
+        ),
         probe: job.input,
         settings: job.settings,
       })

@@ -39,6 +39,7 @@ function sourceProbe(overrides = {}) {
 
 function settings(overrides = {}) {
   return {
+    outputFormat: 'ogv',
     percent: 50,
     width: 320,
     height: 180,
@@ -46,7 +47,7 @@ function settings(overrides = {}) {
     qualityPreset: 'balanced',
     targetMb: null,
     targetFps: 2,
-    audioMode: 'vorbis',
+    audioMode: 'keep',
     audioKbps: 96,
     upscaylModel: 'upscayl-standard-4x',
     gpuId: 'auto',
@@ -63,6 +64,22 @@ function rawOutputProbe(width = 320, height = 180, fps = '2/1', muted = false) {
     streams: [
       { codec_type: 'video', codec_name: 'theora', pix_fmt: 'yuv420p', width, height, avg_frame_rate: fps },
       ...(muted ? [] : [{ codec_type: 'audio', codec_name: 'vorbis', channels: 2, sample_rate: '48000' }]),
+    ],
+  }
+}
+
+function rawOutputProbeFor(format, width = 320, height = 180, fps = '2/1', muted = false) {
+  const profiles = {
+    ogv: { formatName: 'ogg', videoCodec: 'theora', audioCodec: 'vorbis' },
+    webm: { formatName: 'matroska,webm', videoCodec: 'vp9', audioCodec: 'opus' },
+    mp4: { formatName: 'mov,mp4,m4a,3gp,3g2,mj2', videoCodec: 'h264', audioCodec: 'aac' },
+  }
+  const profile = profiles[format]
+  return {
+    format: { format_name: profile.formatName, duration: '2', size: '6' },
+    streams: [
+      { codec_type: 'video', codec_name: profile.videoCodec, pix_fmt: 'yuv420p', width, height, r_frame_rate: fps, duration: '2' },
+      ...(muted ? [] : [{ codec_type: 'audio', codec_name: profile.audioCodec, duration: '2' }]),
     ],
   }
 }
@@ -176,6 +193,38 @@ test('conventional job encodes, verifies, moves output, and cleans temp files', 
   assert.equal(phases.includes('encoding'), true)
   assert.deepEqual(phases.slice(-2), ['verifying', 'completed'])
   assert.equal(fs.existsSync(resolveVideoProcessingTempRoot(fakeApp(root))), false)
+}))
+
+test('conventional jobs publish WebM and MP4 with their selected codecs and extensions', () => withTempManager(async (root) => {
+  const calls = []
+  const dependencies = managerDependencies(root, {
+    probeFile: async (filePath) => rawOutputProbeFor(path.extname(filePath).slice(1)),
+    runProcess: async (request) => {
+      calls.push(request)
+      const outputPath = request.args.at(-1)
+      if (/\.(webm|mp4)$/i.test(outputPath)) {
+        await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+        await fsp.writeFile(outputPath, 'output')
+      }
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  for (const item of [
+    { format: 'webm', encoder: 'libvpx-vp9', audio: 'libopus' },
+    { format: 'mp4', encoder: 'libopenh264', audio: 'aac' },
+  ]) {
+    const result = await manager.start(job(root, {
+      jobId: `job-${item.format}`,
+      outputName: `intro_50pct_balanced.${item.format}`,
+      settings: settings({ outputFormat: item.format }),
+    }))
+    assert.equal(path.extname(result.outputPath), `.${item.format}`)
+    const encode = calls.findLast((call) => call.args.at(-1).endsWith(`.${item.format}`))
+    assert.ok(encode.args.includes(item.encoder))
+    assert.ok(encode.args.includes(item.audio))
+  }
 }))
 
 test('rejects unsafe renderer job ids before creating filesystem paths', () => withTempManager(async (root) => {
@@ -376,6 +425,34 @@ test('target-size job retries once when the first output exceeds the size ceilin
   assert.equal(result.outputSize, 900_000)
 }))
 
+test('MP4 target-size job uses a single bitrate-controlled encode without pass flags', () => withTempManager(async (root) => {
+  const encodeCalls = []
+  const dependencies = managerDependencies(root, {
+    probeFile: async () => rawOutputProbeFor('mp4'),
+    runProcess: async ({ args }) => {
+      const outputPath = args.at(-1)
+      if (outputPath.endsWith('.mp4')) {
+        encodeCalls.push(args)
+        await fsp.mkdir(path.dirname(outputPath), { recursive: true })
+        await fsp.writeFile(outputPath, Buffer.alloc(900_000))
+      }
+      return { ok: true, output: '' }
+    },
+  })
+  const manager = createVideoProcessingJobManager(dependencies)
+
+  const result = await manager.start(job(root, {
+    jobId: 'target-size-mp4',
+    outputName: 'intro_50pct_target-1mb.mp4',
+    settings: settings({ outputFormat: 'mp4', qualityMode: 'target-size', targetMb: 1 }),
+  }))
+
+  assert.equal(encodeCalls.length, 1)
+  assert.equal(encodeCalls[0].includes('-pass'), false)
+  assert.ok(encodeCalls[0].includes('-b:v'))
+  assert.equal(result.outputSize, 900_000)
+}))
+
 test('target-size job rejects a retry that still exceeds the size ceiling', () => withTempManager(async (root) => {
   const dependencies = managerDependencies(root, {
     runProcess: async ({ args }) => {
@@ -442,7 +519,7 @@ test('no-audio source is muted and reduced FPS reaches the encoder', () => withT
     jobId: 'muted-reduced-fps',
     outputName: 'intro_12fps_muted.ogv',
     probe: sourceProbe({ averageFps: 30, hasAudio: false, audioCodec: '', audioChannels: 0, audioSampleRate: 0 }),
-    settings: settings({ targetFps: 12, audioMode: 'vorbis' }),
+    settings: settings({ targetFps: 12, audioMode: 'keep' }),
   }))
 
   assert.ok(encodeArgs.includes('-an'))

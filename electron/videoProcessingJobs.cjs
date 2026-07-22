@@ -7,10 +7,11 @@ const { spawn } = require('node:child_process')
 const {
   buildDecodeFramesArgs,
   buildProbeArgs,
-  buildTheoraEncodeArgs,
+  buildVideoEncodeArgs,
+  getVideoOutputProfile,
   mapProbeResult,
   parseFfmpegProgress,
-  verifyGodotOgvProbe,
+  verifyVideoOutputProbe,
 } = require('./videoProcessingCommands.cjs')
 const {
   getVideoRuntimeStatus,
@@ -23,7 +24,6 @@ const {
 
 const ONE_GIB = 1024 * 1024 * 1024
 const MIN_OUTPUT_ALLOWANCE = 256 * 1024 * 1024
-const THEORA_QUALITY = { high: 8, balanced: 6, extreme: 4 }
 
 function validateVideoJobId(value) {
   const id = String(value || '').trim()
@@ -107,21 +107,25 @@ function calculateTargetVideoBitrateKbps(targetMb, durationSeconds, audioKbps) {
   return videoKbps
 }
 
-function sanitizeOutputName(value) {
-  const baseName = path.basename(String(value || 'video.ogv'))
+function sanitizeOutputName(value, outputFormat) {
+  const profile = getVideoOutputProfile(outputFormat)
+  const fallbackName = `video.${profile.extension}`
+  const baseName = path.basename(String(value || fallbackName))
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
     .replace(/[. ]+$/g, '')
-  const withoutExtension = path.basename(baseName || 'video', path.extname(baseName || 'video'))
-  return `${withoutExtension || 'video'}.ogv`
+  const withoutExtension = path.basename(baseName || fallbackName, path.extname(baseName || fallbackName))
+  return `${withoutExtension || 'video'}.${profile.extension}`
 }
 
-async function resolveCollisionFreeOutputPath(outputDirectory, outputName) {
-  const safeName = sanitizeOutputName(outputName)
+async function resolveCollisionFreeOutputPath(outputDirectory, outputName, outputFormat) {
+  const profile = getVideoOutputProfile(outputFormat)
+  const safeName = sanitizeOutputName(outputName, outputFormat)
   const initial = path.join(outputDirectory, safeName)
   if (!fs.existsSync(initial)) return initial
-  const base = path.basename(safeName, '.ogv')
+  const extension = `.${profile.extension}`
+  const base = path.basename(safeName, extension)
   for (let suffix = 2; suffix < Number.MAX_SAFE_INTEGER; suffix += 1) {
-    const candidate = path.join(outputDirectory, `${base}-${suffix}.ogv`)
+    const candidate = path.join(outputDirectory, `${base}-${suffix}${extension}`)
     if (!fs.existsSync(candidate)) return candidate
   }
   throw new Error('无法生成不重复的输出文件名。')
@@ -269,12 +273,17 @@ function createVideoProcessingJobManager(inputDependencies) {
   }
 
   async function encodeOnce(job, runtime, encodeOptions, phase) {
-    const args = buildTheoraEncodeArgs(encodeOptions)
+    const profile = getVideoOutputProfile(encodeOptions.outputFormat)
+    const args = buildVideoEncodeArgs(encodeOptions)
     await executeProcess(job, runtime.ffmpegPath, args, {
       phase,
       durationSeconds: job.options.probe.durationSeconds,
-      message: phase === 'encoding-pass-1' ? '正在执行第一遍编码。' : phase === 'encoding-pass-2' ? '正在执行第二遍编码。' : '正在编码 OGV。',
-      failureMessage: 'OGV 编码失败。',
+      message: phase === 'encoding-pass-1'
+        ? `正在执行 ${profile.videoLabel} 第一遍编码。`
+        : phase === 'encoding-pass-2'
+          ? `正在执行 ${profile.videoLabel} 第二遍编码。`
+          : `正在编码 ${profile.containerLabel}。`,
+      failureMessage: `${profile.containerLabel} 编码失败。`,
     })
   }
 
@@ -283,6 +292,7 @@ function createVideoProcessingJobManager(inputDependencies) {
     const muted = options.settings.audioMode === 'mute' || !options.probe.hasAudio
     const common = {
       ...videoInput,
+      outputFormat: options.settings.outputFormat,
       outputPath: temporaryOutputPath,
       width: options.settings.width,
       height: options.settings.height,
@@ -293,7 +303,7 @@ function createVideoProcessingJobManager(inputDependencies) {
     if (options.settings.qualityMode !== 'target-size') {
       await encodeOnce(job, runtime, {
         ...common,
-        quality: THEORA_QUALITY[options.settings.qualityPreset] || THEORA_QUALITY.balanced,
+        qualityPreset: options.settings.qualityPreset,
       }, 'encoding')
       return null
     }
@@ -304,7 +314,15 @@ function createVideoProcessingJobManager(inputDependencies) {
       options.probe.durationSeconds,
       audioKbps,
     )
-    const passlogPath = path.join(job.tempDir, 'theora-pass')
+    const profile = getVideoOutputProfile(options.settings.outputFormat)
+    if (!profile.supportsTwoPass) {
+      await encodeOnce(job, runtime, {
+        ...common,
+        videoBitrateKbps,
+      }, 'encoding')
+      return videoBitrateKbps
+    }
+    const passlogPath = path.join(job.tempDir, `${options.settings.outputFormat}-pass`)
     await encodeOnce(job, runtime, {
       ...common,
       outputPath: 'NUL',
@@ -490,15 +508,18 @@ function createVideoProcessingJobManager(inputDependencies) {
       emit(id, 'checking', 0, '正在检查运行环境。')
       const runtime = await dependencies.getVideoRuntimeStatus(dependencies.app)
       if (!runtime?.installed) throw new Error('请先安装视频处理运行包。')
+      const outputProfile = getVideoOutputProfile(options.settings.outputFormat)
       await fsp.mkdir(tempDir, { recursive: true })
       await fsp.mkdir(options.outputDirectory, { recursive: true })
-      const temporaryOutputPath = path.join(tempDir, 'output.ogv')
+      const temporaryOutputPath = path.join(tempDir, `output.${outputProfile.extension}`)
       const scale = getUpscaleScale(options.settings.percent)
       await preflightStorage(job, scale)
       const pipelineResult = scale
         ? await runAiPipeline(job, runtime, temporaryOutputPath)
         : await runConventionalPipeline(job, runtime, temporaryOutputPath)
-      if (!fs.existsSync(temporaryOutputPath)) throw new Error('视频编码完成，但没有生成 OGV 输出。')
+      if (!fs.existsSync(temporaryOutputPath)) {
+        throw new Error(`视频编码完成，但没有生成 ${outputProfile.containerLabel} 输出。`)
+      }
 
       if (options.settings.qualityMode === 'target-size') {
         await retryTargetSizeIfNeeded(
@@ -510,15 +531,20 @@ function createVideoProcessingJobManager(inputDependencies) {
         )
       }
 
-      emit(id, 'verifying', 0, '正在验证 Godot OGV 输出。')
+      emit(id, 'verifying', 0, `正在验证 ${outputProfile.containerLabel} 输出。`)
       const rawProbe = await probeFile(runtime, temporaryOutputPath, controller.signal)
-      verifyGodotOgvProbe(rawProbe, {
+      verifyVideoOutputProbe(rawProbe, {
+        outputFormat: options.settings.outputFormat,
         width: options.settings.width,
         height: options.settings.height,
         fps: options.settings.targetFps,
         muted: options.settings.audioMode === 'mute' || !options.probe.hasAudio,
       })
-      const finalPath = await resolveCollisionFreeOutputPath(options.outputDirectory, options.outputName)
+      const finalPath = await resolveCollisionFreeOutputPath(
+        options.outputDirectory,
+        options.outputName,
+        options.settings.outputFormat,
+      )
       await moveFileAtomically(temporaryOutputPath, finalPath, internalId)
       const outputStat = await fsp.stat(finalPath)
       emit(id, 'completed', 100, '处理完成。')

@@ -44,10 +44,10 @@ export const tools: AppTool[] = [
   {
     id: 'video-processing',
     name: '视频处理工作台',
-    summary: '批量缩放、GPU 超分和压缩视频，导出 Godot 原生播放格式。',
-    details: '支持百分比或目标分辨率、三档质量、目标文件大小、帧率和音频设置。',
+    summary: '批量缩放、GPU 超分和压缩视频，按用途导出 OGV、WebM 或 MP4。',
+    details: '支持百分比或目标分辨率、三档质量、目标文件大小、帧率、音频和格式兼容性提示。',
     input: 'MP4、MOV、MKV、WebM、AVI、OGV 等常见视频',
-    output: 'Godot 4.6 可用的 OGV 视频',
+    output: 'Godot 4.6 OGV，以及 WebM 和 MP4 视频',
     shortcut: '4',
   },
 ]

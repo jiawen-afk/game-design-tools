@@ -35,6 +35,9 @@ test('site footer exposes an about dialog with the project open source software 
     'Upscayl',
     'NCNN',
     'FFmpeg',
+    'libvpx',
+    'Opus',
+    'OpenH264',
     'libwebp',
     'oxipng',
     'BiRefNet',
@@ -126,12 +129,12 @@ test('desktop client exposes version and auto update controls through the footer
   assert.doesNotMatch(appUpdateIpcSource, /正在下载更新 \$\{Math\.round\(percent\)\}%。/)
 })
 
-test('bilingual readmes describe the 0.7.1 runtime and Godot workflows', () => {
+test('bilingual readmes describe the 0.7.3 runtime and Godot workflows', () => {
   const englishReadme = readFileSync('README.md', 'utf8')
   const chineseReadme = readFileSync('README.zh-CN.md', 'utf8')
 
   for (const source of [englishReadme, chineseReadme]) {
-    assert.match(source, /0\.7\.1/)
+    assert.match(source, /0\.7\.3/)
     assert.match(source, /Upscayl/)
     assert.match(source, /FFmpeg/)
     assert.match(source, /FFprobe/)

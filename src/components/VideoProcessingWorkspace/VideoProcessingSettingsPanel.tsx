@@ -8,13 +8,13 @@ import {
   type VideoQualityMode,
   type VideoQualityPreset,
 } from './videoProcessingModel'
+import {
+  VIDEO_OUTPUT_FORMATS,
+  getVideoOutputFormatDefinition,
+  getVideoQualityOptions,
+  type VideoOutputFormat,
+} from './videoProcessingOutputFormatModel'
 import type { VideoProcessingWorkspaceViewModel } from './useVideoProcessingWorkspace'
-
-const qualityOptions = [
-  { label: '高画质', value: 'high', help: 'Theora q:v 8，文件更大' },
-  { label: '均衡', value: 'balanced', help: 'Theora q:v 6' },
-  { label: '极限压缩', value: 'extreme', help: 'Theora q:v 4，文件更小' },
-]
 
 export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoProcessingWorkspaceViewModel }) {
   const job = workspace.selectedJob
@@ -31,6 +31,8 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
   const disabled = !workspace.selectedEditable
   const queuedCount = workspace.jobs.filter((item) => item.phase === 'queued').length
   const upscaleScale = getUpscaleScaleForPercent(settings.percent)
+  const outputFormat = getVideoOutputFormatDefinition(settings.outputFormat)
+  const qualityOptions = getVideoQualityOptions(settings.outputFormat)
   const models = workspace.upscaleRuntimeStatus?.models?.length
     ? workspace.upscaleRuntimeStatus.models
     : ['upscayl-standard-4x', 'upscayl-lite-4x', 'high-fidelity-4x', 'remacri-4x', 'ultramix-balanced-4x', 'ultrasharp-4x', 'digital-art-4x']
@@ -54,6 +56,32 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
           {disabled && <Tooltip title="仅等待中的任务可以修改参数"><LockOutlined /></Tooltip>}
         </div>
       </div>
+
+      <section className="video-settings-section" aria-labelledby="video-output-format-title">
+        <div className="video-settings-section-title">
+          <h3 id="video-output-format-title">导出格式</h3>
+          <span>.{outputFormat.extension}</span>
+        </div>
+        <label className="video-field">
+          <span>容器与编码</span>
+          <Select
+            value={settings.outputFormat}
+            disabled={disabled}
+            onChange={(value: VideoOutputFormat) => workspace.updateSettings({ outputFormat: value })}
+            options={VIDEO_OUTPUT_FORMATS.map((item) => ({
+              label: `${item.label} · ${item.videoCodec} + ${item.audioCodec}`,
+              value: item.format,
+            }))}
+          />
+        </label>
+        <div className="video-format-summary" role="status">
+          <strong>{outputFormat.label} · {outputFormat.videoCodec} + {outputFormat.audioCodec}</strong>
+          <span>{outputFormat.compatibility}</span>
+        </div>
+        {outputFormat.patentNotice && (
+          <Alert type="warning" showIcon message={outputFormat.patentNotice} />
+        )}
+      </section>
 
       <section className="video-settings-section" aria-labelledby="video-resize-title">
         <div className="video-settings-section-title">
@@ -111,7 +139,10 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
       </section>
 
       <section className="video-settings-section" aria-labelledby="video-compression-title">
-        <div className="video-settings-section-title"><h3 id="video-compression-title">Theora 压缩</h3></div>
+        <div className="video-settings-section-title">
+          <h3 id="video-compression-title">{outputFormat.compressionLabel} 压缩</h3>
+          <span>{settings.qualityMode === 'target-size' && outputFormat.supportsTwoPassTargetSize ? '双遍编码' : '单遍编码'}</span>
+        </div>
         <Radio.Group
           block
           optionType="button"
@@ -148,7 +179,9 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
               disabled={disabled}
               onChange={(value) => workspace.updateSettings({ targetMb: value === null ? null : Number(value) })}
             />
-            <small>使用双遍编码，超出目标 2% 时自动重试一次。</small>
+            <small>
+              {outputFormat.supportsTwoPassTargetSize ? '使用双遍编码' : '使用目标码率编码'}，超出目标 2% 时自动重试一次。
+            </small>
           </label>
         )}
       </section>
@@ -174,13 +207,13 @@ export function VideoProcessingSettingsPanel({ workspace }: { workspace: VideoPr
               value={settings.audioMode}
               disabled={disabled || !input.hasAudio}
               onChange={(value: VideoAudioMode) => workspace.updateSettings({ audioMode: value })}
-              options={[{ label: 'Vorbis', value: 'vorbis' }, { label: '静音', value: 'mute' }]}
+              options={[{ label: `${outputFormat.audioCodec}（保留音频）`, value: 'keep' }, { label: '静音', value: 'mute' }]}
             />
           </label>
         </div>
-        {settings.audioMode === 'vorbis' && input.hasAudio && (
+        {settings.audioMode === 'keep' && input.hasAudio && (
           <label className="video-field">
-            <span>Vorbis 码率</span>
+            <span>{outputFormat.audioCodec} 码率</span>
             <Select
               value={settings.audioKbps}
               disabled={disabled}

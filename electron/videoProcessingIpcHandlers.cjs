@@ -5,6 +5,7 @@ const path = require('node:path')
 const {
   buildPreviewArgs,
   buildProbeArgs,
+  getVideoOutputProfile,
   mapProbeResult,
 } = require('./videoProcessingCommands.cjs')
 const {
@@ -101,12 +102,13 @@ function normalizeVideoSettings(settings, nativeProbe) {
   const targetFps = Number(settings.targetFps)
   if (!Number.isFinite(targetFps) || targetFps < 1) throw new Error('目标帧率必须大于或等于 1。')
   if (targetFps > nativeProbe.averageFps) throw new Error('目标帧率不能高于源视频帧率。')
+  getVideoOutputProfile(settings.outputFormat)
   if (!['quality', 'target-size'].includes(settings.qualityMode)) throw new Error('视频压缩模式无效。')
-  if (!['high', 'balanced', 'extreme'].includes(settings.qualityPreset)) throw new Error('Theora 质量预设无效。')
+  if (!['high', 'balanced', 'extreme'].includes(settings.qualityPreset)) throw new Error('视频质量预设无效。')
   if (settings.qualityMode === 'target-size' && (!Number.isFinite(Number(settings.targetMb)) || Number(settings.targetMb) <= 0)) {
     throw new Error('请输入大于 0 的目标文件大小。')
   }
-  if (!['vorbis', 'mute'].includes(settings.audioMode) || ![64, 96, 128, 160].includes(Number(settings.audioKbps))) {
+  if (!['keep', 'mute'].includes(settings.audioMode) || ![64, 96, 128, 160].includes(Number(settings.audioKbps))) {
     throw new Error('音频设置无效。')
   }
   if (!upscaylModels.includes(String(settings.upscaylModel))
@@ -248,7 +250,7 @@ function registerVideoProcessingIpcHandlers({ app, BrowserWindow, dialog, ipcMai
   ipcMain.handle('video-processing:choose-output-directory', async () => {
     const rememberedDirectory = await outputDirectorySession.restore()
     const result = await dialog.showOpenDialog({
-      title: '选择 OGV 输出目录',
+      title: '选择视频输出目录',
       defaultPath: rememberedDirectory?.path,
       properties: ['openDirectory', 'createDirectory'],
     })

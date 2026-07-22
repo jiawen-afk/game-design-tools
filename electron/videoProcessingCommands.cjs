@@ -89,7 +89,62 @@ function buildDecodeFramesArgs(options) {
   ]
 }
 
-function buildTheoraEncodeArgs(options) {
+const VIDEO_OUTPUT_PROFILES = Object.freeze({
+  ogv: Object.freeze({
+    extension: 'ogv',
+    muxer: 'ogg',
+    formatNames: ['ogg'],
+    container: 'ogg',
+    containerLabel: 'Ogg',
+    videoEncoder: 'libtheora',
+    videoCodec: 'theora',
+    videoLabel: 'Theora',
+    audioEncoder: 'libvorbis',
+    audioCodec: 'vorbis',
+    audioLabel: 'Vorbis',
+    qualityValues: { high: 8, balanced: 6, extreme: 4 },
+    supportsTwoPass: true,
+  }),
+  webm: Object.freeze({
+    extension: 'webm',
+    muxer: 'webm',
+    formatNames: ['webm'],
+    container: 'webm',
+    containerLabel: 'WebM',
+    videoEncoder: 'libvpx-vp9',
+    videoCodec: 'vp9',
+    videoLabel: 'VP9',
+    audioEncoder: 'libopus',
+    audioCodec: 'opus',
+    audioLabel: 'Opus',
+    qualityValues: { high: 24, balanced: 32, extreme: 40 },
+    supportsTwoPass: true,
+  }),
+  mp4: Object.freeze({
+    extension: 'mp4',
+    muxer: 'mp4',
+    formatNames: ['mp4'],
+    container: 'mp4',
+    containerLabel: 'MP4',
+    videoEncoder: 'libopenh264',
+    videoCodec: 'h264',
+    videoLabel: 'H.264',
+    audioEncoder: 'aac',
+    audioCodec: 'aac',
+    audioLabel: 'AAC',
+    qualityValues: { high: 18, balanced: 24, extreme: 30 },
+    supportsTwoPass: false,
+  }),
+})
+
+function getVideoOutputProfile(outputFormat) {
+  const profile = VIDEO_OUTPUT_PROFILES[String(outputFormat || '')]
+  if (!profile) throw new Error(`不支持的视频导出格式：${String(outputFormat || '')}`)
+  return profile
+}
+
+function buildVideoEncodeArgs(options) {
+  const profile = getVideoOutputProfile(options.outputFormat)
   const args = ['-y']
   const fps = formatNumber(options.fps)
   const usingFrames = Boolean(options.framePattern)
@@ -110,17 +165,30 @@ function buildTheoraEncodeArgs(options) {
   }
   args.push(
     '-vf', `scale=${Number(options.width)}:${Number(options.height)}:flags=lanczos,fps=${fps}`,
-    '-c:v', 'libtheora',
+    '-c:v', profile.videoEncoder,
     '-pix_fmt', 'yuv420p',
   )
 
   if (Number.isFinite(Number(options.videoBitrateKbps)) && Number(options.videoBitrateKbps) > 0) {
     args.push('-b:v', `${Math.round(Number(options.videoBitrateKbps))}k`)
+  } else if (profile.videoCodec === 'vp9') {
+    const quality = profile.qualityValues[options.qualityPreset] ?? profile.qualityValues.balanced
+    args.push('-crf', String(quality), '-b:v', '0')
   } else {
-    args.push('-q:v', String(Number(options.quality || 6)))
+    const quality = Number.isFinite(Number(options.qualityValue))
+      ? Number(options.qualityValue)
+      : profile.qualityValues[options.qualityPreset] ?? profile.qualityValues.balanced
+    args.push('-q:v', String(quality))
+  }
+
+  if (profile.videoCodec === 'vp9') {
+    args.push('-deadline', 'good', '-cpu-used', '2', '-row-mt', '1')
+  } else if (profile.videoCodec === 'h264') {
+    args.push('-profile:v', 'high', '-coder', 'cabac')
   }
 
   if (options.pass === 1 || options.pass === 2) {
+    if (!profile.supportsTwoPass) throw new Error(`${profile.videoLabel} 编码不支持双遍模式。`)
     if (!options.passlogPath) throw new Error('双遍编码缺少 passlog 路径。')
     args.push('-pass', String(options.pass), '-passlogfile', String(options.passlogPath))
   }
@@ -128,9 +196,13 @@ function buildTheoraEncodeArgs(options) {
   if (options.pass === 1) {
     args.push('-an', '-f', 'null')
   } else if (options.muted) {
-    args.push('-an', '-f', 'ogg')
+    args.push('-an')
   } else {
-    args.push('-c:a', 'libvorbis', '-b:a', `${Number(options.audioKbps || 96)}k`, '-ac', '2', '-f', 'ogg')
+    args.push('-c:a', profile.audioEncoder, '-b:a', `${Number(options.audioKbps || 96)}k`, '-ac', '2')
+  }
+  if (options.pass !== 1) {
+    if (profile.videoCodec === 'h264') args.push('-movflags', '+faststart')
+    args.push('-f', profile.muxer)
   }
   const outputDurationSeconds = Number(options.outputDurationSeconds)
   if (Number.isFinite(outputDurationSeconds) && outputDurationSeconds > 0) {
@@ -138,6 +210,14 @@ function buildTheoraEncodeArgs(options) {
   }
   args.push('-progress', 'pipe:1', '-nostats', String(options.outputPath))
   return args
+}
+
+function buildTheoraEncodeArgs(options) {
+  return buildVideoEncodeArgs({
+    ...options,
+    outputFormat: 'ogv',
+    qualityValue: options.quality,
+  })
 }
 
 function parseProgressPairs(text) {
@@ -165,14 +245,17 @@ function parseFfmpegProgress(text, durationSeconds) {
   return { completedSeconds: roundTo(completedSeconds), percent, done }
 }
 
-function verifyGodotOgvProbe(payload, expected) {
+function verifyVideoOutputProbe(payload, expected) {
+  const profile = getVideoOutputProfile(expected.outputFormat)
   const formatNames = String(payload?.format?.format_name || '').split(',')
-  if (!formatNames.includes('ogg')) throw new Error('输出容器不是 Ogg。')
+  if (!profile.formatNames.some((name) => formatNames.includes(name))) {
+    throw new Error(`输出容器不是 ${profile.containerLabel}。`)
+  }
   const streams = Array.isArray(payload?.streams) ? payload.streams : []
   const videoStreams = streams.filter((stream) => stream?.codec_type === 'video')
   if (videoStreams.length !== 1) throw new Error('输出必须只包含一个视频流。')
   const video = videoStreams[0]
-  if (video.codec_name !== 'theora') throw new Error('输出视频编码不是 Theora。')
+  if (video.codec_name !== profile.videoCodec) throw new Error(`输出视频编码不是 ${profile.videoLabel}。`)
   if (video.pix_fmt !== 'yuv420p') throw new Error('输出像素格式不是 yuv420p。')
   if (Number(video.width) !== Number(expected.width) || Number(video.height) !== Number(expected.height)) {
     throw new Error('输出分辨率与目标分辨率不一致。')
@@ -194,11 +277,13 @@ function verifyGodotOgvProbe(payload, expected) {
   const audioStreams = streams.filter((stream) => stream?.codec_type === 'audio')
   if (expected.muted && audioStreams.length > 0) throw new Error('静音输出不应包含音轨。')
   if (!expected.muted) {
-    if (audioStreams.length !== 1) throw new Error('输出必须包含一个 Vorbis 音轨。')
-    if (audioStreams[0].codec_name !== 'vorbis') throw new Error('输出音频编码不是 Vorbis。')
+    if (audioStreams.length !== 1) throw new Error(`输出必须包含一个 ${profile.audioLabel} 音轨。`)
+    if (audioStreams[0].codec_name !== profile.audioCodec) {
+      throw new Error(`输出音频编码不是 ${profile.audioLabel}。`)
+    }
   }
   const unsupportedStreams = streams.filter((stream) => !['video', 'audio'].includes(stream?.codec_type))
-  if (unsupportedStreams.length > 0) throw new Error('输出包含 Godot 视频不需要的额外媒体流。')
+  if (unsupportedStreams.length > 0) throw new Error('输出包含不需要的额外媒体流。')
 
   const declaredVideoDuration = Number(video.duration || 0)
   const frameCount = Number(video.nb_frames || 0)
@@ -226,8 +311,8 @@ function verifyGodotOgvProbe(payload, expected) {
   }
 
   return {
-    container: 'ogg',
-    videoCodec: 'theora',
+    container: profile.container,
+    videoCodec: profile.videoCodec,
     pixelFormat: 'yuv420p',
     width: Number(video.width),
     height: Number(video.height),
@@ -239,13 +324,20 @@ function verifyGodotOgvProbe(payload, expected) {
   }
 }
 
+function verifyGodotOgvProbe(payload, expected) {
+  return verifyVideoOutputProbe(payload, { ...expected, outputFormat: 'ogv' })
+}
+
 module.exports = {
   buildDecodeFramesArgs,
   buildPreviewArgs,
   buildProbeArgs,
   buildTheoraEncodeArgs,
+  buildVideoEncodeArgs,
+  getVideoOutputProfile,
   mapProbeResult,
   parseFfmpegProgress,
   parseRational,
   verifyGodotOgvProbe,
+  verifyVideoOutputProbe,
 }

@@ -19,7 +19,7 @@ export function VideoProcessingToolbar({ workspace }: { workspace: VideoProcessi
     <header className="video-processing-toolbar">
       <div className="video-processing-heading">
         <strong>视频处理工作台</strong>
-        <span>缩放、GPU 超分和 Theora 压缩，固定导出 Godot 4.6 原生 OGV。</span>
+        <span>缩放、GPU 超分和格式化压缩；OGV 用于 Godot 4.6 原生播放，另支持 WebM 与 MP4。</span>
       </div>
 
       <div className="video-processing-runtime-strip" aria-label="运行包状态">
